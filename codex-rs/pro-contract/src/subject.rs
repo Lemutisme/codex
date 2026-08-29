@@ -55,9 +55,6 @@ impl ArtifactSpec {
     pub fn new(paths: impl IntoIterator<Item = ArtifactPath>) -> Result<Self, SubjectError> {
         let mut paths = paths.into_iter().collect::<Vec<_>>();
         paths.sort();
-        if paths.is_empty() {
-            return Err(SubjectError::EmptyArtifactSpec);
-        }
         if paths.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(SubjectError::DuplicateArtifactPath);
         }
@@ -134,8 +131,6 @@ enum EntryKind {
 pub enum SubjectError {
     #[error("artifact path is not a normalized relative path: {0}")]
     InvalidArtifactPath(String),
-    #[error("an artifact specification cannot be empty")]
-    EmptyArtifactSpec,
     #[error("artifact paths must be unique")]
     DuplicateArtifactPath,
     #[error("declared artifact is missing: {0}")]

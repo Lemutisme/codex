@@ -27,6 +27,16 @@ pub struct LedgerEvent {
     pub decision: Decision,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QuietSnapshot {
+    pub scope: String,
+    pub quiet: bool,
+    pub frontier: u64,
+    pub ledger_hash: String,
+    pub state_hash: String,
+    pub outstanding: Vec<String>,
+}
+
 #[derive(Debug, Error)]
 pub enum LedgerError {
     #[error("contract command targets a different scope")]
@@ -160,6 +170,53 @@ impl Ledger {
             })
             .collect()
     }
+
+    pub async fn quiet(&self, scope: &str) -> Result<QuietSnapshot, LedgerError> {
+        let row = sqlx::query(
+            "SELECT state_json, ledger_head, next_sequence
+             FROM pro_contract_projection WHERE scope = ?",
+        )
+        .bind(scope)
+        .fetch_optional(&self.pool)
+        .await?;
+        let (state, encoded, ledger_hash, frontier) = match row {
+            Some(row) => {
+                let encoded: String = row.try_get("state_json")?;
+                let state = serde_json::from_str(&encoded)?;
+                (
+                    state,
+                    encoded,
+                    row.try_get("ledger_head")?,
+                    row.try_get::<i64, _>("next_sequence")? as u64,
+                )
+            }
+            None => {
+                let state = State::default();
+                let encoded = serde_json::to_string(&state)?;
+                (state, encoded, EMPTY_LEDGER_HEAD.to_string(), 0)
+            }
+        };
+        let outstanding = state
+            .contracts
+            .values()
+            .filter(|contract| {
+                contract.scope == scope
+                    && !matches!(
+                        contract.status,
+                        crate::Status::Discharged | crate::Status::Released
+                    )
+            })
+            .map(|contract| contract.id.clone())
+            .collect::<Vec<_>>();
+        Ok(QuietSnapshot {
+            scope: scope.to_string(),
+            quiet: outstanding.is_empty(),
+            frontier,
+            ledger_hash,
+            state_hash: format!("{:x}", Sha256::digest(encoded.as_bytes())),
+            outstanding,
+        })
+    }
 }
 
 fn command_matches_scope(state: &State, scope: &str, command: &Command) -> bool {
@@ -167,9 +224,13 @@ fn command_matches_scope(state: &State, scope: &str, command: &Command) -> bool 
         Command::Issue { draft, .. } => draft.scope == scope,
         Command::Activate { contract_id, .. }
         | Command::ReportReady { contract_id, .. }
+        | Command::ReportBlocked { contract_id, .. }
+        | Command::PetitionRevision { contract_id, .. }
+        | Command::DecideRevision { contract_id, .. }
         | Command::Discharge { contract_id, .. }
         | Command::Challenge { contract_id, .. }
         | Command::Resume { contract_id, .. }
+        | Command::Escalate { contract_id, .. }
         | Command::Release { contract_id, .. } => state
             .contracts
             .get(contract_id)

@@ -788,6 +788,60 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadReadResponse,
     },
+    #[experimental("proContract/issue")]
+    ProContractIssue => "proContract/issue" {
+        params: v2::ProContractIssueParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractIssueResponse,
+    },
+    #[experimental("proContract/read")]
+    ProContractRead => "proContract/read" {
+        params: v2::ProContractReadParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractReadResponse,
+    },
+    #[experimental("proContract/quiet")]
+    ProContractQuiet => "proContract/quiet" {
+        params: v2::ProContractQuietParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractQuietResponse,
+    },
+    #[experimental("proContract/handoff/materialize")]
+    ProContractHandoffMaterialize => "proContract/handoff/materialize" {
+        params: v2::ProContractHandoffMaterializeParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractHandoffMaterializeResponse,
+    },
+    #[experimental("proContract/attest")]
+    ProContractAttest => "proContract/attest" {
+        params: v2::ProContractAttestParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractAttestResponse,
+    },
+    #[experimental("proContract/challenge")]
+    ProContractChallenge => "proContract/challenge" {
+        params: v2::ProContractChallengeParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractChallengeResponse,
+    },
+    #[experimental("proContract/revision/decide")]
+    ProContractRevisionDecide => "proContract/revision/decide" {
+        params: v2::ProContractRevisionDecideParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractRevisionDecideResponse,
+    },
+    #[experimental("proContract/resume")]
+    ProContractResume => "proContract/resume" {
+        params: v2::ProContractResumeParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractResumeResponse,
+    },
+    #[experimental("proContract/release")]
+    ProContractRelease => "proContract/release" {
+        params: v2::ProContractReleaseParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ProContractReleaseResponse,
+    },
     ThreadTurnsList => "thread/turns/list" {
         params: v2::ThreadTurnsListParams,
         // Explicitly concurrent: this primarily reads append-only rollout storage.
