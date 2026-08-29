@@ -289,6 +289,8 @@ pub enum Feature {
     GuardianExt,
     /// Enable persisted thread goals and automatic goal continuation.
     Goals,
+    /// Enable executor-independent contract settlement for local workspaces.
+    ProContract,
     /// Add current context-window metadata to model-visible context.
     TokenBudget,
     /// Track and report a shared token budget across a session's agent threads.
@@ -1444,6 +1446,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "goals",
         stage: Stage::Stable,
         default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::ProContract,
+        key: "pro_contract",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::TokenBudget,

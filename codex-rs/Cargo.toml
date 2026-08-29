@@ -65,6 +65,7 @@ members = [
     "ext/memories",
     "ext/mcp",
     "ext/queue",
+    "ext/pro-contract",
     "ext/skills",
     "ext/web-search",
     "external-agent-migration",
@@ -83,6 +84,7 @@ members = [
     "network-proxy",
     "ollama",
     "process-hardening",
+    "pro-contract",
     "protocol",
     "prompts",
     "rollout",
@@ -229,8 +231,10 @@ codex-network-proxy = { path = "network-proxy" }
 codex-ollama = { path = "ollama" }
 codex-otel = { path = "otel" }
 codex-plugin = { path = "plugin" }
+codex-pro-contract-extension = { path = "ext/pro-contract" }
 codex-model-provider = { path = "model-provider" }
 codex-process-hardening = { path = "process-hardening" }
+codex-pro-contract = { path = "pro-contract" }
 codex-protocol = { path = "protocol" }
 codex-prompts = { path = "prompts" }
 codex-queue-extension = { path = "ext/queue" }
