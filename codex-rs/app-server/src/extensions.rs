@@ -91,6 +91,14 @@ where
             },
         );
     }
+    codex_pro_contract_extension::install(&mut builder, |config: &Config| {
+        codex_pro_contract_extension::ProContractExtensionConfig {
+            enabled: config
+                .features
+                .enabled(codex_features::Feature::ProContract),
+            sqlite: config.sqlite.clone(),
+        }
+    });
     codex_git_attribution::install(
         &mut builder,
         auth_manager.clone(),
