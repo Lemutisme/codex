@@ -70,6 +70,7 @@ mod plugin_reconcile;
 mod plugin_search;
 mod plugin_share;
 mod plugin_uninstall;
+mod pro_contract;
 mod process_exec;
 mod projects;
 mod rate_limit_reset_credits;
