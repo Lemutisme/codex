@@ -202,6 +202,9 @@ Example with notification opt-out:
 - `thread/goal/clear` — clear the current persisted goal for a materialized thread; returns whether a goal was removed and emits `thread/goal/cleared` when state changes. Parent-owned Multi-Agent V2 subagents reject goal clearing, including while unloaded.
 - `thread/goal/updated` — notification emitted whenever a thread goal changes; includes the full current goal.
 - `thread/goal/cleared` — notification emitted whenever a thread goal is removed.
+- `proContract/issue` (experimental) — admit an exact Contract for a loaded principal thread and start its isolated executor. `executionPolicy` is stored only on the execution binding; it is not part of `spec`, `specHash`, revision, evidence, or settlement. The app-server client is the Principal boundary; model-visible Contract formation is disabled in this adapter.
+- `proContract/read`, `proContract/quiet`, and `proContract/handoff/materialize` (experimental) — inspect the exact Contract, live execution counters/lease, and frontier-relative quiet certificate, or materialize the immutable handoff into a new host-local absolute path for independent evaluation.
+- `proContract/attest`, `proContract/challenge`, `proContract/revision/decide`, `proContract/resume`, and `proContract/release` (experimental) — Principal-only settlement and responsibility transitions. Executors receive only status, ready, blocked, and revision-petition tools and cannot invoke these RPC methods through model tools.
 - `thread/queue/add` — experimental; persist a user turn for automatic FIFO submission when the thread next becomes idle.
 - `thread/queue/list` — experimental; return one page of a thread's queued turns.
 - `thread/queue/update` — experimental; edit a queued turn while preserving its stable submission ID, client message ID, and position.

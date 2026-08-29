@@ -50,6 +50,7 @@ pub(crate) struct ThreadExtensionDependencies {
     pub(crate) http_client_factory: HttpClientFactory,
     /// Process-scoped queue shared by idle dispatch and app-server requests.
     pub(crate) queue_service: Option<Arc<QueuedItemService>>,
+    pub(crate) pro_contract_controller: codex_pro_contract_extension::ProContractController,
 }
 
 pub(crate) fn thread_extensions<S>(
@@ -71,6 +72,7 @@ where
         git_attribution_base_url,
         http_client_factory,
         queue_service,
+        pro_contract_controller,
     } = dependencies;
     let mut builder = ExtensionRegistryBuilder::<Config>::with_event_sink(Arc::clone(&event_sink));
     if let Some(queue_service) = queue_service {
@@ -91,14 +93,21 @@ where
             },
         );
     }
-    codex_pro_contract_extension::install(&mut builder, |config: &Config| {
-        codex_pro_contract_extension::ProContractExtensionConfig {
+    let pro_contract_environment_manager = Arc::clone(&environment_manager);
+    codex_pro_contract_extension::install_with_controller(
+        &mut builder,
+        move |config: &Config| codex_pro_contract_extension::ProContractExtensionConfig {
             enabled: config
                 .features
                 .enabled(codex_features::Feature::ProContract),
             sqlite: config.sqlite.clone(),
-        }
-    });
+            environment_manager: Arc::clone(&pro_contract_environment_manager),
+            executor_config: config.clone(),
+            proposal_mode: codex_pro_contract_extension::ProContractProposalMode::PrincipalOnly,
+        },
+        internal_session_spawner(thread_manager.clone()),
+        pro_contract_controller,
+    );
     codex_git_attribution::install(
         &mut builder,
         auth_manager.clone(),

@@ -39,6 +39,7 @@ use crate::request_processors::McpEventStreamReady;
 use crate::request_processors::McpEventStreams;
 use crate::request_processors::McpRequestProcessor;
 use crate::request_processors::PluginRequestProcessor;
+use crate::request_processors::ProContractRequestProcessor;
 use crate::request_processors::ProcessExecRequestProcessor;
 use crate::request_processors::ProjectRequestProcessor;
 use crate::request_processors::RemoteControlRequestProcessor;
@@ -162,6 +163,7 @@ pub(crate) struct MessageProcessor {
     thread_processor: ThreadRequestProcessor,
     turn_processor: TurnRequestProcessor,
     windows_sandbox_processor: WindowsSandboxRequestProcessor,
+    pro_contract_processor: ProContractRequestProcessor,
     request_serialization_queues: RequestSerializationQueues,
 }
 
@@ -312,6 +314,9 @@ impl MessageProcessor {
         let goal_service = Arc::new(GoalService::new());
         let extension_event_sink =
             app_server_extension_event_sink(outgoing.clone(), thread_state_manager.clone());
+        let pro_contract_controller = codex_pro_contract_extension::ProContractController::new();
+        let pro_contract_processor =
+            ProContractRequestProcessor::new(pro_contract_controller.clone(), Arc::clone(&config));
         let mut queue_service = None;
         let thread_manager = Arc::new_cyclic(|thread_manager| {
             queue_service = queue_store.map(|queue| {
@@ -342,6 +347,7 @@ impl MessageProcessor {
                         git_attribution_base_url: config.chatgpt_base_url.clone(),
                         http_client_factory: config.http_client_factory(),
                         queue_service: queue_service.clone(),
+                        pro_contract_controller: pro_contract_controller.clone(),
                     },
                 ),
                 Arc::new(CodexHomeUserInstructionsProvider::new(
@@ -594,6 +600,7 @@ impl MessageProcessor {
             thread_processor,
             turn_processor,
             windows_sandbox_processor,
+            pro_contract_processor,
             request_serialization_queues,
         }
     }
@@ -1342,6 +1349,35 @@ impl MessageProcessor {
             }
             ClientRequest::ThreadRead { params, .. } => {
                 self.thread_processor.thread_read(&request_id, params).await
+            }
+            ClientRequest::ProContractIssue { params, .. } => {
+                self.pro_contract_processor.issue(params).await
+            }
+            ClientRequest::ProContractRead { params, .. } => {
+                self.pro_contract_processor.read(params).await
+            }
+            ClientRequest::ProContractQuiet { params, .. } => {
+                self.pro_contract_processor.quiet(params).await
+            }
+            ClientRequest::ProContractHandoffMaterialize { params, .. } => {
+                self.pro_contract_processor
+                    .materialize_handoff(params)
+                    .await
+            }
+            ClientRequest::ProContractAttest { params, .. } => {
+                self.pro_contract_processor.attest(params).await
+            }
+            ClientRequest::ProContractChallenge { params, .. } => {
+                self.pro_contract_processor.challenge(params).await
+            }
+            ClientRequest::ProContractRevisionDecide { params, .. } => {
+                self.pro_contract_processor.decide_revision(params).await
+            }
+            ClientRequest::ProContractResume { params, .. } => {
+                self.pro_contract_processor.resume(params).await
+            }
+            ClientRequest::ProContractRelease { params, .. } => {
+                self.pro_contract_processor.release(params).await
             }
             ClientRequest::ThreadTurnsList { params, .. } => {
                 self.thread_processor.thread_turns_list(params).await

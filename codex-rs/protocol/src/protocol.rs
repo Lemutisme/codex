@@ -2814,6 +2814,7 @@ impl FromStr for ThreadSource {
 pub enum InternalSessionSource {
     MemoryConsolidation,
     Guardian,
+    ProContract,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
@@ -2987,6 +2988,7 @@ impl fmt::Display for InternalSessionSource {
         match self {
             InternalSessionSource::MemoryConsolidation => f.write_str("memory_consolidation"),
             InternalSessionSource::Guardian => f.write_str("guardian"),
+            InternalSessionSource::ProContract => f.write_str("pro_contract"),
         }
     }
 }

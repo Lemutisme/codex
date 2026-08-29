@@ -2610,6 +2610,269 @@
       ],
       "type": "object"
     },
+    "ProContractBudget": {
+      "properties": {
+        "actions": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "deadlineAt": {
+          "description": "Absolute Unix time in seconds.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "turns": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actions",
+        "deadlineAt",
+        "turns"
+      ],
+      "type": "object"
+    },
+    "ProContractChallengeDisclosure": {
+      "enum": [
+        "executor",
+        "sealed"
+      ],
+      "type": "string"
+    },
+    "ProContractEvidence": {
+      "properties": {
+        "claim": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ProContractReplayPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "claim"
+      ],
+      "type": "object"
+    },
+    "ProContractProtectedFile": {
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "ProContractReplayCheck": {
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exit": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "timeoutMs": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "argv",
+        "exit",
+        "timeoutMs"
+      ],
+      "type": "object"
+    },
+    "ProContractReplayPolicy": {
+      "properties": {
+        "artifacts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/definitions/ProContractReplayCheck"
+          },
+          "type": "array"
+        },
+        "protected": {
+          "items": {
+            "$ref": "#/definitions/ProContractProtectedFile"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "artifacts",
+        "checks",
+        "protected"
+      ],
+      "type": "object"
+    },
+    "ProContractRequirement": {
+      "properties": {
+        "contractId": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contractId",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "ProContractResolution": {
+      "properties": {
+        "maxAttempts": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "retryDelayMs": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxAttempts",
+        "retryDelayMs"
+      ],
+      "type": "object"
+    },
+    "ProContractRevisionDecision": {
+      "enum": [
+        "accept",
+        "reject"
+      ],
+      "type": "string"
+    },
+    "ProContractSpec": {
+      "properties": {
+        "artifacts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "authority": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "brief": {
+          "type": "string"
+        },
+        "budget": {
+          "$ref": "#/definitions/ProContractBudget"
+        },
+        "evidence": {
+          "$ref": "#/definitions/ProContractEvidence"
+        },
+        "goal": {
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "$ref": "#/definitions/ProContractRequirement"
+          },
+          "type": "array"
+        },
+        "resolution": {
+          "$ref": "#/definitions/ProContractResolution"
+        },
+        "trigger": {
+          "$ref": "#/definitions/ProContractTrigger"
+        }
+      },
+      "required": [
+        "artifacts",
+        "authority",
+        "brief",
+        "budget",
+        "evidence",
+        "goal",
+        "requires",
+        "resolution",
+        "trigger"
+      ],
+      "type": "object"
+    },
+    "ProContractTrigger": {
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "enum": [
+                "immediate"
+              ],
+              "title": "ImmediateProContractTriggerType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "title": "ImmediateProContractTrigger",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "trigger_at": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": {
+              "enum": [
+                "time"
+              ],
+              "title": "TimeProContractTriggerType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "trigger_at",
+            "type"
+          ],
+          "title": "TimeProContractTrigger",
+          "type": "object"
+        }
+      ]
+    },
     "ProcessTerminalSize": {
       "description": "PTY size in character cells for `process/spawn` PTY sessions.",
       "properties": {

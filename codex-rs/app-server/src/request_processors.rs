@@ -682,6 +682,7 @@ fn resolve_runtime_workspace_roots(workspace_roots: Vec<AbsolutePathBuf>) -> Vec
 }
 
 mod config_errors;
+mod pro_contract_processor;
 mod request_errors;
 mod thread_delete;
 mod thread_goal_processor;
@@ -690,6 +691,7 @@ mod thread_resume_redaction;
 mod thread_summary;
 
 use self::config_errors::*;
+pub(crate) use self::pro_contract_processor::ProContractRequestProcessor;
 use self::request_errors::*;
 use self::thread_goal_processor::api_thread_goal_from_state;
 use self::thread_lifecycle::*;

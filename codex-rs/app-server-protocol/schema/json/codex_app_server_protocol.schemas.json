@@ -17079,6 +17079,689 @@
         ],
         "type": "object"
       },
+      "ProContractBlocked": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "reportedAt": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "reportedAt"
+        ],
+        "type": "object"
+      },
+      "ProContractBudget": {
+        "properties": {
+          "actions": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "deadlineAt": {
+            "description": "Absolute Unix time in seconds.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "turns": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actions",
+          "deadlineAt",
+          "turns"
+        ],
+        "type": "object"
+      },
+      "ProContractChallenge": {
+        "properties": {
+          "attestationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "disclosure": {
+            "$ref": "#/definitions/v2/ProContractChallengeDisclosure"
+          },
+          "evidenceHash": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "subjectHash": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "disclosure",
+          "evidenceHash",
+          "revision",
+          "subjectHash"
+        ],
+        "type": "object"
+      },
+      "ProContractChallengeDisclosure": {
+        "enum": [
+          "executor",
+          "sealed"
+        ],
+        "type": "string"
+      },
+      "ProContractEscalation": {
+        "properties": {
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ProContractEvidence": {
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractReplayPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "claim"
+        ],
+        "type": "object"
+      },
+      "ProContractExecutionInfo": {
+        "properties": {
+          "actionsLimit": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "actionsUsed": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "attempts": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "awaitingRevisionDecision": {
+            "type": "boolean"
+          },
+          "contractId": {
+            "type": "string"
+          },
+          "deadlineAt": {
+            "description": "Absolute Unix time in seconds.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "dispatched": {
+            "type": "boolean"
+          },
+          "executionPolicy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "executorThreadId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leaseExpiresAt": {
+            "description": "Absolute Unix time in seconds, or zero when no lease is held.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "leaseOwner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxAttempts": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "nextActionAt": {
+            "description": "Absolute Unix time in seconds, or zero when immediately runnable.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "turnsLimit": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "turnsUsed": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actionsLimit",
+          "actionsUsed",
+          "attempts",
+          "awaitingRevisionDecision",
+          "contractId",
+          "deadlineAt",
+          "dispatched",
+          "leaseExpiresAt",
+          "maxAttempts",
+          "nextActionAt",
+          "revision",
+          "turnsLimit",
+          "turnsUsed"
+        ],
+        "type": "object"
+      },
+      "ProContractHandoff": {
+        "properties": {
+          "createdAt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "replay": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractReplayResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subject": {
+            "$ref": "#/definitions/v2/ProContractSubject"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "uncertainties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "createdAt",
+          "subject",
+          "summary",
+          "uncertainties"
+        ],
+        "type": "object"
+      },
+      "ProContractInfo": {
+        "properties": {
+          "attestationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "blocked": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractBlocked"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "challenge": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractChallenge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "escalation": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractEscalation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executor": {
+            "type": "string"
+          },
+          "handoff": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractHandoff"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "pendingRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ProContractPendingRevision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/definitions/v2/ProContractSpec"
+          },
+          "specHash": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/definitions/v2/ProContractStatus"
+          }
+        },
+        "required": [
+          "executor",
+          "id",
+          "issuer",
+          "revision",
+          "scope",
+          "spec",
+          "specHash",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ProContractPendingRevision": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "spec": {
+            "$ref": "#/definitions/v2/ProContractSpec"
+          },
+          "specHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "spec",
+          "specHash"
+        ],
+        "type": "object"
+      },
+      "ProContractProtectedFile": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "ProContractQuiet": {
+        "properties": {
+          "frontier": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "ledgerHash": {
+            "type": "string"
+          },
+          "outstanding": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "quiet": {
+            "type": "boolean"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "stateHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "frontier",
+          "ledgerHash",
+          "outstanding",
+          "quiet",
+          "scope",
+          "stateHash"
+        ],
+        "type": "object"
+      },
+      "ProContractReplayCheck": {
+        "properties": {
+          "argv": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "timeoutMs": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "argv",
+          "exit",
+          "timeoutMs"
+        ],
+        "type": "object"
+      },
+      "ProContractReplayPolicy": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/definitions/v2/ProContractReplayCheck"
+            },
+            "type": "array"
+          },
+          "protected": {
+            "items": {
+              "$ref": "#/definitions/v2/ProContractProtectedFile"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "artifacts",
+          "checks",
+          "protected"
+        ],
+        "type": "object"
+      },
+      "ProContractReplayResult": {
+        "properties": {
+          "evidenceHash": {
+            "type": "string"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "policyHash": {
+            "type": "string"
+          },
+          "subjectHash": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidenceHash",
+          "passed",
+          "policyHash",
+          "subjectHash",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "ProContractRequirement": {
+        "properties": {
+          "contractId": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "contractId",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "ProContractResolution": {
+        "properties": {
+          "maxAttempts": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "retryDelayMs": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "maxAttempts",
+          "retryDelayMs"
+        ],
+        "type": "object"
+      },
+      "ProContractRevisionDecision": {
+        "enum": [
+          "accept",
+          "reject"
+        ],
+        "type": "string"
+      },
+      "ProContractSpec": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "authority": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "brief": {
+            "type": "string"
+          },
+          "budget": {
+            "$ref": "#/definitions/v2/ProContractBudget"
+          },
+          "evidence": {
+            "$ref": "#/definitions/v2/ProContractEvidence"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "requires": {
+            "items": {
+              "$ref": "#/definitions/v2/ProContractRequirement"
+            },
+            "type": "array"
+          },
+          "resolution": {
+            "$ref": "#/definitions/v2/ProContractResolution"
+          },
+          "trigger": {
+            "$ref": "#/definitions/v2/ProContractTrigger"
+          }
+        },
+        "required": [
+          "artifacts",
+          "authority",
+          "brief",
+          "budget",
+          "evidence",
+          "goal",
+          "requires",
+          "resolution",
+          "trigger"
+        ],
+        "type": "object"
+      },
+      "ProContractStatus": {
+        "enum": [
+          "dormant",
+          "active",
+          "verification",
+          "escalated",
+          "discharged",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ProContractSubject": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "specHash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifacts",
+          "hash",
+          "specHash"
+        ],
+        "type": "object"
+      },
+      "ProContractTrigger": {
+        "oneOf": [
+          {
+            "properties": {
+              "type": {
+                "enum": [
+                  "immediate"
+                ],
+                "title": "ImmediateProContractTriggerType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "title": "ImmediateProContractTrigger",
+            "type": "object"
+          },
+          {
+            "properties": {
+              "trigger_at": {
+                "format": "int64",
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "time"
+                ],
+                "title": "TimeProContractTriggerType",
+                "type": "string"
+              }
+            },
+            "required": [
+              "trigger_at",
+              "type"
+            ],
+            "title": "TimeProContractTrigger",
+            "type": "object"
+          }
+        ]
+      },
       "ProcessExitedNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "description": "Final process exit notification for `process/spawn`.",
