@@ -151,6 +151,21 @@ struct ToolLifecycleRecorder {
     records: Arc<std::sync::Mutex<Vec<RecordedToolLifecycle>>>,
 }
 
+struct DenyToolAdmission;
+
+impl codex_extension_api::ExecutionAdmissionContributor for DenyToolAdmission {
+    fn admit_tool<'a>(
+        &'a self,
+        _input: codex_extension_api::ToolAdmissionInput<'a>,
+    ) -> codex_extension_api::ExtensionFuture<'a, codex_extension_api::ExecutionAdmission> {
+        Box::pin(std::future::ready(
+            codex_extension_api::ExecutionAdmission::Deny {
+                reason: "contract action budget exhausted".to_string(),
+            },
+        ))
+    }
+}
+
 impl codex_extension_api::ToolLifecycleContributor for ToolLifecycleRecorder {
     fn on_tool_start<'a>(
         &'a self,
@@ -777,6 +792,52 @@ async fn dispatch_uses_canonical_tool_names_for_lifecycle_contributors() -> anyh
     assert_eq!(expected, actual);
 
     Ok(())
+}
+
+#[tokio::test]
+async fn execution_admission_denial_blocks_tool_before_start() {
+    let (mut session, turn) = crate::session::tests::make_session_and_context().await;
+    let records = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let mut builder = codex_extension_api::ExtensionRegistryBuilder::<crate::config::Config>::new();
+    builder.execution_admission_contributor(Arc::new(DenyToolAdmission));
+    builder.tool_lifecycle_contributor(Arc::new(ToolLifecycleRecorder {
+        records: Arc::clone(&records),
+    }));
+    session.services.extensions = Arc::new(builder.build());
+
+    let tool_name = codex_tools::ToolName::plain("denied_tool");
+    let registry = ToolRegistry::from_tools([Arc::new(LifecycleTestHandler {
+        tool_name: tool_name.clone(),
+        result: LifecycleTestResult::Ok { success: true },
+    }) as Arc<dyn CoreToolRuntime>]);
+    let error = match registry
+        .dispatch_any_with_terminal_outcome(
+            test_invocation(
+                Arc::new(session),
+                Arc::new(turn),
+                "denied-call",
+                tool_name.clone(),
+            ),
+            /*terminal_outcome_reached*/ None,
+        )
+        .await
+    {
+        Ok(_) => panic!("execution admission should block the tool"),
+        Err(error) => error,
+    };
+
+    assert_eq!(error.to_string(), "contract action budget exhausted");
+    assert_eq!(
+        records
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_slice(),
+        [RecordedToolLifecycle::Finish {
+            call_id: "denied-call".to_string(),
+            tool_name,
+            outcome: codex_extension_api::ToolCallOutcome::Blocked,
+        }]
+    );
 }
 
 fn test_invocation(

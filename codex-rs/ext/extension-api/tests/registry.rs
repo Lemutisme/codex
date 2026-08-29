@@ -12,6 +12,10 @@ use codex_extension_api::ContentItemKind;
 use codex_extension_api::ContextContributor;
 use codex_extension_api::ContextualUserFragment;
 use codex_extension_api::ConversationHistorySnapshot;
+use codex_extension_api::ExecutionAdmission;
+use codex_extension_api::ExecutionAdmissionContributor;
+use codex_extension_api::ExecutionPermit;
+use codex_extension_api::ExecutionReminder;
 use codex_extension_api::ExtensionData;
 use codex_extension_api::ExtensionDataInit;
 use codex_extension_api::ExtensionEventSink;
@@ -22,13 +26,17 @@ use codex_extension_api::ExtensionWarning;
 use codex_extension_api::McpServerContributionContext;
 use codex_extension_api::PromptFragment;
 use codex_extension_api::ResponseItem;
+use codex_extension_api::SamplingAdmissionInput;
 use codex_extension_api::SkillInvocationContributor;
 use codex_extension_api::ThreadLifecycleContributor;
 use codex_extension_api::TokenUsageContributor;
+use codex_extension_api::ToolAdmissionInput;
 use codex_extension_api::ToolCall;
 use codex_extension_api::ToolContributor;
 use codex_extension_api::ToolExecutor;
 use codex_extension_api::ToolLifecycleContributor;
+use codex_extension_api::ToolVisibility;
+use codex_extension_api::ToolVisibilityInput;
 use codex_extension_api::TurnContextContributionInput;
 use codex_extension_api::TurnInputContext;
 use codex_extension_api::TurnInputContributor;
@@ -83,6 +91,58 @@ impl ContextContributor for AllContributors {
         _thread_store: &'a ExtensionData,
     ) -> ExtensionFuture<'a, Vec<PromptFragment>> {
         Box::pin(std::future::ready(Vec::new()))
+    }
+}
+
+impl ExecutionAdmissionContributor for AllContributors {}
+
+struct DenyExecution;
+
+struct BoundExecution {
+    deadline: u64,
+    reminder: &'static str,
+}
+
+impl ExecutionAdmissionContributor for BoundExecution {
+    fn admit_sampling<'a>(
+        &'a self,
+        _input: SamplingAdmissionInput<'a>,
+    ) -> ExtensionFuture<'a, ExecutionAdmission> {
+        Box::pin(std::future::ready(ExecutionAdmission::Permit(
+            ExecutionPermit {
+                valid_until: Some(self.deadline),
+                reminders: ExecutionReminder::new(
+                    self.reminder,
+                    ContentItemKind("test.execution".to_string()),
+                )
+                .into_iter()
+                .collect(),
+            },
+        )))
+    }
+}
+
+impl ExecutionAdmissionContributor for DenyExecution {
+    fn tool_visibility(&self, _input: ToolVisibilityInput<'_>) -> ToolVisibility {
+        ToolVisibility::Hidden
+    }
+
+    fn admit_sampling<'a>(
+        &'a self,
+        _input: SamplingAdmissionInput<'a>,
+    ) -> ExtensionFuture<'a, ExecutionAdmission> {
+        Box::pin(std::future::ready(ExecutionAdmission::Deny {
+            reason: "sampling budget exhausted".to_string(),
+        }))
+    }
+
+    fn admit_tool<'a>(
+        &'a self,
+        _input: ToolAdmissionInput<'a>,
+    ) -> ExtensionFuture<'a, ExecutionAdmission> {
+        Box::pin(std::future::ready(ExecutionAdmission::Deny {
+            reason: "tool authority denied".to_string(),
+        }))
     }
 }
 
@@ -200,6 +260,7 @@ impl ApprovalReviewContributor for AllContributors {
 async fn build_round_trips_every_contributor_category() {
     let contributor = Arc::new(AllContributors);
     let mut builder = ExtensionRegistryBuilder::<()>::new();
+    builder.execution_admission_contributor(contributor.clone());
     builder.thread_lifecycle_contributor(contributor.clone());
     builder.turn_lifecycle_contributor(contributor.clone());
     builder.config_contributor(contributor.clone());
@@ -213,6 +274,7 @@ async fn build_round_trips_every_contributor_category() {
     builder.approval_review_contributor(contributor);
     let registry = builder.build();
 
+    assert_eq!(registry.execution_admission_contributors().len(), 1);
     assert_eq!(registry.thread_lifecycle_contributors().len(), 1);
     assert_eq!(registry.turn_lifecycle_contributors().len(), 1);
     assert_eq!(registry.config_contributors().len(), 1);
@@ -233,6 +295,98 @@ async fn build_round_trips_every_contributor_category() {
             )
             .await,
         Some(ReviewDecision::ApprovedForSession)
+    );
+}
+
+#[tokio::test]
+async fn execution_admission_returns_the_first_denial() {
+    let mut builder = ExtensionRegistryBuilder::<()>::new();
+    builder.execution_admission_contributor(Arc::new(AllContributors));
+    builder.execution_admission_contributor(Arc::new(DenyExecution));
+    let registry = builder.build();
+    let session_store = ExtensionData::new("session");
+    let thread_store = ExtensionData::new("thread");
+    let turn_store = ExtensionData::new("turn");
+
+    assert_eq!(
+        registry
+            .admit_sampling(SamplingAdmissionInput {
+                session_store: &session_store,
+                thread_store: &thread_store,
+                turn_store: &turn_store,
+                turn_id: "turn",
+            })
+            .await,
+        ExecutionAdmission::Deny {
+            reason: "sampling budget exhausted".to_string()
+        }
+    );
+
+    let tool_name = codex_tools::ToolName::plain("exec_command");
+    let payload = codex_tools::ToolPayload::Function {
+        arguments: "{}".to_string(),
+    };
+    assert_eq!(
+        registry
+            .admit_tool(ToolAdmissionInput {
+                session_store: &session_store,
+                thread_store: &thread_store,
+                turn_store: &turn_store,
+                turn_id: "turn",
+                call_id: "call",
+                tool_name: &tool_name,
+                payload: &payload,
+            })
+            .await,
+        ExecutionAdmission::Deny {
+            reason: "tool authority denied".to_string()
+        }
+    );
+    assert_eq!(
+        registry.tool_visibility(ToolVisibilityInput {
+            session_store: &session_store,
+            thread_store: &thread_store,
+            step_store: &turn_store,
+            tool_name: &tool_name,
+        }),
+        ToolVisibility::Hidden
+    );
+}
+
+#[tokio::test]
+async fn execution_admission_intersects_deadlines_and_preserves_reminders() {
+    let mut builder = ExtensionRegistryBuilder::<()>::new();
+    builder.execution_admission_contributor(Arc::new(BoundExecution {
+        deadline: 20,
+        reminder: "first",
+    }));
+    builder.execution_admission_contributor(Arc::new(BoundExecution {
+        deadline: 10,
+        reminder: "second",
+    }));
+    let registry = builder.build();
+    let session_store = ExtensionData::new("session");
+    let thread_store = ExtensionData::new("thread");
+    let turn_store = ExtensionData::new("turn");
+
+    assert_eq!(
+        registry
+            .admit_sampling(SamplingAdmissionInput {
+                session_store: &session_store,
+                thread_store: &thread_store,
+                turn_store: &turn_store,
+                turn_id: "turn",
+            })
+            .await,
+        ExecutionAdmission::Permit(ExecutionPermit {
+            valid_until: Some(10),
+            reminders: vec![
+                ExecutionReminder::new("first", ContentItemKind("test.execution".to_string()),)
+                    .expect("bounded reminder"),
+                ExecutionReminder::new("second", ContentItemKind("test.execution".to_string()),)
+                    .expect("bounded reminder"),
+            ],
+        })
     );
 }
 

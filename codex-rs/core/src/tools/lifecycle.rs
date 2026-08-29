@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use codex_extension_api::ExecutionAdmission;
 use codex_extension_api::McpToolContext;
 use codex_extension_api::McpToolResultInput;
+use codex_extension_api::ToolAdmissionInput;
 use codex_extension_api::ToolCallOutcome;
 use codex_extension_api::ToolCallSource as ExtensionToolCallSource;
 use codex_extension_api::ToolFinishInput;
@@ -13,6 +15,27 @@ use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::context::ToolCallSource;
 use crate::tools::context::ToolInvocation;
+
+pub(crate) async fn admit_tool(invocation: &ToolInvocation) -> Result<(), String> {
+    match invocation
+        .session
+        .services
+        .extensions
+        .admit_tool(ToolAdmissionInput {
+            session_store: &invocation.session.services.session_extension_data,
+            thread_store: &invocation.session.services.thread_extension_data,
+            turn_store: invocation.turn.extension_data.as_ref(),
+            turn_id: invocation.turn.sub_id.as_str(),
+            call_id: invocation.call_id.as_str(),
+            tool_name: &invocation.tool_name,
+            payload: &invocation.payload,
+        })
+        .await
+    {
+        ExecutionAdmission::Permit(_) => Ok(()),
+        ExecutionAdmission::Deny { reason } => Err(reason),
+    }
+}
 
 pub(crate) async fn notify_tool_start(
     invocation: &ToolInvocation,

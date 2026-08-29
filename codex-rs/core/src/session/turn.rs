@@ -70,7 +70,9 @@ use codex_analytics::build_track_events_context;
 use codex_async_utils::OrCancelExt;
 use codex_connectors::AppToolPolicyEvaluator;
 use codex_core_plugins::RecommendedPluginCandidatesInput;
+use codex_extension_api::ExecutionAdmission;
 use codex_extension_api::ExtensionData;
+use codex_extension_api::SamplingAdmissionInput;
 use codex_extension_api::TurnInputContext;
 use codex_extension_api::TurnInputEnvironment;
 use codex_features::Feature;
@@ -365,7 +367,43 @@ pub(crate) async fn run_turn(
                 .await?
             }
         };
-        let sampling_request_result: CodexResult<_> = async {
+        let sampling_admission = sess
+            .services
+            .extensions
+            .admit_sampling(SamplingAdmissionInput {
+                session_store: &sess.services.session_extension_data,
+                thread_store: &sess.services.thread_extension_data,
+                turn_store: turn_context.extension_data.as_ref(),
+                turn_id: turn_context.sub_id.as_str(),
+            })
+            .await;
+        let sampling_permit = match sampling_admission {
+            ExecutionAdmission::Permit(permit) => permit,
+            ExecutionAdmission::Deny { reason } => {
+                sess.send_event(
+                    &turn_context,
+                    EventMsg::Warning(WarningEvent { message: reason }),
+                )
+                .await;
+                break;
+            }
+        };
+        if !sampling_permit.reminders.is_empty() {
+            let reminders = sampling_permit
+                .reminders
+                .into_iter()
+                .map(|reminder| {
+                    let (text, content_kind) = reminder.into_parts();
+                    ContextualUserFragment::into(crate::context::ExecutionBoundaryReminder::new(
+                        text,
+                        content_kind,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            sess.record_conversation_items(&turn_context, &reminders)
+                .await;
+        }
+        let sampling_request = async {
             super::time_reminder::maybe_record_current_time_reminder(
                 sess.as_ref(),
                 turn_context.as_ref(),
@@ -400,8 +438,33 @@ pub(crate) async fn run_turn(
                 cancellation_token.child_token(),
             )
             .await
-        }
-        .await;
+        };
+        let sampling_request_result: CodexResult<_> =
+            if let Some(deadline) = sampling_permit.valid_until {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |duration| duration.as_millis() as u64);
+                match tokio::time::timeout(
+                    std::time::Duration::from_millis(deadline.saturating_sub(now)),
+                    sampling_request,
+                )
+                .await
+                {
+                    Ok(result) => result,
+                    Err(_) => {
+                        sess.send_event(
+                            &turn_context,
+                            EventMsg::Warning(WarningEvent {
+                                message: "execution sampling window elapsed".to_string(),
+                            }),
+                        )
+                        .await;
+                        break;
+                    }
+                }
+            } else {
+                sampling_request.await
+            };
         match sampling_request_result {
             Ok((sampling_request_output, sampling_request_input)) => {
                 let SamplingRequestResult {

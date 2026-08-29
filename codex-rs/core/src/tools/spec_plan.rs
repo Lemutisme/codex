@@ -61,6 +61,8 @@ use crate::tools::registry::ToolRegistry;
 use crate::tools::router::ToolRouter;
 use crate::tools::tool_namespaces_info::collect_tool_namespaces_info;
 use codex_extension_api::ExtensionData;
+use codex_extension_api::ToolVisibility;
+use codex_extension_api::ToolVisibilityInput;
 use codex_features::Feature;
 use codex_features::SleepToolMode;
 use codex_login::AuthManager;
@@ -184,6 +186,14 @@ pub(crate) fn build_tool_router(
         )
     };
 
+    apply_extension_tool_visibility(session, step_store, &mut registry);
+    let hosted_specs = hosted_specs
+        .into_iter()
+        .filter(|spec| {
+            extension_tool_is_visible(session, step_store, &ToolName::plain(spec.name()))
+        })
+        .collect();
+
     finalize_tool_router(
         turn_context,
         model_info,
@@ -191,6 +201,35 @@ pub(crate) fn build_tool_router(
         hosted_specs,
         &session.services.tool_search_handler_cache,
     )
+}
+
+fn apply_extension_tool_visibility(
+    session: &Session,
+    step_store: &ExtensionData,
+    registry: &mut ToolRegistry,
+) {
+    for tool in registry.entries_mut() {
+        if !extension_tool_is_visible(session, step_store, &tool.runtime.tool_name()) {
+            tool.exposure = ToolExposure::Hidden;
+        }
+    }
+}
+
+fn extension_tool_is_visible(
+    session: &Session,
+    step_store: &ExtensionData,
+    tool_name: &ToolName,
+) -> bool {
+    session
+        .services
+        .extensions
+        .tool_visibility(ToolVisibilityInput {
+            session_store: &session.services.session_extension_data,
+            thread_store: &session.services.thread_extension_data,
+            step_store,
+            tool_name,
+        })
+        != ToolVisibility::Hidden
 }
 
 fn apply_mcp_tool_exposure_policy(
