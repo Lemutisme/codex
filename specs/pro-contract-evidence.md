@@ -63,6 +63,59 @@ source is the local experiment ledger
 document was written. These numbers must not be upgraded to confirmation
 evidence.
 
+### v7 matched ordinary-Codex baseline
+
+A preregistered post-hoc baseline then completed the missing half of the v5
+factorial on the same three instances. It reused the exact v5 binary, Luna Max
+model, agent image, task images, user brief, and official tests. ProContract was
+disabled. `ordinary off` ran normal Codex; `ordinary same policy` additionally
+received the exact v5 execution policy as developer instructions. Existing v5
+ProContract candidates were not rerun or modified.
+
+| Instance | Ordinary off | Ordinary same policy | ProContract off | ProContract on | Public task best |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Amber | 72.3894% | 85.1327%* | 69.5575% | 78.2301% | 94.8673% |
+| Loop | 92.6761% | 84.3662% | 83.2394% | 95.6338% | 99.2958% |
+| fd | 79.1903% | 78.7854% | 77.8138% | 80.6478% | 99.3522% |
+| Macro | **81.4186%** | **82.7615%*** | **76.8702%** | **84.8372%** | **97.8384%** |
+
+`*` Amber ordinary-policy exhausted the same interactive branch twice without
+producing JUnit. Its 481/565 active score includes that
+`results_read_failed`; the other five ordinary evaluations have no branch,
+system, or warning condition.
+
+The fixed full product beat ordinary Codex without policy on all three tasks:
++5.8407, +2.9577, and +1.4575 points, or +3.4186 macro. That contrast does not
+identify a Kernel effect. Holding policy absent, the ProContract envelope lost
+4.5483 points macro and lost every task. Holding the execution policy present,
+ProContract gained 2.0758 points macro but lost Amber and won Loop/fd. The four
+cells therefore indicate an envelope-policy interaction, not monotone value
+from either component alone.
+
+Ordinary policy-on consumed 126.710M cumulative model tokens versus 78.577M
+off (+61.3%) for only +1.3429 points macro. Its effect reversed by task. The
+ordinary trajectories also spent 42--168 actions after first creating their
+validation artifact; some added real coverage, while Amber still missed the
+interactive child-cleanup invariant that caused evaluator failure.
+
+The public-task-best column is the per-task maximum over published
+[ProgramBench](https://programbench.com) runs retrieved on 2026-08-31 from the
+site snapshot labeled updated 2026-08-16. It is an external scale reference,
+not a matched baseline. Native ProContract-on remains 13.0012 points below that
+three-task upper envelope. The other five previously reported native instances
+are omitted because their exact historical binaries lack a matched ordinary
+arm; mixing current-binary baselines into those rows would not repair that gap.
+
+This remains development evidence: there is one candidate per cell, the
+ordinary baselines were generated after v5 outcomes were known, generation was
+concurrent, and the historical v5 raw result bundle is absent. The frozen v7
+report is:
+
+~~~text
+/tmp/procontract-native-ordinary-v7/RESULT.md
+sha256 77f308a16e748faf3d1dd3d36161493f2a9c56d8a8bc4b36de84094e2eb8070c
+~~~
+
 ### v6 evidence-convergence falsification
 
 The v6 run reused the three training instances after v5 hidden outcomes were
