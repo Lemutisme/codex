@@ -156,6 +156,13 @@ fault matrix has not been measured, and FalseQuietRate,
 InvalidSettlementRate, DutyLossRate, and ChallengeClosureRecall have not been
 reported over exhaustive traces.
 
+Native replay treats an acknowledged check timeout as content-addressed failed
+evidence and restores the exact duty to dormant instead of classifying the
+verifier as unavailable. The report records duration and is persisted only
+after the process API acknowledges timeout termination. This does not establish
+descendant cleanup, resource accounting, or target-environment equivalence, and
+it does not make model-authored probe journals trusted observations.
+
 Required structural evaluation includes:
 
 - duplicate, delayed, and stale commands;

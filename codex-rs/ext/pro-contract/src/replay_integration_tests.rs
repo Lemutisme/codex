@@ -89,6 +89,69 @@ async fn failed_native_replay_reopens_the_exact_contract() -> anyhow::Result<()>
 }
 
 #[tokio::test]
+async fn timed_out_native_replay_is_negative_evidence() -> anyhow::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let workspace = directory.path().join("workspace");
+    std::fs::create_dir(&workspace)?;
+    std::fs::write(workspace.join("result"), "candidate")?;
+    let artifacts = ArtifactSpec::new([ArtifactPath::new("result")?])?;
+    let replay = ReplayPolicy {
+        checks: vec![ReplayCheck {
+            argv: vec![
+                "/bin/sh".to_string(),
+                "-c".to_string(),
+                "sleep 30".to_string(),
+            ],
+            cwd: None,
+            timeout_ms: 1_000,
+            exit: 0,
+        }],
+        protected: Vec::new(),
+        artifacts: artifacts.clone(),
+    };
+    let runtime = runtime(&directory, artifacts, Some(replay)).await?;
+    let report = ContractTool::new(ToolKind::ReportReady, Arc::clone(&runtime));
+    let payload = ToolPayload::Function {
+        arguments: json!({"summary": "candidate ready"}).to_string(),
+    };
+    let output = report
+        .handle(tool_call(
+            &workspace,
+            LOCAL_ENVIRONMENT_ID,
+            payload.clone(),
+        )?)
+        .await?;
+    let response = output.code_mode_result(&payload);
+
+    assert_eq!(response["contract"]["status"], "dormant");
+    assert_eq!(response["replay"]["passed"], false);
+    assert!(
+        response["replay"]["summary"]
+            .as_str()
+            .is_some_and(|summary| summary.contains("timed out after 1000 milliseconds"))
+    );
+    let evidence_hash = response["replay"]["evidence_hash"]
+        .as_str()
+        .expect("evidence hash");
+    let persisted: serde_json::Value = serde_json::from_slice(&std::fs::read(
+        runtime.replay_reports.join(format!("{evidence_hash}.json")),
+    )?)?;
+    assert_eq!(persisted["version"], 2);
+    assert_eq!(persisted["checks"][0]["timed_out"], true);
+    assert!(persisted["checks"][0]["exit"].is_null());
+    assert!(
+        persisted["checks"][0]["duration_ms"]
+            .as_u64()
+            .is_some_and(|duration| duration >= 1_000)
+    );
+    let state = runtime.ledger.state("thread").await?;
+    assert_eq!(state.contracts["pct_thread"].status, Status::Dormant);
+    assert!(state.contracts["pct_thread"].challenge.is_some());
+    assert!(state.contracts["pct_thread"].escalation.is_none());
+    Ok(())
+}
+
+#[tokio::test]
 async fn unavailable_subject_capture_escalates_instead_of_fabricating_evidence()
 -> anyhow::Result<()> {
     let directory = tempfile::tempdir()?;

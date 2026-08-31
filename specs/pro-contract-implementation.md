@@ -155,6 +155,8 @@ Current focused tests cover:
 - shared turn, action, and attempt ceilings;
 - spent-budget preservation across revision;
 - failed native replay reopening the exact duty;
+- replay timeout becoming exact negative evidence rather than verifier
+  unavailability;
 - subject-capture failure escalating without fabricated evidence;
 - native handoff without self-settlement;
 - sampling denial and bounded provider windows;
@@ -183,8 +185,10 @@ The current local adapter is cooperative. It does not isolate the Principal
 credential, SQLite ledger, or evidence store from a same-user shell process.
 System-level adversarial non-bypass is therefore not established.
 
-Replay is local preflight. Its report omits environment identity, interpreter,
-OS/architecture, duration, resource usage, and descendant cleanup.
+Replay is local preflight. Its report records duration and persists timeout
+only after the process API acknowledges termination, but omits environment
+identity, interpreter, OS/architecture, resource usage, and confirmed
+descendant cleanup.
 
 Execution policy is outside ContractSpec, but context projection is not yet
 uniformly one-shot across all context-building paths.

@@ -589,8 +589,10 @@ Streaming enforcement is a known correctness gap.
 ### Environment and evaluator
 
 The current replay report lacks image, interpreter, OS, architecture,
-toolchain, evaluator, duration, resource, and descendant-cleanup coordinates.
-Replay is **PARTIAL** local preflight.
+toolchain, evaluator, resource, and confirmed descendant-cleanup coordinates.
+It records check duration and persists a timed-out negative result only after
+the process API acknowledges termination. Replay remains **PARTIAL** local
+preflight.
 
 ### Clock
 
