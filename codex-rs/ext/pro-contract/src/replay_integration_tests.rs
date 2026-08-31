@@ -27,6 +27,7 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::sqlite::SqlitePoolOptions;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -232,7 +233,7 @@ fn tool_call(
     workspace: &Path,
     environment_id: &str,
     payload: ToolPayload,
-) -> anyhow::Result<ToolCall> {
+) -> anyhow::Result<ToolCall<'static>> {
     Ok(ToolCall {
         turn_id: "turn".to_string(),
         call_id: "call-ready".to_string(),
@@ -244,6 +245,7 @@ fn tool_call(
         conversation_history: ConversationHistory::default(),
         turn_item_emitter: Arc::new(NoopTurnItemEmitter),
         environments: vec![ToolEnvironment {
+            _lifetime: PhantomData,
             environment_id: environment_id.to_string(),
             cwd: workspace.try_into()?,
             file_system: Arc::clone(&LOCAL_FS),
