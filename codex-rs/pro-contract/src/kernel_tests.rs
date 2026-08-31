@@ -162,9 +162,19 @@ fn challenge_restores_transitive_responsibility() {
     let state = discharge(&state, "foundation", "subject-foundation");
     let state = issue(
         &state,
-        "delivery",
+        "integration",
         vec![Requirement {
             contract_id: "foundation".to_string(),
+            revision: 1,
+        }],
+    );
+    let state = activate_and_handoff(&state, "integration", "subject-integration");
+    let state = discharge(&state, "integration", "subject-integration");
+    let state = issue(
+        &state,
+        "delivery",
+        vec![Requirement {
+            contract_id: "integration".to_string(),
             revision: 1,
         }],
     );
@@ -191,14 +201,121 @@ fn challenge_restores_transitive_responsibility() {
 
     assert_eq!(challenged.decision, Decision::Accepted);
     assert_eq!(
-        challenged.state.contracts["foundation"].status,
-        Status::Dormant
-    );
-    assert_eq!(
-        challenged.state.contracts["delivery"].status,
-        Status::Escalated
+        [
+            (
+                challenged.state.contracts["foundation"].status,
+                challenged.state.contracts["foundation"].handoff.is_none(),
+                challenged.state.contracts["foundation"]
+                    .attestation_id
+                    .is_none(),
+            ),
+            (
+                challenged.state.contracts["integration"].status,
+                challenged.state.contracts["integration"].handoff.is_none(),
+                challenged.state.contracts["integration"]
+                    .attestation_id
+                    .is_none(),
+            ),
+            (
+                challenged.state.contracts["delivery"].status,
+                challenged.state.contracts["delivery"].handoff.is_none(),
+                challenged.state.contracts["delivery"]
+                    .attestation_id
+                    .is_none(),
+            ),
+        ],
+        [
+            (Status::Dormant, true, true),
+            (Status::Escalated, true, true),
+            (Status::Escalated, true, true),
+        ]
     );
     assert!(!quiet(&challenged.state, "workspace"));
+}
+
+#[test]
+fn revision_cannot_rewire_dependency_edges() {
+    let state = issue(&State::default(), "foundation", Vec::new());
+    let state = issue(
+        &state,
+        "delivery",
+        vec![Requirement {
+            contract_id: "foundation".to_string(),
+            revision: 1,
+        }],
+    );
+    let mut proposed = state.contracts["delivery"].spec.clone();
+    proposed.requires.clear();
+    proposed.goal = "rewired delivery".to_string();
+    let proposed_hash = hash_spec(&proposed).unwrap();
+
+    let rejected = transition(
+        &state,
+        Command::PetitionRevision {
+            actor: "worker".to_string(),
+            contract_id: "delivery".to_string(),
+            spec: proposed,
+            spec_hash: proposed_hash,
+            reason: "remove prerequisite".to_string(),
+        },
+    );
+
+    assert!(matches!(rejected.decision, Decision::Rejected { .. }));
+    assert_eq!(rejected.state, state);
+}
+
+#[test]
+fn outstanding_dependent_fences_upstream_revision_and_release() {
+    let state = issue(&State::default(), "foundation", Vec::new());
+    let state = issue(
+        &state,
+        "delivery",
+        vec![Requirement {
+            contract_id: "foundation".to_string(),
+            revision: 1,
+        }],
+    );
+    let mut proposed = state.contracts["foundation"].spec.clone();
+    proposed.goal = "revised foundation".to_string();
+    let proposed_hash = hash_spec(&proposed).unwrap();
+    let petition = transition(
+        &state,
+        Command::PetitionRevision {
+            actor: "worker".to_string(),
+            contract_id: "foundation".to_string(),
+            spec: proposed,
+            spec_hash: proposed_hash.clone(),
+            reason: "new terms".to_string(),
+        },
+    );
+    assert_eq!(petition.decision, Decision::Accepted);
+    let pending = petition.state;
+
+    let revision = transition(
+        &pending,
+        Command::DecideRevision {
+            actor: "principal".to_string(),
+            contract_id: "foundation".to_string(),
+            revision: 1,
+            spec_hash: proposed_hash,
+            disposition: RevisionDisposition::Accept,
+        },
+    );
+    let release = transition(
+        &state,
+        Command::Release {
+            actor: "principal".to_string(),
+            contract_id: "foundation".to_string(),
+            revision: 1,
+            spec_hash: state.contracts["foundation"].spec_hash.clone(),
+            reason: "waive prerequisite".to_string(),
+        },
+    );
+
+    assert!(matches!(revision.decision, Decision::Rejected { .. }));
+    assert_eq!(revision.state, pending);
+    assert!(matches!(release.decision, Decision::Rejected { .. }));
+    assert_eq!(release.state, state);
 }
 
 #[test]

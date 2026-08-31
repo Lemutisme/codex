@@ -1,113 +1,130 @@
 # ProContract
 
-ProContract is an executor-independent settlement protocol for agent work and a
-foundation for witnessed succession.
+ProContract is an executor-independent settlement protocol for agent work.
 
-This document states the theory, trust boundary, current Codex implementation,
-empirical evidence, and designed extensions of ProContract. It is intentionally
-stricter than a product overview. A claim in this document must remain
-meaningful if the LLM executor is replaced by an arbitrary human contractor.
+It addresses one question:
 
-The implementation status in this document refers to the reviewed prototype
-branch "codex-procontract-native-envelope" at commit "6b1f3b9df" on
-2026-08-31.
+> What is the system allowed to recognize as finished when the executor is
+> temporary, fallible, and unable to certify itself?
+
+This is the canonical theory document. Codex implementation details, empirical
+evidence, and future succession research live in:
+
+- [ProContract Codex implementation](pro-contract-implementation.md);
+- [ProContract evidence](pro-contract-evidence.md);
+- [ProContract witnessed succession](pro-contract-succession.md).
 
 ## Reading discipline
 
-Normative and capability claims use one of four labels:
+Claims use four labels:
 
-- **IMPLEMENTED** means the reviewed Codex code contains the mechanism and
-  focused tests exercise its central path.
-- **PARTIAL** means the mechanism exists, but a stated assumption, platform,
-  failure path, or evidence coordinate is missing.
-- **FUTURE** means the concept is part of the design but absent from the
-  reviewed implementation.
-- **NOT CLAIMED** marks a tempting conclusion that ProContract does not entail.
+- **IMPLEMENTED** — present in the reviewed reducer or adapter and exercised on
+  its central path;
+- **PARTIAL** — present, but a named assumption, platform, failure path, or
+  refinement remains open;
+- **FUTURE** — designed but absent;
+- **NOT CLAIMED** — tempting but not entailed.
 
-Empirical claims are indexed by model, task cohort, evaluator, and date. They
-are not kernel invariants.
+Structural claims, deployment claims, and empirical claims are different
+types. A model score cannot prove an invariant. A reducer test cannot prove
+verifier validity or physical process isolation.
 
 Five events must never be collapsed:
 
-| Event | Meaning | Institutional force | Status |
-| --- | --- | --- | --- |
-| Passed replay | A frozen subject satisfied a finite check list in one replay environment | Mechanical prerequisite only | **PARTIAL** |
-| Archive winner | A search procedure ranked a candidate under one statistic | None outside that selection procedure | **NOT CLAIMED** as settlement |
-| Executor handoff | An executor petitions verification for an exact subject | Pauses execution; does not settle | **IMPLEMENTED** |
-| Discharged duty | An authorized attestation currently supports the exact handoff claim | Recognized completion at a ledger frontier | **IMPLEMENTED** |
-| Adopted successor | A new artifact, policy, or judge becomes the canonical default for future work | Changes the incumbent | **FUTURE** |
+| Event | Meaning | Force |
+| --- | --- | --- |
+| Passed replay | A subject satisfied finite checks in one environment | mechanical prerequisite |
+| Archive winner | A search statistic preferred a candidate | none outside selection |
+| Executor handoff | The executor petitions verification | outstanding |
+| Discharged duty | Authorized evidence currently supports settlement | recognized completion |
+| Adopted successor | A candidate becomes the canonical incumbent | **FUTURE**, not discharge |
 
-The bare words "done", "verified", "trusted", and "improved" are insufficient.
-Every use should name the subject, claim, evidence policy, environment,
-authority, and ledger frontier that give it meaning.
+The words "done", "verified", "trusted", and "improved" are incomplete unless
+they name a subject, claim, evidence policy, environment, authority, and
+ledger frontier.
 
 ## Thesis
 
 An agent is a sequence of temporary executors. Context compaction, Session
-deletion, process exit, model replacement, and human handoff can erase an
-executor's working state while the duty that motivated the work remains.
+deletion, process exit, model replacement, and human handoff can erase working
+state while the duty that motivated the work remains.
 
-Execution state is descriptive. It records what a process saw and did.
-Settlement state is normative. It records what the institution currently
-recognizes as outstanding, authorized, handed off, supported, or released.
+Execution state is descriptive. Settlement state is normative:
+
+~~~text
+execution state
+  what a process saw and did
+
+settlement state
+  what the institution currently recognizes as
+  outstanding, authorized, handed off, supported, or released
+~~~
 
 ProContract separates them:
 
 > Termination is not handoff. Handoff is not settlement. Settlement is current
 > support, not permanent truth.
 
-The executor may explore, modify files, run tools, report a blocker, petition
-new terms, or hand off a candidate. None of those actions can make the
-institution recognize completion. Recognized completion requires an authorized
-transition bound to an exact duty revision, specification, subject, and
-evidence reference.
+An executor may explore, edit, run tools, report a blocker, petition new terms,
+or hand off a candidate. None of those acts can create recognized completion.
+Discharge requires an authorized transition bound to exact duty and evidence
+coordinates.
 
-When evidence supporting a settlement is defeated, ProContract does more than
-retract a belief:
+An accepted defeater does not erase history. It withdraws current support and
+restores responsibility:
 
 ~~~text
-loss of epistemic support
+loss of current epistemic support
         ->
-renewed normative responsibility under an identified owner
+outstanding normative responsibility under an identified owner
 ~~~
 
-This coupling is the distinctive core of ProContract.
-
-The current, strongest defensible thesis is:
-
-> **IMPLEMENTED:** ProContract provides completion integrity: recognized
-> completion is institutional, exact, persisted in an atomic ledger, and
-> defeasible independently of the executor.
-
-The longer research program is:
-
-> **FUTURE:** Policies may explore and recursively improve; a minimal
-> institution governs whether an evidenced candidate may become canonical
-> succession.
-
-The future sentence is not a claim that ProContract produces improvement. It
-is a claim about who may recognize succession and under what coordinates.
-
-## Why execution state cannot determine settlement
-
-Let \(X(h)\) be the execution projection of history \(h\): visible context,
-workspace, tests, process state, and trajectory. Let \(N(h)\) be its normative
-standing: current revision, authority, subject, attestation, support, and
-outstanding duties.
-
-There can be two histories such that:
+The conceptual ingredients have precedents in commitment protocols,
+defeasible norms, truth maintenance, revocation, and compensating workflows.
+The candidate systems contribution is their mechanized conjunction for
+ephemeral executors:
 
 \[
-X(h_1)=X(h_2), \qquad N(h_1)\ne N(h_2).
+\boxed{
+\begin{aligned}
+&institution\text{-}held\ standing\\
+{}+{}&no\ executor\ self\text{-}certification\\
+{}+{}&exact\ subject/evidence\ coordinates\\
+{}+{}&atomic\ support\ withdrawal\\
+{}+{}&dependent\ responsibility\ restoration\\
+{}+{}&continuity\ across\ executor\ replacement.
+\end{aligned}
+}
 \]
 
-For example, the same candidate and test output may be visible in both
-histories while one report names the current revision and the other names a
-superseded revision. Or both may say "tests passed" while one was produced in
-the target runtime and the other in an incompatible interpreter.
+The strongest present reducer claim is:
 
-Any executor policy that reads only \(X\) must choose the same action in both
-histories:
+> **IMPLEMENTED at reducer level:** ProContract provides completion integrity:
+> recognized completion is institution-held, exact under stated coordinate
+> assumptions, and defeasible independently of executor survival.
+
+The current SQLite store separately commits reducer projection, decision event,
+sequence, and ledger head in one transaction. That is an implemented store
+property, not part of the pure-reducer theorem.
+
+It does not claim conceptual priority for any ingredient, verifier truth,
+physical non-bypass, or recursive self-improvement.
+
+## Why executor projection is insufficient
+
+Let \(X(h)\) be the executor projection of history \(h\): visible context,
+workspace, tests, process state, and trajectory. Let \(N(h)\) be the current
+standing of duties, authority, subjects, and support.
+
+Two histories may satisfy:
+
+\[
+X(h_1)=X(h_2),\qquad N(h_1)\ne N(h_2).
+\]
+
+The same candidate and test narration may be visible while one report names a
+stale revision, wrong subject, revoked support, or incompatible runtime.
+Any policy reading only \(X\) must behave identically:
 
 \[
 X(h_1)=X(h_2)
@@ -115,307 +132,253 @@ X(h_1)=X(h_2)
 \pi(X(h_1))=\pi(X(h_2)).
 \]
 
-If the correct settlement differs, that policy must be wrong in at least one
-history. The missing state is not more memory about execution. It is normative
-standing preserved outside the executor.
+This proves only that the current executor projection is insufficient. It does
+not by itself entail an institution; richer descriptive memory could
+distinguish the histories.
 
-This is not a new theorem about partially observed control in general. The
-ProContract contribution is identifying the omitted latent state in agent
-completion as duty, authority, and current evidential support, then placing it
-under an executor-independent transition protocol.
+External normative standing follows from two additional requirements:
+
+1. no self-certification means standing cannot be executor-writable, because
+   the executor could otherwise write "discharged";
+2. survival across executor replacement means standing cannot depend on one
+   executor's continued existence.
+
+Given those requirements, the distinguishing state must live in a durable
+authority domain. It is normative because mediated effects and settlement are
+licensed by it. This is a design-necessity argument, not a metaphysical claim
+that every hidden state is institutional.
 
 ## Ontology
 
-### Descriptive execution state
-
-Descriptive state includes model messages, tool calls, files, leases, process
-status, counters, and raw observations. It may be durable or ephemeral.
-Deletion, exhaustion, or failure of descriptive state is not settlement.
-
 ### Duty
 
-A duty is an institutionally admitted obligation identified by scope,
-Contract ID, revision, terms identity, issuer, and executor. It remains
-outstanding until an authorized discharge or release.
+A duty is an admitted obligation identified by scope, Contract ID, revision,
+terms identity, issuer, and executor. It remains outstanding until authorized
+discharge or release.
 
-### Normative standing
+### Standing
 
-Normative standing is the current institutional status of a duty:
+Current standing is one of:
 
-- dormant;
-- active;
-- verification;
-- escalated;
-- discharged;
-- released.
+~~~text
+dormant
+active
+verification
+escalated
+discharged
+released
+~~~
 
-Dormant, active, verification, and escalated duties are outstanding. Only
-discharged and issuer-authorized released duties are quiet.
+Dormant, active, verification, and escalated are outstanding. Only discharged
+and issuer-authorized released duties are quiet.
 
 ### Authority
 
-Authority answers who may perform or recognize an effect. ProContract has two
-different authority planes:
+Authority has two planes:
 
-- delegated execution capabilities, such as mediated filesystem or process
-  access while an exact revision is active;
-- institutional authority to issue, revise, attest, challenge, resume, or
-  release.
+- execution capabilities delegated while an exact revision is active;
+- institutional rights to issue, amend, settle, defeat, resume, or waive.
 
-Visibility in a model prompt is not authority. A tool definition may be hidden
-for clarity, but execution admission at the finalized effect boundary is the
-authoritative check.
+Model-visible affordance is not authority. The authoritative execution check
+occurs at a mediated effect boundary.
 
 ### Subject
 
-A subject is the immutable, content-addressed projection handed to a verifier.
-It is not "the workspace" without qualification. The current Codex subject is
-exact under its current capture policy, which bounds entries and bytes, skips
-ordinary oversized files and symbolic links, and force-captures declared
-artifacts. The manifest format is versioned, but the effective capture limits
-are not yet serialized into that version or subject identity.
+A subject is a content-addressed projection handed to a verifier. It is exact
+only relative to its capture function.
 
-Two physical workspaces may therefore share a subject identity when their
-differences are outside that projection. The capture policy is part of the
-trusted evidence envelope.
+The current Codex subject projection skips ordinary oversized files and
+symbolic links and force-captures declared artifacts. Its manifest format is
+versioned, but effective capture limits are not yet bound into subject
+identity. Exact-subject claims therefore trust an uncoordinated capture policy
+in v1.
 
-### Claim
+### Goal and claim
 
-The optimization goal tells an executor what to pursue. The settlement claim
-tells a verifier and Principal which proposition evidence may support.
+The goal tells an executor what to optimize. The settlement claim tells the
+Principal which proposition evidence may support.
 
-A discharge recognizes the frozen claim. It does not assert that the goal
-reached a global optimum, that all hidden requirements were discovered, or
-that the verifier fully represents user intent.
+Discharge recognizes that claim. It does not assert global optimality,
+complete requirement discovery, or construct validity of the verifier.
 
 ### Handoff
 
-A handoff is a subject-bound completion petition containing a concise summary,
-known uncertainties, and optional mechanical replay evidence. It is produced
-by executor work but admitted by the institution.
+A handoff is an executor-authored, subject-bound petition containing summary,
+uncertainties, and optional mechanical evidence.
 
-The summary and uncertainty list are executor-authored claims, not evidence.
-ProContract does not guarantee that a persuasive, incomplete, or deceptive
-handoff cannot induce a human Principal to attest incorrectly. Independent
-adjudication must inspect the subject and external evidence rather than treat
-handoff narration as testimony.
+Its narration is not evidence. ProContract does not prevent a persuasive,
+incomplete, or deceptive summary from misleading a human Principal.
 
 ### Evidence policy
 
-An evidence policy specifies a finite projection of a claim that must be
-checked. In the current Codex slice, ReplayPolicy contains argv-based checks,
-protected file hashes, and required artifact paths.
-
-Evidence policy is normative because changing it changes what may support
-settlement. It belongs under the specification hash.
+Evidence policy defines a frozen finite prerequisite for settlement. Changing
+it changes what may support the claim, so its identity is normative.
 
 ### Execution policy
 
-Execution policy is advisory guidance about how the executor should search,
-probe, implement, and allocate effort. It does not change the duty, claim,
-authority, budget, evidence requirement, or settlement rule.
-
-The Codex binding stores execution policy separately from ContractSpec. It is
-not included in specHash or revision and is projected once into the executor
-context.
+Execution policy advises how to search, probe, implement, and allocate effort.
+It cannot alter duty, claim, authority, evidence requirements, or settlement.
 
 ### Attestation
 
-An attestation is finite testimony from an authorized Principal. The containing
-Discharge command and Contract lookup bind it contextually to the Contract; its
-fields bind revision, specification, handoff subject, evidence reference, and
-verifier identity. The current reducer requires issuer-controlled attestation.
+An attestation is finite testimony from settlement authority. The containing
+Discharge command binds it to one Contract; its fields bind revision,
+specification, subject, evidence, and verifier identity.
 
-An opaque evidence hash proves identity, not semantic truth.
+An evidence hash establishes identity, not semantic truth.
 
 ### Challenge
 
-A challenge is a subject-bound defeater. It removes current support without
-deleting the historical attestation. Executor-visible challenges provide
-remediation information; sealed challenges reject support without leaking
-holdout contents into the executor context.
+A challenge is an authorized, subject-bound defeater. It withdraws current
+support without deleting historical attestation. Visible challenges may guide
+remediation; sealed challenges reject support without revealing holdout
+contents to the executor.
 
-### Settlement
+### Settlement and completion
 
-Settlement is the accepted institutional transition from verification to
-discharged. It requires an exact handoff and authorized attestation.
-
-Settlement is terminal for ordinary execution but defeasible under a later
-challenge.
-
-### Completion
-
+Settlement is the accepted transition from verification to discharged.
 "Completion claim" means handoff. "Recognized completion" means discharged with
-current support. These terms are not interchangeable.
+current support.
 
 ### Succession
 
-Succession is a **FUTURE** relation that changes a distinguished incumbent:
-the artifact, policy, or judge future work inherits by default.
-
-Succession is not another word for discharge. Many Contracts may be discharged
-concurrently, whereas an incumbent role requires exclusive, serialized,
-atomic replacement.
+Succession changes a distinguished incumbent inherited by future work.
+It is **FUTURE** and not another word for discharge. The minimal boundary is
+retained later in this document; the full design is in
+[witnessed succession](pro-contract-succession.md).
 
 ## Philosophical foundations
 
-### An agent is a succession of temporary selves
+### Temporary selves cannot own continuity
 
-An LLM invocation has no intrinsic normative continuity with a future
-invocation. A later model may inherit messages or files, but inheritance does
-not explain why a prior intention should still bind, which authority remains
-valid, or what counts as release.
+An invocation has no intrinsic normative continuity with its successor.
+Messages and files may persist without explaining why an intention still
+binds, which authority remains current, or what counts as release.
 
-ProContract externalizes continuity. The institution, not the current
-psychology of an executor, carries the duty.
+The institution, not executor psychology, carries the duty.
 
-This follows the role of intention as a commitment device. An intention is not
-merely a present preference. It stabilizes future action and coordinates
-others. When the policy that formed the intention is ephemeral, an external
-institution must carry the commitment.
-
-### Memory, obligation, and support are different
+### Memory, duty, and support are different
 
 ~~~text
-past observation -> memory       -> future attention
-current intent   -> Contract     -> future duty and authority
-current witness  -> attestation  -> current epistemic support
-defeater         -> challenge    -> renewed responsibility
+past observation -> memory      -> future attention
+current intent   -> Contract    -> future duty and authority
+current witness  -> support     -> recognized settlement
+accepted defeater-> challenge   -> renewed responsibility
 ~~~
 
-Memory can influence a future policy and still be ignored. A Contract changes
-what the institution recognizes even when the executor forgets it. An
-attestation supports one frozen claim but may later lose standing.
+Memory may influence a future policy and still be ignored. Contract standing
+continues even when the executor forgets. Support may later be defeated while
+history remains true as history.
 
-### Institutional force comes from mediation
+### Institutional force is scoped mediation
 
-A schema is not a Contract merely because it is expressive. Contract force
-comes from the institution's monopoly over recognized state transitions.
+A schema is not a Contract merely because it is expressive. Institutional
+force comes from exclusive control over recognized transitions and the effects
+conditioned on them.
 
-The institution does not monopolize all physical behavior. It monopolizes what
-the mediated system accepts as authorized, settled, or quiet. Strong physical
-non-bypass additionally requires a separate authority domain.
+Today that force is coextensive with registered Codex effect paths. The local
+prototype is not a universal physical institution.
 
-### Contracts are incomplete
+### Incomplete terms require residual control
 
-Natural-language intent and an executable verifier cannot be identical.
-Freezing an evidence policy prevents opportunistic weakening but also freezes
-an imperfect proxy.
+Natural-language intent and executable evidence policy cannot be identical.
+Freezing evidence prevents opportunistic weakening and also freezes an
+imperfect proxy.
 
-Incomplete-contract theory supplies the appropriate response: explicit
-residual control rights. The issuer owns revision, release, and settlement
-decisions; the executor may petition but cannot approve them.
+Residual control belongs to an authority distinct from execution. The issuer
+may amend or waive; the executor may petition but cannot ratify.
 
-### Truth is supported, not stored in an artifact
+### Truth is supported, not stored
 
-Specs, manifests, handoffs, reports, hashes, and proofs are boundary objects.
-Their institutional type and provenance determine what role they play.
+Specs, hashes, reports, and proofs are boundary objects. Their existence does
+not prove their claims. Canonical identity prevents substitution; it does not
+make the represented proposition true.
 
-A report's existence does not make it true. A hash makes substitution
-detectable, not semantics correct. A passed replay establishes only the
-finite claim computed by that replay in the world where it ran.
-
-### Evidence is indexed by the world that produced it
-
-Evidence has an implicit environment argument:
+### Evidence is world-indexed
 
 \[
-E = E(subject, policy, environment, evaluator, time).
+E=E(subject,\ policy,\ environment,\ evaluator,\ time).
 \]
 
-Removing that argument can make a precise hash precisely wrong. In the Amber
-ProgramBench trajectory, the exact frozen executable passed replay under
-Python 3.12.3 and was a syntax error under the evaluator's Python 3.10.12.
-The subject hash did not change. The relevant world did.
-
-Therefore:
+Evidence produced in environment \(e_1\) does not automatically support the
+same claim in \(e_2\):
 
 \[
-Support_{e_1}(c) \not\Rightarrow Support_{e_2}(c)
+Support_{e_1}(c)\not\Rightarrow Support_{e_2}(c).
 \]
 
-unless environment equivalence or an explicit bridge has been established.
+The Amber development run supplied the same executable to Python 3.12 replay
+and Python 3.10 evaluation. Replay passed; the target artifact could not parse.
+The lesson is constitutive: environment identity belongs in the evidence
+coordinate. Details and limitations are in
+[ProContract evidence](pro-contract-evidence.md).
 
-Environment-coordinate binding is **FUTURE** in the native replay report and a
-required correction, not optional telemetry.
+### Defeat has a normative consequence
 
-### Defeat creates responsibility
-
-Truth-maintenance systems retract beliefs when justifications lose support.
-ProContract adds a normative consequence:
+Truth-maintenance systems retract support. ProContract also routes the
+consequence:
 
 \[
-Defeat(support(o))
+AcceptedDefeat(support(o))
 \land Mandated(o)
-\Longrightarrow OutstandingRemediation(o).
+\Longrightarrow OutstandingResponsibility(o).
 \]
 
-If a challenged duty supported downstream recognized duties, the challenge
-closure restores responsibility transitively. Historical decisions remain
-auditable; current support is withdrawn.
+The reducer does not discover epistemic defeat. An authorized challenge tells
+it that support has been defeated at an exact coordinate.
 
-### Non-vacuous RSI requires a fixed point
+### Improvement semantics are root-relative
 
-If the improver, judge, mission, authority, and rule of adoption can all change
-without an external constraint, "improvement" has no stable semantics.
+Each defensible comparison holds some mission semantics, evidence rule, and
+authority stable across that comparison. This does not require one physical
+component to remain fixed forever.
 
-The design problem is not eliminating every fixed point. It is minimizing and
-making explicit the root relative to which improvement is meaningful.
+A root may change through a rolling bridge. A purely self-authorized
+replacement does not inherit its predecessor's meaning of "authorized"; it
+begins a new normative regime.
 
-The actual ProContract trust root is not only the pure reducer. It includes:
+For one claimed continuity step:
 
 \[
-R =
-(K,\ authentication,\ canonicalization,\ atomic\ storage,\ capture\ policy,
-evidence\ envelope,\ clock,\ root\ authority).
+R_t=(K,\ authentication,\ canonicalization,\ storage,\ capturePolicy,
+evidenceEnvelope,\ clock,\ rootAuthority)_t.
 \]
-
-Policies and judges may evolve only relative to this root or to a bridge
-authorized by it. An entity cannot self-authorize replacement of the final
-authority that gives "authorized" its meaning.
 
 ## Claim ladder
 
-The document separates four types of claim.
+### Reducer invariants
 
-### Unconditional kernel invariants
+Properties of the finite transition function under already-authenticated
+commands. They do not depend on model competence.
 
-These are properties of the finite command algebra, assuming commands have
-already been mapped to authenticated actor identities and canonical values.
-They do not depend on model competence.
+### Store and adapter properties
 
-### Conditional system properties
-
-These combine kernel invariants with named adapter and deployment assumptions:
-exclusive role wiring, durable storage, mediated effects, a running process,
-or a verifier that terminates.
+Properties requiring atomic persistence, role wiring, command confinement,
+effect mediation, or a running recovery process.
 
 ### Empirical hypotheses
 
-These concern score, cost, convergence, model behavior, compiler quality, or
-evidence coverage. They are indexed by an experiment and may be falsified
-without changing the kernel.
+Claims about score, cost, evidence coverage, or model behavior. They are
+indexed by a frozen experiment and may be falsified without changing Kernel
+semantics.
 
-### Future protocol claims
+### Future protocols
 
-These specify desirable extensions, including environment-coordinated
-evidence, portable signatures, canonical succession, judge bridges, and
-adversarial process isolation.
+Environment bridges, strong process isolation, portable signatures,
+incumbent adoption, and judge succession. Future claims remain future tense.
 
-No future claim should be written in the present tense.
-
-## Normative kernel
+## Normative Kernel
 
 ### Algebra
 
-The current kernel is a pure, total, deterministic reducer:
+The reducer is pure, total, and deterministic:
 
 ~~~text
 transition(state, authenticated finite command)
-  -> next state + accepted/rejected decision + event
+  -> next state + decision + event
 ~~~
 
-The current command vocabulary is:
+Its current command vocabulary is:
 
 ~~~text
 issue
@@ -431,14 +394,13 @@ escalate
 release
 ~~~
 
-The exact names and count are not constitutional. Their irreducible categories
-are admission, activation, candidate petition, residual-control decision,
+Exact names and count are not constitutional. The irreducible categories are
+admission, activation, candidate petition, residual-control decision,
 settlement, defeat, and routing of outstanding work.
 
-Illegal commands preserve authoritative state. The ledger still records their
-rejection.
+Rejected commands preserve authoritative state and remain ledgered.
 
-### Status
+### Lifecycle
 
 ~~~text
 dormant -> active -> verification -> discharged
@@ -446,1174 +408,494 @@ dormant -> active -> verification -> discharged
              |            +-> challenge -> dormant or escalated
              +-> blocked/retry/escalation
 
-issuer-authorized release -> released
+issuer-authorized waiver -> released
 ~~~
 
-Only active authorizes executor effects. Verification is outstanding work
-awaiting adjudication. Escalation routes responsibility; it does not settle.
+Only active standing authorizes executor effects. Verification remains
+outstanding. Escalation routes responsibility; it does not settle.
 
-### Invariants
+### Constitutional invariants
 
 #### I1. Rejection preservation
 
 \[
-decision(c)=Rejected \Longrightarrow state'=state.
+Rejected(c)\Longrightarrow state'=state.
 \]
-
-Rejected authority-changing attempts remain auditable events.
 
 #### I2. Obligation conservation
 
-An outstanding duty ends only through accepted discharge or issuer-authorized
-release. Session deletion, process exit, retry, blocked work, revision
-petition, and escalation do not settle.
+An outstanding duty ends only by authorized discharge or release. Process,
+Session, retry, blocked, revision-petition, and escalation events do not
+settle.
 
-#### I3. Residual control
+#### I3. Residual authority
 
-Only the issuer may approve revision or release. The executor may propose
-different terms but cannot ratify them.
+Only the issuer may approve amendment or release. Institution-only transitions
+require institution actor standing.
 
 #### I4. No self-certification
 
-Issuer and executor are distinct. Executor testimony can create a handoff and
-enter verification, never an attestation or discharge.
+Issuer and executor are distinct. Executor testimony may reach verification,
+never attestation or discharge.
 
-#### I5. Exact coordinates
+#### I5. Coordinate integrity
 
-Authority-changing transitions check the applicable Contract ID, revision,
-specification hash, subject hash, evidence reference, and actor identity.
-Stale or substituted coordinates reject instead of being inferred from arrival
-order.
+Applicable Contract, revision, specification, subject, evidence, and actor
+coordinates must match. Conflicting reuse, stale identity, and duplicate
+attestation reject.
 
-#### I6. Replay subordination
+Subject exactness in v1 is relative to the trusted capture projection because
+capturePolicyHash is not yet part of the coordinate.
 
-When configured, mechanical replay must match the frozen policy and exact
-subject and must pass before discharge is possible. Replay evidence must be
-distinct from Principal attestation evidence.
+#### I6. Evidence subordination
 
-Replay alone never discharges.
+Let \(E\) be a finite evidence-prerequisite predicate. If configured, \(E\)
+must hold for the exact handoff before discharge. Mechanical evidence cannot
+double as Principal attestation.
+
+The current v1 predicate is concrete ReplayPolicy. Interpreting argv, cwd,
+timeouts, protected files, and artifact paths in the Kernel crate is
+transitional debt.
 
 #### I7. Responsibility closure
 
-An accepted challenge atomically removes current support from the target and
-every live transitive dependent. Released duties remain released. Historical
-attestations remain in the ledger.
+An accepted challenge withdraws current support from the target and every live
+duty in the reducer-computed dependent closure. Released duties stay released;
+historical attestations remain.
 
-#### I8. Dependency integrity
+The reducer now tests a dependency chain of depth two. System behavior under
+concurrent challenges and injected storage/process failure remains
+**PARTIAL**.
 
-Requirements name already-issued duties at exact revisions. Activation checks
-that every requirement is discharged with current attestation support.
+#### I8. Dependency immutability and fencing
 
-Because a new Contract can require only existing Contracts, issuance order
-prevents dependency cycles.
+Requirements name existing duties at exact revisions. Revision cannot change
+the requirement set. An outstanding dependent fences acceptance of an upstream
+revision and release of that upstream duty.
+
+Issuance order plus immutable edges prevents cycles. Graph adaptation issues a
+new Contract rather than rewiring a live node.
 
 #### I9. Revision fencing
 
-A pending revision blocks handoff and settlement until the issuer accepts or
-rejects the exact petition. Rejection resumes the old terms; acceptance creates
-a new revision and execution context.
+A pending revision blocks activation, handoff, challenge, and discharge until
+the issuer accepts or rejects the exact petition.
 
 #### I10. Frontier-relative quiet
 
 \[
 quiet(scope,f)
 \iff
-\forall o \in scope:
+\forall o\in scope:
 status_f(o)\in\{Discharged,Released\}.
 \]
 
-Quiet names a scope and ledger frontier. A later admission or challenge creates
-a later frontier; it does not falsify the historical snapshot.
+Quiet names a frontier, not an eternal fact.
 
-### Completion Integrity
+### Guard taxonomy
+
+The current reducer has 64 rejection sites. They are classified as:
+
+- constitutional enforcement;
+- command well-formedness;
+- fail-closed internal consistency.
+
+The complete line-by-line mapping lives in
+[Codex implementation](pro-contract-implementation.md). Future code should use
+a typed rejection enum and a test that requires every variant to map to one
+class and, when constitutional, one invariant.
+
+## Completion Integrity
 
 Define:
 
 \[
 \begin{aligned}
-CI ={}&
-RejectionPreservation \\
-&\land ObligationConservation \\
-&\land ResidualControl \\
-&\land NoSelfCertification \\
-&\land CoordinateIntegrity \\
-&\land ResponsibilityClosure \\
+CI_K={}&
+RejectionPreservation\\
+&\land ObligationConservation\\
+&\land ResidualAuthority\\
+&\land NoSelfCertification\\
+&\land CoordinateIntegrity\\
+&\land EvidenceSubordination\\
+&\land ResponsibilityClosure\\
+&\land DependencyIntegrity\\
 &\land QuietSoundness.
 \end{aligned}
 \]
 
-Under authenticated actor mapping, canonical hashing, and atomic durable
-storage, the intended theorem is:
+Let \(\pi\) select finite commands only through \(K\)'s interface. Assume:
+
+1. actor identities are authenticated before transition;
+2. \(\pi\) cannot mutate authoritative state except through \(K\);
+3. canonical encodings and hashes preserve the identities compared;
+4. \(K[E]\) is the sole producer of recognized state transitions.
+
+Then the intended reducer theorem is:
 
 \[
-\forall \pi,\quad
-Traces(K\parallel\pi)\models CI.
+\forall\pi,\quad
+Traces(K[E]\parallel\pi)\models CI_K.
 \]
 
-Here \(\pi\) may be stochastic, mistaken, adversarial, or a human contractor.
-The theorem concerns recognized state, not physical non-bypass, semantic
-truth, outcome liveness, or task solvability.
+This is guard correctness under an interface, not adversarial process
+confinement.
 
-The current Rust tests exercise representative invariant paths. Exhaustive
-model checking and implementation refinement are **FUTURE** and required
-before describing the theorem as mechanically proved.
+System completion integrity additionally requires:
 
-## The actual trust root
+- atomic durable storage;
+- exclusive role wiring;
+- command-channel confinement;
+- mediation of every protected effect;
+- a live recovery/adjudication process when liveness is claimed.
 
-The pure reducer is necessary but insufficient for system-level claims.
+The current local deployment does not establish adversarial confinement.
+\(CI_{system}\) is therefore **PARTIAL**.
 
-### Actor authentication and role wiring
+Representative Rust tests exist. Exhaustive model checking, guard-to-invariant
+drift enforcement, concurrency/crash injection, and Rust/reference-model
+refinement are **FUTURE**.
 
-The Rust reducer compares actor strings. It does not authenticate identities.
-The Codex adapter controls which model-visible and Principal-only surfaces can
-construct each command.
+## Trust root and security boundary
 
-No-self-settlement at system level therefore assumes the executor cannot call
-raw Principal methods or manufacture institution actors.
+The pure reducer is necessary and insufficient for system guarantees.
+
+### Actor mapping
+
+The reducer compares actor identities; it does not authenticate them. The
+adapter determines which surfaces may construct Principal, executor, or
+institution commands.
 
 ### Canonicalization
 
-Specification and subject identity depend on SHA-256 over one canonical
-serialization and one manifest grammar. Schema evolution and a second adapter
-must agree on that encoding.
+Specification and subject identities depend on one serialization, hash
+algorithm, and projection grammar. These are consensus code.
 
-Canonicalization is consensus code, not a convenience.
+### Store
 
-### Atomic storage
+SQLite commits projection, decision event, sequence, and hash head in one
+immediate transaction. The chain is crash-consistent and auditable. It is not
+tamper-proof against an actor able to rewrite the store and its anchors.
 
-The SQLite ledger commits projection, accepted or rejected decision, sequence,
-and hash-chain head in one immediate transaction.
+### Capture policy
 
-The hash chain is auditable and crash-consistent. It is not tamper-proof
-against an actor that can rewrite the database and its anchors.
+Ignore rules, entry and byte limits, symlink behavior, and forced artifact
+closure define subject identity. They must be bound by a future
+capturePolicyHash.
 
-### Subject-capture policy
+The current implementation checks its total byte ceiling after copying a file.
+Streaming enforcement is a known correctness gap.
 
-Capture limits, ignore rules, symbolic-link handling, ordinary-file size
-limits, and forced artifact closure define the subject projection. These rules
-must be versioned and named in portable evidence.
+### Environment and evaluator
 
-The reviewed implementation checks its total byte ceiling only after copying a
-file into the object store. Enforcing the remaining limit during the read loop
-is a known correctness requirement before adversarial artifact claims.
-
-### Evidence environment
-
-The current native replay report records commands, exits, output hashes,
-protected files, artifacts, policy hash, and subject hash. It does not record
-an image digest, interpreter, OS, architecture, toolchain, evaluator version,
-duration, resource use, or descendant cleanup.
-
-It is therefore **PARTIAL** evidence and must be described as local preflight.
+The current replay report lacks image, interpreter, OS, architecture,
+toolchain, evaluator, duration, resource, and descendant-cleanup coordinates.
+Replay is **PARTIAL** local preflight.
 
 ### Clock
 
-Deadlines, leases, and triggers trust the host clock. Heartbeat proves recent
-process ownership, not semantic progress.
+Deadlines and leases trust host time. The reducer accepts caller-supplied
+timestamps without global monotonicity checks, so authenticated time
+construction belongs to the adapter trust root.
 
-The reducer also trusts caller-supplied command timestamps and does not enforce
-global monotonicity between them. Authenticated adapter construction of time is
-therefore part of the current trust root.
+### Physical boundary
 
-### Root authority and mission semantics
-
-The current Principal is the issuer. Independent means the executor cannot
-invoke that surface; it does not necessarily mean a distinct organization or
-human.
-
-Goal and claim remain natural language. The Kernel checks identity and
-authority, not construct validity.
-
-## Security boundary
-
-ProContract monopolizes recognized finality and mediated capability issuance,
-not every physical effect.
-
-At a mediated effect point:
+Institutional force is scoped to mediated effects:
 
 ~~~text
 effect allowed
-iff active exact revision
+iff exact active revision
 and current binding/lease
 and delegated capability
 and remaining shared budget
 ~~~
 
-The current local Codex deployment is cooperative. A shell-capable process
-running under the same operating-system authority may reach files or processes
-outside an in-process adapter.
-
-Strong adversarial non-bypass is **FUTURE** and requires:
-
-- Principal credentials absent from the executor environment and namespace;
-- ledger and evidence storage outside executor write authority;
-- worker identities unable to authenticate Principal commands;
-- every protected effect mediated by a capability-validating boundary;
-- only finite subjects and evidence crossing from worker to institution.
-
-System-level no-self-settlement is conditional on those assumptions.
+Strong non-bypass is **FUTURE**. It requires Principal credentials, ledger, and
+evidence storage outside executor authority and every protected effect behind
+a capability-validating boundary.
 
 ## Layer ownership
 
 ~~~text
-pure settlement kernel
-  duty identity, roles, status, coordinate checks,
-  dependency closure, decision, quiet
+pure settlement Kernel
+  standing, authority roles, exact coordinates,
+  support closure, decision, quiet
 
 institution store and authority boundary
-  authenticated commands, atomic projection and ledger,
-  Principal/worker identity, durable event frontier
+  actor authentication, atomic ledger, durable frontier
 
 trusted evidence envelope
-  subject capture, environment identity, replay execution,
-  evaluator identity, finite report, provenance validation
+  subject capture, environment/evaluator identity,
+  finite observations and provenance
 
 execution adapter
-  Session, model, tools, leases, fences, counters,
-  interruption, recovery, effect admission
+  Session, model, tools, leases, budgets,
+  recovery and effect admission
 
 mutable policy plane
-  execution guidance, compiler heuristics, probe strategy,
-  budget allocation, candidate generation, selection policy
+  execution guidance, compiler and probe strategy,
+  candidate generation and selection
 
 task adapter
-  cleanroom, candidate layout, reference interface,
-  benchmark evaluator, score normalization, test split
+  cleanroom, layouts, references, tests and scores
 ~~~
 
-Core may bind hashes and identities of edge-owned manifests. It should not
-interpret their task mechanics.
+Kernel may bind edge-manifest identities. It should not interpret task
+mechanics.
 
-### Admission test for the pure Kernel
+### Kernel admission test
 
-A concept belongs in the pure Kernel only when removing it permits at least
-one of:
+A concept belongs in Kernel only when removing it permits:
 
-- false quiet without authorized settlement;
-- self-certification;
-- stolen or expanded authority;
-- stale subject or evidence substitution;
-- challenged support leaving a live dependent recognized without an owner;
-- an authority-changing decision becoming unauditable.
+- false quiet without settlement;
+- executor self-certification;
+- stolen authority;
+- stale subject/evidence substitution;
+- unsupported dependent recognition without an owner;
+- an unauditable authority-changing decision.
 
-If removal changes only score, prompt style, search order, scheduling
-efficiency, replay implementation, or benchmark coverage, the concept belongs
-at an edge.
+Score, prompt style, scheduling, replay implementation, and search order remain
+at edges.
 
-### Transitional debt: ReplayPolicy
-
-The current Kernel crate interprets argv, cwd, timeouts, protected files, and
-artifact paths through ReplayPolicy. Those are verifier-adapter concepts, not
-constitutional settlement concepts.
-
-This remains supported implementation debt. The target shape is:
-
-~~~text
-Kernel:
-  evidence_policy_hash
-  evidence_result_coordinate
-
-Evidence envelope:
-  concrete argv/files/proofs/rubrics/tests
-~~~
-
-Migrating this representation must preserve existing Spec and ledger
-coordinates or introduce an explicit compatibility version.
-
-## Three policies, not one
-
-The word "policy" names three different objects.
+## Three policies
 
 ### Execution policy
 
-Execution policy guides how work is attempted. It is mutable, replaceable, and
-outside ContractSpec.
-
-**PARTIAL:** Codex stores it on the execution binding as a typed developer
-fragment and does not permit executor revision to change it. One projection
-path is one-shot, while the full thread-context path does not consistently
-honor the same one-shot and separate-message semantics.
-
-Known context-boundary issues in the reviewed branch must be fixed before
-production: the final executor prompt requires a hard token bound, contextual
-user fragments must not be mistaken for the original request, and all policy
-injection paths must preserve separate-message metadata.
+Advisory method for attempting work. It stays outside ContractSpec and
+specHash. The current Codex projection is **PARTIAL** because context paths do
+not yet share uniform one-shot/separate-message behavior.
 
 ### Evidence policy
 
-Evidence policy defines a frozen mechanical prerequisite to settlement. It is
-normative and belongs under specHash.
-
-**PARTIAL:** ReplayPolicy serves this role but is environment-blind and
+Frozen prerequisite for settlement. Its identity belongs under specHash.
+Current ReplayPolicy is **PARTIAL** because it is environment-blind and
 filesystem/process-specific.
 
 ### Succession policy
 
-Succession policy determines what evidence and authority permit a candidate to
-replace a canonical incumbent.
-
-**FUTURE:** No such object or transition exists in the reviewed Codex Kernel.
-
-This naming discipline resolves an apparent contradiction:
+Rules for replacing a canonical incumbent. **FUTURE**.
 
 ~~~text
-execution policy is outside the duty specification
-evidence policy is inside the duty specification
-succession policy is not yet implemented
+execution policy -> how work is attempted
+evidence policy  -> what finite support is required
+succession policy-> what may become incumbent
 ~~~
 
-## Codex execution adapter
-
-### Formation
-
-The host controller may issue an exact Contract for a loaded Principal thread.
-The compiler preserves the source request, rejects unknown capability names,
-checks user-named artifacts, and produces a compiler-manifest hash.
-
-Model-authored formation exists only in the optional proposal mode. The
-reviewed latest-user-request lookup can confuse later contextual user fragments
-with actual client input; this is a known authorization bug, not part of the
-theory.
-
-### Binding
-
-Each Contract execution has a separate binding containing:
-
-- Contract and ledger scope;
-- current revision;
-- executor Session identity;
-- execution policy;
-- attempt identity and count;
-- cumulative turn and action counters;
-- deadline and next-action time;
-- lease owner and expiry.
-
-Binding state is operational, not normative settlement state.
-
-### Admission
-
-Before each ordinary executor-turn provider request, the extension checks the
-current Contract status, revision, pending revision, binding, lease, deadline,
-and cumulative turn budget. Before each registered finalized tool call, it
-additionally checks delegated tool authority and the cumulative action budget.
-
-While a Contract remains active, contract status, ready, blocked, and
-revision-petition tools bypass ordinary action reservation and authority lookup
-so the executor can return responsibility without spending another effect
-action. The effect-free host control tools update_plan and tool_search share
-that exemption. Every exemption still requires a current active Contract and
-revision.
-
-Detecting turn, action, attempt, or deadline exhaustion escalates the Contract.
-Ordinary executor-turn sampling and registered executor tools are denied after
-escalation. Inline auto-compaction currently issues host-driven provider
-requests outside the sampling-admission hook; those requests are not Contract
-metered or fenced and are a known adapter gap.
-
-### Semantic attempts
-
-Transient transport interruption may resume the same semantic attempt.
-Visible verifier challenges, accepted revisions, blocked context, and ordinary
-attempt exhaustion create new attempt context without resetting shared
-ceilings.
-
-An attempt is not a Contract and its disappearance is not settlement.
-
-### Handoff
-
-report-ready captures a bounded subject before recording handoff. Failure to
-capture or start configured replay escalates instead of inventing evidence.
-
-The current adapter supports subject capture and replay only in the local
-environment. Remote executor support is **FUTURE**.
-
-### Principal
-
-Principal-only APIs attest, challenge, decide revisions, resume, release,
-inspect quiet, and materialize the exact handoff.
-
-The executor receives status, ready, blocked, and revision-petition tools. It
-does not receive Principal settlement APIs.
-
-### Recovery
-
-The adapter persists binding and ledger state and can reclaim expired leases
-while a Principal runtime is loaded. Hosted wall-clock liveness while every
-process is stopped is **NOT CLAIMED**.
-
-Crash recovery, accepted revision, remote execution, Windows replay, and
-combined authority/budget enforcement require additional integration coverage
-before the branch is production-ready.
-
-## Evidence and justification
-
-### History, justification, and current support
+## Evidence and knowledge continuity
 
 Use separate symbols:
 
 \[
-\mathcal H = immutable\ decision\ history,
-\quad
-\mathcal J = justification\ graph,
-\quad
-\mathcal S = current\ support.
+\mathcal H=immutable\ history,\qquad
+\mathcal J=justification\ graph,\qquad
+\mathcal S=current\ support.
 \]
 
-A challenge changes \(\mathcal S\), may alter which duties are outstanding,
-and appends to \(\mathcal H\). It does not rewrite \(\mathcal H\).
+A challenge appends to \(\mathcal H\), changes \(\mathcal S\), and may restore
+outstanding duties. It does not rewrite history.
 
-### Proposed complete evidence coordinate
-
-The current coordinate is approximately:
-
-\[
-(contract,\ revision,\ specHash,\ subjectHash,\ policyHash,\ evidenceHash,
-verifier).
-\]
-
-The target evidence envelope is:
+### Target evidence coordinate
 
 \[
 \begin{aligned}
-\mathcal E = (&contract,\ revision,\ specHash,\ subjectHash,\\
-              &evidencePolicyHash,\ environmentDigest, evaluatorDigest,\\
-              &observationManifestHash,\ evidenceHash,\ authority).
+\mathcal E=(&contract,\ revision,\ specHash,\ subjectHash,\\
+            &evidencePolicyHash,\ capturePolicyHash,\\
+            &environmentDigest,\ evaluatorDigest,\\
+            &observationManifestHash,\ evidenceHash,\ authority).
 \end{aligned}
 \]
 
-EnvironmentDigest should cover the compatibility properties relevant to the
-claim, including image, OS, architecture, runtime/ABI, toolchain, sandbox, and
-dependency closure. Exact image identity is appropriate when exact deployment
-parity is required; a versioned compatibility predicate is appropriate when
-portability is the claim.
+The Kernel binds finite identities. The evidence envelope validates concrete
+commands, proofs, files, rubrics, tests, and environments.
 
-### Trusted observations
+### Trusted observation
 
-A process observation should record:
+An execution observation should record exact input coordinates, exit, bounded
+output hashes, duration, timeout, resource status, descendant cleanup, and
+subject/environment/evaluator identities.
 
-- exact argv, cwd, selected environment, and input hashes;
-- exit status;
-- bounded stdout and stderr hashes;
-- wall and CPU time;
-- timeout and output-cap status;
-- peak resource use when relevant;
-- process-group termination and surviving descendants;
-- subject, evaluator, and environment identities.
+Model prose may summarize an observation. It cannot replace it.
 
-Model-authored prose may summarize these observations. It cannot replace them.
+### Knowledge is not duty
 
-### Replay
+Obligation conservation preserves responsibility, not hypotheses,
+counterexamples, or convergence state. Those belong in content-addressed
+adapter evidence.
 
-Replay is limited preflight:
-
-~~~text
-frozen subject
-  -> fresh materialization
-  -> frozen finite checks
-  -> protected/artifact inspection
-  -> content-addressed report
-~~~
-
-Replay establishes neither hidden behavioral adequacy nor global correctness.
-When replay runs in a different environment from deployment, it additionally
-requires an explicit environment bridge.
-
-### Independent adjudication
-
-Principal evidence must remain distinct from executor handoff and mechanical
-replay. A task adapter may provide tests, proof checking, a rubric, human
-review, deployment receipt, or comparison against a named baseline.
-
-The Kernel binds the result identity. It does not interpret task-specific
-semantics.
-
-## Knowledge continuity
-
-Obligation conservation does not imply knowledge conservation.
-
-The current Kernel preserves duty and historical decisions. It does not by
-itself preserve hypotheses, probes, counterexamples, causal explanations, or
-the residual frontier needed for efficient convergence.
-
-Knowledge artifacts should be content-addressed evidence owned by an adapter:
-
-~~~text
-probe case
-candidate observation
-residual mismatch
-hypothesis and dependency
-resolution or unresolved status
-environment/evaluator coordinate
-~~~
-
-New attempts may inherit them only when their support remains valid.
-
-### Evidence inheritance
+Evidence may be inherited only when:
 
 \[
 Reuse(e,o')
 \iff
 Dependencies(e)\ unchanged
 \lor
-NonInterference(e,o')\ separately\ established.
+NonInterference(e,o')\ established.
 \]
 
-Copying a score or trace is not inherited assurance. A global wrapper, helper
-override, changed runtime, changed evaluator, or changed routing policy may
-invalidate evidence for tasks that were not explicitly modified.
+Copying an old score is not inherited assurance.
 
-This rule is central to policy succession and to archive-based recursive
-improvement.
+## Succession boundary
 
-## Improvement without self-amendment
-
-ProContract does not improve coding ability. At the protocol level it can
-record duties whose subjects are candidate compilers, policies, verifiers, or
-harnesses. A complete governed improvement and promotion loop is **FUTURE** at
-the reviewed native Codex HEAD; earlier Python harness experiments exercised
-parts of this method but are not native implementation evidence.
-
-The designed learning loop is:
-
-~~~text
-ledger + subjects + external outcomes
-  -> offline failure attribution
-  -> candidate policy or verifier
-  -> frozen evaluation protocol
-  -> disjoint confirmation
-  -> Principal decision
-  -> future Contracts only
-~~~
-
-The current Contract executor cannot rewrite its own active duty or settlement
-rules. A new candidate must be a new subject under a new or revised,
-Principal-approved obligation.
-
-### Policy as input and Policy as subject
-
-There are two valid roles:
-
-1. A policy used to execute another duty is execution input and remains outside
-   that duty's Spec.
-2. A policy being evaluated for future use is itself the frozen subject of a
-   Policy Contract.
-
-This is the designed route by which policy improvement could become governed
-without contaminating every delivery specification with its executor strategy.
-
-### Current empirical result
-
-These tables are development evidence, not promotion-grade confirmation. Both
-used GPT-5.6 Luna at reasoning effort max, one stochastic candidate per arm and
-instance, and the ProgramBench active tests for Amber, Loop, and fd during
-2026-08-29--30 UTC. The v5 run was a fresh three-instance A/B. The v6 run reused
-those training instances after the v5 hidden outcomes were already known and
-therefore cannot confirm the v3 policy. The precise ProgramBench runner commit
-was not recorded in a durable manifest, which is itself a validity limitation.
-
-The v5 source currently survives only in the untracked local experiment ledger
-at "../scripts/PROCONTRACT_EXPERIMENTS.md"; its referenced temporary RESULT
-artifact no longer exists. The corrected v6 report remains locally at
-"/tmp/procontract-native-rpc-v6/RESULT.md" with SHA-256
-"e7a9bde717cbf3e74f12ead3e44d9c85700223210f0ba8c9a0a88346da237dd7".
-These coordinates must be committed or the tables removed before this document
-is publication evidence.
-
-The three-instance v5 ProgramBench slice reported:
-
-| Arm | Amber | Loop | fd | Macro |
-| --- | ---: | ---: | ---: | ---: |
-| execution policy on | 78.2301% | 95.6338% | 80.6478% | 84.8372% |
-| execution policy off | 69.5575% | 83.2394% | 77.8138% | 76.8702% |
-
-That experiment is evidence that execution policy can affect utility while
-leaving Kernel semantics unchanged. It is not evidence that one universal
-policy is optimal.
-
-The v6 evidence-convergence policy falsified that generalization:
-
-| Arm | Amber | Loop | fd | Macro |
-| --- | ---: | ---: | ---: | ---: |
-| v3 policy on | 2.4779% | 96.1972% | 81.0526% | 59.9092% |
-| parity policy off | 70.7965% | 67.3239% | 78.7854% | 72.3019% |
-
-Excluding the failed Amber arm, v3 gained only a small amount over the earlier
-v2 results while consuming substantially more actions and model tokens.
-
-The correct conclusion is:
-
-> Execution policy is replaceable and empirically falsifiable. Kernel stability
-> does not make policy quality stable.
-
-## Amber: the environment-coordinate falsifier
-
-The v6 Amber candidate reported:
-
-- one semantic attempt;
-- exact subject capture;
-- native compile and replay success;
-- a 48-case self-contained differential corpus with zero reported residuals.
-
-The same exact executable then failed under the official evaluator:
-
-- replay image: Python 3.12.3;
-- evaluator image: Python 3.10.12;
-- failure: an f-string expression at amber.py line 726 is invalid in Python
-  3.10;
-- official result: 2.4779%, with one branch producing no JUnit report;
-- an extended three-hour diagnostic produced the same missing result.
-
-A bounded follow-up isolated the downstream amplification. Without pytest
-failure reruns, the branch completed in 40.75 seconds with 398 failures,
-31 passes, and five skips. With official reruns, two large-file assertion
-rendering lanes consumed the branch lifetime after the TTY wrapper masked the
-child syntax-error exit.
-
-Therefore the three-hour tail is not evidence of catastrophic candidate regex
-behavior. It is:
-
-~~~text
-environment mismatch
-  -> artifact cannot start
-  -> evaluator failure amplification
-  -> missing finite report
-~~~
-
-The institutional result remained sound: the Delivery Contract was never
-quiet, and the sealed evaluator challenge moved it to escalated while removing
-current handoff support.
-
-The case separates two claims:
-
-- **SUPPORTED:** settlement responsibility remained conserved.
-- **REFUTED:** local replay evidence was sufficient evidence of target-runtime
-  compatibility.
-
-## Adaptive selection pressure
-
-Let a noisy evaluator estimate:
-
-\[
-\widehat J(H_m)=J(H_m)+\epsilon_m.
-\]
-
-Even when candidates have equal true quality,
-
-\[
-\mathbb E\left[\max_{m\le M}\widehat J(H_m)\right]
-\]
-
-can increase with the number of adaptively inspected candidates. A monotone
-best-so-far statistic may therefore reflect search exposure as well as real
-improvement.
-
-The design principle is:
-
-> As improvement power and adaptive selection pressure scale, assurance
-> strength and exposure accounting must scale with them.
-
-Candidate multiplicity, evaluator exposure, holdout reuse, judge version,
-selection history, and stopping rules belong in a trusted experiment manifest
-or evidence envelope. They do not belong as benchmark-specific concepts in the
-pure Kernel.
-
-Appropriate controls include preregistration, paired evaluation, disjoint
-confirmation, reusable-holdout methods, selection-adjusted confidence, sealed
-negative evidence, and explicit cost accounting.
-
-These methods reduce risk. They do not make evaluator construct validity a
-kernel theorem.
-
-## Witnessed succession
-
-### Status
-
-Canonical succession is **FUTURE**.
-
-The current Kernel implements the retraction substrate:
-
-- a settlement can be challenged;
-- support can be removed without deleting history;
-- transitive dependents regain outstanding responsibility;
-- quiet becomes false at the new frontier.
-
-It does not implement accession:
-
-- no canonical incumbent register;
-- no policy lineage;
-- no Adopt or Promote command;
-- no atomic deployment swap;
-- no judge bridge;
-- no automatic rollback of an external deployment.
-
-### Completion and succession are not identical
-
-Completion integrity is not a complete reduction of succession integrity.
+Canonical succession is **FUTURE**. Completion integrity is its settlement
+substrate, not a complete reduction.
 
 Completion is a per-duty predicate. Succession changes an exclusive mutable
-reference:
+incumbent and therefore additionally requires:
 
-\[
-incumbent(role)\mapsto
-(contract,\ revision,\ subjectHash,\ evidenceCoordinate).
-\]
+- uniqueness and total ordering;
+- atomic replacement;
+- relational incumbent/candidate evidence;
+- deployment activation and rollback;
+- judge/mission bridge evidence.
 
-Succession adds at least:
+Current challenge closure supplies duty-support withdrawal, one prerequisite
+for future retraction. It does not retract an incumbent or roll back external
+deployment.
 
-1. uniqueness of the incumbent per role and scope;
-2. total ordering of concurrent adoption proposals;
-3. atomic replacement or no replacement;
-4. relational evidence comparing incumbent and candidate;
-5. deployment activation and rollback semantics;
-6. bridge evidence when the judge itself changes.
+See [witnessed succession](pro-contract-succession.md) for the future register,
+certificate, judge bridge, Meta^n relation, and stress tests.
 
-The accurate relation is:
+## Nearest-neighbor boundary
 
-> Completion integrity is the invariant substrate of succession integrity.
-> Challenge closure already supplies the duty-support withdrawal needed by a
-> future succession protocol. It does not retract an incumbent or roll back a
-> deployment. Succession adoption and retraction require a separate thin
-> protocol and are not derived from discharge.
+Conceptual priority is not claimed. The novelty question is whether one prior
+system combines all \(CI_K\) properties in an executor-replacement harness.
+The following deltas are provisional pending a dedicated literature review:
 
-### Candidate succession certificate
+| Family | Shared mechanism | Candidate missing property |
+| --- | --- | --- |
+| [TMS](https://www.sciencedirect.com/science/article/pii/0004370279900080) / [ATMS](https://www.sciencedirect.com/science/article/pii/0004370286900809) | defeasible support and dependency propagation | duty, authority, remediation owner |
+| [Commitment machines](https://doi.org/10.1007/3-540-45448-9_17) | institutional debtor/creditor commitments | exact subject/evidence coordinates and defeat closure |
+| [Electronic institutions](https://doi.org/10.1007/3-540-44682-6_8) / normative MAS | mediated counts-as rules and governors | subject-bound defeasible settlement under executor replacement |
+| [Sagas](https://doi.org/10.1145/38713.38742) / BPMN compensation | recovery after invalidated work | recognition/support semantics and no self-settlement |
+| Reopenable ticket workflows | durable assigned work and reopening | formal exact evidence and transitive support closure |
+| [PKI revocation](https://www.rfc-editor.org/rfc/rfc5280) | support withdrawal without history deletion | outstanding remediation duty |
+| [in-toto](https://www.usenix.org/conference/usenixsecurity19/presentation/torres-arias) / SLSA | content identity and separated functionaries | live duty and defeat-driven responsibility |
+| Defeasible deontic logic | contrary-to-duty and reparative obligations | durable implemented settlement harness |
 
-A future finite certificate may bind:
+The linked primary sources were checked for this preliminary boundary on
+2026-08-31. This is not an exhaustive related-work review, and no absence claim
+is publication-ready until each family and its descendants are reviewed
+systematically.
 
-\[
-\begin{aligned}
-\kappa_t = (&scope,\ frontier,\ missionHash,\\
-            &incumbentHash,\ candidateHash,\\
-            &oldJudgeHash,\ newJudgeHash,\\
-            &environmentHash,\ assuranceCaseHash,\\
-            &bridgeHash,\ authorityAttestations).
-\end{aligned}
-\]
+## Structural evaluation
 
-The Kernel should validate finite identities, live support, role authority,
-and atomic transition legality. It should not decide whether one policy is
-semantically smarter.
+Scripted actors should precede LLM evaluation:
 
-### Judge succession
+- duplicate, delayed, and stale commands;
+- self-discharge attempts;
+- revision, subject, evidence, and verifier substitution;
+- dependency depth and concurrent challenges;
+- crash between authoritative operations;
+- lease expiry and process recovery;
+- sealed disclosure;
+- quiet before and after defeat.
 
-Replacing \(J_t\) with \(J_{t+1}\) cannot be authorized solely by
-\(J_{t+1}\). A bridge may require old-judge and new-judge cross-evaluation,
-stable calibration anchors, disagreement analysis, and independent root
-authority.
-
-A minimal cross-score matrix is:
-
-\[
-\begin{array}{c|cc}
- & H_t & H_{t+1}\\
-\hline
-J_t     & * & *\\
-J_{t+1} & * & *
-\end{array}
-\]
-
-No finite matrix proves universal evaluator validity. It makes the basis and
-scope of succession explicit.
-
-### Succession Integrity
-
-A future property may be defined as:
-
-\[
-\begin{aligned}
-SI ={}&
-CanonicalUniqueness \\
-&\land NoSelfAdoption \\
-&\land IncumbentCandidateIntegrity \\
-&\land AuthorityContinuity \\
-&\land JudgeBridgeIntegrity \\
-&\land LiveSupportClosure \\
-&\land DefeatDrivenRollback \\
-&\land QuietSoundness.
-\end{aligned}
-\]
-
-The intended structural theorem would be:
-
-\[
-\forall \pi,\quad
-Traces(SuccessionKernel\parallel\pi)\models SI.
-\]
-
-It would not imply:
-
-\[
-Utility(P_{t+1})>Utility(P_t)
-\]
-
-or convergence to a globally correct policy.
-
-### Strongest current wording
-
-The current paper or PR may say:
-
-> ProContract implements completion integrity and specifies witnessed
-> succession as a designed extension. Its challenge semantics already
-> implement support withdrawal with transitive responsibility restoration;
-> exclusive incumbent adoption, judge bridges, and deployment rollback remain
-> future work.
-
-It may not say:
-
-> ProContract guarantees trustworthy recursive self-improvement.
-
-## Relation to Meta^n
-
-Meta^n and ProContract address orthogonal layers.
-
-[Meta^n: Recursive Self-Improvement through Emergent
-Depth](https://arxiv.org/html/2608.24735v1), arXiv:2608.24735v1, accessed
-2026-08-31, holds a meta-operation \(\Omega\) fixed and applies it recursively
-to expanding code and execution traces. Its evolutionary orchestrator
-maintains a growing archive of candidate chains, reports both archive-best and
-best-single-chain behavior, and stops search after a bounded non-improvement
-rule. Implementation observations in this section refer to repository commit
-[b7081843](https://github.com/minnesotanlp/meta-n/tree/b7081843d3c7b0e0f418ca10aaf2ccbff856e7f8).
-
-ProContract contributes no claim that it generates better meta-layers or
-searches more efficiently. Meta^n contributes no claim, as characterized here,
-that archive membership constitutes institutional settlement.
-
-The fair comparison is:
-
-\[
-\boxed{
-MetaDepth\ expands\ what\ can\ be\ proposed;
-\quad
-InstitutionalContinuity\ limits\ what\ may\ be\ inherited.
-}
-\]
-
-### Archive retention is not succession
-
-For an archive \(\mathcal A_r\), archive-best may be:
-
-\[
-U_r(J)=
-\frac{1}{N}\sum_i
-\max_{H\in\mathcal A_r}J(t_i,H).
-\]
-
-If \(\mathcal A_r\subseteq\mathcal A_{r+1}\), then
-\(U_{r+1}\ge U_r\) by construction. This does not imply that one chain
-\(H_{r+1}\) dominates \(H_r\), that a deployable router generalizes, or that
-the judge still represents the mission.
-
-Meta^n reports archive-best and best-single-chain separately, so ProContract
-should treat the distinction as complementary scope, not as a correction of a
-claim the Meta^n authors did not make.
-
-### Frozen traces are not inherited assurance
-
-An archive may retain old evidence without rerunning unaffected tasks.
-That is a valid search optimization. It is not sufficient for institutional
-inheritance when a wrapper, helper library, global context, router, environment,
-or evaluator changed.
-
-ProContract's requirement is:
-
-The evidence-inheritance rule in "Knowledge continuity" applies: reuse is
-permitted only when dependencies are unchanged or non-interference is
-separately established.
-
-### Search stopping is not finality
-
-Patience, score plateau, or budget exhaustion means the search policy found no
-further candidate under its current resources. It does not discharge a mission
-or make a scope quiet.
-
-This distinction should be stated without implying that Meta^n calls its
-search stopping rule institutional finality.
-
-### Complementary composition
-
-A Meta^n-style system may serve as:
-
-- an improvement generator;
-- an executor policy;
-- a source of candidate wrappers and helper libraries;
-- an archive-based selector.
-
-All remain untrusted variation from the settlement institution's perspective.
-They may be evaluated as exact subjects without moving their search mechanics
-into the Kernel.
-
-Before publication, every numeric Meta^n statement must be checked against the
-exact paper version, split, backbone, and estimator. Comparisons must match
-archive-best with archive-best and deployed single systems with deployed
-single systems.
-
-## Evaluation methodology
-
-### Structural evaluation
-
-The following is the required structural program, not a report that every item
-has been measured at the reviewed HEAD. Current Rust tests cover representative
-coordinate, replay, dependency-challenge, ledger, and app-server paths; the
-complete command-by-state fault matrix and the four rates below are
-**FUTURE**. Structural tests should use scripted actors before LLMs:
-
-- duplicate and delayed commands;
-- stale revision, subject, and verifier evidence;
-- executor self-discharge attempts;
-- crash between ledger operations;
-- lease expiry and recovery;
-- challenge of discharged prerequisites;
-- dependency depth;
-- process and Session deletion;
-- sealed evidence;
-- quiet snapshots before and after challenge.
-
-Primary metrics include:
-
-\[
-FalseQuietRate,\quad
-InvalidSettlementRate,\quad
-DutyLossRate,\quad
-ChallengeClosureRecall.
-\]
+Primary structural metrics include FalseQuietRate, InvalidSettlementRate,
+DutyLossRate, and ChallengeClosureRecall. They have not yet been measured over
+an exhaustive trace set.
 
 ### Semantic mutation
 
-Each retained Kernel concept should have a shortest counterexample when
-removed:
-
-| Removed mechanism | Expected counterexample |
+| Removed mechanism | Expected shortest counterexample |
 | --- | --- |
 | issuer/executor separation | executor discharges itself |
 | revision/spec binding | stale report settles new terms |
-| subject binding | candidate A is evaluated and B accepted |
+| subject binding | candidate A evaluated, B accepted |
 | rejection preservation | stale command partially mutates state |
-| challenge closure | unsupported dependent remains discharged |
-| quiet predicate | escalated duty is reported quiet |
-| dependency guard | prerequisite disappears while dependent remains live |
+| challenge closure | unsupported dependent stays settled |
+| quiet predicate | escalated duty reported quiet |
+| immutable requirements | revision creates dependency cycle |
+| upstream dependent fence | live dependent is stranded |
 
-If removing a guard produces no counterexample, the guard may be redundant
-under existing constraints and should not be defended by rhetoric.
+If removing a guard produces no counterexample, it may be redundant and should
+not be defended rhetorically.
 
-### Refinement
+### Reference-model refinement
 
-A small TLA+ or equivalent reference model should define:
+A future TLA+ or equivalent model should define Issue, Activate, ReportReady,
+Discharge, Challenge, Release, Crash, and LeaseExpire. Generated traces should
+compare model and Rust decision, normalized state, event, support set, and
+quiet result after every command.
 
-~~~text
-Init
-Issue
-Activate
-ReportReady
-Discharge
-Challenge
-Release
-Crash
-LeaseExpire
-~~~
+## Guarantees and limits
 
-Generated command traces should run through both the model and Rust reducer,
-comparing decision, normalized state, event, outstanding set, and quiet result
-at every step.
-
-### Empirical utility
-
-Structural integrity and coding utility are separate estimands:
-
-~~~text
-ordinary execution - no execution
-  = value of another model invocation
-
-ProContract execution - matched ordinary execution
-  = value/cost of the institutional envelope
-
-independently attested result - executor handoff
-  = value of the truth boundary
-~~~
-
-Matched arms freeze model, prompt information, tools, environment, parent
-artifact, budget ceiling, reference interface, packaging, and evaluator.
-
-Report score, solved rate, latency, tokens, actions, attempts, challenges,
-evaluator errors, incomplete results, and final ledger frontier.
-
-### Succession stress tests
-
-The two most discriminating future experiments are:
-
-1. **Archive-to-successor gap:** compare archive-best, best single chain,
-   explicit composite router, and ProContract-gated incumbent on independent
-   held-out tasks. Measure false succession, not only best score.
-2. **Evaluator succession:** select with \(J_t\), introduce a corrected
-   \(J_{t+1}\), and compare naive promotion with old/new-judge bridge evidence.
-
-A useful system must also measure false rejection and overhead. A protocol that
-never adopts anything has zero false succession and no practical value.
-
-## Current guarantees and limits
-
-| Claim | Status | Condition |
+| Claim | Reducer | System |
 | --- | --- | --- |
-| Duty conservation | **IMPLEMENTED** | authenticated role mapping and atomic store |
-| No executor self-certification | **IMPLEMENTED** in reducer | system-level claim requires Principal isolation |
-| Exact revision/spec/subject settlement | **IMPLEMENTED** | canonical encoding trusted |
-| Replay subordinate to attestation | **IMPLEMENTED** | replay policy correctly represented |
-| Target-environment validity of replay | **NOT CLAIMED** | environment coordinate absent |
-| Challenge-driven transitive responsibility restoration | **IMPLEMENTED** | dependency graph and storage survive |
-| Frontier-relative quiet | **IMPLEMENTED** | ledger readable |
-| Durable recovery across process/model replacement | **PARTIAL** | storage and a running recovery host required |
-| Mediated turn/action/authority enforcement | **IMPLEMENTED** | only for registered Codex effect paths |
-| Adversarial physical non-bypass | **FUTURE** | requires separate authority domain |
-| Knowledge convergence | **NOT CLAIMED** | adapter policy concern |
-| General coding capability improvement | **NOT CLAIMED** | empirical and model/task-dependent |
-| Principal cannot be persuaded by a deceptive handoff | **NOT CLAIMED** | requires independent evidence review and human/organizational controls |
-| Canonical incumbent adoption | **FUTURE** | succession protocol absent |
-| Judge succession and bridge integrity | **FUTURE** | succession protocol absent |
-| Guaranteed recursive self-improvement | **NOT CLAIMED** | neither Kernel nor finite evaluator entails it |
+| Duty conservation | **IMPLEMENTED** | **PARTIAL:** confinement assumed |
+| No executor self-certification | **IMPLEMENTED** | **PARTIAL:** Principal isolation absent |
+| Exact coordinates | **IMPLEMENTED** | **PARTIAL:** capture policy unbound |
+| Evidence subordinate to attestation | **IMPLEMENTED for v1** | **PARTIAL:** concrete replay debt |
+| Target-environment replay validity | not reducer property | **NOT CLAIMED** |
+| Dependent challenge closure | **IMPLEMENTED**, depth two tested | **PARTIAL:** no concurrency/crash refinement |
+| Frontier-relative quiet | **IMPLEMENTED** | **PARTIAL:** durable store assumed |
+| Mediated authority/budgets | not reducer property | **PARTIAL:** registered paths only |
+| Adversarial physical non-bypass | not reducer property | **FUTURE** |
+| Knowledge convergence | **NOT CLAIMED** | **NOT CLAIMED** |
+| Capability improvement | **NOT CLAIMED** | empirical only |
+| Canonical adoption / judge succession | not reducer property | **FUTURE** |
+| Guaranteed RSI | **NOT CLAIMED** | **NOT CLAIMED** |
 
 ## Engineering principles
 
-1. **Simplicity is a correctness property.** Every transition should be
-   understandable in one pass.
-2. **Use smart edges and a dumb Kernel.** Models may draft and reconcile;
-   adapters may evaluate; the Kernel validates finite authority and identity.
-3. **Conserve duty by construction.** Process lifecycle is never settlement.
-4. **Separate attention, authority, evidence, and finality.**
-5. **Bind claims to exact coordinates and environments.**
-6. **Keep execution policy outside normative terms.**
-7. **Keep evidence policy frozen and explicit.**
-8. **Treat handoff as petition and replay as preflight.**
-9. **Preserve history while allowing support to be defeated.**
-10. **Route support loss back to an identified owner.**
-11. **Put task mechanics and search heuristics in adapters.**
-12. **State every trust assumption and non-goal.**
-13. **Require counterexamples for Kernel concepts.**
-14. **Scale assurance with adaptive selection pressure.**
-15. **Do not let future succession language rewrite current implementation
-    status.**
+1. Simplicity is a correctness property.
+2. Use smart edges and a dumb Kernel.
+3. Conserve duty by construction.
+4. Separate attention, authority, evidence, and finality.
+5. Bind every recognized claim to exact coordinates.
+6. Index evidence by the world that produced it.
+7. Keep execution policy outside normative terms.
+8. Freeze evidence policy explicitly.
+9. Treat handoff as petition and replay as preflight.
+10. Preserve history while allowing support to be defeated.
+11. Route support loss to an identified owner.
+12. Keep task mechanics and search heuristics in adapters.
+13. Require counterexamples for Kernel concepts.
+14. State every trust assumption and non-goal.
+15. Do not let future succession language rewrite current status.
 
-Three substitution tests guide every design:
+Three substitution tests guide design:
 
 ~~~text
-Could a human contractor replace the LLM without changing Kernel semantics?
-Could a non-filesystem verifier replace replay without changing settlement?
-Could another harness replace Codex without changing the transition algebra?
+Can a human contractor replace the LLM without changing Kernel semantics?
+Can a non-filesystem verifier replace replay without changing settlement?
+Can another harness replace Codex without changing the reducer?
 ~~~
+
+The current answer to the second question is not yet yes because ReplayPolicy
+remains concrete Kernel debt.
 
 ## Change gate
 
-Every proposed pure-Kernel change must state:
+Every Kernel change must state:
 
-- which invariant it enforces;
-- the shortest counterexample possible without it;
-- why an adapter or composition cannot enforce the same boundary;
-- the focused reducer test;
-- the real boundary integration test;
-- concepts and branches added;
-- concepts and branches removed.
+- invariant enforced;
+- shortest counterexample without it;
+- why an edge cannot enforce the same boundary;
+- focused reducer test;
+- boundary integration test;
+- concepts and branches added or removed.
 
-Performance evidence may justify a compiler, executor policy, verifier, or task
-adapter change. It cannot by itself justify authority-changing Kernel
-semantics.
+Performance evidence may justify compiler, executor, verifier, and adapter
+changes. It cannot alone justify new authority-changing Kernel semantics.
 
-## Implementation disposition
+## Canonical statement
 
-### Implemented at the reviewed Codex commit
+> ProContract contributes a mechanized settlement protocol for ephemeral
+> executors. Recognized completion is institution-held, bound to exact
+> content-addressed coordinates, closed to executor self-certification, and
+> defeasible: an accepted evidential challenge withdraws current support and
+> restores outstanding responsibility across dependent duties. Reducer
+> guarantees hold under authenticated command-interface, canonicalization, and
+> sole-transition assumptions; system guarantees additionally require atomic
+> storage, command confinement, role isolation, and complete effect mediation.
 
-- pure Contract reducer with exact role and coordinate guards;
-- SQLite projection and append-only hash-chained decisions;
-- bounded immutable subjects with forced artifact closure;
-- separate normative Contract and operational execution binding;
-- dedicated executor Sessions;
-- fail-closed ordinary executor-turn sampling and registered-tool admission;
-- cumulative turn/action/deadline/attempt bounds;
-- structured handoff;
-- local mechanical replay;
-- Principal-only attestation and executor-visible challenge paths;
-- transitive responsibility closure;
-- frontier-relative quiet;
-- experimental app-server API and generated schemas.
-
-### Partial or review-blocking
-
-- model-visible prompt and reminder token bounds;
-- admission and accounting for inline auto-compaction provider requests;
-- reliable identification of the actual client-authored source request;
-- one-time, consistently separate-message execution-policy projection;
-- remote executor capture and replay;
-- Windows-portable replay tests;
-- lease heartbeat and crash/recovery integration coverage;
-- accepted-revision, Resume, and Release integration coverage;
-- sealed-challenge focused coverage;
-- Principal mutation APIs whose code exists but whose authority-changing
-  branches lack focused tests;
-- in-stream enforcement of subject byte limits;
-- backward-compatible persisted InternalSessionSource encoding;
-- target environment and evaluator identity in evidence.
-
-### Future
-
-- TLA+ model and Rust refinement testing;
-- portable signatures and externally anchored ledger checkpoints;
-- strong Principal/worker process isolation;
-- content-addressed durable knowledge ledger;
-- typed evidence combinators independent of argv/files;
-- environment compatibility bridges;
-- canonical incumbent register;
-- atomic adoption and deployment rollback;
-- policy and judge lineage;
-- evaluator-succession bridge protocol;
-- Meta^n succession stress tests;
-- a second harness adapter.
-
-## Related intellectual anchors
-
-ProContract draws boundaries from several traditions without collapsing them
-into one metaphor:
-
-- intention and commitment explain why future action should resist casual
-  reconsideration;
-- incomplete-contract theory explains residual control rights under imperfect
-  specifications;
-- capability security explains delegated effect authority;
-- event sourcing and durable execution explain audit and recovery;
-- truth-maintenance systems explain defeasible epistemic support;
-- cybernetics explains sensing, control state, action, and error signals;
-- proof-carrying and supply-chain systems explain content identity and
-  provenance;
-- evolutionary and recursive-improvement systems explain candidate generation
-  and adaptive selection pressure.
-
-The novel conjunction is narrower:
-
-> Completion is treated as a normative, defeasible state transition whose
-> evidential defeat restores responsibility, independently of the executor.
-
-Witnessed succession is the proposed extension of that conjunction, not a
-completed result.
-
-## Canonical concise statement
-
-For the current implementation:
-
-> ProContract is an executor-independent completion-integrity protocol. It
-> conserves duties across ephemeral execution, binds recognized completion to
-> an exact subject and authorized evidence reference, and restores
-> responsibility when that support is defeated.
-
-For the research program:
-
-> Policies explore improvement; a minimal institution governs witnessed
-> succession. ProContract does not guarantee that a successor is better. It
-> governs what the system is allowed to recognize, inherit, and retract as
-> canonical.
-
-The shortest version is:
+Shortest form:
 
 \[
 \boxed{
 Executors\ propose;\quad
 evidence\ supports;\quad
 authority\ settles;\quad
-challenge\ restores\ responsibility.
+accepted\ defeat\ restores\ responsibility.
 }
 \]
