@@ -87,7 +87,7 @@ impl ContractTool {
     }
 }
 
-impl ToolExecutor<ToolCall> for ContractTool {
+impl<'call> ToolExecutor<ToolCall<'call>> for ContractTool {
     fn tool_name(&self) -> ToolName {
         ToolName::plain(match self.kind {
             ToolKind::Propose => PROPOSE_TOOL_NAME,
@@ -108,7 +108,13 @@ impl ToolExecutor<ToolCall> for ContractTool {
         }
     }
 
-    fn handle(&self, invocation: ToolCall) -> codex_extension_api::ToolExecutorFuture<'_> {
+    fn handle<'a>(
+        &'a self,
+        invocation: ToolCall<'call>,
+    ) -> codex_extension_api::ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
         Box::pin(async move {
             match self.kind {
                 ToolKind::Propose => self.propose(invocation).await,
@@ -210,7 +216,7 @@ struct ProposeRevisionArgs {
 impl ContractTool {
     async fn propose(
         &self,
-        invocation: ToolCall,
+        invocation: ToolCall<'_>,
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let args: ProposeArgs = parse_args(&invocation)?;
         let claim = args.claim.trim();
@@ -351,7 +357,10 @@ impl ContractTool {
         }))
     }
 
-    async fn status(&self, invocation: ToolCall) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
+    async fn status(
+        &self,
+        invocation: ToolCall<'_>,
+    ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let args: StatusArgs = parse_args(&invocation)?;
         let contract_id = args
             .contract_id
@@ -385,7 +394,7 @@ impl ContractTool {
 
     async fn report_ready(
         &self,
-        invocation: ToolCall,
+        invocation: ToolCall<'_>,
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let args: ReportReadyArgs = parse_args(&invocation)?;
         let state = self
@@ -498,7 +507,7 @@ impl ContractTool {
 
     async fn report_blocked(
         &self,
-        invocation: ToolCall,
+        invocation: ToolCall<'_>,
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let args: ReportBlockedArgs = parse_args(&invocation)?;
         if args.reason.trim().is_empty() {
@@ -548,7 +557,7 @@ impl ContractTool {
 
     async fn propose_revision(
         &self,
-        invocation: ToolCall,
+        invocation: ToolCall<'_>,
     ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
         let args: ProposeRevisionArgs = parse_args(&invocation)?;
         if args.reason.trim().is_empty() {
@@ -678,10 +687,10 @@ fn replay_policy(
     })
 }
 
-fn select_environment<'a>(
-    invocation: &'a ToolCall,
+fn select_environment<'a, 'call>(
+    invocation: &'a ToolCall<'call>,
     environment_id: Option<&str>,
-) -> Result<&'a codex_extension_api::ToolEnvironment, FunctionCallError> {
+) -> Result<&'a codex_extension_api::ToolEnvironment<'call>, FunctionCallError> {
     if let Some(environment_id) = environment_id {
         return invocation
             .environments
@@ -699,7 +708,9 @@ fn select_environment<'a>(
     model_error("environment_id is required when the turn has multiple environments")
 }
 
-fn parse_args<T: for<'de> Deserialize<'de>>(invocation: &ToolCall) -> Result<T, FunctionCallError> {
+fn parse_args<T: for<'de> Deserialize<'de>>(
+    invocation: &ToolCall<'_>,
+) -> Result<T, FunctionCallError> {
     serde_json::from_str(invocation.function_arguments()?)
         .map_err(|error| FunctionCallError::RespondToModel(format!("invalid arguments: {error}")))
 }

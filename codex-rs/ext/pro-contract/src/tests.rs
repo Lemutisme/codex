@@ -30,6 +30,7 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::sqlite::SqlitePoolOptions;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -324,7 +325,7 @@ fn tool_call_with_payload(
     name: &str,
     payload: ToolPayload,
     workspace: &Path,
-) -> anyhow::Result<ToolCall> {
+) -> anyhow::Result<ToolCall<'static>> {
     let cwd = workspace.try_into()?;
     Ok(ToolCall {
         turn_id: "turn".to_string(),
@@ -337,6 +338,7 @@ fn tool_call_with_payload(
         conversation_history: ConversationHistory::default(),
         turn_item_emitter: Arc::new(NoopTurnItemEmitter),
         environments: vec![ToolEnvironment {
+            _lifetime: PhantomData,
             environment_id: LOCAL_ENVIRONMENT_ID.to_string(),
             cwd,
             file_system: Arc::clone(&LOCAL_FS),
