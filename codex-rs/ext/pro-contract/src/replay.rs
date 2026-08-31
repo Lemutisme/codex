@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use std::time::Instant;
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
@@ -43,10 +44,13 @@ pub(crate) struct ReplayVerifier {
 struct CheckReport {
     argv: Vec<String>,
     cwd: String,
+    timeout_ms: u64,
     expected_exit: i32,
-    exit: i32,
-    stdout_hash: String,
-    stderr_hash: String,
+    exit: Option<i32>,
+    duration_ms: u64,
+    timed_out: bool,
+    stdout_hash: Option<String>,
+    stderr_hash: Option<String>,
     stdout_truncated: bool,
     stderr_truncated: bool,
 }
@@ -83,8 +87,6 @@ pub(crate) enum ReplayError {
     Subject(String),
     #[error("replay process failed: {0}")]
     Process(String),
-    #[error("replay check timed out after {0} milliseconds")]
-    Timeout(u64),
     #[error("replay report could not be persisted: {0}")]
     Report(String),
 }
@@ -145,7 +147,9 @@ impl ReplayVerifier {
             .iter()
             .map(|path| inspect(&root, path, None))
             .collect::<Result<Vec<_>, _>>()?;
-        let passed = checks.iter().all(|check| check.exit == check.expected_exit)
+        let passed = checks
+            .iter()
+            .all(|check| !check.timed_out && check.exit == Some(check.expected_exit))
             && protected
                 .iter()
                 .all(|file| file.exists && file.hash == file.expected_hash)
@@ -153,7 +157,7 @@ impl ReplayVerifier {
         let policy_hash =
             hash_replay(policy).map_err(|error| ReplayError::Report(error.to_string()))?;
         let report = Report {
-            version: 1,
+            version: 2,
             contract_id: contract_id.to_string(),
             policy_hash: policy_hash.clone(),
             subject_hash: subject.coordinate.hash.clone(),
@@ -203,6 +207,7 @@ async fn run_check(
     if !cwd.as_path().starts_with(root.as_path()) {
         return Err(ReplayError::Path(cwd.display().to_string()));
     }
+    let started_at = Instant::now();
     let started = environment
         .get_exec_backend()
         .start(ExecParams {
@@ -258,10 +263,16 @@ async fn run_check(
     })
     .await;
     let (stdout, stderr, exit) = match output {
-        Ok(result) => result?,
+        Ok(result) => {
+            let (stdout, stderr, exit) = result?;
+            (Some(stdout), Some(stderr), Some(exit))
+        }
         Err(_) => {
-            let _ = process.terminate().await;
-            return Err(ReplayError::Timeout(check.timeout_ms));
+            process
+                .terminate()
+                .await
+                .map_err(|error| ReplayError::Process(error.to_string()))?;
+            (None, None, None)
         }
     };
     Ok(CheckReport {
@@ -270,12 +281,15 @@ async fn run_check(
             .cwd
             .as_ref()
             .map_or_else(|| ".".to_string(), |cwd| cwd.as_str().to_string()),
+        timeout_ms: check.timeout_ms,
         expected_exit: check.exit,
         exit,
-        stdout_hash: hex_digest(&stdout.bytes),
-        stderr_hash: hex_digest(&stderr.bytes),
-        stdout_truncated: stdout.truncated,
-        stderr_truncated: stderr.truncated,
+        duration_ms: u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX),
+        timed_out: exit.is_none(),
+        stdout_hash: stdout.as_ref().map(|output| hex_digest(&output.bytes)),
+        stderr_hash: stderr.as_ref().map(|output| hex_digest(&output.bytes)),
+        stdout_truncated: stdout.is_some_and(|output| output.truncated),
+        stderr_truncated: stderr.is_some_and(|output| output.truncated),
     })
 }
 
@@ -358,15 +372,24 @@ fn inspect(
 }
 
 fn failure_summary(report: &Report) -> String {
+    if let Some(check) = report.checks.iter().find(|check| check.timed_out) {
+        return format!(
+            "replay check {} timed out after {} milliseconds",
+            check.argv.join(" "),
+            check.timeout_ms
+        );
+    }
     if let Some(check) = report
         .checks
         .iter()
-        .find(|check| check.exit != check.expected_exit)
+        .find(|check| check.exit != Some(check.expected_exit))
     {
         return format!(
             "replay check {} exited {}; expected {}",
             check.argv.join(" "),
-            check.exit,
+            check
+                .exit
+                .map_or_else(|| "without a status".to_string(), |exit| exit.to_string()),
             check.expected_exit
         );
     }
