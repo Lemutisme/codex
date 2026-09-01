@@ -49,6 +49,17 @@ fn kernel_dependencies_are_exactly_the_whitelist() {
 }
 
 #[test]
+fn rejection_sites_match_the_audited_count() {
+    let kernel = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/kernel.rs"))
+        .expect("read kernel.rs");
+    let sites = kernel.matches("reject(").count();
+    assert_eq!(
+        sites, 64,
+        "rejection site drift: re-audit rejection.rs mapping before updating this count"
+    );
+}
+
+#[test]
 fn kernel_sources_contain_no_banned_tokens() {
     let src = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     let mut checked = 0;

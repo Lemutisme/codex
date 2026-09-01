@@ -3,46 +3,47 @@ use crate::ContractSpec;
 use crate::State;
 use crate::Status;
 use crate::kernel::Command;
+use crate::rejection::Rejection;
 use std::collections::BTreeSet;
 
-pub(crate) fn invalid_spec(spec: &ContractSpec) -> Option<&'static str> {
+pub(crate) fn invalid_spec(spec: &ContractSpec) -> Option<Rejection> {
     if spec.goal.is_empty() || spec.evidence.claim.is_empty() {
-        return Some("contract goal and evidence claim must be non-empty");
+        return Some(Rejection::EmptyGoalOrClaim);
     }
     if spec.budget.turns == 0
         || spec.budget.actions == 0
         || spec.budget.deadline == 0
         || spec.resolution.max_attempts == 0
     {
-        return Some("contract budget and attempt limits must be positive");
+        return Some(Rejection::NonPositiveBudget);
     }
     let authority = spec.authority.iter().collect::<BTreeSet<_>>();
     if authority.len() != spec.authority.len() || spec.authority.iter().any(String::is_empty) {
-        return Some("contract authority entries must be unique and non-empty");
+        return Some(Rejection::InvalidAuthorityEntries);
     }
     if let Some(replay) = &spec.evidence.replay {
         if replay.artifacts != spec.artifacts {
-            return Some("replay artifacts must match contract artifacts");
+            return Some(Rejection::ReplayArtifactsMismatch);
         }
         if replay.checks.is_empty()
             && replay.protected.is_empty()
             && replay.artifacts.paths().is_empty()
         {
-            return Some("replay policy must not be empty");
+            return Some(Rejection::EmptyReplayPolicy);
         }
         if replay.checks.iter().any(|check| {
             check.argv.is_empty()
                 || check.argv.iter().any(String::is_empty)
                 || !(1_000..=600_000).contains(&check.timeout_ms)
         }) {
-            return Some("replay checks are invalid");
+            return Some(Rejection::InvalidReplayChecks);
         }
         if replay
             .protected
             .iter()
             .any(|protected| protected.sha256.is_empty())
         {
-            return Some("protected replay hashes must be non-empty");
+            return Some(Rejection::EmptyProtectedHashes);
         }
     }
     None

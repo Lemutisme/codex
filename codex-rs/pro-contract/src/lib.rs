@@ -7,6 +7,7 @@
 
 mod kernel;
 mod kernel_validation;
+mod rejection;
 mod spec;
 mod subject;
 
@@ -31,6 +32,9 @@ pub use kernel::hash_replay;
 pub use kernel::hash_spec;
 pub use kernel::quiet;
 pub use kernel::transition;
+pub use rejection::Axiom;
+pub use rejection::Rejection;
+pub use rejection::RejectionClass;
 pub use spec::Budget;
 pub use spec::ContractSpec;
 pub use spec::Evidence;

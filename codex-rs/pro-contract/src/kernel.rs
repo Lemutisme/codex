@@ -6,6 +6,7 @@ use crate::kernel_validation::dependent_closure;
 use crate::kernel_validation::institution_command;
 use crate::kernel_validation::invalid_spec;
 use crate::kernel_validation::outstanding_dependent;
+use crate::rejection::Rejection;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -230,29 +231,29 @@ pub fn hash_replay(policy: &ReplayPolicy) -> Result<String, serde_json::Error> {
 }
 
 pub fn transition(state: &State, command: Command) -> Transition {
-    let reject = |reason: &str| Transition {
+    let reject = |rejection: Rejection| Transition {
         state: state.clone(),
         decision: Decision::Rejected {
-            reason: reason.to_string(),
+            reason: rejection.reason(),
         },
         command: command.clone(),
     };
 
     if let Command::Issue { actor, draft } = &command {
         if actor != &draft.issuer {
-            return reject("only the issuer may issue the contract");
+            return reject(Rejection::IssueRequiresIssuer);
         }
         if draft.issuer == draft.executor {
-            return reject("issuer and executor must be distinct");
+            return reject(Rejection::IssuerExecutorDistinct);
         }
         if !matches!(hash_spec(&draft.spec), Ok(spec_hash) if draft.spec_hash == spec_hash) {
-            return reject("specification hash does not match");
+            return reject(Rejection::SpecHashMismatch);
         }
         if draft.id.is_empty() || draft.scope.is_empty() {
-            return reject("contract identity and scope must be non-empty");
+            return reject(Rejection::EmptyIdentity);
         }
-        if let Some(reason) = invalid_spec(&draft.spec) {
-            return reject(reason);
+        if let Some(rejection) = invalid_spec(&draft.spec) {
+            return reject(rejection);
         }
         if let Some(existing) = state.contracts.get(&draft.id) {
             if existing.spec_hash == draft.spec_hash
@@ -262,20 +263,20 @@ pub fn transition(state: &State, command: Command) -> Transition {
             {
                 return accept(state.clone(), command);
             }
-            return reject("contract already exists");
+            return reject(Rejection::ContractExists);
         }
         for requirement in &draft.spec.requires {
             if requirement.contract_id == draft.id {
-                return reject("contract cannot require itself");
+                return reject(Rejection::SelfRequirement);
             }
             let Some(dependency) = state.contracts.get(&requirement.contract_id) else {
-                return reject("required contract not found");
+                return reject(Rejection::RequirementNotFound);
             };
             if dependency.issuer != draft.issuer || dependency.revision != requirement.revision {
-                return reject("required contract coordinate does not match");
+                return reject(Rejection::RequirementCoordinateMismatch);
             }
             if dependency.status == Status::Released {
-                return reject("required contract was released");
+                return reject(Rejection::RequirementReleased);
             }
         }
         let mut next = state.clone();
@@ -303,10 +304,10 @@ pub fn transition(state: &State, command: Command) -> Transition {
 
     let contract_id = command_contract_id(&command);
     let Some(contract) = state.contracts.get(contract_id) else {
-        return reject("contract not found");
+        return reject(Rejection::ContractNotFound);
     };
     if institution_command(&command) && command_actor(&command) != INSTITUTION_ACTOR {
-        return reject("institution command requires institution actor");
+        return reject(Rejection::InstitutionActorRequired);
     }
 
     if let Command::Challenge {
@@ -314,13 +315,13 @@ pub fn transition(state: &State, command: Command) -> Transition {
     } = &command
     {
         if actor != &contract.issuer {
-            return reject("only the issuer may challenge verification");
+            return reject(Rejection::ChallengeRequiresIssuer);
         }
         if contract.pending_revision.is_some() {
-            return reject("verification cannot be challenged while a revision is pending");
+            return reject(Rejection::ChallengeDuringRevision);
         }
         if !matches!(contract.status, Status::Verification | Status::Discharged) {
-            return reject("contract is not awaiting adjudication");
+            return reject(Rejection::NotAwaitingAdjudication);
         }
         if challenge.revision != contract.revision
             || contract
@@ -328,19 +329,19 @@ pub fn transition(state: &State, command: Command) -> Transition {
                 .as_ref()
                 .is_none_or(|handoff| handoff.subject.hash != challenge.subject_hash)
         {
-            return reject("challenge coordinate does not match");
+            return reject(Rejection::ChallengeCoordinateMismatch);
         }
         if challenge.evidence_hash.is_empty() || challenge.attestation_id.is_some() {
-            return reject("challenge evidence is invalid");
+            return reject(Rejection::InvalidChallengeEvidence);
         }
         match challenge.disclosure {
             ChallengeDisclosure::Executor
                 if challenge.summary.as_deref().is_none_or(str::is_empty) =>
             {
-                return reject("executor-visible challenge requires a summary");
+                return reject(Rejection::ExecutorChallengeNeedsSummary);
             }
             ChallengeDisclosure::Sealed if challenge.summary.is_some() => {
-                return reject("sealed challenge cannot include a summary");
+                return reject(Rejection::SealedChallengeHasSummary);
             }
             ChallengeDisclosure::Executor | ChallengeDisclosure::Sealed => {}
         }
@@ -348,7 +349,7 @@ pub fn transition(state: &State, command: Command) -> Transition {
         let mut next = state.clone();
         for affected_id in affected {
             let Some(affected_contract) = next.contracts.get_mut(&affected_id) else {
-                return reject("contract dependency state is inconsistent");
+                return reject(Rejection::DependencyStateInconsistent);
             };
             if affected_contract.status == Status::Released {
                 continue;
@@ -382,7 +383,7 @@ pub fn transition(state: &State, command: Command) -> Transition {
     }
 
     if matches!(contract.status, Status::Discharged | Status::Released) {
-        return reject("contract is already settled");
+        return reject(Rejection::AlreadySettled);
     }
     let dependent = outstanding_dependent(state, contract_id);
 
@@ -398,35 +399,35 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if contract.status != Status::Active || revision != &contract.revision {
-                return reject("contract is not active at this revision");
+                return reject(Rejection::NotActiveAtRevision);
             }
             if contract.pending_revision.is_some() {
-                return reject("handoff is blocked while a revision is pending");
+                return reject(Rejection::HandoffDuringRevision);
             }
             if summary.is_empty()
                 || subject.spec_hash != contract.spec_hash
                 || subject.artifacts != contract.spec.artifacts.paths()
             {
-                return reject("handoff does not match the contract specification");
+                return reject(Rejection::HandoffSpecMismatch);
             }
             let configured_replay = contract.spec.evidence.replay.as_ref();
             match (configured_replay, replay) {
-                (Some(_), None) => return reject("replay evidence is required"),
-                (None, Some(_)) => return reject("replay evidence is not configured"),
+                (Some(_), None) => return reject(Rejection::ReplayEvidenceRequired),
+                (None, Some(_)) => return reject(Rejection::ReplayNotConfigured),
                 (Some(policy), Some(result)) => {
                     if !matches!(
                         hash_replay(policy),
                         Ok(policy_hash) if result.policy_hash == policy_hash
                     ) || result.subject_hash != subject.hash
                     {
-                        return reject("replay coordinate does not match");
+                        return reject(Rejection::ReplayCoordinateMismatch);
                     }
                 }
                 (None, None) => {}
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             if let Some(failed) = replay.as_ref().filter(|result| !result.passed) {
                 next_contract.status = Status::Dormant;
@@ -464,14 +465,14 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if contract.status != Status::Active || revision != &contract.revision {
-                return reject("contract is not active at this revision");
+                return reject(Rejection::NotActiveAtRevision);
             }
             if contract.pending_revision.is_some() || reason.is_empty() {
-                return reject("blocked report is invalid");
+                return reject(Rejection::InvalidBlockedReport);
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.blocked = Some(Blocked {
                 reason: reason.clone(),
@@ -487,23 +488,23 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if actor != &contract.executor {
-                return reject("only the executor may petition for revision");
+                return reject(Rejection::PetitionRequiresExecutor);
             }
             if contract.pending_revision.is_some() || reason.is_empty() {
-                return reject("revision petition is invalid");
+                return reject(Rejection::InvalidPetition);
             }
             if spec_hash == &contract.spec_hash
                 || !matches!(hash_spec(spec), Ok(hash) if &hash == spec_hash)
                 || spec.requires != contract.spec.requires
             {
-                return reject("proposed revision coordinate is invalid");
+                return reject(Rejection::InvalidRevisionCoordinate);
             }
-            if let Some(reason) = invalid_spec(spec) {
-                return reject(reason);
+            if let Some(rejection) = invalid_spec(spec) {
+                return reject(rejection);
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.pending_revision = Some(PendingRevision {
                 spec: spec.clone(),
@@ -520,25 +521,24 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if actor != &contract.issuer {
-                return reject("only the issuer may decide a revision");
+                return reject(Rejection::DecideRevisionRequiresIssuer);
             }
             let Some(pending) = &contract.pending_revision else {
-                return reject("no revision petition is pending");
+                return reject(Rejection::NoPendingRevision);
             };
             if revision != &contract.revision || spec_hash != &pending.spec_hash {
-                return reject("revision decision coordinate does not match");
+                return reject(Rejection::RevisionDecisionMismatch);
             }
             if *disposition == RevisionDisposition::Accept
                 && let Some(dependent) = dependent
             {
-                return reject(&format!(
-                    "contract is required by outstanding contract: {}",
-                    dependent.id
-                ));
+                return reject(Rejection::RequiredByOutstanding {
+                    dependent_id: dependent.id.clone(),
+                });
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             if *disposition == RevisionDisposition::Accept {
                 next_contract.spec = pending.spec.clone();
@@ -556,13 +556,13 @@ pub fn transition(state: &State, command: Command) -> Transition {
         }
         Command::Activate { revision, time, .. } => {
             if contract.status != Status::Dormant || revision != &contract.revision {
-                return reject("contract is not dormant at this revision");
+                return reject(Rejection::NotDormantAtRevision);
             }
             if contract.pending_revision.is_some() || *time >= contract.spec.budget.deadline {
-                return reject("contract cannot activate");
+                return reject(Rejection::CannotActivate);
             }
             if matches!(contract.spec.trigger, crate::Trigger::Time { at } if at > *time) {
-                return reject("contract trigger is not ready");
+                return reject(Rejection::TriggerNotReady);
             }
             if contract.spec.requires.iter().any(|requirement| {
                 state
@@ -574,11 +574,11 @@ pub fn transition(state: &State, command: Command) -> Transition {
                             || dependency.attestation_id.is_none()
                     })
             }) {
-                return reject("required contract is not evidenced");
+                return reject(Rejection::RequirementNotEvidenced);
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.status = Status::Active;
             next_contract.escalation = None;
@@ -591,17 +591,17 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if actor != &contract.issuer || contract.status != Status::Escalated {
-                return reject("only the issuer may resume an escalated contract");
+                return reject(Rejection::ResumeRequiresIssuer);
             }
             if revision != &contract.revision || spec_hash != &contract.spec_hash {
-                return reject("resume coordinate does not match");
+                return reject(Rejection::ResumeCoordinateMismatch);
             }
             if contract.pending_revision.is_some() {
-                return reject("contract has a pending revision");
+                return reject(Rejection::PendingRevisionFence);
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.status = Status::Dormant;
             next_contract.blocked = next_contract.blocked.clone().or_else(|| {
@@ -621,11 +621,11 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if revision != &contract.revision || reason.is_empty() {
-                return reject("escalation coordinate is invalid");
+                return reject(Rejection::InvalidEscalation);
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.status = Status::Escalated;
             next_contract.escalation = Some(Escalation {
@@ -642,20 +642,19 @@ pub fn transition(state: &State, command: Command) -> Transition {
             ..
         } => {
             if actor != &contract.issuer || reason.is_empty() {
-                return reject("only the issuer may release with a reason");
+                return reject(Rejection::ReleaseRequiresIssuer);
             }
             if revision != &contract.revision || spec_hash != &contract.spec_hash {
-                return reject("release coordinate does not match");
+                return reject(Rejection::ReleaseCoordinateMismatch);
             }
             if let Some(dependent) = dependent {
-                return reject(&format!(
-                    "contract is required by outstanding contract: {}",
-                    dependent.id
-                ));
+                return reject(Rejection::RequiredByOutstanding {
+                    dependent_id: dependent.id.clone(),
+                });
             }
             let mut next = state.clone();
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.status = Status::Released;
             next_contract.blocked = None;
@@ -670,13 +669,13 @@ pub fn transition(state: &State, command: Command) -> Transition {
             actor, attestation, ..
         } => {
             let Some(handoff) = &contract.handoff else {
-                return reject("contract has not been handed off");
+                return reject(Rejection::NoHandoff);
             };
             if contract.status != Status::Verification || contract.pending_revision.is_some() {
-                return reject("contract is not awaiting verification");
+                return reject(Rejection::NotAwaitingVerification);
             }
             if actor != &contract.issuer || attestation.verifier_id != contract.issuer {
-                return reject("only the issuer may attest settlement");
+                return reject(Rejection::AttestRequiresIssuer);
             }
             if attestation.revision != contract.revision
                 || attestation.spec_hash != contract.spec_hash
@@ -684,14 +683,14 @@ pub fn transition(state: &State, command: Command) -> Transition {
                 || attestation.id.is_empty()
                 || attestation.evidence_hash.is_empty()
             {
-                return reject("attestation coordinate does not match");
+                return reject(Rejection::AttestationCoordinateMismatch);
             }
             if state.attestations.contains_key(&attestation.id) {
-                return reject("attestation already exists");
+                return reject(Rejection::AttestationExists);
             }
             if let Some(policy) = &contract.spec.evidence.replay {
                 let Some(replay) = &handoff.replay else {
-                    return reject("replay evidence does not support discharge");
+                    return reject(Rejection::ReplayDoesNotSupportDischarge);
                 };
                 if !replay.passed
                     || !matches!(
@@ -701,14 +700,14 @@ pub fn transition(state: &State, command: Command) -> Transition {
                     || replay.subject_hash != handoff.subject.hash
                     || replay.evidence_hash == attestation.evidence_hash
                 {
-                    return reject("replay evidence does not support independent discharge");
+                    return reject(Rejection::ReplayCannotDoubleAsAttestation);
                 }
             }
             let mut next = state.clone();
             next.attestations
                 .insert(attestation.id.clone(), attestation.clone());
             let Some(next_contract) = next.contracts.get_mut(contract_id) else {
-                return reject("contract state is inconsistent");
+                return reject(Rejection::StateInconsistent);
             };
             next_contract.status = Status::Discharged;
             next_contract.blocked = None;
