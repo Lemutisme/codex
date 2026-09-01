@@ -63,6 +63,7 @@ fn coordinate(spec_hash: &str, hash: &str) -> SubjectCoordinate {
         hash: hash.to_string(),
         spec_hash: spec_hash.to_string(),
         artifacts: vec![ArtifactPath::new("executable").unwrap()],
+        capture_policy_hash: "capture-policy".to_string(),
     }
 }
 
@@ -447,6 +448,44 @@ fn replay_evidence_cannot_double_as_principal_attestation() {
     );
 
     assert!(matches!(rejected.decision, Decision::Rejected { .. }));
+    assert_eq!(rejected.state, state);
+}
+
+#[test]
+fn subject_capture_policy_is_bound_into_the_coordinate() {
+    let state = issue(&State::default(), "delivery", Vec::new());
+    let state = transition(
+        &state,
+        Command::Activate {
+            actor: INSTITUTION_ACTOR.to_string(),
+            contract_id: "delivery".to_string(),
+            revision: 1,
+            time: 1,
+        },
+    )
+    .state;
+    let contract = &state.contracts["delivery"];
+    let mut subject = coordinate(&contract.spec_hash, "subject");
+    subject.capture_policy_hash = String::new();
+    let rejected = transition(
+        &state,
+        Command::ReportReady {
+            actor: INSTITUTION_ACTOR.to_string(),
+            contract_id: "delivery".to_string(),
+            revision: 1,
+            summary: "ready".to_string(),
+            uncertainties: Vec::new(),
+            subject,
+            replay: None,
+            time: 2,
+        },
+    );
+    assert_eq!(
+        rejected.decision,
+        Decision::Rejected {
+            reason: "subject capture policy is unbound".to_string(),
+        }
+    );
     assert_eq!(rejected.state, state);
 }
 

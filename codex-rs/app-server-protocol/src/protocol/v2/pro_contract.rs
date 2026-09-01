@@ -108,6 +108,7 @@ pub struct ProContractSubject {
     pub hash: String,
     pub spec_hash: String,
     pub artifacts: Vec<String>,
+    pub capture_policy_hash: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

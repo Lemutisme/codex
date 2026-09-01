@@ -54,7 +54,7 @@ fn rejection_sites_match_the_audited_count() {
         .expect("read kernel.rs");
     let sites = kernel.matches("reject(").count();
     assert_eq!(
-        sites, 68,
+        sites, 69,
         "rejection site drift: re-audit rejection.rs mapping before updating this count"
     );
 }

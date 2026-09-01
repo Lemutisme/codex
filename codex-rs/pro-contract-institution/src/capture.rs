@@ -22,6 +22,23 @@ pub struct CaptureLimits {
     pub max_total_bytes: u64,
 }
 
+impl CaptureLimits {
+    /// Content address of the capture projection: manifest grammar version,
+    /// numeric limits, and the fixed traversal semantics (symlinks skipped
+    /// unless forced, oversized ordinary files skipped).
+    pub fn policy_hash(&self) -> String {
+        let policy = serde_json::json!({
+            "manifest_version": 2_u32,
+            "max_entries": self.max_entries,
+            "max_normal_file_bytes": self.max_normal_file_bytes,
+            "max_total_bytes": self.max_total_bytes,
+            "symlinks": "skip_unforced_reject_forced",
+            "oversized_normal_files": "skip",
+        });
+        format!("{:x}", Sha256::digest(policy.to_string()))
+    }
+}
+
 impl Default for CaptureLimits {
     fn default() -> Self {
         Self {
@@ -49,6 +66,7 @@ pub struct SubjectStore {
 struct Manifest {
     version: u32,
     spec_hash: String,
+    capture_policy_hash: String,
     artifacts: Vec<ArtifactPath>,
     entries: Vec<ManifestEntry>,
 }
@@ -212,8 +230,9 @@ impl SubjectStore {
         }
 
         let manifest = Manifest {
-            version: 1,
+            version: 2,
             spec_hash: spec_hash.into(),
+            capture_policy_hash: self.limits.policy_hash(),
             artifacts: artifacts.paths().to_vec(),
             entries: entries.into_values().collect(),
         };
@@ -235,6 +254,7 @@ impl SubjectStore {
                 hash,
                 spec_hash: manifest.spec_hash,
                 artifacts: manifest.artifacts,
+                capture_policy_hash: manifest.capture_policy_hash,
             },
             entries: manifest.entries.len(),
             bytes: total_bytes,
@@ -257,7 +277,9 @@ impl SubjectStore {
             return Err(SubjectError::ManifestHashMismatch);
         }
         let manifest: Manifest = serde_json::from_slice(&encoded)?;
-        if manifest.spec_hash != coordinate.spec_hash || manifest.artifacts != coordinate.artifacts
+        if manifest.spec_hash != coordinate.spec_hash
+            || manifest.artifacts != coordinate.artifacts
+            || manifest.capture_policy_hash != coordinate.capture_policy_hash
         {
             return Err(SubjectError::ManifestHashMismatch);
         }

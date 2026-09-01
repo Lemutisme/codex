@@ -51,7 +51,6 @@ use codex_pro_contract::Contract;
 use codex_pro_contract::ContractSpec;
 use codex_pro_contract::Evidence;
 use codex_pro_contract::ProtectedFile;
-use codex_pro_contract_institution::QuietSnapshot;
 use codex_pro_contract::ReplayCheck;
 use codex_pro_contract::ReplayPolicy;
 use codex_pro_contract::Requirement;
@@ -66,6 +65,7 @@ use codex_pro_contract_extension::ProContractController;
 use codex_pro_contract_extension::ProContractControllerError;
 use codex_pro_contract_extension::ProContractIssue;
 use codex_pro_contract_extension::RevisionDecision;
+use codex_pro_contract_institution::QuietSnapshot;
 use codex_protocol::ThreadId;
 use std::sync::Arc;
 
@@ -224,6 +224,7 @@ impl ProContractRequestProcessor {
                     hash: subject.hash,
                     spec_hash: subject.spec_hash,
                     artifacts: artifact_paths(subject.artifacts),
+                    capture_policy_hash: subject.capture_policy_hash,
                 },
                 destination: params.destination,
             }
@@ -487,6 +488,7 @@ fn contract_info(contract: Contract) -> ProContractInfo {
                 hash: handoff.subject.hash,
                 spec_hash: handoff.subject.spec_hash,
                 artifacts: artifact_paths(handoff.subject.artifacts),
+                capture_policy_hash: handoff.subject.capture_policy_hash,
             },
             replay: handoff.replay.map(replay_result_info),
             created_at: millis_to_seconds(handoff.time),

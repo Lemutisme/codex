@@ -161,6 +161,11 @@ fn every_rejection_keeps_its_audited_reason_and_maps_to_one_class() {
             Constitutional(Exactness),
         ),
         (
+            Rejection::SubjectCapturePolicyUnbound,
+            "subject capture policy is unbound",
+            Constitutional(Exactness),
+        ),
+        (
             Rejection::ReplayEvidenceRequired,
             "replay evidence is required",
             Constitutional(Conservation),

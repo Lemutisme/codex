@@ -64,6 +64,7 @@ pub enum Rejection {
     NotActiveAtRevision,
     HandoffDuringRevision,
     HandoffSpecMismatch,
+    SubjectCapturePolicyUnbound,
     ReplayEvidenceRequired,
     ReplayNotConfigured,
     ReplayCoordinateMismatch,
@@ -98,7 +99,7 @@ pub enum Rejection {
 }
 
 impl Rejection {
-    pub const VARIANT_COUNT: usize = 61;
+    pub const VARIANT_COUNT: usize = 62;
 
     pub fn class(&self) -> RejectionClass {
         use Axiom::Conservation;
@@ -129,6 +130,7 @@ impl Rejection {
             | Self::NotActiveAtRevision
             | Self::HandoffDuringRevision
             | Self::HandoffSpecMismatch
+            | Self::SubjectCapturePolicyUnbound
             | Self::ReplayCoordinateMismatch
             | Self::ReplayEnvironmentMismatch
             | Self::InvalidRevisionCoordinate
@@ -214,6 +216,7 @@ impl fmt::Display for Rejection {
             Self::NotActiveAtRevision => "contract is not active at this revision",
             Self::HandoffDuringRevision => "handoff is blocked while a revision is pending",
             Self::HandoffSpecMismatch => "handoff does not match the contract specification",
+            Self::SubjectCapturePolicyUnbound => "subject capture policy is unbound",
             Self::ReplayEvidenceRequired => "replay evidence is required",
             Self::ReplayNotConfigured => "replay evidence is not configured",
             Self::ReplayCoordinateMismatch => "replay coordinate does not match",

@@ -17541,6 +17541,9 @@
             },
             "type": "array"
           },
+          "capturePolicyHash": {
+            "type": "string"
+          },
           "hash": {
             "type": "string"
           },
@@ -17550,6 +17553,7 @@
         },
         "required": [
           "artifacts",
+          "capturePolicyHash",
           "hash",
           "specHash"
         ],

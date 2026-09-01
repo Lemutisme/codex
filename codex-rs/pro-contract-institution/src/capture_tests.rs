@@ -91,3 +91,38 @@ fn captures_declared_directory_as_complete_subject() -> anyhow::Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn capture_policy_identity_is_bound_into_the_subject_coordinate() -> anyhow::Result<()> {
+    let workspace = tempfile::tempdir()?;
+    let store_root = tempfile::tempdir()?;
+    fs::write(workspace.path().join("executable"), "binary")?;
+    let artifacts = ArtifactSpec::new([ArtifactPath::new("executable")?])?;
+
+    let default_capture =
+        SubjectStore::new(store_root.path()).capture(workspace.path(), "spec", &artifacts)?;
+    assert_eq!(
+        default_capture.coordinate.capture_policy_hash,
+        CaptureLimits::default().policy_hash()
+    );
+
+    let narrow = CaptureLimits {
+        max_normal_file_bytes: 1024,
+        ..CaptureLimits::default()
+    };
+    let narrow_capture = SubjectStore::with_limits(store_root.path(), narrow).capture(
+        workspace.path(),
+        "spec",
+        &artifacts,
+    )?;
+    assert_ne!(
+        narrow_capture.coordinate.capture_policy_hash,
+        default_capture.coordinate.capture_policy_hash,
+        "different capture limits must produce different capture policy identities"
+    );
+    assert_ne!(
+        narrow_capture.coordinate.hash, default_capture.coordinate.hash,
+        "the capture policy identity participates in the subject hash"
+    );
+    Ok(())
+}

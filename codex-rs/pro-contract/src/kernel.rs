@@ -414,6 +414,9 @@ pub fn transition(state: &State, command: Command) -> Transition {
             {
                 return reject(Rejection::HandoffSpecMismatch);
             }
+            if subject.capture_policy_hash.is_empty() {
+                return reject(Rejection::SubjectCapturePolicyUnbound);
+            }
             let configured_replay = contract.spec.evidence.replay.as_ref();
             match (configured_replay, replay) {
                 (Some(_), None) => return reject(Rejection::ReplayEvidenceRequired),

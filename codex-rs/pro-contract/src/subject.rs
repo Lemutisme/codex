@@ -70,6 +70,10 @@ pub struct SubjectCoordinate {
     pub hash: String,
     pub spec_hash: String,
     pub artifacts: Vec<ArtifactPath>,
+    /// Identity of the capture policy that produced this subject. Subject
+    /// exactness is only meaningful relative to its capture projection, so
+    /// the projection's identity is part of the coordinate.
+    pub capture_policy_hash: String,
 }
 
 #[cfg(test)]
