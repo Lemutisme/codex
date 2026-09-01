@@ -34,9 +34,10 @@ which causal or publication claim it can support.
 - **Confirmation:** preregistered, disjoint, fully coordinated evaluation
   observed once.
 
-The v5 and v6 ProgramBench runs below are **development evidence**. Their
-ProgramBench runner commit was not recorded in a durable run manifest. That
-defect cannot be repaired retroactively by copying result files now.
+The ProgramBench runs below are **development evidence**. The historical v5
+and v6 runner commit was not recorded in a durable run manifest. That defect
+cannot be repaired retroactively by copying result files now. Later runs have
+stronger coordinates but still use one candidate per cell.
 
 ## Native execution-policy evidence
 
@@ -148,6 +149,52 @@ sha256 e7a9bde717cbf3e74f12ead3e44d9c85700223210f0ba8c9a0a88346da237dd7
 
 That temporary path is not durable custody. The hash permits local
 cross-checking only while the artifact survives.
+
+### v8 adaptive leaderboard-policy seed
+
+After inspecting only the generic structure of public leaderboard trajectories,
+a preregistered Luna Max A/B tested a 1290-byte Fast/Deep policy seed on three
+instances absent from the local experiment ledger. Both arms used the same
+dirty-source binary, parity image, Contract, six-hour ceiling, replay, and
+official evaluator. The native binding returned the same preregistered
+domain-separated policy hash on all treatment arms and null on controls.
+
+| Instance | Policy off | Adaptive v4 | Delta | Public task best |
+| --- | ---: | ---: | ---: | ---: |
+| zip-password-finder | 85.8824% | 99.1176% | +13.2353pp | 100.0000% |
+| cheat | 62.2896% | 66.6667% | +4.3771pp | 86.1953% |
+| thokr | 89.4382% | 92.5843% | +3.1461pp | 99.5455% |
+| Macro | **79.2034%** | **86.1229%** | **+6.9195pp** | **95.2469%** |
+
+All six trajectories reached verification in one semantic attempt, passed
+native replay, and evaluated without errors or warnings. Every treatment
+handoff selected `lane=deep`, named a measured trigger, and retained material
+uncertainties. V4 used 644 versus 596 actions (1.081x) but 86.349M versus
+53.326M cumulative model tokens (1.619x).
+
+The preregistered promotion gate required both actions and tokens to remain at
+most 1.5x control. V4 therefore **fails promotion** despite improving every task
+and passing every other gate. It remains a strong Deep seed, not a canonical
+default. This refusal is the first policy-RSI decision supported by a stable
+native policy identity and a frozen multi-objective rule; canonical policy
+adoption itself remains future work.
+
+The executable gate returned `admit=false` with only `tokens` failed and bound
+that decision as
+`b8add9563b4d41fa56f1c8e1cad59a8f168b50db0bdf403af5eab79732fb7b14`.
+
+Residuals discriminate the next mechanism. Zip failures fell from 96 to 6.
+Thokr improved TUI basics but retained timing, graph, tiny-terminal, language,
+and scoring differences. Cheat improved only 13 tests; search, update,
+configuration, installer, and completion semantics dominate. A next generation
+should default Fast, admit Deep only from trusted residual/risk evidence, and
+bound context growth rather than merely action count. Those mechanisms belong
+in task/policy adapters, not the settlement Kernel.
+
+~~~text
+/tmp/procontract-native-policy-v4-20260901/RESULT.md
+sha256 ae92cf99beb9e60ffac850edee4bcc9881aa383316aabea38cebdca1cfffd954
+~~~
 
 ## Amber environment-coordinate falsifier
 

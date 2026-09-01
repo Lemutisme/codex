@@ -16,7 +16,7 @@ references.
 | Specification types | `codex-rs/pro-contract/src/spec.rs` | duty terms and current concrete ReplayPolicy |
 | Subject projection | `codex-rs/pro-contract/src/subject.rs` | bounded content-addressed filesystem subject |
 | Institution store | `codex-rs/pro-contract/src/ledger.rs` | atomic projection, rejection, event, and hash head |
-| Execution binding | `codex-rs/ext/pro-contract/src/binding.rs` | Session, attempt, lease, budget, policy |
+| Execution binding | `codex-rs/ext/pro-contract/src/binding.rs` | Session, attempt, lease, budget, policy identity |
 | Evidence runner | `codex-rs/ext/pro-contract/src/replay.rs` | local materialization and replay |
 | Lifecycle adapter | `codex-rs/ext/pro-contract/src/runner.rs` | activation, Session dispatch, recovery |
 | Effect admission | `codex-rs/ext/pro-contract/src/lib.rs` | provider/tool gates and capability projection |
@@ -164,7 +164,9 @@ Current focused tests cover:
 - Principal RPC issue/handoff/attest;
 - executor-visible challenge continuation;
 - rejected-revision same-attempt continuation;
-- execution-policy projection in representative Session requests.
+- execution-policy projection in representative Session requests;
+- domain-separated policy identity across challenge attempts and fail-closed
+  rejection of a conflicting stored hash.
 
 ### Missing integration evidence
 
@@ -190,8 +192,10 @@ only after the process API acknowledges termination, but omits environment
 identity, interpreter, OS/architecture, resource usage, and confirmed
 descendant cleanup.
 
-Execution policy is outside ContractSpec, but context projection is not yet
-uniformly one-shot across all context-building paths.
+Execution policy is outside ContractSpec. Its binding now stores a
+domain-separated content hash, but context projection is not yet uniformly
+one-shot across all context-building paths. Policy lineage, comparison, and
+adoption remain absent.
 
 The native implementation does not contain a canonical incumbent register,
 atomic adoption, deployment rollback, policy lineage, or judge succession.

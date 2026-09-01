@@ -664,8 +664,11 @@ at edges.
 ### Execution policy
 
 Advisory method for attempting work. It stays outside ContractSpec and
-specHash. The current Codex projection is **PARTIAL** because context paths do
-not yet share uniform one-shot/separate-message behavior.
+specHash. The Codex execution binding now persists the bounded instructions
+with a domain-separated content hash and rejects conflicting stored identity.
+That makes one exact policy observable across semantic attempts without making
+it normative Contract state. Projection remains **PARTIAL** because context
+paths do not yet share uniform one-shot/separate-message behavior.
 
 ### Evidence policy
 

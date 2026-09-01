@@ -205,6 +205,7 @@ pub struct ProContractExecutionInfo {
     pub revision: u64,
     pub executor_thread_id: Option<String>,
     pub execution_policy: Option<String>,
+    pub execution_policy_hash: Option<String>,
     pub dispatched: bool,
     pub awaiting_revision_decision: bool,
     pub attempts: u64,

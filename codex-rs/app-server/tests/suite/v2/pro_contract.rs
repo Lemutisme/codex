@@ -246,6 +246,12 @@ async fn executor_challenge_starts_a_residual_attempt_without_losing_policy() ->
             },
         })
         .await?;
+    let policy_hash = issued
+        .execution
+        .execution_policy_hash
+        .clone()
+        .expect("execution policy hash");
+    assert_eq!(policy_hash.len(), 64);
     let first_executor = issued.execution.executor_thread_id.clone();
     let first = tokio::time::timeout(std::time::Duration::from_secs(10), async {
         loop {
@@ -320,6 +326,13 @@ async fn executor_challenge_starts_a_residual_attempt_without_losing_policy() ->
             .as_ref()
             .and_then(|execution| execution.executor_thread_id.as_ref()),
         first_executor.as_ref()
+    );
+    assert_eq!(
+        second
+            .execution
+            .as_ref()
+            .and_then(|execution| execution.execution_policy_hash.as_ref()),
+        Some(&policy_hash)
     );
     let requests = response_mock.requests();
     assert_eq!(requests.len(), 2);

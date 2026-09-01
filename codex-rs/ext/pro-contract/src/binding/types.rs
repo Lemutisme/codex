@@ -15,6 +15,7 @@ pub(crate) struct ExecutionBinding {
     pub(crate) contract_id: String,
     pub(crate) revision: u64,
     pub(crate) execution_policy: Option<String>,
+    pub(crate) execution_policy_hash: Option<String>,
     pub(crate) dispatched: bool,
     pub(crate) resume_same_attempt: bool,
     pub(crate) attempts: u64,

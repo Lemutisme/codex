@@ -112,6 +112,7 @@ impl ProContractRequestProcessor {
                         .executor_thread_id
                         .map(|thread_id| thread_id.to_string()),
                     execution_policy: result.execution.execution_policy,
+                    execution_policy_hash: result.execution.execution_policy_hash,
                     dispatched: result.execution.dispatched,
                     awaiting_revision_decision: result.execution.awaiting_revision_decision,
                     attempts: result.execution.attempts,
@@ -613,6 +614,7 @@ fn execution_info(
             .executor_thread_id
             .map(|thread_id| thread_id.to_string()),
         execution_policy: execution.execution_policy,
+        execution_policy_hash: execution.execution_policy_hash,
         dispatched: execution.dispatched,
         awaiting_revision_decision: execution.awaiting_revision_decision,
         attempts: execution.attempts,

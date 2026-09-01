@@ -68,6 +68,10 @@ A policy has two different roles:
 This allows policy generators and selectors to evolve without letting the
 current execution policy rewrite the duty it is executing.
 
+The current Codex binding supplies a content hash for the first role. That is
+policy identity, not lineage or succession: it does not compare candidates,
+select an incumbent, or authorize adoption.
+
 ## Incumbent register
 
 A future register should contain only exact references:

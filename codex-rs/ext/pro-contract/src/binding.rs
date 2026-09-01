@@ -2,6 +2,8 @@ use codex_pro_contract::ChallengeDisclosure;
 use codex_pro_contract::Contract;
 use codex_pro_contract::State;
 use codex_pro_contract::Status;
+use sha2::Digest;
+use sha2::Sha256;
 use sqlx::Row;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteRow;
@@ -26,6 +28,8 @@ pub(crate) enum BindingError {
     EmptyPolicy,
     #[error("execution policy exceeds {MAX_EXECUTION_POLICY_BYTES} bytes")]
     PolicyTooLarge,
+    #[error("stored execution policy hash does not match its instructions")]
+    PolicyHashMismatch,
     #[error("execution limits must be positive")]
     InvalidLimits,
     #[error("execution binding already exists with different coordinates")]
@@ -49,6 +53,7 @@ impl BindingStore {
         limits: ExecutionLimits,
     ) -> Result<ExecutionBinding, BindingError> {
         validate_policy(execution_policy.as_deref())?;
+        let execution_policy_hash = execution_policy.as_deref().map(hash_execution_policy);
         if limits.turns == 0
             || limits.actions == 0
             || limits.deadline == 0
@@ -59,16 +64,18 @@ impl BindingStore {
         let mut transaction = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query(
             "INSERT OR IGNORE INTO pro_contract_binding
-             (scope, ledger_scope, contract_id, revision, execution_policy, dispatched, attempt_key,
+             (scope, ledger_scope, contract_id, revision, execution_policy, execution_policy_hash,
+              dispatched, attempt_key,
               turns_limit, actions_limit,
               deadline, max_attempts)
-             VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
         )
         .bind(scope)
         .bind(ledger_scope)
         .bind(contract_id)
         .bind(revision as i64)
         .bind(&execution_policy)
+        .bind(&execution_policy_hash)
         .bind(format!("{revision}:"))
         .bind(limits.turns as i64)
         .bind(limits.actions as i64)
@@ -81,6 +88,7 @@ impl BindingStore {
             || binding.contract_id != contract_id
             || binding.revision != revision
             || binding.execution_policy != execution_policy
+            || binding.execution_policy_hash != execution_policy_hash
             || binding.attempt_key != format!("{revision}:")
             || binding.turns_limit != limits.turns
             || binding.actions_limit != limits.actions
@@ -260,7 +268,8 @@ impl BindingStore {
             return Err(BindingError::NotFound);
         }
         let row = sqlx::query(
-            "SELECT scope, ledger_scope, contract_id, revision, execution_policy, dispatched,
+            "SELECT scope, ledger_scope, contract_id, revision, execution_policy,
+                    execution_policy_hash, dispatched,
                     resume_same_attempt,
                     attempts, turns_used, actions_used, next_action_at, attempt_key,
                     turns_limit, actions_limit, deadline, max_attempts,
@@ -547,8 +556,8 @@ impl BindingStore {
     }
 }
 
-const BINDING_SELECT: &str =
-    "SELECT scope, ledger_scope, contract_id, revision, execution_policy, dispatched,
+const BINDING_SELECT: &str = "SELECT scope, ledger_scope, contract_id, revision, execution_policy,
+            execution_policy_hash, dispatched,
             resume_same_attempt,
             attempts, turns_used, actions_used, next_action_at, attempt_key,
             turns_limit, actions_limit, deadline, max_attempts,
@@ -556,7 +565,8 @@ const BINDING_SELECT: &str =
      FROM pro_contract_binding WHERE scope = ?";
 
 const BINDING_BY_CONTRACT_SELECT: &str =
-    "SELECT scope, ledger_scope, contract_id, revision, execution_policy, dispatched,
+    "SELECT scope, ledger_scope, contract_id, revision, execution_policy,
+            execution_policy_hash, dispatched,
             resume_same_attempt,
             attempts, turns_used, actions_used, next_action_at, attempt_key,
             turns_limit, actions_limit, deadline, max_attempts,
@@ -640,12 +650,22 @@ fn contract_attempt_key(contract: &Contract) -> String {
 }
 
 fn binding_from_row(row: SqliteRow) -> Result<ExecutionBinding, BindingError> {
+    let execution_policy: Option<String> = row.try_get("execution_policy")?;
+    let expected_policy_hash = execution_policy.as_deref().map(hash_execution_policy);
+    let stored_policy_hash: Option<String> = row.try_get("execution_policy_hash")?;
+    if stored_policy_hash
+        .as_ref()
+        .is_some_and(|stored| Some(stored) != expected_policy_hash.as_ref())
+    {
+        return Err(BindingError::PolicyHashMismatch);
+    }
     Ok(ExecutionBinding {
         scope: row.try_get("scope")?,
         ledger_scope: row.try_get("ledger_scope")?,
         contract_id: row.try_get("contract_id")?,
         revision: row.try_get::<i64, _>("revision")? as u64,
-        execution_policy: row.try_get("execution_policy")?,
+        execution_policy,
+        execution_policy_hash: stored_policy_hash.or(expected_policy_hash),
         dispatched: row.try_get::<i64, _>("dispatched")? != 0,
         resume_same_attempt: row.try_get::<i64, _>("resume_same_attempt")? != 0,
         attempts: row.try_get::<i64, _>("attempts")? as u64,
@@ -674,6 +694,13 @@ fn validate_policy(policy: Option<&str>) -> Result<(), BindingError> {
         return Err(BindingError::PolicyTooLarge);
     }
     Ok(())
+}
+
+fn hash_execution_policy(policy: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"codex.pro_contract.execution_policy.v1\0");
+    hasher.update(policy.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 #[cfg(test)]

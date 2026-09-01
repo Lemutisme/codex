@@ -61,6 +61,7 @@ async fn shares_exact_turn_action_and_attempt_ceilings() -> anyhow::Result<()> {
             contract_id: "contract".to_string(),
             revision: 1,
             execution_policy: Some("policy".to_string()),
+            execution_policy_hash: Some(hash_execution_policy("policy")),
             dispatched: false,
             resume_same_attempt: false,
             attempts: 0,
@@ -76,6 +77,20 @@ async fn shares_exact_turn_action_and_attempt_ceilings() -> anyhow::Result<()> {
             lease_expires_at: 0,
         }
     );
+    sqlx::query(
+        "UPDATE pro_contract_binding SET execution_policy_hash = 'tampered' WHERE scope = 'thread'",
+    )
+    .execute(&store.pool)
+    .await?;
+    assert!(matches!(
+        store.get("thread").await,
+        Err(BindingError::PolicyHashMismatch)
+    ));
+    sqlx::query(
+        "UPDATE pro_contract_binding SET execution_policy_hash = NULL WHERE scope = 'thread'",
+    )
+    .execute(&store.pool)
+    .await?;
     assert_eq!(
         store.reserve_turn("thread", 1).await?,
         Reservation::Denied {

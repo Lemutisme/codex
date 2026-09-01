@@ -13,6 +13,7 @@ impl BindingStore {
                 contract_id TEXT NOT NULL,
                 revision INTEGER NOT NULL,
                 execution_policy TEXT,
+                execution_policy_hash TEXT,
                 dispatched INTEGER NOT NULL DEFAULT 0,
                 resume_same_attempt INTEGER NOT NULL DEFAULT 0,
                 attempts INTEGER NOT NULL DEFAULT 0,
@@ -49,6 +50,10 @@ impl BindingStore {
             (
                 "ledger_scope",
                 "ALTER TABLE pro_contract_binding ADD COLUMN ledger_scope TEXT NOT NULL DEFAULT ''",
+            ),
+            (
+                "execution_policy_hash",
+                "ALTER TABLE pro_contract_binding ADD COLUMN execution_policy_hash TEXT",
             ),
             (
                 "dispatched",

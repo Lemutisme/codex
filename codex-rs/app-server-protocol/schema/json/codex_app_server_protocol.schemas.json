@@ -17243,6 +17243,12 @@
               "null"
             ]
           },
+          "executionPolicyHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "executorThreadId": {
             "type": [
               "string",
