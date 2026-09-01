@@ -109,11 +109,15 @@ implementation checks into constitutional concepts.
 | 704 | replay unsupported, stale, or reused as attestation | C | I5/I6 |
 | 711 | missing discharge target projection | D | cloned-state consistency |
 
-The audit is complete for the 64 rejection sites in the reviewed reducer.
-Future implementation should replace free-form rejection strings with a typed
-reason enum and require every enum variant to map to one class and, for class
-C, one constitutional invariant. That would make this audit mechanically
-drift-detecting.
+The table above is the frozen 2026-08-31 audit of the original 64 sites and
+is retained as history. The mapping is now mechanical: every rejection site
+uses a typed `Rejection` variant (`pro-contract/src/rejection.rs`, 62
+variants across 69 sites after the environment and capture-policy
+coordinates landed), `Rejection::class()` maps each variant to exactly one
+constitutional axiom, well-formedness, or fail-closed class by total match,
+a golden test pins the byte-exact reason strings, and
+`tests/constitution.rs` pins the site count. `rejection.rs` is the single
+source of truth for the audit.
 
 ## Constitutional dependency rules
 

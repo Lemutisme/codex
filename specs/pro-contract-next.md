@@ -25,6 +25,12 @@
 
 ---
 
+> **落地状态(2026-09-01,branch procontract-next):** §1.1 U2 三层机械化已全部落地
+> (institution crate 拆分、宪法元测试、62 变体类型化拒绝);U1 落地两个子项:
+> replay 证据环境坐标(digest 必填 + 可选 pin)与 capture_policy_hash 入主体坐标。
+> U1 的 ε 全抽象(EvidencePolicy 取代结构化 ReplayPolicy)、U3 薄外壳、U4 与 §2/§4.2
+> 为后续计划。
+
 ## 1. ProContract⁰:四公理核
 
 现有 codex 版有 9-10 条宪法不变量。可压缩为四条公理,其余全部是推论或 well-formedness:

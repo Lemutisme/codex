@@ -188,10 +188,12 @@ A subject is a content-addressed projection handed to a verifier. It is exact
 only relative to its capture function.
 
 The current Codex subject projection skips ordinary oversized files and
-symbolic links and force-captures declared artifacts. Its manifest format is
-versioned, but effective capture limits are not yet bound into subject
-identity. Exact-subject claims therefore trust an uncoordinated capture policy
-in v1.
+symbolic links and force-captures declared artifacts. The capture projection
+is content-addressed: `capture_policy_hash` (manifest grammar version, entry
+and byte limits, symlink and oversized-file semantics) is part of
+`SubjectCoordinate`, participates in the subject hash through the version-2
+manifest, and an unbound capture policy rejects at handoff. Ignore-rule
+identity inside the traversal remains outside the hash.
 
 ### Goal and claim
 
@@ -444,8 +446,9 @@ Applicable Contract, revision, specification, subject, evidence, and actor
 coordinates must match. Conflicting reuse, stale identity, and duplicate
 attestation reject.
 
-Subject exactness in v1 is relative to the trusted capture projection because
-capturePolicyHash is not yet part of the coordinate.
+Subject exactness is relative to a named capture projection:
+`capture_policy_hash` is bound into the subject coordinate and hash. The
+projection implementation itself remains trusted consensus code.
 
 #### I6. Evidence subordination
 
@@ -494,16 +497,18 @@ Quiet names a frontier, not an eternal fact.
 
 ### Guard taxonomy
 
-The current reducer has 64 rejection sites. They are classified as:
+The reducer has 69 rejection sites drawn from a typed vocabulary of 62
+`Rejection` variants (`pro-contract/src/rejection.rs`). Each variant maps by
+compiler-checked total match to exactly one of:
 
-- constitutional enforcement;
+- a constitutional axiom (monopoly, exactness, conservation, defeasance);
 - command well-formedness;
 - fail-closed internal consistency.
 
-The complete line-by-line mapping lives in
-[Codex implementation](pro-contract-implementation.md). Future code should use
-a typed rejection enum and a test that requires every variant to map to one
-class and, when constitutional, one invariant.
+Reason strings are byte-stable wire format; a golden test asserts zero drift,
+and a site-count test in `tests/constitution.rs` makes the audit mechanically
+drift-detecting. The historical line-by-line table lives in
+[Codex implementation](pro-contract-implementation.md).
 
 ## Completion Integrity
 
@@ -580,19 +585,22 @@ tamper-proof against an actor able to rewrite the store and its anchors.
 ### Capture policy
 
 Ignore rules, entry and byte limits, symlink behavior, and forced artifact
-closure define subject identity. They must be bound by a future
-capturePolicyHash.
+closure define subject identity. Limits and traversal semantics are now bound
+by `capture_policy_hash` inside the coordinate and manifest; ignore-rule
+identity remains unbound.
 
 The current implementation checks its total byte ceiling after copying a file.
 Streaming enforcement is a known correctness gap.
 
 ### Environment and evaluator
 
-The current replay report lacks image, interpreter, OS, architecture,
-toolchain, evaluator, resource, and confirmed descendant-cleanup coordinates.
-It records check duration and persists a timed-out negative result only after
-the process API acknowledges termination. Replay remains **PARTIAL** local
-preflight.
+Replay evidence now carries a mandatory `environment_digest` (OS,
+architecture, best-effort interpreter versions of the check commands), and a
+ReplayPolicy may pin the expected digest under specHash; unnamed or
+mismatched environments reject at handoff and discharge. Container image,
+evaluator, resource, and confirmed descendant-cleanup coordinates remain
+absent, and the digest describes the replay host coarsely, so replay remains
+**PARTIAL** local preflight.
 
 ### Clock
 
@@ -670,8 +678,9 @@ not yet share uniform one-shot/separate-message behavior.
 ### Evidence policy
 
 Frozen prerequisite for settlement. Its identity belongs under specHash.
-Current ReplayPolicy is **PARTIAL** because it is environment-blind and
-filesystem/process-specific.
+Current ReplayPolicy is **PARTIAL**: it now names and can pin its
+environment digest, but it remains filesystem/process-specific concrete
+Kernel debt.
 
 ### Succession policy
 
@@ -825,7 +834,7 @@ quiet result after every command.
 | --- | --- | --- |
 | Duty conservation | **IMPLEMENTED** | **PARTIAL:** confinement assumed |
 | No executor self-certification | **IMPLEMENTED** | **PARTIAL:** Principal isolation absent |
-| Exact coordinates | **IMPLEMENTED** | **PARTIAL:** capture policy unbound |
+| Exact coordinates | **IMPLEMENTED** | **PARTIAL:** capture limits bound; ignore-rule identity and store integrity trusted |
 | Evidence subordinate to attestation | **IMPLEMENTED for v1** | **PARTIAL:** concrete replay debt |
 | Target-environment replay validity | not reducer property | **NOT CLAIMED** |
 | Dependent challenge closure | **IMPLEMENTED**, depth two tested | **PARTIAL:** no concurrency/crash refinement |
