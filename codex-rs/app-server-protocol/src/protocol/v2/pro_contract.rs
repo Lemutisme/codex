@@ -55,6 +55,7 @@ pub struct ProContractReplayPolicy {
     pub checks: Vec<ProContractReplayCheck>,
     pub protected: Vec<ProContractProtectedFile>,
     pub artifacts: Vec<String>,
+    pub environment: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -118,6 +119,7 @@ pub struct ProContractReplayResult {
     pub evidence_hash: String,
     pub passed: bool,
     pub summary: String,
+    pub environment_digest: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

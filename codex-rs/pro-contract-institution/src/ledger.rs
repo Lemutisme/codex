@@ -203,7 +203,8 @@ impl Ledger {
                 contract.scope == scope
                     && !matches!(
                         contract.status,
-                        codex_pro_contract::Status::Discharged | codex_pro_contract::Status::Released
+                        codex_pro_contract::Status::Discharged
+                            | codex_pro_contract::Status::Released
                     )
             })
             .map(|contract| contract.id.clone())

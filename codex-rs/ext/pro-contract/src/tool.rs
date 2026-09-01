@@ -684,6 +684,7 @@ fn replay_policy(
         checks,
         protected,
         artifacts,
+        environment: None,
     })
 }
 

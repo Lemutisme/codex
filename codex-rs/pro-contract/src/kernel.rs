@@ -52,6 +52,10 @@ pub struct ReplayResult {
     pub evidence_hash: String,
     pub passed: bool,
     pub summary: String,
+    /// Digest of the environment that produced this evidence. Evidence is
+    /// world-indexed: a result that cannot name its environment cannot
+    /// support settlement.
+    pub environment_digest: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -422,6 +426,14 @@ pub fn transition(state: &State, command: Command) -> Transition {
                     {
                         return reject(Rejection::ReplayCoordinateMismatch);
                     }
+                    if result.environment_digest.is_empty() {
+                        return reject(Rejection::ReplayEnvironmentUnnamed);
+                    }
+                    if let Some(expected) = &policy.environment
+                        && &result.environment_digest != expected
+                    {
+                        return reject(Rejection::ReplayEnvironmentMismatch);
+                    }
                 }
                 (None, None) => {}
             }
@@ -701,6 +713,14 @@ pub fn transition(state: &State, command: Command) -> Transition {
                     || replay.evidence_hash == attestation.evidence_hash
                 {
                     return reject(Rejection::ReplayCannotDoubleAsAttestation);
+                }
+                if replay.environment_digest.is_empty() {
+                    return reject(Rejection::ReplayEnvironmentUnnamed);
+                }
+                if let Some(expected) = &policy.environment
+                    && &replay.environment_digest != expected
+                {
+                    return reject(Rejection::ReplayEnvironmentMismatch);
                 }
             }
             let mut next = state.clone();

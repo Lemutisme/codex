@@ -45,6 +45,9 @@ pub(crate) fn invalid_spec(spec: &ContractSpec) -> Option<Rejection> {
         {
             return Some(Rejection::EmptyProtectedHashes);
         }
+        if replay.environment.as_deref().is_some_and(str::is_empty) {
+            return Some(Rejection::ReplayEnvironmentUnnamed);
+        }
     }
     None
 }

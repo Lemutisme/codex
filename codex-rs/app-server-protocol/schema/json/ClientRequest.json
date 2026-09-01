@@ -2699,6 +2699,12 @@
           },
           "type": "array"
         },
+        "environment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "protected": {
           "items": {
             "$ref": "#/definitions/ProContractProtectedFile"

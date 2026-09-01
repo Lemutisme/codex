@@ -36,6 +36,10 @@ pub struct ReplayPolicy {
     pub checks: Vec<ReplayCheck>,
     pub protected: Vec<ProtectedFile>,
     pub artifacts: ArtifactSpec,
+    /// Expected environment digest for replay evidence. `None` accepts any
+    /// named environment (record mode); `Some` pins the exact digest the
+    /// issuer froze at issuance.
+    pub environment: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

@@ -110,6 +110,7 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
                 }],
                 protected: Vec::new(),
                 artifacts: artifacts.clone(),
+                environment: None,
             }),
         },
         resolution: Resolution {

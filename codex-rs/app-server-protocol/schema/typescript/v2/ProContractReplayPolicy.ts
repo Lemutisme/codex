@@ -4,4 +4,4 @@
 import type { ProContractProtectedFile } from "./ProContractProtectedFile";
 import type { ProContractReplayCheck } from "./ProContractReplayCheck";
 
-export type ProContractReplayPolicy = { checks: Array<ProContractReplayCheck>, protected: Array<ProContractProtectedFile>, artifacts: Array<string>, };
+export type ProContractReplayPolicy = { checks: Array<ProContractReplayCheck>, protected: Array<ProContractProtectedFile>, artifacts: Array<string>, environment: string | null, };

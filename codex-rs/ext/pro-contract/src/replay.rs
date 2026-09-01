@@ -5,13 +5,13 @@ use codex_exec_server::ExecParams;
 use codex_exec_server::ExecProcessEvent;
 use codex_exec_server::ProcessId;
 use codex_file_system::FileSystemSandboxContext;
-use codex_pro_contract_institution::CapturedSubject;
 use codex_pro_contract::ProtectedFile;
 use codex_pro_contract::ReplayCheck;
 use codex_pro_contract::ReplayPolicy;
 use codex_pro_contract::ReplayResult;
-use codex_pro_contract_institution::SubjectStore;
 use codex_pro_contract::hash_replay;
+use codex_pro_contract_institution::CapturedSubject;
+use codex_pro_contract_institution::SubjectStore;
 use codex_protocol::config_types::ShellEnvironmentPolicyInherit;
 use codex_protocol::models::PermissionProfile;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -69,6 +69,7 @@ struct Report {
     contract_id: String,
     policy_hash: String,
     subject_hash: String,
+    environment_digest: String,
     passed: bool,
     checks: Vec<CheckReport>,
     protected: Vec<FileReport>,
@@ -156,11 +157,13 @@ impl ReplayVerifier {
             && artifacts.iter().all(|file| file.exists);
         let policy_hash =
             hash_replay(policy).map_err(|error| ReplayError::Report(error.to_string()))?;
+        let environment_digest = environment_digest(&policy.checks);
         let report = Report {
-            version: 2,
+            version: 3,
             contract_id: contract_id.to_string(),
             policy_hash: policy_hash.clone(),
             subject_hash: subject.coordinate.hash.clone(),
+            environment_digest: environment_digest.clone(),
             passed,
             checks,
             protected,
@@ -189,6 +192,7 @@ impl ReplayVerifier {
             } else {
                 failure_summary(&report)
             },
+            environment_digest,
         })
     }
 }
@@ -404,6 +408,43 @@ fn failure_summary(report: &Report) -> String {
         return format!("required artifact missing: {}", file.path);
     }
     "unknown replay failure".to_string()
+}
+
+/// v1 environment digest: OS + architecture + the best-effort `--version`
+/// first line of each distinct check interpreter. Coarse but real; evidence
+/// is world-indexed and a replay that cannot name its world cannot support
+/// settlement. Refinement (container image, exact toolchain identity) is
+/// registered in specs/pro-contract-next.md.
+pub(crate) fn environment_digest(checks: &[ReplayCheck]) -> String {
+    let mut probes = checks
+        .iter()
+        .filter_map(|check| check.argv.first())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .map(|argv0| {
+            let output = std::process::Command::new(argv0)
+                .arg("--version")
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| {
+                    String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .next()
+                        .unwrap_or_default()
+                        .to_string()
+                })
+                .unwrap_or_default();
+            format!("{argv0}={output}")
+        })
+        .collect::<Vec<_>>();
+    probes.sort();
+    let manifest = serde_json::json!({
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "probes": probes,
+    });
+    format!("{:x}", Sha256::digest(manifest.to_string()))
 }
 
 fn hex_digest(value: &[u8]) -> String {

@@ -51,6 +51,7 @@ async fn failed_native_replay_reopens_the_exact_contract() -> anyhow::Result<()>
         }],
         protected: Vec::new(),
         artifacts: artifacts.clone(),
+        environment: None,
     };
     let runtime = runtime(&directory, artifacts, Some(replay)).await?;
     let report = ContractTool::new(ToolKind::ReportReady, Arc::clone(&runtime));
@@ -108,6 +109,7 @@ async fn timed_out_native_replay_is_negative_evidence() -> anyhow::Result<()> {
         }],
         protected: Vec::new(),
         artifacts: artifacts.clone(),
+        environment: None,
     };
     let runtime = runtime(&directory, artifacts, Some(replay)).await?;
     let report = ContractTool::new(ToolKind::ReportReady, Arc::clone(&runtime));
@@ -136,7 +138,13 @@ async fn timed_out_native_replay_is_negative_evidence() -> anyhow::Result<()> {
     let persisted: serde_json::Value = serde_json::from_slice(&std::fs::read(
         runtime.replay_reports.join(format!("{evidence_hash}.json")),
     )?)?;
-    assert_eq!(persisted["version"], 2);
+    assert_eq!(persisted["version"], 3);
+    assert!(
+        persisted["environment_digest"]
+            .as_str()
+            .is_some_and(|digest| !digest.is_empty()),
+        "timed-out replay evidence must still name its environment"
+    );
     assert_eq!(persisted["checks"][0]["timed_out"], true);
     assert!(persisted["checks"][0]["exit"].is_null());
     assert!(

@@ -17376,6 +17376,12 @@
             },
             "type": "array"
           },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "protected": {
             "items": {
               "$ref": "#/definitions/v2/ProContractProtectedFile"
@@ -17392,6 +17398,9 @@
       },
       "ProContractReplayResult": {
         "properties": {
+          "environmentDigest": {
+            "type": "string"
+          },
           "evidenceHash": {
             "type": "string"
           },
@@ -17409,6 +17418,7 @@
           }
         },
         "required": [
+          "environmentDigest",
           "evidenceHash",
           "passed",
           "policyHash",

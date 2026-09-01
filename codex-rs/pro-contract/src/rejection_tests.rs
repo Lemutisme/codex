@@ -176,6 +176,16 @@ fn every_rejection_keeps_its_audited_reason_and_maps_to_one_class() {
             Constitutional(Exactness),
         ),
         (
+            Rejection::ReplayEnvironmentUnnamed,
+            "replay evidence must name its environment",
+            Constitutional(Conservation),
+        ),
+        (
+            Rejection::ReplayEnvironmentMismatch,
+            "replay environment coordinate does not match",
+            Constitutional(Exactness),
+        ),
+        (
             Rejection::StateInconsistent,
             "contract state is inconsistent",
             FailClosed,

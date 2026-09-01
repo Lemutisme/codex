@@ -67,6 +67,8 @@ pub enum Rejection {
     ReplayEvidenceRequired,
     ReplayNotConfigured,
     ReplayCoordinateMismatch,
+    ReplayEnvironmentUnnamed,
+    ReplayEnvironmentMismatch,
     StateInconsistent,
     InvalidBlockedReport,
     PetitionRequiresExecutor,
@@ -96,7 +98,7 @@ pub enum Rejection {
 }
 
 impl Rejection {
-    pub const VARIANT_COUNT: usize = 59;
+    pub const VARIANT_COUNT: usize = 61;
 
     pub fn class(&self) -> RejectionClass {
         use Axiom::Conservation;
@@ -128,6 +130,7 @@ impl Rejection {
             | Self::HandoffDuringRevision
             | Self::HandoffSpecMismatch
             | Self::ReplayCoordinateMismatch
+            | Self::ReplayEnvironmentMismatch
             | Self::InvalidRevisionCoordinate
             | Self::NoPendingRevision
             | Self::RevisionDecisionMismatch
@@ -145,6 +148,7 @@ impl Rejection {
             | Self::ReplayNotConfigured
             | Self::RequirementNotEvidenced
             | Self::RequiredByOutstanding { .. }
+            | Self::ReplayEnvironmentUnnamed
             | Self::NoHandoff
             | Self::ReplayDoesNotSupportDischarge
             | Self::ReplayCannotDoubleAsAttestation => Constitutional(Conservation),
@@ -203,9 +207,7 @@ impl fmt::Display for Rejection {
             Self::NotAwaitingAdjudication => "contract is not awaiting adjudication",
             Self::ChallengeCoordinateMismatch => "challenge coordinate does not match",
             Self::InvalidChallengeEvidence => "challenge evidence is invalid",
-            Self::ExecutorChallengeNeedsSummary => {
-                "executor-visible challenge requires a summary"
-            }
+            Self::ExecutorChallengeNeedsSummary => "executor-visible challenge requires a summary",
             Self::SealedChallengeHasSummary => "sealed challenge cannot include a summary",
             Self::DependencyStateInconsistent => "contract dependency state is inconsistent",
             Self::AlreadySettled => "contract is already settled",
@@ -215,6 +217,8 @@ impl fmt::Display for Rejection {
             Self::ReplayEvidenceRequired => "replay evidence is required",
             Self::ReplayNotConfigured => "replay evidence is not configured",
             Self::ReplayCoordinateMismatch => "replay coordinate does not match",
+            Self::ReplayEnvironmentUnnamed => "replay evidence must name its environment",
+            Self::ReplayEnvironmentMismatch => "replay environment coordinate does not match",
             Self::StateInconsistent => "contract state is inconsistent",
             Self::InvalidBlockedReport => "blocked report is invalid",
             Self::PetitionRequiresExecutor => "only the executor may petition for revision",

@@ -330,6 +330,7 @@ fn failed_replay_reopens_responsibility_with_exact_evidence() {
         }],
         protected: Vec::new(),
         artifacts: replay_spec.artifacts.clone(),
+        environment: None,
     });
     let state = issue_with_spec(&State::default(), "delivery", replay_spec);
     let state = transition(
@@ -359,6 +360,7 @@ fn failed_replay_reopens_responsibility_with_exact_evidence() {
                 evidence_hash: "replay-evidence".to_string(),
                 passed: false,
                 summary: "compile failed".to_string(),
+                environment_digest: "env-recorded".to_string(),
             }),
             time: 2,
         },
@@ -392,6 +394,7 @@ fn replay_evidence_cannot_double_as_principal_attestation() {
         }],
         protected: Vec::new(),
         artifacts: replay_spec.artifacts.clone(),
+        environment: None,
     });
     let state = issue_with_spec(&State::default(), "delivery", replay_spec);
     let state = transition(
@@ -420,6 +423,7 @@ fn replay_evidence_cannot_double_as_principal_attestation() {
                 evidence_hash: "same-evidence".to_string(),
                 passed: true,
                 summary: "replay verification passed".to_string(),
+                environment_digest: "env-recorded".to_string(),
             }),
             time: 2,
         },
@@ -444,6 +448,97 @@ fn replay_evidence_cannot_double_as_principal_attestation() {
 
     assert!(matches!(rejected.decision, Decision::Rejected { .. }));
     assert_eq!(rejected.state, state);
+}
+
+#[test]
+fn replay_environment_is_a_settlement_coordinate() {
+    let mut replay_spec = spec(Vec::new());
+    replay_spec.evidence.replay = Some(ReplayPolicy {
+        checks: vec![ReplayCheck {
+            argv: vec!["./validate.sh".to_string()],
+            cwd: None,
+            timeout_ms: 1_000,
+            exit: 0,
+        }],
+        protected: Vec::new(),
+        artifacts: replay_spec.artifacts.clone(),
+        environment: Some("env-a".to_string()),
+    });
+    let state = issue_with_spec(&State::default(), "delivery", replay_spec);
+    let state = transition(
+        &state,
+        Command::Activate {
+            actor: INSTITUTION_ACTOR.to_string(),
+            contract_id: "delivery".to_string(),
+            revision: 1,
+            time: 1,
+        },
+    )
+    .state;
+    let contract = state.contracts["delivery"].clone();
+    let policy_hash = hash_replay(contract.spec.evidence.replay.as_ref().unwrap()).unwrap();
+    let report = |environment_digest: &str| Command::ReportReady {
+        actor: INSTITUTION_ACTOR.to_string(),
+        contract_id: "delivery".to_string(),
+        revision: 1,
+        summary: "ready".to_string(),
+        uncertainties: Vec::new(),
+        subject: coordinate(&contract.spec_hash, "subject"),
+        replay: Some(ReplayResult {
+            policy_hash: policy_hash.clone(),
+            subject_hash: "subject".to_string(),
+            evidence_hash: "replay-evidence".to_string(),
+            passed: true,
+            summary: "replay verification passed".to_string(),
+            environment_digest: environment_digest.to_string(),
+        }),
+        time: 2,
+    };
+
+    let unnamed = transition(&state, report(""));
+    assert_eq!(
+        unnamed.decision,
+        Decision::Rejected {
+            reason: "replay evidence must name its environment".to_string(),
+        }
+    );
+    assert_eq!(unnamed.state, state);
+
+    let mismatched = transition(&state, report("env-b"));
+    assert_eq!(
+        mismatched.decision,
+        Decision::Rejected {
+            reason: "replay environment coordinate does not match".to_string(),
+        }
+    );
+    assert_eq!(mismatched.state, state);
+
+    let verified = transition(&state, report("env-a"));
+    assert_eq!(verified.decision, Decision::Accepted);
+    assert_eq!(
+        verified.state.contracts["delivery"].status,
+        Status::Verification
+    );
+    let discharged = transition(
+        &verified.state,
+        Command::Discharge {
+            actor: "principal".to_string(),
+            contract_id: "delivery".to_string(),
+            attestation: Attestation {
+                id: "attestation".to_string(),
+                revision: 1,
+                spec_hash: contract.spec_hash.clone(),
+                subject_hash: "subject".to_string(),
+                evidence_hash: "principal-evidence".to_string(),
+                verifier_id: "principal".to_string(),
+            },
+        },
+    );
+    assert_eq!(discharged.decision, Decision::Accepted);
+    assert_eq!(
+        discharged.state.contracts["delivery"].status,
+        Status::Discharged
+    );
 }
 
 #[test]

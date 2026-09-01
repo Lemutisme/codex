@@ -451,6 +451,7 @@ fn replay_policy(policy: ApiReplayPolicy) -> Result<ReplayPolicy, JSONRPCErrorEr
             })
             .collect::<Result<Vec<_>, JSONRPCErrorError>>()?,
         artifacts: artifact_spec(policy.artifacts)?,
+        environment: policy.environment,
     })
 }
 
@@ -562,6 +563,7 @@ fn spec_info(spec: ContractSpec) -> ApiSpec {
                     })
                     .collect(),
                 artifacts: artifact_paths(replay.artifacts.paths().to_vec()),
+                environment: replay.environment,
             }),
         },
         resolution: ApiResolution {
@@ -578,6 +580,7 @@ fn replay_result_info(replay: codex_pro_contract::ReplayResult) -> ApiReplayResu
         evidence_hash: replay.evidence_hash,
         passed: replay.passed,
         summary: replay.summary,
+        environment_digest: replay.environment_digest,
     }
 }
 
