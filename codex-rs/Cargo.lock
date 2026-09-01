@@ -2046,6 +2046,7 @@ dependencies = [
  "codex-plugin",
  "codex-pro-contract",
  "codex-pro-contract-extension",
+ "codex-pro-contract-institution",
  "codex-protocol",
  "codex-queue-extension",
  "codex-rmcp-client",
@@ -3958,16 +3959,11 @@ dependencies = [
 name = "codex-pro-contract"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "ignore",
  "pretty_assertions",
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "sqlx",
- "tempfile",
  "thiserror 2.0.18",
- "tokio",
 ]
 
 [[package]]
@@ -3980,6 +3976,7 @@ dependencies = [
  "codex-extension-api",
  "codex-file-system",
  "codex-pro-contract",
+ "codex-pro-contract-institution",
  "codex-protocol",
  "codex-state",
  "codex-tools",
@@ -3995,6 +3992,23 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "codex-pro-contract-institution"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "codex-pro-contract",
+ "ignore",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

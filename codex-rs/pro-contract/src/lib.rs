@@ -1,12 +1,12 @@
 //! Executor-independent completion integrity for Codex.
 //!
-//! The crate deliberately owns only the normative state machine and immutable
-//! delivery subjects. Codex lifecycle and persistence adapters live outside
-//! this thin waist.
+//! The crate deliberately owns only the normative state machine and the pure
+//! subject/spec vocabulary. Impure institution adapters (the SQLite ledger and
+//! the filesystem subject store) live in `codex-pro-contract-institution`;
+//! Codex lifecycle adapters live outside this thin waist entirely.
 
 mod kernel;
 mod kernel_validation;
-mod ledger;
 mod spec;
 mod subject;
 
@@ -31,10 +31,6 @@ pub use kernel::hash_replay;
 pub use kernel::hash_spec;
 pub use kernel::quiet;
 pub use kernel::transition;
-pub use ledger::Ledger;
-pub use ledger::LedgerError;
-pub use ledger::LedgerEvent;
-pub use ledger::QuietSnapshot;
 pub use spec::Budget;
 pub use spec::ContractSpec;
 pub use spec::Evidence;
@@ -45,9 +41,6 @@ pub use spec::Requirement;
 pub use spec::Resolution;
 pub use spec::Trigger;
 pub use subject::ArtifactPath;
+pub use subject::ArtifactPathError;
 pub use subject::ArtifactSpec;
-pub use subject::CaptureLimits;
-pub use subject::CapturedSubject;
 pub use subject::SubjectCoordinate;
-pub use subject::SubjectError;
-pub use subject::SubjectStore;

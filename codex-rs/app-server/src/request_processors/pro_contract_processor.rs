@@ -51,7 +51,7 @@ use codex_pro_contract::Contract;
 use codex_pro_contract::ContractSpec;
 use codex_pro_contract::Evidence;
 use codex_pro_contract::ProtectedFile;
-use codex_pro_contract::QuietSnapshot;
+use codex_pro_contract_institution::QuietSnapshot;
 use codex_pro_contract::ReplayCheck;
 use codex_pro_contract::ReplayPolicy;
 use codex_pro_contract::Requirement;

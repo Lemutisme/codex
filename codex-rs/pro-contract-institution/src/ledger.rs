@@ -1,8 +1,8 @@
-use crate::Command;
-use crate::Decision;
-use crate::State;
-use crate::Transition;
-use crate::transition;
+use codex_pro_contract::Command;
+use codex_pro_contract::Decision;
+use codex_pro_contract::State;
+use codex_pro_contract::Transition;
+use codex_pro_contract::transition;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -203,7 +203,7 @@ impl Ledger {
                 contract.scope == scope
                     && !matches!(
                         contract.status,
-                        crate::Status::Discharged | crate::Status::Released
+                        codex_pro_contract::Status::Discharged | codex_pro_contract::Status::Released
                     )
             })
             .map(|contract| contract.id.clone())

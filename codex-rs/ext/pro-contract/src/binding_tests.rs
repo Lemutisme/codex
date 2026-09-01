@@ -5,7 +5,7 @@ use codex_pro_contract::Command;
 use codex_pro_contract::ContractSpec;
 use codex_pro_contract::Draft;
 use codex_pro_contract::Evidence;
-use codex_pro_contract::Ledger;
+use codex_pro_contract_institution::Ledger;
 use codex_pro_contract::Resolution;
 use codex_pro_contract::Trigger;
 use codex_pro_contract::hash_spec;

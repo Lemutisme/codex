@@ -87,6 +87,7 @@ members = [
     "ollama",
     "process-hardening",
     "pro-contract",
+    "pro-contract-institution",
     "protocol",
     "prompts",
     "rollout",
@@ -239,6 +240,7 @@ codex-pro-contract-extension = { path = "ext/pro-contract" }
 codex-model-provider = { path = "model-provider" }
 codex-process-hardening = { path = "process-hardening" }
 codex-pro-contract = { path = "pro-contract" }
+codex-pro-contract-institution = { path = "pro-contract-institution" }
 codex-protocol = { path = "protocol" }
 codex-prompts = { path = "prompts" }
 codex-queue-extension = { path = "ext/queue" }
