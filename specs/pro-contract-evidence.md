@@ -307,6 +307,50 @@ sha256 59bbe177e24d1c7d18e3840fd8354c3728e97cbde612f45cc1da617c165c8066
 sha256 8e6e7b7b4303fe37e5a5c3f90dd4724f41b1bffc9970c51c750f3fad3c0710fd
 ~~~
 
+### Native bounded-observation falsification
+
+A follow-up added an opt-in `contract_probe_batch` edge capability without
+changing Kernel state, `ContractSpec`, `specHash`, or the ledger. It runs up to
+twelve local non-interactive candidate/reference cases as one Contract action,
+binds the report to the candidate, semantic attempt, environment, and policy,
+and keeps full bounded bytes outside model context.
+
+On zip-password-finder, the final retained-output implementation used Luna Max
+for one preregistered attempt. Seven reports compressed 110 executions into
+seven actions with no timeout or output-limit event. It reached replay-backed
+verification in 124 turns, 122 actions, 24.17 minutes, and 7.199M cumulative
+model tokens. This was materially cheaper than the earlier probe trajectory,
+but the exact frozen candidate scored only 649/680 = **95.4412%**, below lean
+Codex v2's 676/680 and OpenCode v2's 677/680.
+
+The trajectory exposed a semantic error in the first tool vocabulary. It
+called exact bytes `matched` even though reference and candidate necessarily
+had different executable paths and `argv[0]`. The worker erased that legitimate
+coordinate difference by hard-coding the help program name to `reference`;
+official deployment then failed executable-name and help tests. Its final
+selected 10/10 exact cases also coexisted with 31 active failures, principally
+help/parser variants and `maxPasswordLen=0` semantics.
+
+Therefore:
+
+~~~text
+byte equality at one observation coordinate != semantic conformance
+semantic conformance on selected cases         != coverage or settlement
+~~~
+
+The official evaluation was submitted as a sealed challenge. The exact
+Contract moved from verification to escalated, lost current handoff support,
+advanced to frontier four, and remained non-quiet. Commit `422cfd380` responds
+by renaming the report relation to `byteEqual`/`difference`, exposing candidate
+hash and trusted execution cost, and warning the executor not to erase
+coordinate-bound differences. That semantic correction is structurally tested
+but has no disjoint performance result yet. The tool remains opt-in.
+
+~~~text
+/tmp/procontract-native-probe-zip-v3-20260902/RESULT.md
+sha256 3e77fbde0f191ecc6ea9509e13999e520d3cf2b23675252b48dd55be8592139a
+~~~
+
 ## Structural evidence
 
 Current Rust tests cover representative reducer and adapter paths. The complete
