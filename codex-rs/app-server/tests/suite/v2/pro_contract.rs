@@ -125,6 +125,10 @@ async fn principal_rpc_runs_isolated_semantic_attempts_with_one_policy_projectio
     let marker = "<pro_contract_execution_policy>";
     for request in &requests {
         let body = request.body_json();
+        let instructions = body["instructions"].as_str().expect("instructions");
+        assert!(instructions.contains("bounded executor for one admitted ProContract"));
+        assert!(instructions.contains("fresh uniquely named scratch paths"));
+        assert!(!instructions.contains("# Personality"));
         assert_eq!(body.to_string().matches(marker).count(), 1);
         assert!(request.body_contains_text("Original request:"));
         assert!(request.body_contains_text("perform the contracted task"));

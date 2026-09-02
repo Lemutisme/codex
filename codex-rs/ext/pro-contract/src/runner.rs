@@ -319,12 +319,11 @@ fn spawn_bound_executor<'a>(
     authority: Vec<String>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), RunnerError>> + Send + 'a>> {
     Box::pin(async move {
-        let mut options = StartThreadOptions::new(
-            runtime
-                .executor_config
-                .clone()
-                .ok_or(RunnerError::ConfigUnavailable)?,
-        );
+        let parent_config = runtime
+            .executor_config
+            .as_ref()
+            .ok_or(RunnerError::ConfigUnavailable)?;
+        let mut options = StartThreadOptions::new(crate::executor_config::isolated(parent_config));
         options.session_source = Some(SessionSource::Internal(InternalSessionSource::ProContract));
         options.thread_source = Some(ThreadSource::Feature("pro_contract".to_string()));
         options.environments = Some(runtime.environments.clone());

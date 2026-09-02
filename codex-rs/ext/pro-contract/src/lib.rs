@@ -3,6 +3,7 @@
 mod binding;
 mod compiler;
 mod controller;
+mod executor_config;
 mod principal;
 mod replay;
 mod runner;

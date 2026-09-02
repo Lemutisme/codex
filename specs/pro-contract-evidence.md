@@ -249,6 +249,64 @@ It refutes:
 - additional evaluator time repairs an incompatible artifact;
 - a passed replay is meaningful without its environment coordinate.
 
+## Native executor-envelope and policy falsification
+
+A same-model, same-task, same-image, same-evaluator Luna Max campaign separated
+the native Codex executor envelope from the execution-policy text.
+
+The retained Rust change gives Contract executors a dedicated bounded base
+context while preserving project instructions, authority, and the externally
+bound policy. First provider input fell from 5,017 tokens to 1,666-1,840 tokens.
+The stable envelope also tells executors to use fresh scratch paths, batch
+bounded independent observations, and choose implementation primitives faithful
+to runtime semantics. None of those terms enter `ContractSpec` or `specHash`.
+
+The exact 882-byte policy used by the strongest maintained OpenCode profile was
+then run natively in Codex:
+
+| Instance | Lean Codex + exact v2 | OpenCode + exact v2 |
+| --- | ---: | ---: |
+| zip-password-finder | 99.4118% | 99.5588% |
+| cheat | 81.4815% | 85.5219% |
+| thokr | 92.3596% | 95.7303% |
+| Macro | 91.0843% | 93.6037% |
+
+Policy bytes therefore do not explain the remaining 2.5194-point gap. Codex
+used 31% more provider turns, 19% more actions, and about 50% more token traffic.
+Its safe command envelope rejected destructive probe cleanup, it stayed near one
+tool per provider turn, and it selected Python rather than C for the TTY/timing
+task. The stable executor instructions now expose the safe scratch-path and
+batching semantics instead of weakening command safety.
+
+Two richer policies were rejected. V5's model-authored coverage ledger scored
+91.2304% and conflated observing the reference with matching the candidate. V6
+separated those states and demonstrated challenge-driven correction with exact
+rejected-subject custody, but scored 89.3052%; one final frontier remained
+schema-invalid. A syntactically valid evidence path established identity, not
+semantic coverage: v6 cheat claimed a conformant frontier while failing 68
+official tests.
+
+The empirical boundary is therefore:
+
+~~~text
+lean executor envelope + replaceable broad-to-targeted policy = retained
+model-authored coverage ontology as completion proof             = rejected
+independent counterexample -> challenge -> fresh attempt          = retained
+~~~
+
+Raw reports:
+
+~~~text
+/tmp/procontract-native-policy-v5-match-20260902/RESULT.md
+sha256 f72d477e4adb255558af7d21745ca92149b14f648bfcaef705560a0947b85012
+
+/tmp/procontract-native-policy-v6-20260902/RESULT.md
+sha256 59bbe177e24d1c7d18e3840fd8354c3728e97cbde612f45cc1da617c165c8066
+
+/tmp/procontract-native-policy-v2-lean-20260902/RESULT.md
+sha256 8e6e7b7b4303fe37e5a5c3f90dd4724f41b1bffc9970c51c750f3fad3c0710fd
+~~~
+
 ## Structural evidence
 
 Current Rust tests cover representative reducer and adapter paths. The complete
