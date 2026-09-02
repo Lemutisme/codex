@@ -323,10 +323,13 @@ fn spawn_bound_executor<'a>(
             .executor_config
             .as_ref()
             .ok_or(RunnerError::ConfigUnavailable)?;
-        let mut options = StartThreadOptions::new(crate::executor_config::isolated(parent_config));
+        let isolated =
+            crate::executor_config::isolated(parent_config, &runtime.environments, &authority)
+                .map_err(RunnerError::Launch)?;
+        let mut options = StartThreadOptions::new(isolated.config);
         options.session_source = Some(SessionSource::Internal(InternalSessionSource::ProContract));
         options.thread_source = Some(ThreadSource::Feature("pro_contract".to_string()));
-        options.environments = Some(runtime.environments.clone());
+        options.environments = Some(isolated.environments);
         options.reserved_thread_id = Some(executor_thread_id);
         let mut init = ExtensionDataInit::new();
         init.insert(ExecutorSeed {
