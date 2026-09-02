@@ -119,7 +119,7 @@ impl ProbeTool {
             )
             .await?;
             cases.push(CaseReport {
-                matched: captures_match(&reference, &candidate),
+                byte_equal: captures_are_byte_equal(&reference, &candidate),
                 request: case,
                 reference,
                 candidate,
@@ -155,7 +155,7 @@ impl ProbeTool {
             ));
         }
         let report = ProbeReport {
-            version: 1,
+            version: 2,
             contract_id: binding.contract_id,
             revision: binding.revision,
             attempt: binding.attempts,
@@ -168,17 +168,19 @@ impl ProbeTool {
             candidate_hash: hashes.1,
             case_timeout_ms: args.case_timeout_ms,
             batch_timeout_ms: args.batch_timeout_ms,
+            wall_duration_ms: u64::try_from(batch_started.elapsed().as_millis())
+                .unwrap_or(u64::MAX),
             cases,
         };
         let encoded = serde_json::to_vec(&report)
             .map_err(|error| model_error(format!("probe report encoding failed: {error}")))?;
         let report_hash = digest(&encoded);
         persist_report(&self.runtime, &report_hash, &encoded)?;
-        let matched = report.cases.iter().filter(|case| case.matched).count();
-        let mismatches = report
+        let byte_equal = report.cases.iter().filter(|case| case.byte_equal).count();
+        let differences = report
             .cases
             .iter()
-            .filter(|case| !case.matched)
+            .filter(|case| !case.byte_equal)
             .map(|case| {
                 json!({
                     "id": case.request.id,
@@ -198,10 +200,13 @@ impl ProbeTool {
         Ok(Box::new(
             JsonToolOutput::new(json!({
                 "reportHash": report_hash,
+                "candidateHash": &report.candidate_hash,
                 "caseCount": report.cases.len(),
-                "matchedCount": matched,
-                "mismatchCount": report.cases.len() - matched,
-                "mismatches": mismatches,
+                "executionCount": report.cases.len() * 2,
+                "byteEqualCount": byte_equal,
+                "differenceCount": report.cases.len() - byte_equal,
+                "wallDurationMs": report.wall_duration_ms,
+                "differences": differences,
             }))
             .with_external_context(),
         ))
@@ -229,7 +234,7 @@ struct ProbeCase {
 #[serde(rename_all = "camelCase")]
 struct CaseReport {
     request: ProbeCase,
-    matched: bool,
+    byte_equal: bool,
     reference: process::CaptureReport,
     candidate: process::CaptureReport,
 }
@@ -250,6 +255,7 @@ struct ProbeReport {
     candidate_hash: String,
     case_timeout_ms: u64,
     batch_timeout_ms: u64,
+    wall_duration_ms: u64,
     cases: Vec<CaseReport>,
 }
 
@@ -339,7 +345,7 @@ fn resolve_path(root: &AbsolutePathBuf, value: &str) -> Result<AbsolutePathBuf, 
     Ok(path)
 }
 
-fn captures_match(left: &process::CaptureReport, right: &process::CaptureReport) -> bool {
+fn captures_are_byte_equal(left: &process::CaptureReport, right: &process::CaptureReport) -> bool {
     !left.timed_out
         && !right.timed_out
         && !left.output_limit_exceeded
@@ -422,7 +428,7 @@ fn model_error(message: impl Into<String>) -> FunctionCallError {
 
 fn digest(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"codex.procontract.probe.v1\0");
+    hasher.update(b"codex.procontract.probe.v2\0");
     hasher.update(bytes);
     encode_hex(&hasher.finalize())
 }

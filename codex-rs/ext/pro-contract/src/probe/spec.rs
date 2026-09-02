@@ -18,7 +18,7 @@ pub(super) fn probe_spec() -> ToolSpec {
     );
     function_tool(
         PROBE_TOOL_NAME,
-        "Run 1-12 bounded stateless, non-interactive candidate/reference cases in one Contract action using normalized workspace-relative executable paths without './'. The trusted local executor applies identical argv, environment, sandbox, and limits to both sides, terminates every process, persists a content-addressed full bounded report, and returns only compact mismatches. case_timeout_ms is 100..60000; batch_timeout_ms is 1000..120000 and must cover 2 * cases * case_timeout_ms. This is observation evidence, not settlement or proof of coverage.",
+        "Run 1-12 bounded stateless, non-interactive candidate/reference cases in one Contract action using normalized workspace-relative executable paths without './'. The trusted local executor applies the same caller-supplied arguments, environment, sandbox, and limits to both sides; executable path and argv[0] differ by design. It terminates every process, persists a content-addressed full bounded report, and returns compact byte differences plus cost. Byte equality is descriptive observation, not semantic conformance, settlement, or proof of coverage. case_timeout_ms is 100..60000; batch_timeout_ms is 1000..120000 and must cover 2 * cases * case_timeout_ms.",
         BTreeMap::from([
             ("reference".to_string(), JsonSchema::string(None)),
             ("candidate".to_string(), JsonSchema::string(None)),

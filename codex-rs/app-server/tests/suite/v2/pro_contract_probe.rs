@@ -127,7 +127,7 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
     assert!(
         output["output"]
             .as_str()
-            .is_some_and(|output| output.contains("\"matchedCount\":1"))
+            .is_some_and(|output| output.contains("\"byteEqualCount\":1"))
     );
     Ok(())
 }
