@@ -5,6 +5,7 @@ mod compiler;
 mod controller;
 mod executor_config;
 mod principal;
+mod probe;
 mod replay;
 mod runner;
 mod tool;
@@ -714,11 +715,16 @@ where
         let Some(runtime) = thread_store.get::<Runtime>() else {
             return Vec::new();
         };
-        ToolKind::for_runtime(runtime.role, runtime.proposal_mode)
-            .iter()
-            .copied()
-            .map(|kind| Arc::new(ContractTool::new(kind, runtime.clone())) as Arc<_>)
-            .collect()
+        let mut tools: Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> =
+            ToolKind::for_runtime(runtime.role, runtime.proposal_mode)
+                .iter()
+                .copied()
+                .map(|kind| Arc::new(ContractTool::new(kind, runtime.clone())) as Arc<_>)
+                .collect::<Vec<_>>();
+        if runtime.role == RuntimeRole::Executor {
+            tools.push(Arc::new(probe::ProbeTool::new(runtime.clone())));
+        }
+        tools
     }
 }
 

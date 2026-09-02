@@ -143,6 +143,7 @@ async fn principal_rpc_runs_isolated_semantic_attempts_with_one_policy_projectio
             "{tool_names:?}"
         );
         assert!(tool_names.contains(&"exec_command"), "{tool_names:?}");
+        assert!(!tool_names.contains(&"contract_probe_batch"));
         assert!(!tool_names.contains(&"contract_propose"), "{tool_names:?}");
         assert!(
             !tool_names.contains(&"request_user_input"),

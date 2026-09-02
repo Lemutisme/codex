@@ -227,7 +227,7 @@ fn replay_schema() -> JsonSchema {
     )
 }
 
-fn function_tool(
+pub(crate) fn function_tool(
     name: &str,
     description: &str,
     properties: BTreeMap<String, JsonSchema>,
