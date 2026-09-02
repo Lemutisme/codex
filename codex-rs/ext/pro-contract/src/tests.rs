@@ -66,7 +66,8 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
         subjects: SubjectStore::new(directory.path().join("subjects")),
         environment_manager: Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         replay_reports: directory.path().join("replay"),
-        probe_frontiers: probe::ProbeFrontierStore::initialize(pool).await?,
+        probe_frontiers: probe::ProbeFrontierStore::initialize(pool.clone()).await?,
+        action_telemetry: action_telemetry::ActionTelemetryStore::initialize(pool).await?,
         executor_config: None,
         environments: Vec::new(),
         executor_spawner: None,
@@ -79,6 +80,7 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
         policy_projected: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         recovery_started: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         settlement_reminder_projected: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        action_reminder_projected: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         proposal_mode: ProContractProposalMode::HostApprovedModelTool,
         authority: vec!["filesystem.read".to_string()],
     });

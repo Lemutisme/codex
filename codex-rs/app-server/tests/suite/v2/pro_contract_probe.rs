@@ -132,6 +132,10 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
     .await?;
 
     let requests = response_mock.requests();
+    assert!(!requests[1].body_contains_text("Host action telemetry:"));
+    assert!(requests[2].body_contains_text(
+        "exact `contract_probe_batch` request occurrence 2 in this semantic attempt"
+    ));
     let first = requests[1].function_call_output("probe-call-1");
     let first: serde_json::Value = serde_json::from_str(
         first["output"]

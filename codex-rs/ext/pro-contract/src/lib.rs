@@ -1,5 +1,6 @@
 //! Codex lifecycle adapter for the ProContract settlement kernel.
 
+mod action_telemetry;
 mod binding;
 mod compiler;
 mod controller;
@@ -39,6 +40,9 @@ use codex_extension_api::ToolAdmissionInput;
 use codex_extension_api::ToolCall;
 use codex_extension_api::ToolContributor;
 use codex_extension_api::ToolExecutor;
+use codex_extension_api::ToolFinishInput;
+use codex_extension_api::ToolLifecycleContributor;
+use codex_extension_api::ToolLifecycleFuture;
 use codex_extension_api::ToolVisibility;
 use codex_extension_api::ToolVisibilityInput;
 use codex_extension_api::TurnInputContext;
@@ -56,6 +60,7 @@ use codex_protocol::protocol::TurnEnvironmentSelection;
 use codex_state::SqliteConfig;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -126,6 +131,7 @@ struct Runtime {
     environment_manager: Arc<EnvironmentManager>,
     replay_reports: std::path::PathBuf,
     probe_frontiers: probe::ProbeFrontierStore,
+    action_telemetry: action_telemetry::ActionTelemetryStore,
     executor_config: Option<Config>,
     environments: Vec<TurnEnvironmentSelection>,
     executor_spawner: Option<Arc<ExecutorSpawner>>,
@@ -138,6 +144,7 @@ struct Runtime {
     policy_projected: Arc<AtomicBool>,
     recovery_started: Arc<AtomicBool>,
     settlement_reminder_projected: Arc<AtomicBool>,
+    action_reminder_projected: Arc<AtomicU64>,
     proposal_mode: ProContractProposalMode,
     authority: Vec<String>,
 }
@@ -174,7 +181,7 @@ where
                 tracing::warn!("ProContract requires a UUID thread identity");
                 return;
             };
-            let (ledger, bindings, probe_frontiers) =
+            let (ledger, bindings, probe_frontiers, action_telemetry) =
                 match open_stores(&config.sqlite, &self.owner).await {
                     Ok(stores) => stores,
                     Err(error) => {
@@ -249,6 +256,7 @@ where
                 environment_manager: config.environment_manager,
                 replay_reports: config.sqlite.home().join("pro-contract-replay"),
                 probe_frontiers,
+                action_telemetry,
                 executor_config: Some(config.executor_config),
                 environments: input.environments.to_vec(),
                 executor_spawner: Some(Arc::clone(&self.executor_spawner)),
@@ -259,6 +267,7 @@ where
                 policy_projected: Arc::new(AtomicBool::new(false)),
                 recovery_started: Arc::new(AtomicBool::new(false)),
                 settlement_reminder_projected: Arc::new(AtomicBool::new(false)),
+                action_reminder_projected: Arc::new(AtomicU64::new(0)),
                 proposal_mode: config.proposal_mode,
                 authority,
                 ledger_scope,
@@ -469,7 +478,7 @@ where
                         <= SETTLEMENT_WINDOW
                         || binding.actions_limit.saturating_sub(binding.actions_used)
                             <= SETTLEMENT_WINDOW;
-                    let reminders = if settlement_window
+                    let mut reminders = if settlement_window
                         && !runtime
                             .settlement_reminder_projected
                             .swap(true, Ordering::AcqRel)
@@ -485,6 +494,26 @@ where
                     } else {
                         Vec::new()
                     };
+                    let projected = runtime.action_reminder_projected.load(Ordering::Acquire);
+                    match runtime.action_telemetry.reminder(&binding, projected).await {
+                        Ok(Some(reminder))
+                            if runtime
+                                .action_reminder_projected
+                                .fetch_max(reminder.sequence, Ordering::AcqRel)
+                                < reminder.sequence =>
+                        {
+                            reminders.extend(ExecutionReminder::new(
+                                reminder.text,
+                                codex_protocol::models::ContentItemKind(
+                                    "pro_contract.action_telemetry".to_string(),
+                                ),
+                            ));
+                        }
+                        Ok(Some(_)) | Ok(None) => {}
+                        Err(error) => {
+                            tracing::warn!("failed to read ProContract action telemetry: {error}");
+                        }
+                    }
                     ExecutionAdmission::Permit(ExecutionPermit {
                         valid_until: Some(
                             binding
@@ -558,14 +587,20 @@ where
             if !authorized_tool(&contract.spec.authority, input.tool_name) {
                 return deny("contract authority does not permit this tool");
             }
+            let now = now_millis();
             match runtime
                 .bindings
-                .reserve_action(&runtime.thread_scope, now_millis())
+                .reserve_action(&runtime.thread_scope, now)
                 .await
             {
-                Ok(Reservation::Reserved(_)) => {
-                    ExecutionAdmission::Permit(ExecutionPermit::default())
-                }
+                Ok(Reservation::Reserved(binding)) => match runtime
+                    .action_telemetry
+                    .admit(&binding, input.call_id, input.tool_name, input.payload, now)
+                    .await
+                {
+                    Ok(()) => ExecutionAdmission::Permit(ExecutionPermit::default()),
+                    Err(error) => admission_error("record contract action", error),
+                },
                 Ok(Reservation::Denied { reason }) => {
                     if reason.exhausts_contract()
                         && let Err(error) = runtime
@@ -587,6 +622,36 @@ where
                     deny(reason.message())
                 }
                 Err(error) => admission_error("reserve contract action", error),
+            }
+        })
+    }
+}
+
+impl<C> ToolLifecycleContributor for Extension<C>
+where
+    C: Send + Sync + 'static,
+{
+    fn on_tool_finish<'a>(&'a self, input: ToolFinishInput<'a>) -> ToolLifecycleFuture<'a> {
+        Box::pin(async move {
+            let Some(runtime) = input.thread_store.get::<Runtime>() else {
+                return;
+            };
+            if runtime.role != RuntimeRole::Executor
+                || settlement_tool(input.tool_name.name.as_str())
+            {
+                return;
+            }
+            if let Err(error) = runtime
+                .action_telemetry
+                .finish(
+                    &runtime.contract_id,
+                    input.call_id,
+                    input.outcome,
+                    now_millis(),
+                )
+                .await
+            {
+                tracing::warn!("failed to finish ProContract action telemetry: {error}");
             }
         })
     }
@@ -741,7 +806,15 @@ async fn open_ledger(sqlite: &SqliteConfig) -> Result<Ledger, PrincipalError> {
 async fn open_stores(
     sqlite: &SqliteConfig,
     owner: &str,
-) -> Result<(Ledger, BindingStore, probe::ProbeFrontierStore), PrincipalError> {
+) -> Result<
+    (
+        Ledger,
+        BindingStore,
+        probe::ProbeFrontierStore,
+        action_telemetry::ActionTelemetryStore,
+    ),
+    PrincipalError,
+> {
     let pool = sqlite
         .open_read_write_pool(&sqlite.home().join("pro_contract_1.sqlite"))
         .await?;
@@ -749,8 +822,9 @@ async fn open_stores(
     let bindings = BindingStore::initialize(pool.clone(), owner)
         .await
         .map_err(|error| PrincipalError::Binding(error.to_string()))?;
-    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool).await?;
-    Ok((ledger, bindings, probe_frontiers))
+    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool.clone()).await?;
+    let action_telemetry = action_telemetry::ActionTelemetryStore::initialize(pool).await?;
+    Ok((ledger, bindings, probe_frontiers, action_telemetry))
 }
 
 pub fn install<C, S>(
@@ -786,6 +860,7 @@ pub fn install_with_controller<C, S>(
     });
     registry.thread_lifecycle_contributor(extension.clone());
     registry.execution_admission_contributor(extension.clone());
+    registry.tool_lifecycle_contributor(extension.clone());
     registry.prompt_contributor(extension.clone());
     registry.turn_input_contributor(extension.clone());
     registry.tool_contributor(extension);
