@@ -33,10 +33,14 @@ const MAX_CASE_TIMEOUT_MS: u64 = 60_000;
 const MAX_BATCH_TIMEOUT_MS: u64 = 120_000;
 const PREVIEW_BYTES: usize = 48;
 
+#[path = "probe/frontier.rs"]
+mod frontier;
 #[path = "probe/process.rs"]
 mod process;
 #[path = "probe/spec.rs"]
 mod spec;
+
+pub(crate) use frontier::ProbeFrontierStore;
 
 #[derive(Clone)]
 pub(crate) struct ProbeTool {
@@ -71,8 +75,13 @@ impl ProbeTool {
             .try_local_environment()
             .ok_or_else(|| model_error("local environment is unavailable"))?;
         let binding = current_binding(&self.runtime).await?;
-        let reference_path = resolve_path(&tool_environment.cwd, &args.reference)?;
-        let candidate_path = resolve_path(&tool_environment.cwd, &args.candidate)?;
+        let attempt_id = attempt_id(&binding)?;
+        let reference_name = ArtifactPath::new(&args.reference)
+            .map_err(|error| model_error(format!("invalid reference path: {error}")))?;
+        let candidate_name = ArtifactPath::new(&args.candidate)
+            .map_err(|error| model_error(format!("invalid candidate path: {error}")))?;
+        let reference_path = resolve_path(&tool_environment.cwd, &reference_name)?;
+        let candidate_path = resolve_path(&tool_environment.cwd, &candidate_name)?;
         let hashes = tokio::task::spawn_blocking({
             let reference_path = reference_path.clone();
             let candidate_path = candidate_path.clone();
@@ -86,9 +95,19 @@ impl ProbeTool {
         .await
         .map_err(|error| model_error(format!("probe executable hashing failed: {error}")))?
         .map_err(model_error)?;
+        let candidate_coordinate_hash = coordinate_digest(
+            b"codex.procontract.probe.candidate.v1\0",
+            &(candidate_name.as_str(), &hashes.1),
+        )?;
         let batch_started = Instant::now();
         let mut cases = Vec::with_capacity(args.cases.len());
         for case in args.cases {
+            let request_hash = request_hash(
+                &tool_environment.environment_id,
+                reference_name.as_str(),
+                hashes.0.as_deref(),
+                &case.args,
+            )?;
             let remaining = Duration::from_millis(args.batch_timeout_ms)
                 .saturating_sub(batch_started.elapsed());
             if remaining.is_zero() {
@@ -120,6 +139,7 @@ impl ProbeTool {
             .await?;
             cases.push(CaseReport {
                 byte_equal: captures_are_byte_equal(&reference, &candidate),
+                request_hash,
                 request: case,
                 reference,
                 candidate,
@@ -155,17 +175,21 @@ impl ProbeTool {
             ));
         }
         let report = ProbeReport {
-            version: 2,
+            version: 3,
+            turn_id: invocation.turn_id.clone(),
+            call_id: invocation.call_id.clone(),
+            model: invocation.model.clone(),
             contract_id: binding.contract_id,
             revision: binding.revision,
             attempt: binding.attempts,
             attempt_key: binding.attempt_key,
             environment_id: tool_environment.environment_id.clone(),
             execution_policy_hash: binding.execution_policy_hash,
-            reference: args.reference,
+            reference: reference_name.as_str().to_string(),
             reference_hash: hashes.0,
-            candidate: args.candidate,
+            candidate: candidate_name.as_str().to_string(),
             candidate_hash: hashes.1,
+            candidate_coordinate_hash,
             case_timeout_ms: args.case_timeout_ms,
             batch_timeout_ms: args.batch_timeout_ms,
             wall_duration_ms: u64::try_from(batch_started.elapsed().as_millis())
@@ -177,6 +201,23 @@ impl ProbeTool {
         let report_hash = digest(&encoded);
         persist_report(&self.runtime, &report_hash, &encoded)?;
         let byte_equal = report.cases.iter().filter(|case| case.byte_equal).count();
+        let frontier = self
+            .runtime
+            .probe_frontiers
+            .record(frontier::ObservationRecord {
+                report_hash: report_hash.clone(),
+                attempt_id,
+                candidate_coordinate_hash: report.candidate_coordinate_hash.clone(),
+                request_hashes: report
+                    .cases
+                    .iter()
+                    .map(|case| case.request_hash.clone())
+                    .collect(),
+                byte_equal_count: byte_equal as u64,
+                wall_duration_ms: report.wall_duration_ms,
+            })
+            .await
+            .map_err(|error| model_error(format!("probe frontier update failed: {error}")))?;
         let differences = report
             .cases
             .iter()
@@ -184,6 +225,7 @@ impl ProbeTool {
             .map(|case| {
                 json!({
                     "id": case.request.id,
+                    "requestHash": case.request_hash,
                     "referenceExit": case.reference.exit,
                     "candidateExit": case.candidate.exit,
                     "referenceTimedOut": case.reference.timed_out,
@@ -201,12 +243,14 @@ impl ProbeTool {
             JsonToolOutput::new(json!({
                 "reportHash": report_hash,
                 "candidateHash": &report.candidate_hash,
+                "candidateCoordinateHash": &report.candidate_coordinate_hash,
                 "caseCount": report.cases.len(),
                 "executionCount": report.cases.len() * 2,
                 "byteEqualCount": byte_equal,
                 "differenceCount": report.cases.len() - byte_equal,
                 "wallDurationMs": report.wall_duration_ms,
                 "differences": differences,
+                "frontier": frontier,
             }))
             .with_external_context(),
         ))
@@ -234,6 +278,7 @@ struct ProbeCase {
 #[serde(rename_all = "camelCase")]
 struct CaseReport {
     request: ProbeCase,
+    request_hash: String,
     byte_equal: bool,
     reference: process::CaptureReport,
     candidate: process::CaptureReport,
@@ -243,6 +288,9 @@ struct CaseReport {
 #[serde(rename_all = "camelCase")]
 struct ProbeReport {
     version: u32,
+    turn_id: String,
+    call_id: String,
+    model: String,
     contract_id: String,
     revision: u64,
     attempt: u64,
@@ -253,6 +301,7 @@ struct ProbeReport {
     reference_hash: Option<String>,
     candidate: String,
     candidate_hash: String,
+    candidate_coordinate_hash: String,
     case_timeout_ms: u64,
     batch_timeout_ms: u64,
     wall_duration_ms: u64,
@@ -329,9 +378,10 @@ fn validate_case(case: &ProbeCase) -> Result<(), FunctionCallError> {
     Ok(())
 }
 
-fn resolve_path(root: &AbsolutePathBuf, value: &str) -> Result<AbsolutePathBuf, FunctionCallError> {
-    let relative = ArtifactPath::new(value)
-        .map_err(|error| model_error(format!("invalid relative path: {error}")))?;
+fn resolve_path(
+    root: &AbsolutePathBuf,
+    relative: &ArtifactPath,
+) -> Result<AbsolutePathBuf, FunctionCallError> {
     let root = root
         .canonicalize()
         .map_err(|error| model_error(format!("workspace path is unavailable: {error}")))?;
@@ -353,6 +403,39 @@ fn captures_are_byte_equal(left: &process::CaptureReport, right: &process::Captu
         && left.exit == right.exit
         && left.stdout_hex == right.stdout_hex
         && left.stderr_hex == right.stderr_hex
+}
+
+fn attempt_id(binding: &ExecutionBinding) -> Result<String, FunctionCallError> {
+    coordinate_digest(
+        b"codex.procontract.probe.attempt.v1\0",
+        &(
+            &binding.contract_id,
+            binding.revision,
+            binding.attempts,
+            &binding.attempt_key,
+        ),
+    )
+}
+
+fn request_hash(
+    environment_id: &str,
+    reference: &str,
+    reference_hash: Option<&str>,
+    args: &[String],
+) -> Result<String, FunctionCallError> {
+    coordinate_digest(
+        b"codex.procontract.probe.request.v1\0",
+        &(environment_id, reference, reference_hash, args),
+    )
+}
+
+fn coordinate_digest(domain: &[u8], value: &impl Serialize) -> Result<String, FunctionCallError> {
+    let encoded = serde_json::to_vec(value)
+        .map_err(|error| model_error(format!("probe coordinate encoding failed: {error}")))?;
+    let mut hasher = Sha256::new();
+    hasher.update(domain);
+    hasher.update(encoded);
+    Ok(encode_hex(&hasher.finalize()))
 }
 
 fn prefix(value: &str) -> &str {
@@ -428,7 +511,7 @@ fn model_error(message: impl Into<String>) -> FunctionCallError {
 
 fn digest(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"codex.procontract.probe.v2\0");
+    hasher.update(b"codex.procontract.probe.v3\0");
     hasher.update(bytes);
     encode_hex(&hasher.finalize())
 }

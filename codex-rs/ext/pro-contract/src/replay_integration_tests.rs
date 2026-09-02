@@ -204,7 +204,8 @@ async fn runtime(
         .connect_with(options)
         .await?;
     let ledger = Ledger::initialize(pool.clone()).await?;
-    let bindings = BindingStore::initialize(pool, "owner").await?;
+    let bindings = BindingStore::initialize(pool.clone(), "owner").await?;
+    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool).await?;
     let spec = ContractSpec {
         trigger: Trigger::Immediate,
         goal: "deliver".to_string(),
@@ -275,6 +276,7 @@ async fn runtime(
         subjects: SubjectStore::new(directory.path().join("subjects")),
         environment_manager: Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         replay_reports: directory.path().join("replay"),
+        probe_frontiers,
         executor_config: None,
         environments: Vec::new(),
         executor_spawner: None,

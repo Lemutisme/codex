@@ -125,6 +125,7 @@ struct Runtime {
     subjects: SubjectStore,
     environment_manager: Arc<EnvironmentManager>,
     replay_reports: std::path::PathBuf,
+    probe_frontiers: probe::ProbeFrontierStore,
     executor_config: Option<Config>,
     environments: Vec<TurnEnvironmentSelection>,
     executor_spawner: Option<Arc<ExecutorSpawner>>,
@@ -173,13 +174,14 @@ where
                 tracing::warn!("ProContract requires a UUID thread identity");
                 return;
             };
-            let (ledger, bindings) = match open_stores(&config.sqlite, &self.owner).await {
-                Ok(stores) => stores,
-                Err(error) => {
-                    tracing::warn!("failed to initialize ProContract ledger: {error}");
-                    return;
-                }
-            };
+            let (ledger, bindings, probe_frontiers) =
+                match open_stores(&config.sqlite, &self.owner).await {
+                    Ok(stores) => stores,
+                    Err(error) => {
+                        tracing::warn!("failed to initialize ProContract ledger: {error}");
+                        return;
+                    }
+                };
             let (ledger_scope, contract_id, issuer, role, authority) = if let Some(seed) = seed {
                 (
                     seed.ledger_scope.clone(),
@@ -246,6 +248,7 @@ where
                 subjects: SubjectStore::new(config.sqlite.home().join("pro-contract-subjects")),
                 environment_manager: config.environment_manager,
                 replay_reports: config.sqlite.home().join("pro-contract-replay"),
+                probe_frontiers,
                 executor_config: Some(config.executor_config),
                 environments: input.environments.to_vec(),
                 executor_spawner: Some(Arc::clone(&self.executor_spawner)),
@@ -738,7 +741,7 @@ async fn open_ledger(sqlite: &SqliteConfig) -> Result<Ledger, PrincipalError> {
 async fn open_stores(
     sqlite: &SqliteConfig,
     owner: &str,
-) -> Result<(Ledger, BindingStore), PrincipalError> {
+) -> Result<(Ledger, BindingStore, probe::ProbeFrontierStore), PrincipalError> {
     let pool = sqlite
         .open_read_write_pool(&sqlite.home().join("pro_contract_1.sqlite"))
         .await?;
@@ -746,7 +749,8 @@ async fn open_stores(
     let bindings = BindingStore::initialize(pool.clone(), owner)
         .await
         .map_err(|error| PrincipalError::Binding(error.to_string()))?;
-    Ok((ledger, bindings))
+    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool).await?;
+    Ok((ledger, bindings, probe_frontiers))
 }
 
 pub fn install<C, S>(

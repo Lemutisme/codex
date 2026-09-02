@@ -66,6 +66,7 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
         subjects: SubjectStore::new(directory.path().join("subjects")),
         environment_manager: Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         replay_reports: directory.path().join("replay"),
+        probe_frontiers: probe::ProbeFrontierStore::initialize(pool).await?,
         executor_config: None,
         environments: Vec::new(),
         executor_spawner: None,
