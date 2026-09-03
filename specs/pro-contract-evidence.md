@@ -351,6 +351,98 @@ but has no disjoint performance result yet. The tool remains opt-in.
 sha256 3e77fbde0f191ecc6ea9509e13999e520d3cf2b23675252b48dd55be8592139a
 ~~~
 
+### Fresh Jot frontier and rejected action checkpoint
+
+A fresh Jot Luna Max A/B tested the corrected observation vocabulary, durable
+request/candidate frontier, authority sandbox, and general action telemetry.
+Both arms used the same source binary, image, six-hour Contract, official
+evaluator, and exact v2 policy base. The treatment alone received the bounded
+probe capability and a 642-byte frontier policy suffix.
+
+| Arm | Official score | Turns | Actions | Token traffic | Wall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| exact v2 | 715/752 = 95.0798% | 222 | 219 | 28.754M | 43.83m |
+| corrected native frontier | **730/752 = 97.0745%** | **164** | **161** | **19.347M** | **28.50m** |
+
+The frontier gained 1.9947 percentage points while using 26.5% fewer actions,
+32.7% less token traffic, and 35.0% less wall time. Both candidates reached
+native replay-backed verification in one semantic attempt with zero evaluator
+errors or warnings. Their non-perfect evaluator files were then submitted as
+sealed challenges; both handoffs were withdrawn, both duties became escalated,
+and both remained non-quiet.
+
+Four native reports compressed 48 cases into four Contract actions and retained
+46 syntactic request coordinates. The largest functional gain was all thirteen
+exact subcommand-help fixtures. The remaining 20 failures concentrate in
+stateful multi-vault behavior, TOML quoting/malformed input, special names, and
+clap flag clusters. This supports the stateless observation primitive while
+locating the next boundary in reusable stateful differential evidence and
+fidelity-bearing implementation primitives.
+
+The same run falsified exact-payload repetition as a sufficient convergence
+signal. Frontier's 161 action payloads were all distinct. Baseline had 217
+distinct payloads among 219 actions; only its second and third exact
+`compile.sh; validate.sh` requests triggered reminders, after most exploration
+cost had already occurred. Inferring semantic command equivalence in the host
+would be unsound.
+
+A candidate response projected cumulative action, tool, outcome, and exact
+request counts at two geometric boundaries per octave (`32, 48, 64, 96, ...`).
+It explicitly denied that count, novelty, or candidate age established semantic
+progress and asked the model to bind further observation to a hypothesis or
+documented surface. This mechanism was structurally bounded and remained
+outside Contract state, but performance experiments rejected it.
+
+| Causal A/B | Old binary | Checkpoint binary | Decision |
+| --- | ---: | ---: | --- |
+| Jot development retest | 29/752 = 3.8564% | 720/752 = 95.7447% | reject: actions 1.514x, tokens 2.068x; prior frontier was 730/752 at lower cost |
+| disjoint tuc | **1177/1196 = 98.4114%** | 1142/1196 = 95.4849% | reject: -2.9264pp despite actions 0.779x and tokens 0.903x |
+
+The Jot control imported `tomllib`, available in the Python 3.12 inference and
+replay environment but absent from the Python 3.10 evaluator. Almost every
+target invocation failed at import. The checkpoint treatment happened to write
+a self-contained parser, but no checkpoint proved target compatibility. On
+tuc, every checkpoint follow-up was locally justified and one compaction
+preserved a 111-case differential summary, yet treatment fixed three control
+failures and introduced 38. The control's later work closed option conflicts,
+malformed-regex handling, formatted bounds, and empty-record cases.
+
+The checkpoint was therefore removed. Exact repeated/long action telemetry
+remains because it reports direct cost without claiming which semantic work is
+valuable. The stronger result is:
+
+~~~text
+mechanical action novelty != semantic progress
+named local hypothesis     != expected hidden residual mass
+current replay passed      != target-runtime compatibility
+~~~
+
+Target-environment preflight belongs in the evidence adapter. Reusable stateful
+differential observations and their surviving passing set belong in mutable
+policy/evidence state. Neither concern justifies adding convergence or stopping
+authority to the settlement Kernel.
+
+The public Jot leader retrieved on 2026-09-03 scored 750/752 with about 398
+shell actions. Its trajectory delayed implementation until after Rust, TOML,
+path, and CLI investigation, then used a native Rust candidate, reusable
+state-resetting differential suites, and seeded fuzzing. The contrast rules out
+turning the checkpoint into an unconditional early-candidate or early-stop
+policy: discriminating depth may be valuable even when raw action age is not.
+
+~~~text
+/tmp/procontract-action-jot-20260903/RESULT.md
+sha256 285780104074ff9bfda52694eeb998a86c6e1493f5594567ea8be64e21dd0156
+
+/tmp/procontract-action-checkpoint-ab-20260903/RESULT.md
+sha256 725bae89d01cc562fe58d570297532c2ac0622aaff39cc3c4333ddb92a088942
+
+/tmp/procontract-action-checkpoint-tuc-20260903/RESULT.md
+sha256 5c114cc98b47649a33e972f05ad75920fd592d2fa2a33291eb6eb794bd891c25
+
+/tmp/procontract-target-preflight-20260903/RESULT.md
+sha256 0fb21d66187ea578bad6c7bd1e5765c26e25c0b8ca41c319a112bd67ca6f2c97
+~~~
+
 ## Structural evidence
 
 Current Rust tests cover representative reducer and adapter paths. The complete

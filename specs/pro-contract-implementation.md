@@ -192,6 +192,37 @@ only after the process API acknowledges termination, but omits environment
 identity, interpreter, OS/architecture, resource usage, and confirmed
 descendant cleanup.
 
+Until replay can materialize and execute the frozen subject in a named target
+environment, a target-aware adapter must keep local replay and deployment
+evidence separate:
+
+~~~text
+worker handoff
+  -> exact subject materialization
+  -> trusted target build/startup preflight
+       fail -> content-addressed report -> executor-visible challenge
+       pass -> target-bound evidence -> independent semantic evaluation
+  -> Principal attestation or challenge
+~~~
+
+The preflight report must bind the handoff subject, target image/environment,
+commands, exit, bounded output, and verifier identity. It must run on a copy of
+the subject and cannot silently mutate the handoff. A local replay pass alone
+must not authorize Principal attestation when the Contract's deployment claim
+is target-specific.
+
+This is not hypothetical hygiene. A Jot development candidate passed Python
+3.12 local replay while importing `tomllib`, then scored 29/752 because the
+Python 3.10 target could not import it. The Kernel correctly preserved the duty
+after challenge; only a target adapter could have prevented the unsupported
+handoff from reaching semantic evaluation.
+
+A test-blind target startup preflight reproduced the distinction with only
+`compile.sh` and `executable --help`: the unsupported subject failed immediately
+and a self-contained comparison subject passed. The frozen report is
+`/tmp/procontract-target-preflight-20260903/RESULT.md` (SHA-256
+`0fb21d66187ea578bad6c7bd1e5765c26e25c0b8ca41c319a112bd67ca6f2c97`).
+
 Execution policy is outside ContractSpec. Its binding now stores a
 domain-separated content hash, but context projection is not yet uniformly
 one-shot across all context-building paths. Policy lineage, comparison, and
