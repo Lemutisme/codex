@@ -20,7 +20,7 @@ use std::time::UNIX_EPOCH;
 use tempfile::TempDir;
 
 #[tokio::test]
-async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
+async fn native_probe_batch_preserves_observations_before_candidate_checks() -> Result<()> {
     let reference = format!("reference{}", std::env::consts::EXE_SUFFIX);
     let candidate = format!("candidate{}", std::env::consts::EXE_SUFFIX);
     let alternate = format!("candidate-alternate{}", std::env::consts::EXE_SUFFIX);
@@ -39,6 +39,17 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
     };
     let first_arguments = probe_arguments(&candidate);
     let alternate_arguments = probe_arguments(&alternate);
+    let observation_arguments = json!({
+        "mode": "observe",
+        "reference": reference.clone(),
+        "case_timeout_ms": 5_000,
+        "batch_timeout_ms": 5_000,
+        "cases": [{
+            "id": "write",
+            "args": ["result.json", "same-payload"],
+        }]
+    })
+    .to_string();
     let probe_response = |response_id, call_id, arguments: &str| {
         responses::sse(vec![
             responses::ev_response_created(response_id),
@@ -50,6 +61,11 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
     let response_mock = responses::mount_sse_sequence(
         &server,
         vec![
+            probe_response(
+                "probe-observation-response",
+                "probe-observation-call",
+                &observation_arguments,
+            ),
             probe_response("probe-response-1", "probe-call-1", &first_arguments),
             probe_response("probe-response-2", "probe-call-2", &first_arguments),
             probe_response("probe-response-3", "probe-call-3", &alternate_arguments),
@@ -106,7 +122,7 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
                     .map(str::to_string)
                     .to_vec(),
                     budget: ProContractBudget {
-                        turns: 4,
+                        turns: 5,
                         actions: 4,
                         deadline_at: now + 60,
                     },
@@ -125,30 +141,58 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
         })
         .await?;
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
-        while response_mock.requests().len() < 4 {
+        while response_mock.requests().len() < 5 {
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
     })
     .await?;
 
     let requests = response_mock.requests();
-    assert!(!requests[1].body_contains_text("Host action telemetry:"));
-    assert!(requests[2].body_contains_text(
+    assert!(!requests[2].body_contains_text("Host action telemetry:"));
+    assert!(requests[3].body_contains_text(
         "exact `contract_probe_batch` request occurrence 2 in this semantic attempt"
     ));
-    let first = requests[1].function_call_output("probe-call-1");
+    let observation = requests[1].function_call_output("probe-observation-call");
+    let observation: serde_json::Value = serde_json::from_str(
+        observation["output"]
+            .as_str()
+            .expect("reference observation should return JSON"),
+    )?;
+    assert_eq!(
+        json!({
+            "mode": observation["mode"],
+            "caseCount": observation["caseCount"],
+            "executionCount": observation["executionCount"],
+            "observationCount": observation["observations"].as_array().map(Vec::len),
+            "frontier": observation["frontier"],
+        }),
+        json!({
+            "mode": "observe",
+            "caseCount": 1,
+            "executionCount": 1,
+            "observationCount": 1,
+            "frontier": {
+                "newAttemptRequestCount": 1,
+                "attemptUniqueRequestCount": 1,
+                "attemptObservationCount": 1,
+                "attemptObservationExecutionCount": 1,
+                "attemptObservationWallDurationMs": observation["wallDurationMs"],
+            },
+        })
+    );
+    let first = requests[2].function_call_output("probe-call-1");
     let first: serde_json::Value = serde_json::from_str(
         first["output"]
             .as_str()
             .expect("first probe should return JSON"),
     )?;
-    let second = requests[2].function_call_output("probe-call-2");
+    let second = requests[3].function_call_output("probe-call-2");
     let second: serde_json::Value = serde_json::from_str(
         second["output"]
             .as_str()
             .expect("second probe should return JSON"),
     )?;
-    let third = requests[3].function_call_output("probe-call-3");
+    let third = requests[4].function_call_output("probe-call-3");
     let third: serde_json::Value = serde_json::from_str(
         third["output"]
             .as_str()
@@ -167,7 +211,7 @@ async fn native_probe_batch_compares_cases_in_one_model_action() -> Result<()> {
             "byteEqualCount": 1,
             "frontier": {
                 "candidateCoordinateChanged": false,
-                "newAttemptRequestCount": 1,
+                "newAttemptRequestCount": 0,
                 "newCandidateRequestCount": 1,
                 "repeatedCandidateRequestCount": 0,
                 "attemptUniqueRequestCount": 1,

@@ -18,8 +18,9 @@ pub(super) fn probe_spec() -> ToolSpec {
     );
     function_tool(
         PROBE_TOOL_NAME,
-        "Run 1-12 bounded stateless, non-interactive candidate/reference cases in one Contract action using normalized workspace-relative executable paths without './'. The trusted local executor applies the same caller-supplied arguments, environment, sandbox, and limits to both sides; executable path and argv[0] differ by design. It terminates every process, persists a content-addressed full bounded report, and returns compact byte differences, cost, and a durable request-coordinate frontier. Repeated-request counts expose syntactic repetition but do not account for changed workspace state; neither request novelty nor byte equality establishes semantic conformance, coverage, or settlement. case_timeout_ms is 100..60000; batch_timeout_ms is 1000..120000 and must cover 2 * cases * case_timeout_ms.",
+        "Run 1-12 bounded stateless, non-interactive cases in one Contract action using normalized workspace-relative executable paths without './'. mode defaults to compare, which requires candidate and runs both reference and candidate with the same arguments, environment, sandbox, and limits. mode=observe forbids candidate and records reference behavior before an implementation exists. Every process is terminated, the full bounded report is content-addressed, and observed request hashes enter the same attempt frontier later comparisons use. Compact outputs expose facts and cost; changed workspace state is not captured, and neither request novelty nor byte equality establishes semantic conformance, coverage, or settlement. case_timeout_ms is 100..60000; batch_timeout_ms is 1000..120000 and must cover cases * case_timeout_ms for observe or 2 * cases * case_timeout_ms for compare.",
         BTreeMap::from([
+            ("mode".to_string(), JsonSchema::string(None)),
             ("reference".to_string(), JsonSchema::string(None)),
             ("candidate".to_string(), JsonSchema::string(None)),
             (
@@ -29,12 +30,6 @@ pub(super) fn probe_spec() -> ToolSpec {
             ("case_timeout_ms".to_string(), JsonSchema::integer(None)),
             ("batch_timeout_ms".to_string(), JsonSchema::integer(None)),
         ]),
-        vec![
-            "reference",
-            "candidate",
-            "cases",
-            "case_timeout_ms",
-            "batch_timeout_ms",
-        ],
+        vec!["reference", "cases", "case_timeout_ms", "batch_timeout_ms"],
     )
 }

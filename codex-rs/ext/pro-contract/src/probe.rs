@@ -35,6 +35,8 @@ const PREVIEW_BYTES: usize = 48;
 
 #[path = "probe/frontier.rs"]
 mod frontier;
+#[path = "probe/observation.rs"]
+mod observation;
 #[path = "probe/process.rs"]
 mod process;
 #[path = "probe/spec.rs"]
@@ -58,6 +60,9 @@ impl ProbeTool {
         let args: ProbeArgs = serde_json::from_str(invocation.function_arguments()?)
             .map_err(|error| model_error(format!("invalid arguments: {error}")))?;
         validate_limits(&args)?;
+        if args.mode == ProbeMode::Observe {
+            return observation::run(self, invocation, args).await;
+        }
         if invocation.environments.len() != 1 {
             return Err(model_error(
                 "contract_probe_batch requires exactly one environment",
@@ -78,7 +83,11 @@ impl ProbeTool {
         let attempt_id = attempt_id(&binding)?;
         let reference_name = ArtifactPath::new(&args.reference)
             .map_err(|error| model_error(format!("invalid reference path: {error}")))?;
-        let candidate_name = ArtifactPath::new(&args.candidate)
+        let candidate = args
+            .candidate
+            .as_deref()
+            .ok_or_else(|| model_error("compare mode requires candidate"))?;
+        let candidate_name = ArtifactPath::new(candidate)
             .map_err(|error| model_error(format!("invalid candidate path: {error}")))?;
         let reference_path = resolve_path(&tool_environment.cwd, &reference_name)?;
         let candidate_path = resolve_path(&tool_environment.cwd, &candidate_name)?;
@@ -198,7 +207,7 @@ impl ProbeTool {
         };
         let encoded = serde_json::to_vec(&report)
             .map_err(|error| model_error(format!("probe report encoding failed: {error}")))?;
-        let report_hash = digest(&encoded);
+        let report_hash = digest(b"codex.procontract.probe.v3\0", &encoded);
         persist_report(&self.runtime, &report_hash, &encoded)?;
         let byte_equal = report.cases.iter().filter(|case| case.byte_equal).count();
         let frontier = self
@@ -260,11 +269,21 @@ impl ProbeTool {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProbeArgs {
+    #[serde(default)]
+    mode: ProbeMode,
     reference: String,
-    candidate: String,
+    candidate: Option<String>,
     cases: Vec<ProbeCase>,
     case_timeout_ms: u64,
     batch_timeout_ms: u64,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum ProbeMode {
+    #[default]
+    Compare,
+    Observe,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -329,6 +348,15 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProbeTool {
 }
 
 fn validate_limits(args: &ProbeArgs) -> Result<(), FunctionCallError> {
+    match (args.mode, args.candidate.as_deref()) {
+        (ProbeMode::Compare, Some(_)) | (ProbeMode::Observe, None) => {}
+        (ProbeMode::Compare, None) => {
+            return Err(model_error("compare mode requires candidate"));
+        }
+        (ProbeMode::Observe, Some(_)) => {
+            return Err(model_error("observe mode does not accept candidate"));
+        }
+    }
     if args.cases.is_empty() || args.cases.len() > MAX_CASES {
         return Err(model_error(format!(
             "cases must contain 1..={MAX_CASES} items"
@@ -346,15 +374,19 @@ fn validate_limits(args: &ProbeArgs) -> Result<(), FunctionCallError> {
             return Err(model_error("case ids must be unique"));
         }
     }
+    let executions_per_case = match args.mode {
+        ProbeMode::Compare => 2,
+        ProbeMode::Observe => 1,
+    };
     if !(1_000..=MAX_BATCH_TIMEOUT_MS).contains(&args.batch_timeout_ms)
         || args
             .case_timeout_ms
-            .saturating_mul(2)
+            .saturating_mul(executions_per_case)
             .saturating_mul(args.cases.len() as u64)
             > args.batch_timeout_ms
     {
         return Err(model_error(format!(
-            "batch_timeout_ms must be 1000..={MAX_BATCH_TIMEOUT_MS} and cover both sides of every case"
+            "batch_timeout_ms must be 1000..={MAX_BATCH_TIMEOUT_MS} and cover every requested execution"
         )));
     }
     Ok(())
@@ -509,9 +541,9 @@ fn model_error(message: impl Into<String>) -> FunctionCallError {
     FunctionCallError::RespondToModel(message.into())
 }
 
-fn digest(bytes: &[u8]) -> String {
+fn digest(domain: &[u8], bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(b"codex.procontract.probe.v3\0");
+    hasher.update(domain);
     hasher.update(bytes);
     encode_hex(&hasher.finalize())
 }

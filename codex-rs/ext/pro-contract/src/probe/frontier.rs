@@ -21,6 +21,13 @@ pub(super) struct ObservationRecord {
     pub(super) wall_duration_ms: u64,
 }
 
+pub(super) struct ReferenceObservationRecord {
+    pub(super) report_hash: String,
+    pub(super) attempt_id: String,
+    pub(super) request_hashes: Vec<String>,
+    pub(super) wall_duration_ms: u64,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct FrontierSummary {
@@ -33,6 +40,16 @@ pub(super) struct FrontierSummary {
     attempt_report_count: u64,
     attempt_execution_count: u64,
     attempt_wall_duration_ms: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct ReferenceFrontierSummary {
+    new_attempt_request_count: u64,
+    attempt_unique_request_count: u64,
+    attempt_observation_count: u64,
+    attempt_observation_execution_count: u64,
+    attempt_observation_wall_duration_ms: u64,
 }
 
 #[derive(Debug, Error)]
@@ -82,11 +99,121 @@ impl ProbeFrontierStore {
                 request_hash TEXT NOT NULL,
                 PRIMARY KEY (attempt_id, candidate_coordinate_hash, request_hash)
             )",
+            "CREATE TABLE IF NOT EXISTS pro_contract_probe_reference_report (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_hash TEXT UNIQUE NOT NULL,
+                attempt_id TEXT NOT NULL,
+                case_count INTEGER NOT NULL,
+                wall_duration_ms INTEGER NOT NULL,
+                new_attempt_requests INTEGER NOT NULL,
+                attempt_unique_requests INTEGER NOT NULL,
+                attempt_observation_count INTEGER NOT NULL,
+                attempt_observation_execution_count INTEGER NOT NULL,
+                attempt_observation_wall_duration_ms INTEGER NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS pro_contract_probe_reference_report_attempt_idx
+             ON pro_contract_probe_reference_report(attempt_id, sequence)",
         ] {
             sqlx::query(statement).execute(&mut *transaction).await?;
         }
         transaction.commit().await?;
         Ok(Self { pool })
+    }
+
+    pub(super) async fn record_reference_observation(
+        &self,
+        record: ReferenceObservationRecord,
+    ) -> Result<ReferenceFrontierSummary, FrontierError> {
+        let case_count =
+            u64::try_from(record.request_hashes.len()).map_err(|_| FrontierError::Limit)?;
+        if case_count == 0
+            || record.report_hash.is_empty()
+            || record.attempt_id.is_empty()
+            || record.request_hashes.iter().any(String::is_empty)
+        {
+            return Err(FrontierError::Conflict);
+        }
+        let mut transaction = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        if let Some(row) = sqlx::query(
+            "SELECT attempt_id, case_count, wall_duration_ms, new_attempt_requests,
+                    attempt_unique_requests, attempt_observation_count,
+                    attempt_observation_execution_count,
+                    attempt_observation_wall_duration_ms
+             FROM pro_contract_probe_reference_report WHERE report_hash = ?",
+        )
+        .bind(&record.report_hash)
+        .fetch_optional(&mut *transaction)
+        .await?
+        {
+            if row.try_get::<String, _>("attempt_id")? != record.attempt_id
+                || unsigned(&row, "case_count")? != case_count
+                || unsigned(&row, "wall_duration_ms")? != record.wall_duration_ms
+            {
+                return Err(FrontierError::Conflict);
+            }
+            return reference_summary(&row);
+        }
+
+        let totals = sqlx::query(
+            "SELECT COUNT(*) AS report_count,
+                    COALESCE(SUM(case_count), 0) AS case_count,
+                    COALESCE(SUM(wall_duration_ms), 0) AS wall_duration_ms
+             FROM pro_contract_probe_reference_report WHERE attempt_id = ?",
+        )
+        .bind(&record.attempt_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        let prior_reports = unsigned(&totals, "report_count")?;
+        if prior_reports >= MAX_REPORTS_PER_ATTEMPT {
+            return Err(FrontierError::Limit);
+        }
+        let mut new_attempt_requests = 0_u64;
+        for request_hash in record.request_hashes.iter() {
+            new_attempt_requests += sqlx::query(
+                "INSERT OR IGNORE INTO pro_contract_probe_attempt_request
+                 (attempt_id, request_hash) VALUES (?, ?)",
+            )
+            .bind(&record.attempt_id)
+            .bind(request_hash)
+            .execute(&mut *transaction)
+            .await?
+            .rows_affected();
+        }
+        let attempt_unique_requests =
+            count_attempt_requests(&mut transaction, &record.attempt_id).await?;
+        if attempt_unique_requests > MAX_REQUESTS_PER_ATTEMPT {
+            return Err(FrontierError::Limit);
+        }
+        let frontier = ReferenceFrontierSummary {
+            new_attempt_request_count: new_attempt_requests,
+            attempt_unique_request_count: attempt_unique_requests,
+            attempt_observation_count: prior_reports + 1,
+            attempt_observation_execution_count: unsigned(&totals, "case_count")?
+                .saturating_add(case_count),
+            attempt_observation_wall_duration_ms: unsigned(&totals, "wall_duration_ms")?
+                .saturating_add(record.wall_duration_ms),
+        };
+        sqlx::query(
+            "INSERT INTO pro_contract_probe_reference_report
+             (report_hash, attempt_id, case_count, wall_duration_ms,
+              new_attempt_requests, attempt_unique_requests,
+              attempt_observation_count, attempt_observation_execution_count,
+              attempt_observation_wall_duration_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&record.report_hash)
+        .bind(&record.attempt_id)
+        .bind(integer(case_count))
+        .bind(integer(record.wall_duration_ms))
+        .bind(integer(frontier.new_attempt_request_count))
+        .bind(integer(frontier.attempt_unique_request_count))
+        .bind(integer(frontier.attempt_observation_count))
+        .bind(integer(frontier.attempt_observation_execution_count))
+        .bind(integer(frontier.attempt_observation_wall_duration_ms))
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(frontier)
     }
 
     pub(super) async fn record(
@@ -273,6 +400,21 @@ fn summary(row: &sqlx::sqlite::SqliteRow) -> Result<FrontierSummary, FrontierErr
         attempt_report_count: unsigned(row, "attempt_report_count")?,
         attempt_execution_count: unsigned(row, "attempt_execution_count")?,
         attempt_wall_duration_ms: unsigned(row, "attempt_wall_duration_ms")?,
+    })
+}
+
+fn reference_summary(
+    row: &sqlx::sqlite::SqliteRow,
+) -> Result<ReferenceFrontierSummary, FrontierError> {
+    Ok(ReferenceFrontierSummary {
+        new_attempt_request_count: unsigned(row, "new_attempt_requests")?,
+        attempt_unique_request_count: unsigned(row, "attempt_unique_requests")?,
+        attempt_observation_count: unsigned(row, "attempt_observation_count")?,
+        attempt_observation_execution_count: unsigned(row, "attempt_observation_execution_count")?,
+        attempt_observation_wall_duration_ms: unsigned(
+            row,
+            "attempt_observation_wall_duration_ms",
+        )?,
     })
 }
 
