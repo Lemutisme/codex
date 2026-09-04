@@ -86,6 +86,20 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
     });
     let report = ContractTool::new(ToolKind::ReportReady, Arc::clone(&runtime));
     let artifacts = ArtifactSpec::new([ArtifactPath::new("executable")?])?;
+    let replay_argv = if cfg!(windows) {
+        vec![
+            "cmd.exe".to_string(),
+            "/D".to_string(),
+            "/C".to_string(),
+            "if not defined PATH exit /B 1 & if not exist executable exit /B 1 & for %F in (executable) do @if %~zF GTR 0 (exit /B 0) else (exit /B 1)".to_string(),
+        ]
+    } else {
+        vec![
+            "/bin/sh".to_string(),
+            "-c".to_string(),
+            "test -n \"$PATH\" && test -s executable".to_string(),
+        ]
+    };
     let spec = ContractSpec {
         trigger: Trigger::Immediate,
         goal: "deliver".to_string(),
@@ -102,11 +116,7 @@ async fn native_tools_freeze_artifacts_without_self_settling() -> anyhow::Result
             claim: "deliver".to_string(),
             replay: Some(ReplayPolicy {
                 checks: vec![ReplayCheck {
-                    argv: vec![
-                        "/bin/sh".to_string(),
-                        "-c".to_string(),
-                        "test -n \"$PATH\" && test -s executable".to_string(),
-                    ],
+                    argv: replay_argv,
                     cwd: None,
                     timeout_ms: 10_000,
                     exit: 0,

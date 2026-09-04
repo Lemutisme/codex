@@ -1,3 +1,4 @@
+use super::MAX_RETURNED_CASE_PREVIEWS;
 use super::ProbeArgs;
 use super::ProbeCase;
 use super::ProbeTool;
@@ -59,7 +60,7 @@ pub(super) async fn run(
     .map_err(model_error)?;
 
     let metadata = ExecMetadata {
-        thread_id: Some(tool.runtime.thread_id.clone()),
+        thread_id: Some(tool.runtime.thread_id),
         tool_call_id: Some(invocation.call_id.clone()),
     };
     let batch_started = Instant::now();
@@ -158,6 +159,7 @@ pub(super) async fn run(
     let observations = report
         .cases
         .iter()
+        .take(MAX_RETURNED_CASE_PREVIEWS)
         .map(|case| {
             json!({
                 "id": case.request.id,
@@ -177,6 +179,9 @@ pub(super) async fn run(
             "referenceHash": &report.reference_hash,
             "caseCount": report.cases.len(),
             "executionCount": report.cases.len(),
+            "observationCount": report.cases.len(),
+            "returnedObservationCount": observations.len(),
+            "omittedObservationCount": report.cases.len().saturating_sub(observations.len()),
             "wallDurationMs": report.wall_duration_ms,
             "observations": observations,
             "frontier": frontier,

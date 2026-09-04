@@ -2866,7 +2866,7 @@
         },
         {
           "properties": {
-            "trigger_at": {
+            "triggerAt": {
               "format": "int64",
               "type": "integer"
             },
@@ -2879,7 +2879,7 @@
             }
           },
           "required": [
-            "trigger_at",
+            "triggerAt",
             "type"
           ],
           "title": "TimeProContractTrigger",

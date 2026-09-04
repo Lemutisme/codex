@@ -31,6 +31,19 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::str::FromStr;
 
+fn shell_argv(unix: &str, windows: &str) -> Vec<String> {
+    if cfg!(windows) {
+        vec![
+            "cmd.exe".to_string(),
+            "/D".to_string(),
+            "/C".to_string(),
+            windows.to_string(),
+        ]
+    } else {
+        vec!["/bin/sh".to_string(), "-c".to_string(), unix.to_string()]
+    }
+}
+
 #[tokio::test]
 async fn failed_native_replay_reopens_the_exact_contract() -> anyhow::Result<()> {
     let directory = tempfile::tempdir()?;
@@ -40,11 +53,10 @@ async fn failed_native_replay_reopens_the_exact_contract() -> anyhow::Result<()>
     let artifacts = ArtifactSpec::new([ArtifactPath::new("result")?])?;
     let replay = ReplayPolicy {
         checks: vec![ReplayCheck {
-            argv: vec![
-                "/bin/sh".to_string(),
-                "-c".to_string(),
-                "test -n \"$PATH\"; exit 7".to_string(),
-            ],
+            argv: shell_argv(
+                "test -n \"$PATH\"; exit 7",
+                "if defined PATH (exit /B 7) else (exit /B 8)",
+            ),
             cwd: None,
             timeout_ms: 1_000,
             exit: 0,
@@ -97,11 +109,7 @@ async fn timed_out_native_replay_is_negative_evidence() -> anyhow::Result<()> {
     let artifacts = ArtifactSpec::new([ArtifactPath::new("result")?])?;
     let replay = ReplayPolicy {
         checks: vec![ReplayCheck {
-            argv: vec![
-                "/bin/sh".to_string(),
-                "-c".to_string(),
-                "sleep 30".to_string(),
-            ],
+            argv: shell_argv("sleep 30", "ping -n 31 127.0.0.1 >NUL"),
             cwd: None,
             timeout_ms: 1_000,
             exit: 0,

@@ -9,7 +9,11 @@ use serde::Serialize;
 #[ts(tag = "type", export_to = "v2/")]
 pub enum ProContractTrigger {
     Immediate,
-    Time { trigger_at: i64 },
+    Time {
+        #[serde(rename = "triggerAt")]
+        #[ts(rename = "triggerAt")]
+        trigger_at: i64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

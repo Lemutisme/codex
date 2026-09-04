@@ -13,6 +13,7 @@ use codex_app_server_protocol::SandboxMode;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_features::Feature;
 use core_test_support::responses;
+use core_test_support::skip_if_remote;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::time::SystemTime;
@@ -21,6 +22,10 @@ use tempfile::TempDir;
 
 #[tokio::test]
 async fn native_probe_batch_preserves_observations_before_candidate_checks() -> Result<()> {
+    skip_if_remote!(
+        Ok(()),
+        "ProContract execution and native probes are local-only"
+    );
     let reference = format!("reference{}", std::env::consts::EXE_SUFFIX);
     let candidate = format!("candidate{}", std::env::consts::EXE_SUFFIX);
     let alternate = format!("candidate-alternate{}", std::env::consts::EXE_SUFFIX);
@@ -163,7 +168,9 @@ async fn native_probe_batch_preserves_observations_before_candidate_checks() -> 
             "mode": observation["mode"],
             "caseCount": observation["caseCount"],
             "executionCount": observation["executionCount"],
-            "observationCount": observation["observations"].as_array().map(Vec::len),
+            "observationCount": observation["observationCount"],
+            "returnedObservationCount": observation["returnedObservationCount"],
+            "omittedObservationCount": observation["omittedObservationCount"],
             "frontier": observation["frontier"],
         }),
         json!({
@@ -171,6 +178,8 @@ async fn native_probe_batch_preserves_observations_before_candidate_checks() -> 
             "caseCount": 1,
             "executionCount": 1,
             "observationCount": 1,
+            "returnedObservationCount": 1,
+            "omittedObservationCount": 0,
             "frontier": {
                 "newAttemptRequestCount": 1,
                 "attemptUniqueRequestCount": 1,

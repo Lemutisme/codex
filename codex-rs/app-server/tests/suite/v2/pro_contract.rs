@@ -27,12 +27,17 @@ use codex_app_server_protocol::ThreadStartParams;
 use codex_features::Feature;
 use codex_utils_path_uri::LegacyAppPathString;
 use core_test_support::responses;
+use core_test_support::skip_if_remote;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use tempfile::TempDir;
 
 #[tokio::test]
 async fn principal_rpc_runs_isolated_semantic_attempts_with_one_policy_projection() -> Result<()> {
+    skip_if_remote!(
+        Ok(()),
+        "ProContract execution, subject capture, and replay are local-only"
+    );
     let server = responses::start_mock_server().await;
     let response_mock = responses::mount_sse_sequence(
         &server,
@@ -183,6 +188,10 @@ async fn principal_rpc_runs_isolated_semantic_attempts_with_one_policy_projectio
 
 #[tokio::test]
 async fn executor_challenge_starts_a_residual_attempt_without_losing_policy() -> Result<()> {
+    skip_if_remote!(
+        Ok(()),
+        "ProContract execution, subject capture, and replay are local-only"
+    );
     let server = responses::start_mock_server().await;
     let response_mock = responses::mount_sse_sequence(
         &server,
@@ -355,6 +364,10 @@ async fn executor_challenge_starts_a_residual_attempt_without_losing_policy() ->
 
 #[tokio::test]
 async fn principal_rpc_issues_and_settles_without_a_model_authored_proposal() -> Result<()> {
+    skip_if_remote!(
+        Ok(()),
+        "ProContract execution, subject capture, and replay are local-only"
+    );
     let server = responses::start_mock_server().await;
     let response_mock = responses::mount_sse_once(
         &server,
@@ -533,6 +546,10 @@ async fn principal_rpc_issues_and_settles_without_a_model_authored_proposal() ->
 
 #[tokio::test]
 async fn rejected_revision_resumes_the_same_semantic_attempt() -> Result<()> {
+    skip_if_remote!(
+        Ok(()),
+        "ProContract execution, subject capture, and replay are local-only"
+    );
     let server = responses::start_mock_server().await;
     let response_mock = responses::mount_sse_sequence(
         &server,

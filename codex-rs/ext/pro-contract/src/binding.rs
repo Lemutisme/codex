@@ -651,6 +651,7 @@ fn contract_attempt_key(contract: &Contract) -> String {
 
 fn binding_from_row(row: SqliteRow) -> Result<ExecutionBinding, BindingError> {
     let execution_policy: Option<String> = row.try_get("execution_policy")?;
+    validate_policy(execution_policy.as_deref())?;
     let expected_policy_hash = execution_policy.as_deref().map(hash_execution_policy);
     let stored_policy_hash: Option<String> = row.try_get("execution_policy_hash")?;
     if stored_policy_hash

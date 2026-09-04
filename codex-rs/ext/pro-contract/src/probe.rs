@@ -33,6 +33,7 @@ const MAX_EXECUTABLE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_CASE_TIMEOUT_MS: u64 = 60_000;
 const MAX_BATCH_TIMEOUT_MS: u64 = 120_000;
 const PREVIEW_BYTES: usize = 48;
+const MAX_RETURNED_CASE_PREVIEWS: usize = 4;
 
 #[path = "probe/frontier.rs"]
 mod frontier;
@@ -110,7 +111,7 @@ impl ProbeTool {
             &(candidate_name.as_str(), &hashes.1),
         )?;
         let metadata = ExecMetadata {
-            thread_id: Some(self.runtime.thread_id.clone()),
+            thread_id: Some(self.runtime.thread_id),
             tool_call_id: Some(invocation.call_id.clone()),
         };
         let batch_started = Instant::now();
@@ -234,10 +235,12 @@ impl ProbeTool {
             })
             .await
             .map_err(|error| model_error(format!("probe frontier update failed: {error}")))?;
+        let difference_count = report.cases.iter().filter(|case| !case.byte_equal).count();
         let differences = report
             .cases
             .iter()
             .filter(|case| !case.byte_equal)
+            .take(MAX_RETURNED_CASE_PREVIEWS)
             .map(|case| {
                 json!({
                     "id": case.request.id,
@@ -263,7 +266,9 @@ impl ProbeTool {
                 "caseCount": report.cases.len(),
                 "executionCount": report.cases.len() * 2,
                 "byteEqualCount": byte_equal,
-                "differenceCount": report.cases.len() - byte_equal,
+                "differenceCount": difference_count,
+                "returnedDifferenceCount": differences.len(),
+                "omittedDifferenceCount": difference_count.saturating_sub(differences.len()),
                 "wallDurationMs": report.wall_duration_ms,
                 "differences": differences,
                 "frontier": frontier,

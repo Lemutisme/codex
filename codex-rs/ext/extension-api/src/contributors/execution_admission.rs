@@ -13,7 +13,7 @@ pub struct ExecutionReminder {
 
 impl ExecutionReminder {
     /// Maximum UTF-8 payload accepted for one model-visible reminder.
-    pub const MAX_BYTES: usize = 4_096;
+    pub const MAX_BYTES: usize = 768;
 
     /// Creates a bounded reminder, returning `None` when its payload is too large.
     pub fn new(text: impl Into<String>, content_kind: ContentItemKind) -> Option<Self> {
