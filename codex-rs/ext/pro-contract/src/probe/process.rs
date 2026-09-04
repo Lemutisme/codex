@@ -4,6 +4,7 @@ use super::encode_hex;
 use super::model_error;
 use super::process_error;
 use codex_exec_server::ExecEnvPolicy;
+use codex_exec_server::ExecMetadata;
 use codex_exec_server::ExecOutputStream;
 use codex_exec_server::ExecParams;
 use codex_exec_server::ExecProcess;
@@ -40,6 +41,7 @@ pub(super) async fn run_program(
     cwd: &AbsolutePathBuf,
     case: &ProbeCase,
     timeout: Duration,
+    metadata: &ExecMetadata,
 ) -> Result<CaptureReport, FunctionCallError> {
     let mut argv = Vec::with_capacity(case.args.len() + 1);
     argv.push(executable.display().to_string());
@@ -52,6 +54,7 @@ pub(super) async fn run_program(
                 "pro-contract-probe-{}",
                 NEXT_PROCESS_ID.fetch_add(1, Ordering::Relaxed)
             )),
+            metadata: Some(metadata.clone()),
             argv,
             cwd: PathUri::from_abs_path(cwd),
             env_policy: Some(ExecEnvPolicy {

@@ -1,5 +1,6 @@
 use crate::Runtime;
 use crate::binding::ExecutionBinding;
+use codex_exec_server::ExecMetadata;
 use codex_exec_server::LOCAL_ENVIRONMENT_ID;
 use codex_extension_api::FunctionCallError;
 use codex_extension_api::JsonToolOutput;
@@ -108,6 +109,10 @@ impl ProbeTool {
             b"codex.procontract.probe.candidate.v1\0",
             &(candidate_name.as_str(), &hashes.1),
         )?;
+        let metadata = ExecMetadata {
+            thread_id: Some(self.runtime.thread_id.clone()),
+            tool_call_id: Some(invocation.call_id.clone()),
+        };
         let batch_started = Instant::now();
         let mut cases = Vec::with_capacity(args.cases.len());
         for case in args.cases {
@@ -130,6 +135,7 @@ impl ProbeTool {
                 &tool_environment.cwd,
                 &case,
                 timeout,
+                &metadata,
             )
             .await?;
             let remaining = Duration::from_millis(args.batch_timeout_ms)
@@ -144,6 +150,7 @@ impl ProbeTool {
                 &tool_environment.cwd,
                 &case,
                 Duration::from_millis(args.case_timeout_ms).min(remaining),
+                &metadata,
             )
             .await?;
             cases.push(CaseReport {

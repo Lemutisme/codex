@@ -215,6 +215,7 @@ async fn run_check(
                 "pro-contract-replay-{}",
                 NEXT_PROCESS_ID.fetch_add(1, Ordering::Relaxed)
             )),
+            metadata: None,
             argv: check.argv.clone(),
             cwd: PathUri::from_abs_path(&cwd),
             env_policy: Some(ExecEnvPolicy {

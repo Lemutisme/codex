@@ -21,7 +21,19 @@ use windows_sys::Win32::Storage::FileSystem as filesystem;
 
 const DRIVE_FIXED: u32 = 3;
 
-pub(super) struct OwnedHandle(pub(super) HANDLE);
+/// The service does not support this drive; the interactive helper may still work.
+#[derive(Debug)]
+pub(super) struct UnsupportedHomeDrive;
+
+impl std::fmt::Display for UnsupportedHomeDrive {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Codex home must be located on a fixed local drive")
+    }
+}
+
+impl std::error::Error for UnsupportedHomeDrive {}
+
+pub(crate) struct OwnedHandle(pub(crate) HANDLE);
 
 impl Drop for OwnedHandle {
     fn drop(&mut self) {
@@ -41,7 +53,7 @@ pub(super) fn prepare_codex_home(requested: &Path) -> Result<(PathBuf, Vec<Owned
     if unsafe { filesystem::GetDriveTypeW(to_wide(requested_root.as_os_str()).as_ptr()) }
         != DRIVE_FIXED
     {
-        bail!("Codex home must be located on a fixed local drive");
+        return Err(UnsupportedHomeDrive.into());
     }
     let parent = requested
         .parent()
@@ -61,7 +73,7 @@ pub(super) fn prepare_codex_home(requested: &Path) -> Result<(PathBuf, Vec<Owned
         .last()
         .context("find the root of the requested Codex home")?;
     if unsafe { filesystem::GetDriveTypeW(to_wide(root.as_os_str()).as_ptr()) } != DRIVE_FIXED {
-        bail!("Codex home must be located on a fixed local drive");
+        return Err(UnsupportedHomeDrive.into());
     }
     if home != requested {
         pin_existing_ancestors(&home, &mut handles)?;
@@ -126,7 +138,7 @@ pub(super) fn prepare_codex_home(requested: &Path) -> Result<(PathBuf, Vec<Owned
     Ok((home, handles))
 }
 
-pub(super) fn pin_existing_ancestors(path: &Path, handles: &mut Vec<OwnedHandle>) -> Result<()> {
+pub(crate) fn pin_existing_ancestors(path: &Path, handles: &mut Vec<OwnedHandle>) -> Result<()> {
     let mut current = PathBuf::new();
     for component in path.components() {
         current.push(component.as_os_str());

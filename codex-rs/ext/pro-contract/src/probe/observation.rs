@@ -12,6 +12,7 @@ use super::prefix;
 use super::process;
 use super::request_hash;
 use super::resolve_path;
+use codex_exec_server::ExecMetadata;
 use codex_exec_server::LOCAL_ENVIRONMENT_ID;
 use codex_extension_api::FunctionCallError;
 use codex_extension_api::JsonToolOutput;
@@ -57,6 +58,10 @@ pub(super) async fn run(
     .map_err(|error| model_error(format!("probe executable hashing failed: {error}")))?
     .map_err(model_error)?;
 
+    let metadata = ExecMetadata {
+        thread_id: Some(tool.runtime.thread_id.clone()),
+        tool_call_id: Some(invocation.call_id.clone()),
+    };
     let batch_started = Instant::now();
     let mut cases = Vec::with_capacity(args.cases.len());
     for case in args.cases {
@@ -78,6 +83,7 @@ pub(super) async fn run(
             &tool_environment.cwd,
             &case,
             Duration::from_millis(args.case_timeout_ms).min(remaining),
+            &metadata,
         )
         .await?;
         cases.push(ReferenceCaseReport {
