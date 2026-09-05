@@ -1,5 +1,6 @@
 use super::*;
 use crate::binding::ExecutionLimits;
+use crate::replay::prepare_sandbox_mount_targets;
 use crate::tool::REPORT_READY_TOOL_NAME;
 use codex_exec_server::LOCAL_ENVIRONMENT_ID;
 use codex_exec_server::LOCAL_FS;
@@ -42,6 +43,25 @@ fn shell_argv(unix: &str, windows: &str) -> Vec<String> {
     } else {
         vec!["/bin/sh".to_string(), "-c".to_string(), unix.to_string()]
     }
+}
+
+#[test]
+fn prepares_replay_sandbox_mount_targets_without_replacing_subject_directories()
+-> anyhow::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let root = directory.path().join("project");
+    std::fs::create_dir_all(root.join(".agents"))?;
+    std::fs::write(root.join(".agents/retained"), "evidence")?;
+
+    prepare_sandbox_mount_targets(&root)?;
+
+    assert!(root.join(".git").is_dir());
+    assert!(root.join(".codex").is_dir());
+    assert_eq!(
+        std::fs::read_to_string(root.join(".agents/retained"))?,
+        "evidence"
+    );
+    Ok(())
 }
 
 #[tokio::test]

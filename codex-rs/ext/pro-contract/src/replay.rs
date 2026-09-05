@@ -21,6 +21,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -128,6 +129,7 @@ impl ReplayVerifier {
         self.subjects
             .materialize(&subject.coordinate, &root)
             .map_err(|error| ReplayError::Subject(error.to_string()))?;
+        prepare_sandbox_mount_targets(&root)?;
         let root = AbsolutePathBuf::from_absolute_path_checked(&root)
             .map_err(|error| ReplayError::Path(error.to_string()))?;
         let sandbox = replay_sandbox(original_sandbox, &root)?;
@@ -191,6 +193,14 @@ impl ReplayVerifier {
             },
         })
     }
+}
+
+pub(crate) fn prepare_sandbox_mount_targets(root: &Path) -> Result<(), ReplayError> {
+    for path in [".git", ".agents", ".codex"] {
+        fs::create_dir_all(root.join(path))
+            .map_err(|error| ReplayError::Subject(error.to_string()))?;
+    }
+    Ok(())
 }
 
 async fn run_check(
