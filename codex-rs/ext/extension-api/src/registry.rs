@@ -1,19 +1,12 @@
 use std::sync::Arc;
 
-use codex_protocol::protocol::ReviewDecision;
-
-use crate::ApprovalAssessment;
 use crate::ApprovalReviewContributor;
-use crate::ApprovalReviewError;
-use crate::ApprovalReviewInput;
 use crate::ConfigContributor;
 use crate::ContextContributor;
 use crate::ExecutionAdmission;
 use crate::ExecutionAdmissionContributor;
 use crate::ExecutionPermit;
-use crate::ExtensionData;
 use crate::ExtensionEventSink;
-use crate::ExtensionMetrics;
 use crate::McpServerContributor;
 use crate::NoopExtensionEventSink;
 use crate::SamplingAdmissionInput;
@@ -28,6 +21,7 @@ use crate::ToolVisibilityInput;
 use crate::TurnInputContributor;
 use crate::TurnItemContributor;
 use crate::TurnLifecycleContributor;
+use crate::TurnStartAdmission;
 
 const MAX_EXECUTION_REMINDERS: usize = 4;
 
@@ -42,6 +36,7 @@ impl<C: Sync> Default for ExtensionRegistryBuilder<C> {
             registry: ExtensionRegistry {
                 event_sink: Arc::new(NoopExtensionEventSink),
                 execution_admission_contributors: Vec::new(),
+                turn_start_admission: None,
                 thread_lifecycle_contributors: Vec::new(),
                 turn_lifecycle_contributors: Vec::new(),
                 config_contributors: Vec::new(),
@@ -85,6 +80,11 @@ impl<C: Sync> ExtensionRegistryBuilder<C> {
         self.registry
             .execution_admission_contributors
             .push(contributor);
+    }
+
+    /// Installs the host gate for turn-input submissions that start a new turn.
+    pub fn turn_start_admission(&mut self, admission: Arc<dyn TurnStartAdmission>) {
+        self.registry.turn_start_admission = Some(admission);
     }
 
     /// Registers one approval-review contributor.
@@ -167,6 +167,7 @@ impl<C: Sync> ExtensionRegistryBuilder<C> {
 pub struct ExtensionRegistry<C: Sync> {
     event_sink: Arc<dyn ExtensionEventSink>,
     execution_admission_contributors: Vec<Arc<dyn ExecutionAdmissionContributor>>,
+    turn_start_admission: Option<Arc<dyn TurnStartAdmission>>,
     thread_lifecycle_contributors: Vec<Arc<dyn ThreadLifecycleContributor<C>>>,
     turn_lifecycle_contributors: Vec<Arc<dyn TurnLifecycleContributor>>,
     config_contributors: Vec<Arc<dyn ConfigContributor<C>>>,
@@ -182,6 +183,15 @@ pub struct ExtensionRegistry<C: Sync> {
 }
 
 impl<C: Sync> ExtensionRegistry<C> {
+    /// Acquires the host's turn-start permit, or an empty permit for ungated hosts.
+    /// A missing permit rejects the start before Core consumes pending input.
+    pub fn admit_turn_start(&self) -> Option<Box<dyn Send>> {
+        match &self.turn_start_admission {
+            Some(admission) => admission.admit_turn_start(),
+            None => Some(Box::new(())),
+        }
+    }
+
     /// Returns the host event sink retained by this registry.
     pub fn event_sink(&self) -> Arc<dyn ExtensionEventSink> {
         Arc::clone(&self.event_sink)
@@ -297,42 +307,16 @@ impl<C: Sync> ExtensionRegistry<C> {
                 .any(|contributor| contributor.requires_host_skill_discovery())
     }
 
-    /// Returns the first full approval assessment claimed by a contributor.
-    pub async fn full_approval_review(
+    /// Returns the first claimed decision in registration order.
+    pub async fn decide_approval(
         &self,
-        input: ApprovalReviewInput<'_>,
-    ) -> Option<Result<ApprovalAssessment, ApprovalReviewError>> {
+        input: &crate::ApprovalDecisionInput<'_>,
+    ) -> Option<crate::ApprovalDecision> {
         for contributor in &self.approval_review_contributors {
-            if let Some(assessment) = contributor.full_review(&input).await {
-                return Some(assessment);
-            }
-        }
-
-        None
-    }
-
-    /// Returns the first fast approval decision claimed by a contributor.
-    pub async fn fast_approval_decision(
-        &self,
-        session_store: &ExtensionData,
-        thread_store: &ExtensionData,
-        prompt: &str,
-        extension_metrics: Option<Arc<dyn ExtensionMetrics>>,
-    ) -> Option<ReviewDecision> {
-        for contributor in &self.approval_review_contributors {
-            if let Some(decision) = contributor
-                .fast_decision(
-                    session_store,
-                    thread_store,
-                    prompt,
-                    extension_metrics.clone(),
-                )
-                .await
-            {
+            if let Some(decision) = contributor.decide(input).await {
                 return Some(decision);
             }
         }
-
         None
     }
 

@@ -24,8 +24,6 @@ use codex_exec::Cli as ExecCli;
 use codex_exec::Command as ExecCommand;
 use codex_exec::ReviewArgs;
 use codex_exec_server::ExecServerRuntimePaths;
-use codex_exec_server::ExecServerTelemetry;
-use codex_exec_server::RemoteEnvironmentConfig;
 use codex_execpolicy::ExecPolicyCheckCommand;
 use codex_http_client::HttpClientFactory;
 use codex_http_client::OutboundProxyPolicy;
@@ -48,12 +46,24 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use supports_color::Stream;
 
+#[cfg(all(
+    target_os = "linux",
+    target_env = "musl",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
+#[global_allocator]
+static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
 mod cloud_config;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod desktop_app;
 mod doctor;
+#[cfg(test)]
+#[path = "exec_server_args_tests.rs"]
+mod exec_server_args_tests;
+mod exec_server_auth;
 mod exec_server_telemetry;
 mod marketplace_cmd;
 mod mcp_cmd;
@@ -156,9 +166,6 @@ enum Subcommand {
 
     /// Manage Codex plugins.
     Plugin(PluginCli),
-
-    /// Start Codex as an MCP server (stdio).
-    McpServer(McpServerCommand),
 
     /// [experimental] Run the app server or related tooling.
     AppServer(AppServerCommand),
@@ -310,13 +317,6 @@ struct ReviewCommand {
 
     #[clap(flatten)]
     args: ReviewArgs,
-}
-
-#[derive(Debug, Parser)]
-struct McpServerCommand {
-    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
-    #[arg(long = "strict-config", default_value_t = false)]
-    strict_config: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -577,6 +577,10 @@ struct AppServerCommand {
     #[arg(long = "remote-control", hide = true)]
     remote_control: bool,
 
+    /// Save loaded threads during managed daemon shutdown.
+    #[arg(long, hide = true)]
+    managed_daemon: bool,
+
     /// Controls whether analytics are enabled by default.
     ///
     /// Analytics are disabled by default for app-server. Users have to explicitly opt in
@@ -639,6 +643,17 @@ struct ExecServerCommand {
     )]
     remote: Option<String>,
 
+    /// Transport used for the remote executor connection.
+    #[arg(
+        long = "remote-transport",
+        value_enum,
+        default_value_t = ExecServerRemoteTransport::Noise,
+        requires = "exec_server_remote",
+        requires_if("direct", "aws_sigv4"),
+        global = true
+    )]
+    remote_transport: ExecServerRemoteTransport,
+
     /// Environment id to attach to when registering remotely.
     #[arg(long = "environment-id", value_name = "ID", global = true)]
     environment_id: Option<String>,
@@ -651,9 +666,42 @@ struct ExecServerCommand {
     #[arg(
         long = "use-agent-identity-auth",
         requires = "exec_server_remote",
+        conflicts_with = "aws_sigv4",
         global = true
     )]
     use_agent_identity_auth: bool,
+
+    /// Sign Direct registration and WebSocket handshake requests with AWS SigV4.
+    #[arg(long = "aws-sigv4", requires = "exec_server_remote", global = true)]
+    aws_sigv4: bool,
+
+    /// AWS profile used for SigV4 authentication.
+    #[arg(
+        long = "aws-profile",
+        value_name = "PROFILE",
+        requires = "aws_sigv4",
+        global = true
+    )]
+    aws_profile: Option<String>,
+
+    /// AWS signing region. Uses the SDK region chain when omitted.
+    #[arg(
+        long = "aws-region",
+        value_name = "REGION",
+        requires = "aws_sigv4",
+        global = true
+    )]
+    aws_region: Option<String>,
+
+    /// AWS signing service.
+    #[arg(
+        long = "aws-service",
+        value_name = "SERVICE",
+        default_value = "execute-api",
+        requires = "aws_sigv4",
+        global = true
+    )]
+    aws_service: String,
 
     /// Exit when the parent-owned standard-input pipe closes.
     #[arg(
@@ -663,6 +711,37 @@ struct ExecServerCommand {
         global = true
     )]
     exit_on_stdin_close: bool,
+}
+
+impl ExecServerCommand {
+    fn validate_remote_transport(&self) -> anyhow::Result<()> {
+        match (self.remote_transport, self.aws_sigv4) {
+            (ExecServerRemoteTransport::Noise, true) => {
+                anyhow::bail!("--aws-sigv4 requires --remote-transport direct");
+            }
+            (ExecServerRemoteTransport::Direct, false) => {
+                anyhow::bail!("--remote-transport direct requires --aws-sigv4");
+            }
+            (ExecServerRemoteTransport::Noise, false)
+            | (ExecServerRemoteTransport::Direct, true) => {}
+        }
+        if self.remote_transport == ExecServerRemoteTransport::Direct
+            && matches!(
+                self.command.as_ref(),
+                Some(ExecServerSubcommand::Forward { .. })
+            )
+        {
+            anyhow::bail!("direct exec-server transport does not support forwarding");
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+enum ExecServerRemoteTransport {
+    #[default]
+    Noise,
+    Direct,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -711,6 +790,9 @@ enum AppServerDaemonSubcommand {
 
     /// Restart the local app server daemon.
     Restart,
+
+    /// Update the standalone installation and restart the managed daemon (may interrupt work).
+    Update,
 
     /// Enable remote control for future starts and a currently running managed daemon.
     EnableRemoteControl,
@@ -1185,22 +1267,6 @@ async fn cli_main(
             );
             codex_exec::run_main(exec_cli, arg0_paths.clone()).await?;
         }
-        Some(Subcommand::McpServer(McpServerCommand { strict_config })) => {
-            eprintln!(
-                "warning: `codex mcp-server` is deprecated and will be removed in a future release."
-            );
-            reject_remote_mode_for_subcommand(
-                root_remote.as_deref(),
-                root_remote_auth_token_env.as_deref(),
-                "mcp-server",
-            )?;
-            codex_mcp_server::run_main(
-                arg0_paths.clone(),
-                root_config_overrides,
-                strict_config || root_strict_config,
-            )
-            .await?;
-        }
         Some(Subcommand::Mcp(mut mcp_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1257,6 +1323,7 @@ async fn cli_main(
                 listen,
                 stdio,
                 remote_control,
+                managed_daemon,
                 analytics_default_enabled,
                 auth,
             } = app_server_cli;
@@ -1277,6 +1344,7 @@ async fn cli_main(
                     let auth = auth.try_into_settings()?;
                     let runtime_options = codex_app_server::AppServerRuntimeOptions {
                         code_mode_host_transport: code_mode_host.into(),
+                        managed_daemon,
                         remote_control_startup_mode: match (remote_control, remote_control_disabled)
                         {
                             (true, _) => {
@@ -1291,7 +1359,7 @@ async fn cli_main(
                         },
                         ..Default::default()
                     };
-                    codex_app_server::run_main_with_transport_options(
+                    let exit = codex_app_server::run_main_with_transport_options(
                         arg0_paths.clone(),
                         root_config_overrides,
                         LoaderOverrides::default(),
@@ -1303,6 +1371,10 @@ async fn cli_main(
                         runtime_options,
                     )
                     .await?;
+                    if exit == codex_app_server::AppServerExit::Forced {
+                        // Runtime teardown can wait forever for blocked rollout I/O.
+                        std::process::exit(0);
+                    }
                 }
                 Some(AppServerSubcommand::Daemon(daemon_cli)) => match daemon_cli.subcommand {
                     AppServerDaemonSubcommand::Start => {
@@ -1318,6 +1390,10 @@ async fn cli_main(
                     }
                     AppServerDaemonSubcommand::Restart => {
                         print_app_server_daemon_output(AppServerLifecycleCommand::Restart).await?;
+                    }
+                    AppServerDaemonSubcommand::Update => {
+                        let output = codex_app_server_daemon::update().await?;
+                        println!("{}", serde_json::to_string(&output)?);
                     }
                     AppServerDaemonSubcommand::EnableRemoteControl => {
                         print_app_server_remote_control_output(AppServerRemoteControlMode::Enabled)
@@ -1863,6 +1939,7 @@ async fn run_exec_server_command(
     root_config_overrides: &CliConfigOverrides,
     strict_config: bool,
 ) -> anyhow::Result<()> {
+    cmd.validate_remote_transport()?;
     let codex_self_exe = arg0_paths
         .codex_self_exe
         .clone()
@@ -1880,14 +1957,75 @@ async fn run_exec_server_command(
             /*enable_workload_identity*/ true,
         )
         .await?;
+        let direct_transport = cmd.remote_transport == ExecServerRemoteTransport::Direct;
         let (_otel, telemetry) = exec_server_telemetry::init(Some(&config));
-        run_remote_exec_server(
-            cmd,
+        let auth_provider = if cmd.aws_sigv4 {
+            exec_server_auth::aws_sigv4_auth_provider(codex_aws_auth::AwsAuthConfig {
+                profile: cmd.aws_profile,
+                region: cmd.aws_region,
+                service: cmd.aws_service,
+            })
+            .await?
+        } else {
+            load_exec_server_remote_auth_provider(&config, &base_url, cmd.use_agent_identity_auth)
+                .await?
+        };
+        let mut remote_config = codex_exec_server::RemoteEnvironmentConfig::new_with_transport(
             base_url,
             environment_id,
-            &config,
-            runtime_paths,
-            telemetry,
+            if direct_transport {
+                codex_exec_server::RemoteEnvironmentTransport::Direct
+            } else {
+                codex_exec_server::RemoteEnvironmentTransport::Noise
+            },
+            auth_provider,
+            config.http_client_factory(),
+        )?;
+        if let Some(name) = cmd.name {
+            remote_config.name = name;
+        }
+        remote_config.request_dispatch_mode = cmd.request_dispatch_mode;
+        let remote_config = remote_config.with_telemetry(telemetry);
+        let parent_lifetime = if cmd.exit_on_stdin_close {
+            exec_server_telemetry::ParentLifetime::StdinPipe
+        } else {
+            exec_server_telemetry::ParentLifetime::Independent
+        };
+        let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
+        #[cfg(target_os = "macos")]
+        let runtime_paths = runtime_paths.with_allowed_symlinked_codex_home(
+            codex_config::allowed_symlinked_codex_home(
+                &config.config_layer_stack,
+                &config.codex_home,
+            ),
+        );
+        exec_server_telemetry::run_until_shutdown(
+            async move {
+                let shutdown = async move {
+                    let _ = shutdown_receiver.await;
+                };
+                match cmd.command {
+                    Some(ExecServerSubcommand::Forward { connect }) => {
+                        codex_exec_server::run_remote_environment_forward_until_shutdown(
+                            remote_config,
+                            connect,
+                            shutdown,
+                        )
+                        .await
+                    }
+                    None => {
+                        codex_exec_server::run_remote_environment_until_shutdown(
+                            remote_config,
+                            runtime_paths,
+                            shutdown,
+                        )
+                        .await
+                    }
+                }
+                .map_err(anyhow::Error::new)
+            },
+            parent_lifetime,
+            exec_server_telemetry::ShutdownBehavior::Graceful(shutdown_sender),
         )
         .await
     } else {
@@ -1903,6 +2041,14 @@ async fn run_exec_server_command(
             config_result.ok()
         };
         let (_otel, telemetry) = exec_server_telemetry::init(config.as_ref());
+        #[cfg(target_os = "macos")]
+        let runtime_paths =
+            runtime_paths.with_allowed_symlinked_codex_home(config.as_ref().and_then(|config| {
+                codex_config::allowed_symlinked_codex_home(
+                    &config.config_layer_stack,
+                    &config.codex_home,
+                )
+            }));
         let http_client_factory = config
             .as_ref()
             .map(Config::http_client_factory)
@@ -1923,66 +2069,6 @@ async fn run_exec_server_command(
         );
         run.await.map_err(anyhow::Error::from_boxed)
     }
-}
-
-async fn run_remote_exec_server(
-    cmd: ExecServerCommand,
-    base_url: String,
-    environment_id: String,
-    config: &Config,
-    runtime_paths: ExecServerRuntimePaths,
-    telemetry: ExecServerTelemetry,
-) -> anyhow::Result<()> {
-    let auth_provider =
-        load_exec_server_remote_auth_provider(config, &base_url, cmd.use_agent_identity_auth)
-            .await?;
-    let mut remote_config = RemoteEnvironmentConfig::new(
-        base_url,
-        environment_id,
-        auth_provider,
-        config.http_client_factory(),
-    )?;
-    if let Some(name) = cmd.name {
-        remote_config.name = name;
-    }
-    remote_config.request_dispatch_mode = cmd.request_dispatch_mode;
-    let remote_config = remote_config.with_telemetry(telemetry);
-    let parent_lifetime = if cmd.exit_on_stdin_close {
-        exec_server_telemetry::ParentLifetime::StdinPipe
-    } else {
-        exec_server_telemetry::ParentLifetime::Independent
-    };
-    let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel();
-    let shutdown = async move {
-        let _ = shutdown_receiver.await;
-    };
-    let run = async move {
-        match cmd.command {
-            Some(ExecServerSubcommand::Forward { connect }) => {
-                codex_exec_server::run_remote_environment_forward_until_shutdown(
-                    remote_config,
-                    connect,
-                    shutdown,
-                )
-                .await
-            }
-            None => {
-                codex_exec_server::run_remote_environment_until_shutdown(
-                    remote_config,
-                    runtime_paths,
-                    shutdown,
-                )
-                .await
-            }
-        }
-    };
-    exec_server_telemetry::run_until_shutdown(
-        run,
-        parent_lifetime,
-        exec_server_telemetry::ShutdownBehavior::Graceful(shutdown_sender),
-    )
-    .await?;
-    Ok(())
 }
 
 async fn load_exec_server_remote_auth_provider(
@@ -2417,6 +2503,11 @@ fn reject_unsupported_worktree_for_subcommand(
     }
 
     match subcommand {
+        None => Ok(()),
+        Some(Subcommand::Fork(command)) if command.session_id.is_some() && !command.last => Ok(()),
+        Some(Subcommand::Fork(_)) => {
+            anyhow::bail!("`codex fork --worktree` requires an explicit session ID")
+        }
         Some(Subcommand::Exec(command)) => match &command.command {
             None | Some(ExecCommand::Fork(_)) => Ok(()),
             Some(ExecCommand::Resume(_)) => anyhow::bail!(
@@ -2427,7 +2518,9 @@ fn reject_unsupported_worktree_for_subcommand(
             }
         },
         _ => {
-            anyhow::bail!("`--worktree` currently supports only `codex exec` and `codex exec fork`")
+            anyhow::bail!(
+                "`--worktree` supports new interactive sessions, `codex fork`, `codex exec`, and `codex exec fork`"
+            )
         }
     }
 }
@@ -2468,7 +2561,6 @@ fn unsupported_subcommand_name_for_strict_config(
         | Some(Subcommand::Agents(_))
         | Some(Subcommand::Exec(_))
         | Some(Subcommand::Review(_))
-        | Some(Subcommand::McpServer(_))
         | Some(Subcommand::ExecServer(_))
         | Some(Subcommand::Resume(_))
         | Some(Subcommand::Queue(_))
@@ -2541,6 +2633,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
             AppServerDaemonSubcommand::Bootstrap(_) => "app-server daemon bootstrap",
             AppServerDaemonSubcommand::Start => "app-server daemon start",
             AppServerDaemonSubcommand::Restart => "app-server daemon restart",
+            AppServerDaemonSubcommand::Update => "app-server daemon update",
             AppServerDaemonSubcommand::EnableRemoteControl => {
                 "app-server daemon enable-remote-control"
             }
@@ -3249,10 +3342,18 @@ mod tests {
     }
 
     #[test]
-    fn exec_worktree_flag_supports_root_local_and_nested_fork_positions() {
+    fn worktree_flag_supports_interactive_exec_and_explicit_fork_positions() {
         let arguments = [
+            vec!["codex", "--worktree"],
+            vec!["codex", "--worktree", "hello"],
             vec!["codex", "--worktree", "exec", "hello"],
             vec!["codex", "exec", "--worktree", "hello"],
+            vec![
+                "codex",
+                "fork",
+                "--worktree",
+                "019f1234-5678-7000-8000-000000000001",
+            ],
             vec![
                 "codex",
                 "exec",
@@ -3270,7 +3371,7 @@ mod tests {
                     &cli.subcommand,
                 )
                 .is_ok(),
-                "headless worktree command should be accepted: {arguments:?}",
+                "supported worktree command should be accepted: {arguments:?}",
             );
         }
     }
@@ -3278,8 +3379,9 @@ mod tests {
     #[test]
     fn worktree_flag_rejects_unsupported_session_and_management_commands() {
         let arguments = [
-            vec!["codex", "--worktree"],
             vec!["codex", "--worktree", "login"],
+            vec!["codex", "fork", "--worktree"],
+            vec!["codex", "fork", "--worktree", "--last"],
             vec!["codex", "exec", "resume", "--worktree", "session"],
             vec!["codex", "exec", "review", "--worktree"],
             vec!["codex", "resume", "--worktree", "session"],
@@ -3295,17 +3397,17 @@ mod tests {
             ],
         ];
 
+        let mut errors = Vec::new();
         for arguments in arguments {
             let cli = MultitoolCli::try_parse_from(&arguments).expect("parse shared worktree flag");
-            assert!(
-                reject_unsupported_worktree_for_subcommand(
-                    cli.interactive.shared.worktree,
-                    &cli.subcommand,
-                )
-                .is_err(),
-                "unsupported command must be rejected: {arguments:?}",
-            );
+            let error = reject_unsupported_worktree_for_subcommand(
+                cli.interactive.shared.worktree,
+                &cli.subcommand,
+            )
+            .expect_err("unsupported worktree command");
+            errors.push(format!("{}: {error}", arguments.join(" ")));
         }
+        insta::assert_snapshot!("unsupported_worktree_commands", errors.join("\n"));
     }
 
     #[test]
@@ -4315,15 +4417,6 @@ mod tests {
     fn strict_config_parses_for_supported_commands() {
         let cli = MultitoolCli::try_parse_from(["codex", "--strict-config"]).expect("parse");
         assert!(cli.interactive.strict_config);
-
-        let cli = MultitoolCli::try_parse_from(["codex", "mcp-server", "--strict-config"])
-            .expect("parse");
-        assert_matches!(
-            cli.subcommand,
-            Some(Subcommand::McpServer(McpServerCommand {
-                strict_config: true,
-            }))
-        );
 
         let cli =
             MultitoolCli::try_parse_from(["codex", "review", "--strict-config", "--uncommitted"])

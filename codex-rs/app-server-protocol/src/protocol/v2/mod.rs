@@ -19,6 +19,7 @@ mod fs;
 mod hook;
 mod item;
 mod mcp;
+mod memory;
 mod model;
 mod notification;
 mod permissions;
@@ -34,6 +35,7 @@ mod thread;
 mod thread_data;
 mod thread_usage;
 mod turn;
+mod user_verification;
 mod windows_sandbox;
 
 pub use account::*;
@@ -55,6 +57,7 @@ pub use fs::*;
 pub use hook::*;
 pub use item::*;
 pub use mcp::*;
+pub use memory::*;
 pub use model::*;
 pub use notification::*;
 pub use permissions::*;
@@ -71,6 +74,7 @@ pub use thread::*;
 pub use thread_data::*;
 pub use thread_usage::*;
 pub use turn::*;
+pub use user_verification::*;
 pub use windows_sandbox::*;
 
 #[cfg(test)]

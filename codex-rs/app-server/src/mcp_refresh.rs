@@ -342,6 +342,7 @@ enabled = false
                         queue_service: None,
                         pro_contract_controller:
                             codex_pro_contract_extension::ProContractController::new(),
+                        turn_start_admission: None,
                     },
                 ),
                 Arc::new(CodexHomeUserInstructionsProvider::new(

@@ -359,6 +359,7 @@ fn reference_context_item() -> TurnContextItem {
     TurnContextItem {
         turn_id: Some("reference-turn".to_string()),
         root_turn_id: None,
+        disabled_plugin_ids: None,
         cwd: AbsolutePathBuf::try_from(
             std::env::current_dir()
                 .expect("current directory")
@@ -659,7 +660,7 @@ fn annotated_history_apis_preserve_envelopes() {
 #[test_case(Some(100), 85, 100, true; "saved limit has no additional allowance")]
 #[test_case(Some(30_000), 20_000, 30_000, false; "large explicit budget")]
 fn record_annotated_items_preserves_metadata_while_processing_item(
-    fallback_token_limit_override: Option<usize>,
+    history_truncation_token_limit: Option<usize>,
     repeat_count: usize,
     expected_token_limit: usize,
     expected_truncation: bool,
@@ -677,7 +678,7 @@ fn record_annotated_items_preserves_metadata_while_processing_item(
             internal_chat_message_metadata_passthrough: None,
         },
         metadata: Some(CodexHarnessMetadata {
-            fallback_token_limit_override,
+            history_truncation_token_limit,
             ..Default::default()
         }),
     };
@@ -1252,8 +1253,8 @@ fn drop_last_n_user_turns_preserves_prefix() {
     );
     // With no remaining instruction boundary, rollback must not revoke facts from a
     // prior checkpoint merely because their source messages are no longer visible.
-    history.record_retained_context(&codex_history::RetainedContextEvent::VerifiedAnswer(
-        codex_history::VerifiedAnswer {
+    history.record_retained_context(&codex_history::RetainedContextEvent::VerifiedAnswer {
+        answer: codex_history::VerifiedAnswer {
             turn_id: "checkpoint-turn".to_owned(),
             call_id: "ask-1".to_owned(),
             questions: vec![codex_history::VerifiedQuestionAnswer {
@@ -1261,10 +1262,63 @@ fn drop_last_n_user_turns_preserves_prefix() {
                 answer: "Only privately.".to_owned(),
             }],
         },
-    ));
+        acceptance_order: None,
+    });
     let retained = history.retained_context().clone();
     history.drop_last_n_user_turns(/*num_turns*/ 1);
     assert_eq!(history.retained_context(), &retained);
+
+    // A steered message shares its source turn, but rollback must keep the earlier
+    // instruction and answer as complete evidence, including after the next compaction.
+    let mut history = ContextManager::with_guardian_context_mode(
+        GuardianContextMode::ThreadOwned,
+        &codex_protocol::protocol::SessionSource::Exec,
+    );
+    let mut expected = None;
+    for (id, text) in [
+        ("restriction", "Never publish publicly."),
+        ("steer", "Check the tests too."),
+    ] {
+        let message = ResponseItem::Message {
+            id: Some(ResponseItemId::with_suffix("msg", id)),
+            role: "user".to_owned(),
+            content: vec![ContentItem::InputText {
+                text: text.to_owned(),
+            }],
+            phase: None,
+            internal_chat_message_metadata_passthrough: Some(
+                InternalChatMessageMetadataPassthrough {
+                    turn_id: Some("shared-turn".to_owned()),
+                    content_item_kinds: Some(vec![ContentItemKind("user.text".to_owned())]),
+                    ..Default::default()
+                },
+            ),
+        };
+        history.record_items([&message], TruncationPolicy::Tokens(10_000));
+        if id == "restriction" {
+            history.record_retained_context(&codex_history::RetainedContextEvent::VerifiedAnswer {
+                answer: codex_history::VerifiedAnswer {
+                    turn_id: "shared-turn".to_owned(),
+                    call_id: "ask".to_owned(),
+                    questions: vec![codex_history::VerifiedQuestionAnswer {
+                        question: "Publish?".to_owned(),
+                        answer: "Only privately.".to_owned(),
+                    }],
+                },
+                acceptance_order: None,
+            });
+            expected = Some(history.retained_context().clone());
+        }
+    }
+    history.drop_last_n_user_turns(/*num_turns*/ 1);
+    history.replace_compacted(Vec::new());
+    let retained = history.retained_context();
+    assert!(retained.user_messages_complete());
+    assert!(retained.verified_answers_complete());
+    let mut expected = serde_json::to_value(expected.expect("pre-steer evidence")).unwrap();
+    // Rollback removes evidence, but does not reuse its arrival-order sequence numbers.
+    expected["next_order"] = serde_json::json!(3);
+    assert_eq!(serde_json::to_value(retained).unwrap(), expected);
 }
 
 #[test]
