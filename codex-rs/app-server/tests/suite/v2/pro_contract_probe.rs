@@ -153,10 +153,6 @@ async fn native_probe_batch_preserves_observations_before_candidate_checks() -> 
     .await?;
 
     let requests = response_mock.requests();
-    assert!(!requests[2].body_contains_text("Host action telemetry:"));
-    assert!(requests[3].body_contains_text(
-        "exact `contract_probe_batch` request occurrence 2 in this semantic attempt"
-    ));
     let observation = requests[1].function_call_output("probe-observation-call");
     let observation: serde_json::Value = serde_json::from_str(
         observation["output"]

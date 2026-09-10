@@ -233,8 +233,7 @@ async fn runtime(
         .await?;
     let ledger = Ledger::initialize(pool.clone()).await?;
     let bindings = BindingStore::initialize(pool.clone(), "owner").await?;
-    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool.clone()).await?;
-    let action_telemetry = action_telemetry::ActionTelemetryStore::initialize(pool).await?;
+    let probe_frontiers = probe::ProbeFrontierStore::initialize(pool).await?;
     let spec = ContractSpec {
         trigger: Trigger::Immediate,
         goal: "deliver".to_string(),
@@ -306,7 +305,6 @@ async fn runtime(
         environment_manager: Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         replay_reports: directory.path().join("replay"),
         probe_frontiers,
-        action_telemetry,
         executor_config: None,
         environments: Vec::new(),
         executor_spawner: None,
@@ -319,7 +317,6 @@ async fn runtime(
         policy_projected: Arc::new(AtomicBool::new(false)),
         recovery_started: Arc::new(AtomicBool::new(false)),
         settlement_reminder_projected: Arc::new(AtomicBool::new(false)),
-        action_reminder_projected: Arc::new(AtomicU64::new(0)),
         proposal_mode: ProContractProposalMode::HostApprovedModelTool,
         authority: vec!["filesystem.read".to_string()],
     }))

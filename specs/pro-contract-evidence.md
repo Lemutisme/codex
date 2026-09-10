@@ -407,9 +407,13 @@ preserved a 111-case differential summary, yet treatment fixed three control
 failures and introduced 38. The control's later work closed option conflicts,
 malformed-regex handling, formatted bounds, and empty-record cases.
 
-The checkpoint was therefore removed. Exact repeated/long action telemetry
-remains because it reports direct cost without claiming which semantic work is
-valuable. The stronger result is:
+The checkpoint was therefore removed. Exact repeated/long action reminders were
+initially retained as direct cost reports. A subsequent simplification removed
+their dedicated store and lifecycle hooks: these experiments did not establish
+a benefit from the reminders, and their storage failures could deny otherwise
+authorized actions after consuming budget. The execution binding still enforces
+turn, action, and deadline limits; native probes still retain observation and
+cost evidence. The stronger result is:
 
 ~~~text
 mechanical action novelty != semantic progress
