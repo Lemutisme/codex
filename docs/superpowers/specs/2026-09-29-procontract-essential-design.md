@@ -2,7 +2,9 @@
 
 - Date: 2026-09-29
 - Status: DRAFT for Principal review
-- Base: upstream `openai/codex` `c248f6d48` (branch `procontract-essential`)
+- Base: upstream `openai/codex` `26dd19ef4` (branch `procontract-essential`). Design-relevant source was re-checked
+  against `c248f6d48`; the 24 later upstream commits only add tracing to turn input and turn phases and make config
+  refresh compare-and-swap (`ConfigRefreshOutcome::Stale`), which is a precedent for the admission permit of §3.3.
 - Authority: the user is the Principal of this design. Sections 1–6 below were approved section by section in
   conversation; this document is the written form of that agreement and is itself subject to review.
 - Co-review: Claude drafted; gpt-6-astra (reasoning effort max) reviewed each section adversarially against upstream
