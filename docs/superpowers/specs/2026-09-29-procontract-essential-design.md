@@ -251,9 +251,11 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
   executor's writable roots. Custody checks cover all of it.
 - **Custody is store-wide.** If Codex observes a custody break for the store — any session sharing this
   `CODEX_HOME` running under `danger-full-access`, or an approved escalation granting write access to
-  `CODEX_HOME/pro_contract/` — every certificate issued before the break is quarantined: none can support implicit
-  discharge until re-verified. Quarantine is recorded in the ledger and enforced by the controller, not by a flag
-  inside the possibly tampered store alone. Tampering by a same-user process outside Codex remains a non-goal (§1.2).
+  `CODEX_HOME/pro_contract/` — every certificate issued before the break is quarantined: a quarantined certificate
+  supports **neither explicit nor implicit** discharge until trustworthy re-verification produces a new certificate
+  (anything else would recreate the evidence override of §4.3). Quarantine must survive restarts, so its authority
+  cannot live only in controller memory or only in the possibly tampered store; where it is anchored is a slice-0
+  custody finding (§12). Tampering by a same-user process outside Codex remains a non-goal (§1.2).
 - Check processes and review workers run with **restricted read** as well as write: the live workspace, the ledger,
   credentials, rollouts and unrelated host paths are denied. Upstream's default read-only policy grants root read
   (`protocol/src/permissions.rs`), so an explicit restricted profile with `FileSystemAccessMode::Deny` entries is
@@ -323,8 +325,9 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
   `.cargo/config.toml`, profile and feature settings, `build.rs`, and `cfg` gates can redirect or disable evaluation
   without touching a protected byte or a case id. Lane 1 therefore also validates that the candidate's effective
   evaluator configuration — the resolved set of test targets, harness flags, enabled features and relevant build
-  settings — equals the base's for every frozen target. A difference makes lane 1 `cannot_judge` for that target
-  unless a frozen applicability rule covers it. The certificate records exactly which base evaluator files ran against
+  settings — equals the base's for every frozen target. The comparator is conservative: unknown or uninspectable
+  configuration is never "equal" (this is not a general Rust semantic-equivalence project). A difference makes lane 1
+  `cannot_judge` for that target unless a frozen applicability rule covers it. The certificate records exactly which base evaluator files ran against
   which candidate production inputs under which effective configuration.
 - **Limited mechanical coverage is disclosed.** Inline evaluator code that is not separable from production code
   (Rust `#[cfg(test)]` modules in `src/`) cannot be frozen this way. Its changes are mandatory review findings, and the
@@ -369,7 +372,8 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
   version, and records the idempotency key.
 - Evidence artifacts are published (content-addressed, fsynced) **before** a transaction references them; orphan
   artifacts after an aborted transaction are tolerated and collected later. Recovery validates every referenced
-  artifact and never reconstructs quiet by dropping damaged records.
+  artifact and never reconstructs quiet by dropping damaged records. Intentional erasure (§6.6) is recorded as an
+  explicit `erased` event per artifact, so recovery distinguishes it from corruption.
 - Durable jobs carry leases and fences; on restart the controller reconciles already-started work (for example, a
   repair turn that was submitted but not acknowledged) with thread history before retrying, and preserves spent
   budgets.
@@ -402,10 +406,11 @@ Activation conditions gate **issuance** only. They never gate processing of huma
   - *Dispatch* happens when the act is delivered to the model: the start of a turn, or the consumption of a steer.
     Execution binding and, for turn starts, intake capture (§6.2) refer to the same act id.
 - **Queue semantics.** Enqueueing is not admission. A queued item is admitted when it is dispatched, with the content
-  it is dispatched with. Editing or reordering a queued item before dispatch is a new gesture: the TUI re-freezes
-  receipts for the edited content. Upstream preserves `client_id` across queue edits (`ext/queue/src/service.rs`), so
-  `client_id` is never used as act identity. No act is processed twice, and a receipt never attaches to text it was not
-  frozen with.
+  it is dispatched with. A committed content edit or resubmission of a queued item is a new gesture: the TUI
+  re-freezes receipts for the edited content. Merely reordering an unchanged item preserves its original receipt set;
+  it never mints receipts for support presented after the item was submitted. Upstream preserves `client_id` across
+  queue edits (`ext/queue/src/service.rs`), so `client_id` is never used as act identity. No act is processed twice,
+  and a receipt never attaches to text it was not frozen with.
 - Receipts are frozen by the TUI at the **human submit gesture** and bound to: connection origin and owner, thread,
   contract id, the immutable support id actually rendered, the displayed assurance class, and the client message id.
   Queued input that predates a presentation carries no receipt for it.
@@ -452,7 +457,8 @@ Activation conditions gate **issuance** only. They never gate processing of huma
    extension audit metadata, not kernel state. A turn is bound to contract C only when it was dispatched by the intake
    act that issued C, or by a human act the intent stage related to C (§6.1 work authorization). The relation is
    resolved before any candidate from that turn is promoted; an unresolved relation leaves the turn unbound. An
-   automatic repair turn inherits its episode's binding. Only a bound turn produces a candidate; an unrelated later turn
+   automatic repair turn belongs to its episode and gets a new binding carrying the repair's own turn id (it does not
+   copy the previous turn's binding). Only a bound turn produces a candidate; an unrelated later turn
    never proposes for an older contract. A **work episode** opens at Issue and at every work-authorizing human act. Its
    automatic-repair allowance (default 1) is per episode and is never reset by `Propose`, by a repair, or by a restart.
 5. **Terminal record and candidate.** At turn stop the extension copies a terminal record from the turn store before
@@ -527,9 +533,10 @@ launching repair. A SQLite transaction is never held across an awaited core subm
 - **Delete.** Plain thread deletion (`thread/delete`) is not settlement consent and releases nothing. Outstanding
   contracts of a deleted thread become **tombstones**: their normative skeleton (ids, standing, hashes, versions,
   decisions) is retained as outstanding, while human content (verbatim intake, diffs, review text, check output) is
-  deleted under the same privacy rule as the thread. Releasing them requires an explicit, authenticated
-  release-and-delete operation that names the exact contracts and versions (future surface). Nothing is ever
-  reconstructed as quiet from missing records.
+  deleted under the same privacy rule as the thread and recorded as erased (§5.6). Owners discover tombstones through
+  `thread/contract/list` with `filter: tombstoned` (no live thread required) and release them through
+  `thread/contract/decide` `release`, naming the exact contract and version. Nothing is ever reconstructed as quiet
+  from missing records.
 
 ## 7. Surfaces
 
@@ -542,7 +549,7 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
   `{threadId, eventSeq, subject}` where `subject` is either
   `{type: "intake", intakeId, state: drafting | abstained{reason} | issued{contractId}}` (drafting is intake state; it
   never appears as an outstanding contract) or
-  `{type: "contract", contractId, version, standing, workflow, assurance, summary}`.
+  `{type: "contract", contractId, version, standing, verification, hold, assurance, summary}`.
   Two independent dimensions: `verification` ∈ `none | checking | supported | didNotPass | notVerified{reason}` and
   `hold` ∈ `none | waiting{blocker}`; `standing` covers `discharged` and `released`. `assurance` carries the evidence
   class and `frozenOracle: full | partial | none` (§5.3). `summary` is a terse, bounded string. Requirements and
@@ -553,8 +560,9 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
 - **Reconciliation.** Every contract has a `version`; every event has a thread-monotonic `eventSeq`. Clients subscribe,
   then snapshot with a watermark, suppress duplicates, and recover gaps through `list`/`history`. Notifications are not
   the database.
-- **`thread/contract/list`** `{threadId, filter: unsettled | all, cursor, limit}` → current views + `nextCursor` +
-  watermark.
+- **`thread/contract/list`** `{threadId?, filter: unsettled | all | tombstoned, cursor, limit}` → current views +
+  `nextCursor` + watermark. `threadId` is required except with `tombstoned`, which lists the authenticated owner's
+  tombstones from deleted threads (§6.6).
 - **`thread/contract/history`** `{threadId, contractId?, cursor, limit}` → paged presentation records (assessments and
   decisions, each with a stable event id and a turn anchor), used to restore verdict cards on resume.
 - **`thread/contract/read`** `{threadId, contractId, evidenceCursor, limit}` → requirements and redacted evidence
@@ -717,8 +725,11 @@ adoption gates are preserved.
 1. The exact shape and name of the generic internal worker source in `codex-protocol`.
 2. The core shape of the human-input observation hook (admission at start, steer and queued dispatch), its input
    sequence and attestation carrier, and the conditional continuation admission (§3.3 items 3–4).
-3. How the controller's eligibility predicate observes goal activation synchronously inside the admission critical
-   section (the goal extension exposes `GoalService`/`GoalRuntimeHandle`; extensions do not see each other's events).
+3. The synchronization protocol that linearizes automation admission against external eligibility writers (goal
+   activation, permission and environment changes). A synchronous predicate evaluated under core's admission lock only
+   reads state; it does not serialize those writers. Slice 0 must establish a shared linearization point, not merely
+   show that the predicate can read goal state (the goal extension exposes `GoalService`/`GoalRuntimeHandle`;
+   extensions do not see each other's events).
 4. Restricted-read sandbox support per platform (Linux, macOS seatbelt, Windows); a platform without it abstains.
 5. The source of the stable owner identity (account versus local user).
 6. The privacy and retention rule for tombstoned human content (§6.6) and for exportable evidence (§9).
@@ -730,16 +741,19 @@ The spec is larger than one implementation plan. Risk is retired first, then the
 each with its own plan, its own integration tests, and a green tree:
 
 0. **Feasibility spikes (throwaway code, findings recorded):** the owner identity source; a prototype of the
-   admission boundary (human-input observation, input sequence, conditional continuation); actual restricted-read
-   custody on each supported platform; one offline Cargo fixture through archive import and both evaluation lanes.
-   Findings may send parts of this spec back for revision.
+   admission boundary (human-input observation, input sequence, conditional continuation) with concrete results for
+   revocation races and the linearization protocol of §11 item 3; actual restricted-read custody on each supported
+   platform, including where restart-safe quarantine authority is anchored and how custody loss is recovered; one
+   offline Cargo fixture with real registry dependencies through archive import, the conservative configuration
+   comparator and both evaluation lanes. Findings may send parts of this spec back for revision.
 1. **Kernel** — `codex-pro-contract`: state, coordinate, commands, typed rejections, reference-model property tests,
    guard mutation tests, dependency whitelist.
 2. **Walking skeleton (vertical)** — only the host changes the happy path needs, ledger and capture, the Cargo adapter
-   and review worker, the automation lane happy path, a minimal notification and TUI card, and the §1.3 end-to-end
-   test through the real in-process app-server.
+   and review worker, the automation lane happy path, a minimal notification and TUI card, and an end-to-end test
+   through the real in-process app-server that ends at **supported** (request → intake → draft → Issue → edits →
+   candidate → check fails → repair → pass → supported). No institutional test bypass stands in for settlement.
 3. **Human control lane** — admission and dispatch, receipts, the intent stage, implicit discharge, `decide`, with the
-   real TUI event-loop test (§8.4).
+   real TUI event-loop test (§8.4); this slice completes the §1.3 scenario through human settlement.
 4. **Evidence hardening** — frozen-evaluator lane and machinery validation, store-wide custody quarantine,
    classification at Issue, execution restrictions, with their adversarial tests.
 5. **Fencing and recovery** — every revocation source in the admission permit, work episodes, holds, crash and restart
@@ -761,3 +775,4 @@ Stored outside the repository in `~/scratch/procontract-essential/` (Codex sessi
 | 3 | Two-lane controller | `astra-round3-s4-20260929.md`, `astra-review-round3-20260929.md` |
 | 4 | Surfaces, tests, cross-section consistency | `astra-round4-s5-s6-20260929.md`, `astra-review-round4-20260929.md` |
 | 5 | Whole written spec: 6 blocking, 5 should, 1 nit — all accepted | `astra-round5-spec-20260929.md`, `astra-review-round5-20260929.md` |
+| 6 | Confirmation: 5 resolved, 1 partial (left to slice 0); 1 new blocking, 3 should, 1 nit — all accepted; verdict "ready for planning from slice 0" | `astra-round6-confirm-20260929.md`, `astra-review-round6-20260929.md` |
