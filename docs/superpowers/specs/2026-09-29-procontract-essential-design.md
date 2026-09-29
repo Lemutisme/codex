@@ -27,8 +27,8 @@ responsibility.**
 1. **Invisible activation.** No `/contract` ritual. The host decides when work warrants a contract.
 2. **Settlement integrity.** The executor can never certify its own completion. Only the human discharges.
 3. **Honest assurance.** Every status shown to the user states exactly what was checked and how.
-4. **Minimal footprint.** Zero new executor tools; at most one bounded brief and one bounded residual in the executor's
-   context; no contract logic in core.
+4. **Minimal footprint.** Zero new executor tools; in the executor's context, at most one bounded brief per terms
+   revision and one bounded residual per automatic repair; no contract logic in core.
 5. **Record for later RSI.** Every policy, prompt, model, attempt, abstention and human act is versioned and recorded,
    without building any policy-succession machinery now.
 
@@ -42,7 +42,8 @@ responsibility.**
 
 ### 1.3 Success criteria
 
-1. Kernel axioms are machine-checked: reference-model property tests and per-guard mutation tests pass.
+1. Kernel axioms are mechanically tested (tests, not proofs): reference-model property tests and per-guard mutation
+   tests pass.
 2. One end-to-end test through the real app-server with a mocked Responses server and a simulated trusted TUI
    connection covers: request → intake → draft → Issue → edits → candidate → check fails → repair → pass → supported →
    next human message with receipt → discharged.
@@ -94,12 +95,15 @@ a 3.10 target failed).
 
 ### 3.1 Authority map
 
-| Role | Held by | Kernel verbs |
+| Role | Held by (provenance) | Kernel verbs |
 |---|---|---|
-| Issuer | The human owner; the automatic Principal as delegate under the standing grant "feature enabled on a trusted interactive connection" | Issue; Revise only with a human-origin receipt |
+| Issuer | The human owner, or the automatic Principal as delegate under the standing grant "feature enabled on a trusted interactive connection" | Issue (human or delegate provenance); Revise (human provenance required) |
 | Executor | The main-thread model | Propose (implicit: a successful, bound turn end) |
 | Verifier | The automatic Principal's verification workers | Support, Defeat |
 | Settler | The human only | Discharge, Challenge, Release |
+
+Roles are what the kernel binds (A1: one role per command kind). *Human* and *delegate* are provenance attributes
+carried by the authenticated command, not additional roles.
 
 **Implicit settlement rule.** An implicit act may discharge only a contract that currently holds support at the exact
 coordinate that was presented to the human. It can never release a contract, override a defeat, or substitute for
@@ -126,8 +130,12 @@ missing support.
    human input — turn start, steer, and queued dispatch — before it is recorded, with a server-assigned monotonic input
    sequence (steering does not create a new turn id) and a non-model-visible, per-input metadata carrier for client
    attestations. `TurnInputContributor` alone is insufficient: it runs once per turn and does not see steered input.
-4. **Continuation admission fence.** `continue_turn_if_idle` additionally rejects when the input sequence has advanced
-   past an expected value, making repair admission atomic with respect to newly arrived human input.
+4. **Conditional continuation admission.** One admission permit covers every revocation source, validated atomically
+   with the reservation inside core's admission critical section: the expected previous turn id, the expected input
+   sequence (taken from the authorized work binding, never re-read at submission time), and a synchronous eligibility
+   predicate supplied by the caller (for example "not Plan mode, no active goal, not interrupted since binding").
+   Today `continue_turn_if_idle` checks only the active turn and `last_started_turn_id`, and it explicitly permits Plan
+   mode (`core/src/session/turn_input.rs`, `core/src/codex_thread.rs`), so it cannot enforce these on its own.
 5. **Trusted interactive origin.** Contract presentation is honored only for host-trusted connection origins (the
    in-process `codex-tui`), following the existing user-verification precedent in
    `app-server/src/request_processors/initialize_processor.rs`.
@@ -161,7 +169,7 @@ Contract {
   terms_hash, capture_policy_hash, evidence_policy_hash,   // bound at Issue / Revise
   standing: Outstanding | Discharged | Released,
   generation: u64,                 // monotonic fence; never reset
-  candidate: Option<{ generation, subject_hash, binding_digest }>,
+  candidate: Option<{ generation, subject_hash }>,    // work-binding details are extension audit metadata
   support:   Option<{ certificate_digest, coordinate }>,   // immutable once set
   settlement: Option<{ attestation_digest, coordinate }>,
   version: u64,                    // incremented by every accepted command
@@ -191,18 +199,23 @@ The first seven fields must equal the contract's stored bindings and current can
 
 | Command | Role | Accepted when | Effect | Counterexample if removed |
 |---|---|---|---|---|
-| Issue | Human or Delegate | id unused | Outstanding, revision 1 | — |
+| Issue | Issuer (human or delegate provenance) | id unused | Outstanding, revision 1 | — |
 | Propose | Executor | Outstanding | generation+1; candidate set; support cleared | settled subject never handed off |
-| Support | Verifier | Outstanding; candidate present; no support; coordinate matches bindings and candidate; identical retry is a no-op | support set | — |
-| Defeat | Verifier | (Outstanding with candidate at the stated generation) or (Discharged whose settlement coordinate matches) | Outstanding; support, candidate and settlement cleared; generation+1 | stale support crossing a defeat; a defeated discharge left standing |
-| Challenge | Human | Outstanding with candidate, or Discharged | same as Defeat | wrong settlement cannot restore responsibility |
-| Discharge | Human | Outstanding; support present and equal to the receipt's coordinate | Discharged; settlement recorded | self-certification; settling unseen or stale support |
-| Release | Human | Outstanding | Released | duty silently erased |
-| Revise | Human-origin Issuer | Outstanding | revision+1; new policy bindings; candidate and support cleared; generation+1 | terms silently weakened |
+| Support | Verifier | Outstanding; candidate present; no support; the coordinate's first seven fields equal the stored bindings and the current candidate | support set | — |
+| Defeat | Verifier | target = the exact current candidate `(generation, subject_hash)` of an Outstanding contract, or the exact settlement coordinate of a Discharged contract | Outstanding; support, candidate and settlement cleared; generation+1 | stale support crossing a defeat; a defeated discharge left standing |
+| Challenge | Settler | same exact-target rule as Defeat | same as Defeat | wrong settlement cannot restore responsibility |
+| Discharge | Settler | Outstanding; support present and equal to the receipt's coordinate | Discharged; settlement recorded | self-certification; settling unseen or stale support |
+| Release | Settler | Outstanding | Released | duty silently erased |
+| Revise | Issuer (human provenance required) | Outstanding | revision+1; new policy bindings; candidate and support cleared; generation+1 | terms silently weakened |
 
-Global guards: expected `version` must match; `Released` is terminal (every command rejected); `Discharged` accepts
-only `Defeat` and `Challenge`; a support certificate underlying a discharge can never be replaced. Every rejection is a
-variant of a typed `Rejection` enum tagged with the axiom (A1–A4) or `WellFormed` it protects.
+Global guards: expected `version` must match, and every accepted command increments it; `Released` is terminal (every
+command rejected); `Discharged` accepts only `Defeat` and `Challenge`; a support certificate underlying a discharge can
+never be replaced. Every rejection is a variant of a typed `Rejection` enum tagged with the axiom (A1–A4) or
+`WellFormed` it protects.
+
+**Retries never reach the reducer.** The ledger performs a durable idempotency lookup before running the reducer and
+its compare-and-swap: an identical retry returns the originally committed result without a new transition; the same
+key with a different payload rejects.
 
 ### 4.4 Not in the kernel
 
@@ -233,9 +246,14 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 - Certification is available only when the executor runs under a Codex-managed sandbox (read-only or workspace-write)
   in a local environment. Under `danger-full-access` (`SandboxEnforcement::Disabled`) or an external sandbox, no
   contract is issued: a same-user executor could forge the ledger, and an "unprotected" label cannot protect itself.
-- An approved escalation that grants write access to verifier state voids certification for that contract.
-- All verifier state (ledger, subject store, evidence store, materialized copies, caches) lives under
-  `CODEX_HOME/pro_contract/`, outside the executor's writable roots.
+- **One layout.** All verifier state — the SQLite ledger with its WAL and SHM files, the blob store, evidence
+  artifacts, materialized copies and worker directories — lives under `CODEX_HOME/pro_contract/`, outside every
+  executor's writable roots. Custody checks cover all of it.
+- **Custody is store-wide.** If Codex observes a custody break for the store — any session sharing this
+  `CODEX_HOME` running under `danger-full-access`, or an approved escalation granting write access to
+  `CODEX_HOME/pro_contract/` — every certificate issued before the break is quarantined: none can support implicit
+  discharge until re-verified. Quarantine is recorded in the ledger and enforced by the controller, not by a flag
+  inside the possibly tampered store alone. Tampering by a same-user process outside Codex remains a non-goal (§1.2).
 - Check processes and review workers run with **restricted read** as well as write: the live workspace, the ledger,
   credentials, rollouts and unrelated host paths are denied. Upstream's default read-only policy grants root read
   (`protocol/src/permissions.rs`), so an explicit restricted profile with `FileSystemAccessMode::Deny` entries is
@@ -257,19 +275,34 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 - **Rehash every capture.** A stat cache is only a hint for storage deduplication, never proof of unchanged content.
 - **Limits:** per-file size cap and total size/time caps are part of the capture policy. Exceeding a cap or any capture
   error means no subject; an intake that exceeds its time cap abstains and is logged.
-- **Consistency:** after hashing, a second metadata pass detects concurrent modification (background processes can
-  outlive a turn); detected change means the capture is retried once, then abstains.
+- **What the subject is.** Support is a statement about the constructed immutable artifact, not about a point-in-time
+  view of the live workspace; upstream offers no stable filesystem view. The relation to the delivered workspace is
+  established by a verification pass after construction (re-hash of every included entry) and is claimed only as of
+  that pass. A mismatch, including detected torn reads from background writers, means the capture is retried once, then
+  abstains. Same-metadata changes that complete between the two passes are not claimed to be detected.
 
 ### 5.3 Checks (v1: one Cargo adapter)
 
-- **Selection.** The drafter selects checks from the Cargo adapter's candidates at Issue; the selection, argv,
-  timeouts and applicability rules are frozen in the evidence policy. The evidence class (`checks_and_review` or
-  `review_only`) is frozen too: adapter failure at runtime cannot downgrade a class.
+- **Classification at Issue.** The Cargo adapter classifies the base before the evidence policy is frozen. A project
+  it cannot verify mechanically — git dependencies (the Codex workspace itself has them), out-of-workspace path
+  dependencies, missing registry archives, or check commands that the user's execution policy forbids or would
+  require approval for — is classified at Issue, and under breadth B the contract is issued `review_only` where the
+  claim permits. A class frozen as `checks_and_review` is never downgraded at runtime; adapter failure after Issue is
+  `cannot_judge`.
+- **Selection.** The drafter selects checks from the adapter's candidates; the selection, argv, timeouts and
+  applicability rules are frozen in the evidence policy.
+- **Execution restrictions.** Checks honor the user's and the repository's execution restrictions (execpolicy rules).
+  Running inside a sandbox is not approval — the raw exec helper ignores approval-related fields
+  (`core/src/exec.rs`) — so a check never runs a command the thread's policy would forbid or escalate, and checks never
+  request escalation.
 - **Execution.** Every check runs on a fresh materialization of the subject from the store, with a fresh target
-  directory, `cargo test --locked --offline`, network off, an environment allowlist and restricted read. Dependencies
-  come from a verifier-private `CARGO_HOME` seeded from the user's registry cache; Cargo verifies each crate against the
-  `Cargo.lock` checksum. Git or out-of-workspace path dependencies are `cannot_judge` in v1. No cross-attempt build
-  cache.
+  directory, `cargo test --locked --offline`, network off, an environment allowlist and restricted read. No
+  cross-attempt build cache.
+- **Dependency import.** Dependencies are imported as archives: each `.crate` archive from the user's registry cache
+  is copied into the verifier store and its SHA-256 is checked against the `Cargo.lock` checksum; expanded sources and
+  registry metadata are never taken from the user's directories. Imported archives are immutable shared inputs; each
+  attempt gets its own writable `CARGO_HOME` state built from them. A missing archive is `cannot_judge`, never a
+  fallback to ambient directories.
 - **Frozen evaluator coverage.** After Issue, the adapter enumerates test case identities on the base copy
   (`-- --list`) under already-frozen selection rules; enumeration never chooses criteria after seeing candidate
   results. At verification the candidate must contain every base case (unless the frozen applicability rule, decided
@@ -284,9 +317,19 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
      evidence.
   Applicability of lane 1 is decided at Issue: if the requested change legitimately alters a frozen evaluator file,
   the drafter must mark it inapplicable under a rule frozen before any candidate exists, or the change requires a
-  human-origin Revise. Inline evaluator code that is not separable from production code (Rust `#[cfg(test)]` modules
-  in `src/`) cannot be frozen this way; changes to it are mandatory review findings and the certificate states that
-  lane 1 did not cover them.
+  human-origin Revise.
+- **Evaluator-selection machinery.** Frozen test files alone do not freeze an evaluator: `Cargo.toml` target
+  declarations (`[[test]]`, `[[bench]]`, `test = false`, `harness = false`, `required-features`), dev-dependencies,
+  `.cargo/config.toml`, profile and feature settings, `build.rs`, and `cfg` gates can redirect or disable evaluation
+  without touching a protected byte or a case id. Lane 1 therefore also validates that the candidate's effective
+  evaluator configuration — the resolved set of test targets, harness flags, enabled features and relevant build
+  settings — equals the base's for every frozen target. A difference makes lane 1 `cannot_judge` for that target
+  unless a frozen applicability rule covers it. The certificate records exactly which base evaluator files ran against
+  which candidate production inputs under which effective configuration.
+- **Limited mechanical coverage is disclosed.** Inline evaluator code that is not separable from production code
+  (Rust `#[cfg(test)]` modules in `src/`) cannot be frozen this way. Its changes are mandatory review findings, and the
+  assurance carries `frozenOracle: full | partial | none`. `partial` and `none` are shown to the human; they are
+  limited mechanical coverage, not immutable-oracle verification.
 - **Aggregation.** A single run per check. Timeout or infrastructure failure is `cannot_judge`. At most one
   infrastructure retry if the frozen policy allows it; every attempt is recorded and disclosed in the certificate, and
   attempt records survive restarts, so crashes cannot turn into retry-until-green.
@@ -318,7 +361,8 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 
 ### 5.6 Ledger and durability
 
-- `CODEX_HOME/pro_contract_1.sqlite`, extension-owned (the `ext/agent-message-board` pattern, `BEGIN IMMEDIATE`):
+- `CODEX_HOME/pro_contract/ledger_1.sqlite` (with its WAL and SHM files), extension-owned (the
+  `ext/agent-message-board` pattern, `BEGIN IMMEDIATE`):
   events (canonical JSON, versioned canonical hashing, hash chain), contract projection, durable jobs, attempts, human
   inputs.
 - One transaction per accepted command writes the event, the projection and any job transitions, checks the expected
@@ -351,17 +395,31 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 
 ### 6.1 Human control lane
 
-- Every human input — `turn/start`, `turn/steer`, or a queued item — receives a server-ordered input sequence number and
-  is persisted before any processing.
+- **Two moments per human act.**
+  - *Admission* happens at ingress — `turn/start`, `turn/steer`, and the dispatch of a queued item. The host assigns
+    a server-ordered input sequence number and an immutable act id; the act (content digest and receipts) is
+    persisted and automation fences advance before any processing.
+  - *Dispatch* happens when the act is delivered to the model: the start of a turn, or the consumption of a steer.
+    Execution binding and, for turn starts, intake capture (§6.2) refer to the same act id.
+- **Queue semantics.** Enqueueing is not admission. A queued item is admitted when it is dispatched, with the content
+  it is dispatched with. Editing or reordering a queued item before dispatch is a new gesture: the TUI re-freezes
+  receipts for the edited content. Upstream preserves `client_id` across queue edits (`ext/queue/src/service.rs`), so
+  `client_id` is never used as act identity. No act is processed twice, and a receipt never attaches to text it was not
+  frozen with.
 - Receipts are frozen by the TUI at the **human submit gesture** and bound to: connection origin and owner, thread,
   contract id, the immutable support id actually rendered, the displayed assurance class, and the client message id.
   Queued input that predates a presentation carries no receipt for it.
-- Explicit TUI decisions (`accept`, `reopen`, `release`) map directly to kernel commands; no model is involved.
+- Explicit TUI decisions (`accept`, `reopen`, `release`) map directly to kernel commands; no model is involved, and they
+  remain available during model outages and after any budget is exhausted.
 - Natural-language inputs pass through a **tool-free human-intent stage** that sees only the authenticated input, its
   receipts, and bounded records of the contracts it may refer to (including discharged ones when referenced). It never
-  reads repository content. It proposes relations — `accept`, `dispute(quote)`, `revise(requirements')`, `neutral`,
-  `ambiguous` — which the host validates (quotes must occur in the actual input; quoted logs or hypotheticals are not
-  challenges) before issuing kernel commands.
+  reads repository content. It proposes relations — `accept`, `dispute(quote)`, `revise(requirements')`,
+  `continue` (an answer to a question or a request to keep going), `neutral`, `ambiguous` — which the host validates
+  (quotes must occur in the actual input; quoted logs or hypotheticals are not challenges) before issuing kernel
+  commands.
+- **The intent stage is bounded, not immortal.** At most two attempts within a deadline and a token cap. On failure the
+  act gets a durable `unresolved` outcome: nothing is discharged or challenged on its behalf, the act stays recorded in
+  order, and explicit decisions remain available.
 - Precedence: dispute and revision outrank acceptance; mixed or ambiguous input discharges nothing; one topic change
   never accepts a backlog; an earlier unresolved human act on the same contract blocks implicit acceptance.
 - Implicit discharge requires: a receipt for the contract's current support and displayed assurance class, no earlier
@@ -370,14 +428,18 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 - Human acts are processed strictly in input order; a later input may add work but never erases an earlier act.
 - A dispute about a contract that has no candidate (the executor is still working) is not a kernel challenge — there
   is nothing to defeat; it is ordinary steering of the executor.
-- Challenge restores responsibility; it does not by itself authorize immediate unsolicited repair.
+- **Work authorization.** A human act that dispatches a turn and that the intent stage relates to contract C as
+  `dispute`, `revise` or `continue` binds that turn to C and opens a new work episode (§6.2 step 4). An explicit
+  `reopen` decision restores responsibility but starts no work by itself; work resumes with the next human act related
+  to C. Challenge restores responsibility; it never authorizes unsolicited repair on its own.
 
 ### 6.2 Automation lane
 
-1. **Intake (synchronous, in `TurnInputContributor`).** Only for inputs carrying human `UserInput`. A deterministic
-   rule prefilter runs first (no model). If it passes: freeze ignore sources and tracked membership, capture the base
-   snapshot within its time cap, and persist the intake record (verbatim input, base subject, capture policy, input
-   sequence). Intake contributes **no** fragments to the executor's context.
+1. **Intake (synchronous, in `TurnInputContributor`, at the dispatch of a turn-start act).** Steered acts never start
+   new issuance in v1; they are handled by the human control lane only. A deterministic rule prefilter runs first (no
+   model). If it passes: freeze ignore sources and tracked membership, capture the base snapshot within its time cap,
+   and persist the intake record keyed by the act id (verbatim input, base subject, capture policy, input sequence).
+   Intake contributes **no** fragments to the executor's context.
 2. **Draft (asynchronous, one hidden worker call).** Inputs: the frozen intake, bounded human-approved context needed to
    resolve references ("do option two"), and read-only access to a pristine base materialization. Never the executor's
    live work. Output (strict JSON): `none` or `new_contract{requirements[], evidence_class, checks, applicability rules,
@@ -386,26 +448,36 @@ Activation conditions gate **issuance** only. They never gate processing of huma
    tokens: numbered requirements and evidence class; no budgets, no countdown — at its next sampling step; unchanged
    terms render nothing new. If the executor's turn ended before Issue, the same terminal-status and binding checks run
    against the ended turn.
-4. **Work binding.** Automation work is bound to `(contract, revision, input sequence, turn id, host epoch)`. Only a
-   turn bound to the contract can produce its candidate; an unrelated later turn never proposes for an older contract.
-5. **Terminal record and candidate.** At turn stop the extension copies a terminal record from the turn store (turn id,
-   input sequence, final message id, structured question signals) before the store is dropped. On idle with cause
-   `Completed` and a bound, eligible contract, capture the candidate and `Propose`. "Turn ended" is not a successful
-   handoff; `Interrupted` and `Failed` produce no candidate.
+4. **Work binding and episodes.** A binding `(contract, revision, act id, input sequence, turn id, host epoch)` is
+   extension audit metadata, not kernel state. A turn is bound to contract C only when it was dispatched by the intake
+   act that issued C, or by a human act the intent stage related to C (§6.1 work authorization). The relation is
+   resolved before any candidate from that turn is promoted; an unresolved relation leaves the turn unbound. An
+   automatic repair turn inherits its episode's binding. Only a bound turn produces a candidate; an unrelated later turn
+   never proposes for an older contract. A **work episode** opens at Issue and at every work-authorizing human act. Its
+   automatic-repair allowance (default 1) is per episode and is never reset by `Propose`, by a repair, or by a restart.
+5. **Terminal record and candidate.** At turn stop the extension copies a terminal record from the turn store before
+   the store is dropped: turn id, act id, input sequence, final message id, structured question signals, and the
+   **actual turn outcome** (`completed`, `aborted(reason)` or `error`). The idle cause alone is insufficient: upstream
+   reports `Completed` for every abort reason other than `Interrupted` and `BudgetLimited` (`core/src/tasks/mod.rs`).
+   On idle, a bound, eligible contract whose terminal record says `completed` captures the candidate and proposes it.
+   Every other outcome produces no candidate; "turn ended" is not a successful handoff.
    **Questions never block evidence; they block automatic repair.** Upstream cannot tell a required clarification from
    an optional follow-up: native async questions (`request_user_input` messages carrying `questions`, phase
    `FinalAnswer`, delivery `Async`) return immediately and carry no "required" flag. So a candidate is verified even
-   when the executor asked something, but while any question from the bound turn is unanswered, or the final prose is
-   judged uncertain by a deterministic rule, no automatic repair is submitted. The verdict is shown next to the
-   question and the human's reply is processed by the human control lane.
+   when the executor asked something. While any question from the bound turn is unanswered, or the final prose is
+   judged uncertain by a deterministic rule, a **hold** is recorded and no automatic repair is submitted. Questions do
+   not bypass missing permissions or unresolved requirements. A hold ends at the next human act on the thread, at an
+   explicit dismissal in `/contract`, or at a Revise or reopen; a heuristic never creates a hold that only the heuristic
+   can clear. The verification outcome and the hold are independent dimensions (§7.1): "did not pass" and "waiting on
+   you" can both be true. The human's reply is processed by the human control lane.
 6. **Verify.** §5 pipeline → `Support`, `Defeat`, or `cannot_judge` (no kernel command; the contract stays outstanding
    with a stated reason).
-7. **Repair.** After `Defeat`, if the repair budget remains (default 1) and scheduling eligibility holds, reserve a
-   durable repair id and submit through atomic admission: `continue_turn_if_idle` with the candidate's turn as
-   `expected_previous_turn_id` and the current input sequence as the expected sequence (§3.3 item 4). The body is an
-   `InternalModelContextFragment` with source `pro_contract`, capped at 512 tokens before construction, containing only
-   the residual of unmet frozen requirements. When the budget is exhausted, the contract is shown as "did not pass
-   verification" with the residual.
+7. **Repair.** After `Defeat`, if the episode's repair allowance remains, no hold is active, and eligibility holds,
+   reserve a durable repair id and submit through conditional continuation admission (§3.3 item 4): the candidate's
+   turn id as the expected previous turn, the **episode binding's** input sequence as the expected sequence, and the
+   controller's eligibility predicate. The body is an `InternalModelContextFragment` with source `pro_contract`, capped
+   at 512 tokens before construction, containing only the residual of unmet frozen requirements. When the allowance is
+   exhausted, the contract is shown as "did not pass" with the residual.
 
 ### 6.3 Fencing and ordering
 
@@ -413,7 +485,7 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 |---|---|
 | A complaint followed quickly by another message | The complaint is never discarded as stale; human acts are processed in order before automation effects are promoted. |
 | New human input during verification | Automatic effects are fenced at ingress. Pending human relations are applied before any verification result is promoted. |
-| Repair races input, interrupt, Plan mode, or goal activation | Epoch validation and submission go through the single atomic admission step; there is no check-then-submit window. |
+| Repair races input, interrupt, Plan mode, goal activation, or a permission/environment change | One admission permit (§3.3 item 4) covers every revocation source and is validated atomically with the reservation; the expected input sequence comes from the work binding, so intervening input can never be blessed. There is no check-then-submit window. |
 | Restart after repair submission | Reconcile the durable repair id with thread history before retrying; spent budgets persist. |
 | Revise during a check | Stale results are rejected by revision, generation and version; they are archived as history and never rebound. |
 
@@ -423,11 +495,16 @@ launching repair. A SQLite transaction is never held across an awaited core subm
 
 ### 6.4 Budgets and accounting
 
-- Default one repair per candidate cycle; per-contract cumulative automation budget (tokens and wall time) covering
-  drafting, enumeration, checks, review, retries and repairs, each attributed separately.
-- Safety ceilings (not latency targets): drafting 60 s, review 300 s, per-check timeouts from the frozen policy.
-- Isolated workers do not inherit the parent's extension registry, so their token usage is accounted explicitly
-  (via an explicit isolated extension set or the worker's own usage events).
+- One automatic repair per work episode by default (§6.2 step 4); a per-contract cumulative automation budget (tokens
+  and wall time) covering the intent stage, drafting, enumeration, checks, review, retries and repairs, each
+  attributed separately.
+- Safety ceilings (not latency targets): intent stage two attempts within 30 s, drafting 60 s, review 300 s, per-check
+  timeouts from the frozen policy.
+- Every worker input has a hard token cap. Any single model-visible or worker-facing item that can exceed 1K tokens is
+  flagged for the repository's additional P0 review (`AGENTS.md`, "Model visible context").
+- Isolated workers do not inherit the parent's extension registry, so their token usage is accounted explicitly. Use
+  `IsolatedSessionExtensions` with a minimal allowlisted registry (accounting only), never the parent registry under a
+  new wrapper.
 - Metrics from day one: intake latency, issuance rate, abstention reasons, cost per contract, defeat and `cannot_judge`
   rates, human disputes after support, releases, reopen-after-discharge.
 
@@ -447,8 +524,12 @@ launching repair. A SQLite transaction is never held across an awaited core subm
 - **Revert** (`thread/revert` rewinds history, not files). Ledger records are unaffected; nothing is released; a
   candidate bound to a reverted turn remains historical.
 - **Archive.** No effect on contracts.
-- **Delete.** Deleting a thread is an explicit human act: its outstanding contracts are released with reason
-  `thread_deleted`, recorded in the ledger. Nothing is ever reconstructed as quiet from missing records.
+- **Delete.** Plain thread deletion (`thread/delete`) is not settlement consent and releases nothing. Outstanding
+  contracts of a deleted thread become **tombstones**: their normative skeleton (ids, standing, hashes, versions,
+  decisions) is retained as outstanding, while human content (verbatim intake, diffs, review text, check output) is
+  deleted under the same privacy rule as the thread. Releasing them requires an explicit, authenticated
+  release-and-delete operation that names the exact contracts and versions (future surface). Nothing is ever
+  reconstructed as quiet from missing records.
 
 ## 7. Surfaces
 
@@ -462,8 +543,10 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
   `{type: "intake", intakeId, state: drafting | abstained{reason} | issued{contractId}}` (drafting is intake state; it
   never appears as an outstanding contract) or
   `{type: "contract", contractId, version, standing, workflow, assurance, summary}`.
-  `workflow` ∈ `working | checking | supported | notVerified{reason} | didNotPass | waiting{blocker} | discharged |
-  released`; `summary` is a terse, bounded string. Requirements and evidence are fetched on demand. Notifications never
+  Two independent dimensions: `verification` ∈ `none | checking | supported | didNotPass | notVerified{reason}` and
+  `hold` ∈ `none | waiting{blocker}`; `standing` covers `discharged` and `released`. `assurance` carries the evidence
+  class and `frozenOracle: full | partial | none` (§5.3). `summary` is a terse, bounded string. Requirements and
+  evidence are fetched on demand. Notifications never
   carry verifier prompts, reasoning, full logs, environment inventories or private paths.
 - **Delivery** is authorized, thread-scoped and filtered to connections that declared the capability. The goal sink's
   fallback broadcast (`app-server/src/extensions.rs`) is not copied.
@@ -493,7 +576,9 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
 
 - **Indicator.** Plain words, no jargon: "Checking…", "Checks passed · review supported", "Review supported · not
   executed", "Not verified: <reason>", "Did not pass: <residual summary>", "Waiting on you: <blocker>". Collaboration-mode
-  indicators take precedence; otherwise the contract indicator is shown (goal and contract never coexist, §6.5).
+  indicators take precedence. A goal and an outstanding contract can coexist (§6.5 suspends automation, not the
+  obligation); the goal indicator takes precedence and the contract indicator shows "paused for goal". When mechanical
+  coverage is limited, the indicator says so ("tests partly editable").
 - **Cards.** One card per substantive verdict or settlement event (supported, did not pass, not verified, accepted,
   reopened, released) — not per workflow step. Each card is anchored to its answer's turn; a delayed card names the
   earlier answer it concerns. Codex's owned transcript supports replacement (`tui/src/transcript_view/mutations.rs`),
@@ -536,7 +621,12 @@ and benefit.
   submodule exclusion, caps, same-metadata content edits, concurrent modification during capture.
 - Store and manifest encoding; artifact publication ordering.
 - Check runner: fresh copies, restricted read and write, network off, zero-case failure, coverage, frozen-lane overlay,
-  same-id weakened-assertion attack, timeout and infrastructure failure → `cannot_judge`, persisted attempts.
+  evaluator-selection machinery changes (`Cargo.toml` target flags, `.cargo/config.toml`, features, `build.rs`) →
+  lane 1 `cannot_judge`; timeout and infrastructure failure → `cannot_judge`; persisted attempts; archive import with
+  checksum mismatch; classification of git-dependency projects as `review_only` at Issue.
+- Weakened-assertion attacks, split by what must catch them: in a **separable** evaluator file the attack must fail
+  mechanically (lane 1); in an **inline** `#[cfg(test)]` module detection depends on semantic review, and the
+  certificate must report `frozenOracle: partial`.
 - Ledger: atomicity, expected version, idempotency (duplicate and conflicting payloads), crash between artifact
   publication and commit, recovery.
 - Human lane ordering and precedence; automation lane binding and fencing.
@@ -550,8 +640,13 @@ and benefit.
   inputs; the correct frozen base; a bounded repair residual.
 - Scenarios:
   - the happy path of §1.3;
-  - a question-only turn → no contract; a required clarification and an optional follow-up both verify, and neither
-    triggers automatic repair while unanswered;
+  - a question-only turn → no contract; a required clarification and an optional follow-up both verify, neither
+    triggers automatic repair while unanswered, and the view reports both dimensions (e.g. `didNotPass` and
+    `waiting`) at once;
+  - two successive failed candidates within one work episode → exactly one automatic repair; a `continue` from the
+    human opens a new episode with a fresh allowance;
+  - a turn aborted for a reason other than interrupt (reported as `Completed` idle) → no candidate;
+  - a steered input → no new issuance; a queued item edited after a presentation → its old receipt is not used;
   - "thanks, but broken" → challenge; a complaint followed immediately by an unrelated task → the complaint is
     processed first;
   - steering during repair admission; interrupt; switch to Plan mode; goal activation;
@@ -576,7 +671,10 @@ and benefit.
 1. The adversarial suite: forged capability; queued pre-presentation input; "thanks, but broken"; complaint then
    unrelated task; late Issue after abort; optional async question; steering during repair admission; crash after
    repair submission; forged cache success; dependency mutation after hashing; a test rewriting the review copy;
-   zero-test success; same-id weakened assertion; same-metadata source edits; verifier defeat after human discharge;
+   zero-test success; same-id weakened assertion in a separable file (must fail mechanically) and in an inline module
+   (review-dependent, reported as partial coverage); evaluator redirection through `Cargo.toml` or
+   `.cargo/config.toml`; same-metadata source edits; verifier defeat after human discharge; plain thread deletion
+   (must not release);
    Python-3.12-versus-3.10-style environment mismatch.
 2. A frozen mixed triage corpus (questions, edits, Plan-mode, trivial changes) with preregistered issuance, latency and
    cost ceilings and an eligible-task coverage floor; every intake and abstention is in the denominators.
@@ -617,29 +715,38 @@ adoption gates are preserved.
 ## 11. Open questions for planning
 
 1. The exact shape and name of the generic internal worker source in `codex-protocol`.
-2. The core shape of the human-input observation hook (start, steer, queued dispatch), its input sequence and
-   attestation carrier, and the matching `continue_turn_if_idle` fence.
-3. Restricted-read sandbox support per platform (Linux, macOS seatbelt, Windows); a platform without it abstains.
-4. The source of the stable owner identity (account versus local user).
-5. Default worker models and efforts, and the concrete ceilings to preregister for §8.5.
+2. The core shape of the human-input observation hook (admission at start, steer and queued dispatch), its input
+   sequence and attestation carrier, and the conditional continuation admission (§3.3 items 3–4).
+3. How the controller's eligibility predicate observes goal activation synchronously inside the admission critical
+   section (the goal extension exposes `GoalService`/`GoalRuntimeHandle`; extensions do not see each other's events).
+4. Restricted-read sandbox support per platform (Linux, macOS seatbelt, Windows); a platform without it abstains.
+5. The source of the stable owner identity (account versus local user).
+6. The privacy and retention rule for tombstoned human content (§6.6) and for exportable evidence (§9).
+7. Default worker models and efforts, and the concrete ceilings to preregister for §8.5.
 
 ## 12. Delivery order
 
-The spec is larger than one implementation plan. It is delivered as ordered slices, each with its own plan and each
-leaving the tree green:
+The spec is larger than one implementation plan. Risk is retired first, then the feature is grown as vertical slices,
+each with its own plan, its own integration tests, and a green tree:
 
+0. **Feasibility spikes (throwaway code, findings recorded):** the owner identity source; a prototype of the
+   admission boundary (human-input observation, input sequence, conditional continuation); actual restricted-read
+   custody on each supported platform; one offline Cargo fixture through archive import and both evaluation lanes.
+   Findings may send parts of this spec back for revision.
 1. **Kernel** — `codex-pro-contract`: state, coordinate, commands, typed rejections, reference-model property tests,
    guard mutation tests, dependency whitelist.
-2. **Generic host changes** — §3.3 items 1–5, each independently useful and free of contract vocabulary.
-3. **Extension foundation** — ledger, durability protocol, SHA-256 subject store and capture, custody checks.
-4. **Evidence** — the restricted sandbox profile, the Cargo adapter with both evaluation lanes, the review worker,
-   certificates.
-5. **Controller** — human control lane, automation lane (intake, draft, Issue, binding, candidate, verify, repair),
-   fencing, budgets, thread lifecycle.
-6. **Protocol and app-server** — §7.1.
-7. **TUI** — §7.2 and §7.3.
-8. **End-to-end and adversarial tests** — §8.3, §8.4 and the adversarial suite of §8.5 item 1.
-9. **Controlled evaluation** — §8.5 items 2–4, planned and preregistered separately.
+2. **Walking skeleton (vertical)** — only the host changes the happy path needs, ledger and capture, the Cargo adapter
+   and review worker, the automation lane happy path, a minimal notification and TUI card, and the §1.3 end-to-end
+   test through the real in-process app-server.
+3. **Human control lane** — admission and dispatch, receipts, the intent stage, implicit discharge, `decide`, with the
+   real TUI event-loop test (§8.4).
+4. **Evidence hardening** — frozen-evaluator lane and machinery validation, store-wide custody quarantine,
+   classification at Issue, execution restrictions, with their adversarial tests.
+5. **Fencing and recovery** — every revocation source in the admission permit, work episodes, holds, crash and restart
+   reconciliation, with the corresponding integration tests.
+6. **Surfaces completeness** — `list`/`history`/`read`, reconnection, the `/contract` inspector, snapshots.
+7. **Expanded adversarial coverage** — the full suite of §8.5 item 1 beyond what earlier slices already added.
+8. **Controlled evaluation** — §8.5 items 2–4, planned and preregistered separately.
 
 ## Appendix A. Review record
 
@@ -653,3 +760,4 @@ Stored outside the repository in `~/scratch/procontract-essential/` (Codex sessi
 | 2 | Kernel fixes, evidence custody | `astra-round2-s2-s3-20260929.md`, `astra-review-round2-20260929.md` |
 | 3 | Two-lane controller | `astra-round3-s4-20260929.md`, `astra-review-round3-20260929.md` |
 | 4 | Surfaces, tests, cross-section consistency | `astra-round4-s5-s6-20260929.md`, `astra-review-round4-20260929.md` |
+| 5 | Whole written spec: 6 blocking, 5 should, 1 nit — all accepted | `astra-round5-spec-20260929.md`, `astra-review-round5-20260929.md` |
