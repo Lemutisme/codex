@@ -24,20 +24,21 @@ fn policy() -> CapturePolicy {
     }
 }
 
-fn write(root: &Path, path: &str, bytes: &[u8]) {
+fn write(root: &Path, path: &str, bytes: &[u8]) -> std::io::Result<()> {
     let path = root.join(path);
-    std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
-    std::fs::write(path, bytes).expect("write");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, bytes)
 }
 
-fn paths(root: &Path, store: &BlobStore) -> Vec<String> {
-    capture(root, &policy(), store)
-        .expect("capture")
+fn paths(root: &Path, store: &BlobStore) -> Result<Vec<String>, CaptureError> {
+    Ok(capture(root, &policy(), store)?
         .manifest
         .entries
         .into_iter()
         .map(|entry| entry.path)
-        .collect()
+        .collect())
 }
 
 #[test]
@@ -45,13 +46,13 @@ fn excluded_paths_are_never_captured() {
     let ws = tempfile::tempdir().expect("ws");
     let blobs = tempfile::tempdir().expect("blobs");
     let store = BlobStore::open(blobs.path()).expect("store");
-    write(ws.path(), "src/main.rs", b"fn main() {}");
-    write(ws.path(), ".git/HEAD", b"ref");
-    write(ws.path(), "target/debug/app", b"bin");
-    write(ws.path(), "executable", b"reference");
-    write(ws.path(), "targets.txt", b"not the target dir");
+    write(ws.path(), "src/main.rs", b"fn main() {}").expect("write");
+    write(ws.path(), ".git/HEAD", b"ref").expect("write");
+    write(ws.path(), "target/debug/app", b"bin").expect("write");
+    write(ws.path(), "executable", b"reference").expect("write");
+    write(ws.path(), "targets.txt", b"not the target dir").expect("write");
     assert_eq!(
-        paths(ws.path(), &store),
+        paths(ws.path(), &store).expect("capture"),
         vec!["src/main.rs".to_string(), "targets.txt".to_string()]
     );
 }
@@ -61,10 +62,10 @@ fn gitignore_does_not_hide_files() {
     let ws = tempfile::tempdir().expect("ws");
     let blobs = tempfile::tempdir().expect("blobs");
     let store = BlobStore::open(blobs.path()).expect("store");
-    write(ws.path(), ".gitignore", b"secret.rs\n");
-    write(ws.path(), "secret.rs", b"hidden?");
+    write(ws.path(), ".gitignore", b"secret.rs\n").expect("write");
+    write(ws.path(), "secret.rs", b"hidden?").expect("write");
     assert_eq!(
-        paths(ws.path(), &store),
+        paths(ws.path(), &store).expect("capture"),
         vec![".gitignore".to_string(), "secret.rs".to_string()]
     );
 }
@@ -74,7 +75,7 @@ fn symlinks_are_recorded_not_followed() {
     let ws = tempfile::tempdir().expect("ws");
     let blobs = tempfile::tempdir().expect("blobs");
     let store = BlobStore::open(blobs.path()).expect("store");
-    write(ws.path(), "real.txt", b"data");
+    write(ws.path(), "real.txt", b"data").expect("write");
     std::os::unix::fs::symlink("real.txt", ws.path().join("link.txt")).expect("symlink");
     let subject = capture(ws.path(), &policy(), &store).expect("capture");
     let link = subject
@@ -108,7 +109,7 @@ fn an_oversized_file_rejects_the_capture() {
     let ws = tempfile::tempdir().expect("ws");
     let blobs = tempfile::tempdir().expect("blobs");
     let store = BlobStore::open(blobs.path()).expect("store");
-    write(ws.path(), "big.bin", &[0u8; 2048]);
+    write(ws.path(), "big.bin", &[0u8; 2048]).expect("write");
     assert!(matches!(
         capture(ws.path(), &policy(), &store),
         Err(CaptureError::TooLarge { .. })
@@ -122,8 +123,8 @@ fn identical_trees_hash_identically_and_one_byte_changes_the_subject() {
     let a = tempfile::tempdir().expect("a");
     let b = tempfile::tempdir().expect("b");
     for root in [a.path(), b.path()] {
-        write(root, "src/lib.rs", b"pub fn f() {}");
-        write(root, "README.md", b"doc");
+        write(root, "src/lib.rs", b"pub fn f() {}").expect("write");
+        write(root, "README.md", b"doc").expect("write");
     }
     let first = capture(a.path(), &policy(), &store).expect("capture a");
     assert_eq!(
@@ -132,7 +133,7 @@ fn identical_trees_hash_identically_and_one_byte_changes_the_subject() {
             .expect("capture b")
             .subject_hash
     );
-    write(b.path(), "README.md", b"doc!");
+    write(b.path(), "README.md", b"doc!").expect("write");
     assert_ne!(
         first.subject_hash,
         capture(b.path(), &policy(), &store)
@@ -146,13 +147,13 @@ fn materialize_round_trips_bytes_modes_and_links() {
     let blobs = tempfile::tempdir().expect("blobs");
     let store = BlobStore::open(blobs.path()).expect("store");
     let ws = tempfile::tempdir().expect("ws");
-    write(ws.path(), "compile.sh", b"#!/bin/sh\necho build\n");
+    write(ws.path(), "compile.sh", b"#!/bin/sh\necho build\n").expect("write");
     std::fs::set_permissions(
         ws.path().join("compile.sh"),
         std::fs::Permissions::from_mode(0o755),
     )
     .expect("chmod");
-    write(ws.path(), "src/main.rs", b"fn main() {}");
+    write(ws.path(), "src/main.rs", b"fn main() {}").expect("write");
     std::os::unix::fs::symlink("src/main.rs", ws.path().join("main.rs")).expect("symlink");
     let subject = capture(ws.path(), &policy(), &store).expect("capture");
     let out = tempfile::tempdir().expect("out");
