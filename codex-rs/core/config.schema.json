@@ -1020,6 +1020,9 @@
             "prevent_idle_sleep": {
               "type": "boolean"
             },
+            "pro_contract": {
+              "type": "boolean"
+            },
             "psp": {
               "type": "boolean"
             },
@@ -7061,6 +7064,9 @@
           "type": "boolean"
         },
         "prevent_idle_sleep": {
+          "type": "boolean"
+        },
+        "pro_contract": {
           "type": "boolean"
         },
         "psp": {

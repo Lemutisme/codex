@@ -220,6 +220,8 @@ pub enum Feature {
     InstantInterrupt,
     /// Enable shared discussion tools for an agent tree.
     AgentMessageBoard,
+    /// Place substantive work under a settlement contract verified by an isolated principal.
+    ProContract,
     /// Removed compatibility flag retained as a no-op.
     MultiAgentMode,
     /// Removed compatibility flag for the deleted agent-job tools.
@@ -1377,6 +1379,12 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::AgentMessageBoard,
         key: "agent_message_board",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::ProContract,
+        key: "pro_contract",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
     },

@@ -2900,6 +2900,8 @@ impl FromStr for ThreadSource {
 pub enum InternalSessionSource {
     MemoryConsolidation,
     Guardian,
+    /// A hidden worker thread owned by an extension, excluded from client listing and access.
+    ExtensionWorker,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
@@ -3073,6 +3075,7 @@ impl fmt::Display for InternalSessionSource {
         match self {
             InternalSessionSource::MemoryConsolidation => f.write_str("memory_consolidation"),
             InternalSessionSource::Guardian => f.write_str("guardian"),
+            InternalSessionSource::ExtensionWorker => f.write_str("extension_worker"),
         }
     }
 }
@@ -4517,6 +4520,21 @@ pub struct CollabResumeEndEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extension_worker_session_source_is_internal_and_round_trips() {
+        let source = SessionSource::Internal(InternalSessionSource::ExtensionWorker);
+        assert!(source.is_internal());
+        assert_eq!(
+            InternalSessionSource::ExtensionWorker.to_string(),
+            "extension_worker"
+        );
+        let json = serde_json::to_value(&source).expect("serialize");
+        assert_eq!(
+            serde_json::from_value::<SessionSource>(json).expect("deserialize"),
+            source
+        );
+    }
     use crate::items::CommandExecutionItem;
     use crate::items::CommandExecutionStatus;
     use crate::items::DynamicToolCallItem;
