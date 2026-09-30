@@ -161,6 +161,18 @@ fn validate_contract(raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft, Wor
     }
     let mut case_ids = std::collections::BTreeSet::new();
     for case in &raw.differential_cases {
+        let plain = !case.id.is_empty()
+            && case.id.len() <= 40
+            && case
+                .id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+        if !plain {
+            return malformed(format!(
+                "differential case id {:?} is not a plain token",
+                case.id
+            ));
+        }
         if !case_ids.insert(case.id.as_str()) {
             return malformed(format!("duplicate differential case id {}", case.id));
         }

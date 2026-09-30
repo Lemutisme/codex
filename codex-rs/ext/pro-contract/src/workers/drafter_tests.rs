@@ -208,3 +208,19 @@ fn prose_around_the_json_is_rejected() {
     let result = parse("Here is the draft: {}", &input());
     assert!(matches!(result, Err(WorkerError::Malformed(_))));
 }
+
+#[test]
+fn a_case_id_that_is_not_a_plain_token_is_rejected() {
+    let result = parse(
+        &message(json!({
+            "decision": "contract",
+            "reason": "r",
+            "requirements": [{"id": "R1", "text": "t", "source_quote": "Keep the exit codes identical.", "inferred": false}],
+            "out_of_scope": [],
+            "differential_cases": [{"id": "../x; rm", "args": [], "stdin": null}],
+            "candidate_tests": false
+        })),
+        &input(),
+    );
+    assert!(matches!(result, Err(WorkerError::Malformed(_))));
+}

@@ -7,6 +7,7 @@
 //! the evaluation profile nothing is settled at all.
 
 mod capture;
+mod checks;
 mod hashing;
 mod settings;
 mod store;
@@ -20,6 +21,10 @@ pub use capture::Manifest;
 pub use capture::Subject;
 pub use capture::capture;
 pub use capture::materialize;
+pub use checks::CheckError;
+pub use checks::CheckReceipts;
+pub use checks::StepOutcome;
+pub use checks::StepReceipt;
 pub use hashing::digest_of;
 pub use settings::CheckEnvironment;
 pub use settings::EvaluationProfile;
