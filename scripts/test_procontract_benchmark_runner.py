@@ -89,6 +89,28 @@ class RestingTest(unittest.TestCase):
             )
 
 
+class TurnTrackerTest(unittest.TestCase):
+    def turn_event(self, method, thread_id, turn_id):
+        return {
+            "method": method,
+            "params": {"threadId": thread_id, "turn": {"id": turn_id}},
+        }
+
+    def test_only_the_executor_threads_turns_are_counted(self):
+        tracker = runner.TurnTracker("executor")
+
+        tracker.observe(self.turn_event("turn/started", "worker", "w1"))
+        self.assertFalse(tracker.active)
+        tracker.observe(self.turn_event("turn/started", "executor", "t1"))
+        tracker.observe(self.turn_event("turn/completed", "worker", "w1"))
+        self.assertTrue(tracker.active)
+        tracker.observe(self.turn_event("turn/completed", "executor", "t1"))
+
+        self.assertEqual(
+            (tracker.active, tracker.completed, tracker.turn_id), (False, 1, "t1")
+        )
+
+
 class CodexHomeTest(unittest.TestCase):
     def test_codex_home_has_the_model_the_container_environment_and_the_evaluation_grant(
         self,

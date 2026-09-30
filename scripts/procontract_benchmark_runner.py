@@ -177,6 +177,30 @@ def package(workspace: Path, dest: Path) -> None:
     )
 
 
+class TurnTracker:
+    """Turn state of the executor thread; hidden worker threads' turns are ignored."""
+
+    def __init__(self, thread_id: str | None = None):
+        self.thread_id = thread_id
+        self.active = False
+        self.completed = 0
+        self.turn_id: str | None = None
+
+    def observe(self, message: dict) -> None:
+        method = message.get("method")
+        if method not in ("turn/started", "turn/completed"):
+            return
+        params = message.get("params", {})
+        if self.thread_id is None or params.get("threadId") != self.thread_id:
+            return
+        self.turn_id = params["turn"]["id"]
+        if method == "turn/started":
+            self.active = True
+        else:
+            self.active = False
+            self.completed += 1
+
+
 class AppServer:
     """Newline-delimited JSON-RPC (without the `jsonrpc` field) over the app-server's stdio."""
 
@@ -315,20 +339,17 @@ def run(args: argparse.Namespace) -> None:
         run_dir / "app-server.stderr",
     )
     started = time.monotonic()
-    state = {"turn_active": False, "turns_completed": 0, "turn_id": None, "eof": False}
+    turns = TurnTracker()
+    eof = threading.Event()
 
     def handle(message: dict) -> None:
         method = message.get("method")
         if "id" in message and method is not None:
             server.refuse(message)
-        elif method == "turn/started":
-            state["turn_active"] = True
-            state["turn_id"] = message["params"]["turn"]["id"]
-        elif method == "turn/completed":
-            state["turn_active"] = False
-            state["turns_completed"] += 1
         elif method == "runner/eof":
-            state["eof"] = True
+            eof.set()
+        else:
+            turns.observe(message)
 
     summary: dict = {"arm": args.arm, "deadline_secs": args.deadline_secs}
     try:
@@ -357,6 +378,7 @@ def run(args: argparse.Namespace) -> None:
             handle,
         )
         thread_id = thread["thread"]["id"]
+        turns.thread_id = thread_id
         summary["thread_id"] = thread_id
         server.request(
             "turn/start",
@@ -369,7 +391,7 @@ def run(args: argparse.Namespace) -> None:
         ledger = home / "pro_contract" / "ledger_1.sqlite"
         status = None
         last_poll = 0.0
-        while not state["eof"]:
+        while not eof.is_set():
             try:
                 handle(server.messages.get(timeout=1))
             except queue.Empty:
@@ -381,23 +403,23 @@ def run(args: argparse.Namespace) -> None:
                 if is_done(
                     args.arm,
                     status,
-                    turn_active=state["turn_active"],
-                    turns_completed=state["turns_completed"],
+                    turn_active=turns.active,
+                    turns_completed=turns.completed,
                 ):
                     break
             if now - started > args.deadline_secs:
                 summary["deadline_hit"] = True
-                if state["turn_active"] and state["turn_id"]:
+                if turns.active and turns.turn_id:
                     server.request(
                         "turn/interrupt",
-                        {"threadId": thread_id, "turnId": state["turn_id"]},
+                        {"threadId": thread_id, "turnId": turns.turn_id},
                         handle,
                     )
                 break
         summary.update(
             status=read_status(ledger, thread_id),
-            turns_completed=state["turns_completed"],
-            server_exited_early=state["eof"],
+            turns_completed=turns.completed,
+            server_exited_early=eof.is_set(),
         )
     finally:
         summary["elapsed_secs"] = round(time.monotonic() - started)
