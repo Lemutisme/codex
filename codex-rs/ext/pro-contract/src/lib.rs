@@ -8,6 +8,7 @@
 
 mod capture;
 mod checks;
+mod controller;
 mod hashing;
 mod settings;
 mod store;
