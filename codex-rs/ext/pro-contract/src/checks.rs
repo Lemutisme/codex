@@ -100,14 +100,20 @@ fn runs_differential(policy: &EvidencePolicy) -> bool {
 }
 
 /// The ordered pipeline script for `policy`, run from `candidate_root` inside the container.
-pub(crate) fn pipeline_script(policy: &EvidencePolicy, candidate_root: &str) -> String {
+pub(crate) fn pipeline_script(
+    policy: &EvidencePolicy,
+    candidate_root: &str,
+    step_timeout_secs: u64,
+) -> String {
     let mut script = String::from(
         "set -u\n\
 emit() { printf '@@PC %s %s\\n' \"$1\" \"$2\"; }\n\
 log() { head -c 4000 \"$2\" | awk -v prefix=\"@@LOG $1 \" '{ print prefix $0 }'; }\n\
+step() { log_file=$1; shift; timeout \"$STEP_TIMEOUT\" \"$@\" > \"$log_file\" 2>&1; rc=$?; if [ $rc -eq 124 ]; then { echo \"timed out after $STEP_TIMEOUT s\"; cat \"$log_file\"; } > \"$log_file.t\"; mv \"$log_file.t\" \"$log_file\"; fi; return $rc; }\n\
 for tool in 'rustc --version' 'cargo --version' 'uname -srm'; do printf '@@ENV %s\\n' \"$($tool 2>&1 | head -n 1)\"; done\n\
 export CARGO_NET_OFFLINE=true\n",
     );
+    script.push_str(&format!("STEP_TIMEOUT={step_timeout_secs}\n"));
     // Build in a private copy owned by the container user, as the evaluator builds in a
     // workspace it owns; the mounted subject stays untouched.
     script.push_str(&format!(
@@ -121,13 +127,13 @@ export CARGO_NET_OFFLINE=true\n",
             .map(|command| format!(" && [ -x {} ]", shell_quote(command)))
             .unwrap_or_default();
         script.push_str(&format!(
-            "if ( sh -c {} ) > /tmp/pc-build.log 2>&1{built}; then emit build pass; else log build /tmp/pc-build.log; emit build fail; fi\n",
+            "if step /tmp/pc-build.log sh -c {}{built}; then emit build pass; else log build /tmp/pc-build.log; emit build fail; fi\n",
             shell_quote(build)
         ));
     }
     if policy.candidate_tests {
         script.push_str(
-            "if [ -f Cargo.toml ]; then if cargo test --offline --quiet > /tmp/pc-test.log 2>&1; then emit candidate_tests pass; else log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi; else echo 'no Cargo.toml in the candidate' > /tmp/pc-test.log; log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi\n",
+            "if [ -f Cargo.toml ]; then if step /tmp/pc-test.log cargo test --offline --quiet; then emit candidate_tests pass; else log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi; else echo 'no Cargo.toml in the candidate' > /tmp/pc-test.log; log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi\n",
         );
     }
     if let (Some(reference), Some(candidate)) = (
@@ -302,6 +308,12 @@ pub async fn probe_reference(
     }
 }
 
+/// Build and candidate tests each get a sixth of the container budget, so a hanging step is the
+/// candidate's failure while the container timeout stays an infrastructure backstop.
+fn step_timeout_secs(env: &CheckEnvironment) -> u64 {
+    (env.timeout_secs / 6).max(1)
+}
+
 /// Runs the pipeline over the materialized subject at `subject_dir`.
 pub async fn run(
     env: &CheckEnvironment,
@@ -309,7 +321,7 @@ pub async fn run(
     policy: &EvidencePolicy,
 ) -> Result<CheckReceipts, CheckError> {
     let launch = |error: std::io::Error| CheckError::Launch(error.to_string());
-    let script = pipeline_script(policy, &env.candidate_mount);
+    let script = pipeline_script(policy, &env.candidate_mount, step_timeout_secs(env));
     let evaluator_digest = digest_of("check_pipeline", &(&script, &env.image));
     let image_id = command_output(
         &env.docker,

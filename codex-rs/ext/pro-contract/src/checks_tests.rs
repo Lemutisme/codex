@@ -42,8 +42,8 @@ fn shell_quote_survives_spaces_and_single_quotes() {
 
 #[test]
 fn the_script_is_deterministic_and_quotes_every_argument() {
-    let script = pipeline_script(&policy(), "/candidate");
-    assert_eq!(script, pipeline_script(&policy(), "/candidate"));
+    let script = pipeline_script(&policy(), "/candidate", 300);
+    assert_eq!(script, pipeline_script(&policy(), "/candidate", 300));
     assert!(script.contains("'hello world' 'it'\\''s'"), "{script}");
     // The mounted subject is only read; building happens in a private copy.
     assert!(
@@ -212,4 +212,42 @@ async fn a_reference_probe_reports_bounded_output_and_exit_status() {
     assert!(output.starts_with("probe\nprobe\n"), "{output}");
     assert!(output.len() < 8100, "{} bytes", output.len());
     assert!(output.trim_end().ends_with("[exit status 3]"), "{output}");
+}
+
+#[tokio::test]
+async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let dir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("compile.sh"), "#!/bin/sh\nsleep 600\n").expect("compile.sh");
+    let policy = EvidencePolicy {
+        class: EvidenceClass::ChecksAndReview,
+        build_command: Some("chmod +x ./compile.sh && ./compile.sh".to_string()),
+        candidate_command: Some("./executable".to_string()),
+        candidate_tests: false,
+        differential: vec![],
+        reference_command: None,
+    };
+    let env = CheckEnvironment {
+        docker: "docker".to_string(),
+        image,
+        user: "1000:1000".to_string(),
+        candidate_mount: "/candidate".to_string(),
+        // Each step gets a sixth of the container budget: 10 s here.
+        timeout_secs: 60,
+        build_command: None,
+        candidate_command: None,
+    };
+
+    let receipts = super::run(&env, dir.path(), &policy).await.expect("run");
+
+    assert_eq!(receipts.steps.len(), 1, "{receipts:?}");
+    assert_eq!(receipts.steps[0].outcome, StepOutcome::Fail);
+    assert!(
+        receipts.steps[0].detail.contains("timed out after 10 s"),
+        "{}",
+        receipts.steps[0].detail
+    );
+    assert!(receipts.complete);
 }
