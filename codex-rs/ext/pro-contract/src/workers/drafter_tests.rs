@@ -104,7 +104,7 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 requirements: vec![Requirement {
                     id: "R1".to_string(),
                     text: "Exit codes match the reference.".to_string(),
-                    source_quote: "Keep the exit codes   identical.".to_string(),
+                    source_quote: "Keep the exit codes identical".to_string(),
                     inferred: false,
                 }],
                 out_of_scope: vec![],
@@ -159,6 +159,58 @@ fn a_quote_that_is_not_in_the_intake_is_rejected() {
                 "source_quote": "use the csv crate",
                 "inferred": false
             }],
+            "out_of_scope": [],
+            "differential_cases": [],
+            "candidate_tests": false
+        })),
+        &input(),
+    );
+    assert!(matches!(result, Err(WorkerError::Malformed(_))));
+}
+
+#[test]
+fn a_quote_with_slipped_punctuation_is_stored_as_the_verbatim_intake_span() {
+    let draft = parse(
+        &message(json!({
+            "decision": "contract",
+            "reason": "r",
+            "requirements": [{
+                "id": "R1",
+                "text": "Behave like the reference.",
+                "source_quote": "implement the program, so it behaves like the reference.)",
+                "inferred": false
+            }],
+            "out_of_scope": [{
+                "element": "anything else",
+                "human_statement": "keep the exit-codes identical",
+                "non_substantive": false
+            }],
+            "differential_cases": [],
+            "candidate_tests": false
+        })),
+        &input(),
+    )
+    .expect("draft");
+    let Draft::Contract { terms, .. } = draft else {
+        panic!("expected a contract");
+    };
+    assert_eq!(
+        terms.requirements[0].source_quote,
+        "Implement the program so it behaves like the reference"
+    );
+    assert_eq!(
+        terms.out_of_scope[0].human_statement.as_deref(),
+        Some("Keep the exit codes identical")
+    );
+}
+
+#[test]
+fn a_quote_made_only_of_punctuation_is_rejected() {
+    let result = parse(
+        &message(json!({
+            "decision": "contract",
+            "reason": "r",
+            "requirements": [{"id": "R1", "text": "t", "source_quote": ".", "inferred": false}],
             "out_of_scope": [],
             "differential_cases": [],
             "candidate_tests": false

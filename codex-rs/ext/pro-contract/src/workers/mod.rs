@@ -49,8 +49,3 @@ pub(crate) fn strict_object(properties: serde_json::Value) -> serde_json::Value 
         "properties": properties,
     })
 }
-
-/// Collapses whitespace so that quotes can be matched against the intake verbatim.
-pub(crate) fn normalize_whitespace(text: &str) -> String {
-    text.split_whitespace().collect::<Vec<_>>().join(" ")
-}

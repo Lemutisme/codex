@@ -8,7 +8,6 @@ use serde_json::json;
 use super::PROMPT_EVIDENCE_CAP;
 use super::WorkerError;
 use super::bounded;
-use super::normalize_whitespace;
 use super::strict_object;
 use crate::DifferentialCase;
 use crate::EvidenceClass;
@@ -118,36 +117,58 @@ pub(crate) fn parse(message: &str, input: &DraftInput<'_>) -> Result<Draft, Work
     }
 }
 
-fn validate_contract(raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft, WorkerError> {
+/// The intake span a quote refers to: the quote's letters and digits must occur in the intake in
+/// order and contiguously (ignoring case, whitespace and punctuation), and the span returned is
+/// the intake's own text between the first and last matched character. Provenance thereby stays
+/// verbatim even when the drafter slips on punctuation.
+fn resolve_span(intake: &str, quote: &str) -> Option<String> {
+    let skeleton = |text: &str| -> Vec<(usize, char)> {
+        text.char_indices()
+            .filter(|(_, c)| c.is_alphanumeric())
+            .flat_map(|(index, c)| c.to_lowercase().map(move |lower| (index, lower)))
+            .collect()
+    };
+    let needle: Vec<char> = skeleton(quote).into_iter().map(|(_, c)| c).collect();
+    if needle.is_empty() {
+        return None;
+    }
+    let haystack = skeleton(intake);
+    let start = haystack
+        .windows(needle.len())
+        .position(|window| window.iter().map(|(_, c)| *c).eq(needle.iter().copied()))?;
+    let first = haystack[start].0;
+    let (last, _) = haystack[start + needle.len() - 1];
+    let end = last + intake[last..].chars().next().map_or(0, char::len_utf8);
+    Some(intake[first..end].to_string())
+}
+
+fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft, WorkerError> {
     let malformed = |message: String| Err(WorkerError::Malformed(message));
     if raw.requirements.is_empty() {
         return malformed("a contract needs at least one requirement".to_string());
     }
-    let intake = normalize_whitespace(input.intake_text);
-    let quoted = |quote: &str| {
-        let quote = normalize_whitespace(quote);
-        !quote.is_empty() && intake.contains(&quote)
-    };
     let mut ids = std::collections::BTreeSet::new();
-    for requirement in &raw.requirements {
-        if !ids.insert(requirement.id.as_str()) {
+    for requirement in &mut raw.requirements {
+        if !ids.insert(requirement.id.clone()) {
             return malformed(format!("duplicate requirement id {}", requirement.id));
         }
-        if !quoted(&requirement.source_quote) {
+        let Some(span) = resolve_span(input.intake_text, &requirement.source_quote) else {
             return malformed(format!(
                 "requirement {} quotes text that is not in the request",
                 requirement.id
             ));
-        }
+        };
+        requirement.source_quote = span;
     }
-    for element in &raw.out_of_scope {
-        if let Some(statement) = &element.human_statement
-            && !quoted(statement)
-        {
-            return malformed(format!(
-                "out-of-scope element {} cites a statement that is not in the request",
-                element.element
-            ));
+    for element in &mut raw.out_of_scope {
+        if let Some(statement) = element.human_statement.as_mut() {
+            let Some(span) = resolve_span(input.intake_text, statement) else {
+                return malformed(format!(
+                    "out-of-scope element {} cites a statement that is not in the request",
+                    element.element
+                ));
+            };
+            *statement = span;
         }
     }
     if raw.differential_cases.len() > MAX_DIFFERENTIAL_CASES {
