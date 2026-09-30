@@ -8,7 +8,8 @@
 - Authority: the user is the Principal of this design. Sections 1–6 below were approved section by section in
   conversation; this document is the written form of that agreement and is itself subject to review.
 - Co-review: Claude drafted; gpt-6-astra (reasoning effort max) reviewed each section adversarially against upstream
-  source (rounds 1–4). Accepted corrections are folded in; the review record is listed in Appendix A.
+  source (rounds 1–6); two external reviews supplied by the Principal (2026-09-30) were analyzed and accepted with the
+  Principal's decisions D1–D4 (Appendix A). Accepted corrections are folded in.
 
 ## 0. Summary
 
@@ -16,8 +17,13 @@ When a user asks Codex for substantive repository work, ProContract silently pla
 model's "done" becomes a proposal, not a fact. An automatic Principal that is isolated from the executing model
 freezes acceptance terms before it sees any candidate, verifies the candidate against those terms, and — if the
 candidate fails — challenges it so the model keeps working. The user sees each answer with an honest assurance label.
-Only the human settles: an explicit accept, or moving on after the support was shown, discharges the contract, and any
-later complaint reopens it.
+Settlement comes from an authorization boundary outside the executor; in v1 that boundary is the human (§2.5): an
+explicit accept, or — later in delivery — moving on after the support was shown, discharges the contract, and any later
+complaint reopens it.
+
+What ProContract adds is **task continuity that is independent of executor continuity**: the executor may restart,
+compact, change strategy or be replaced, but it cannot by itself change the outstanding duty, the exact objects that
+existing judgments bind, or the authority and evidence needed to change either.
 
 The one-sentence kernel: **executors propose; evidence supports; authority settles; accepted defeat restores
 responsibility.**
@@ -27,10 +33,11 @@ responsibility.**
 ### 1.1 Goals
 
 1. **Invisible activation.** No `/contract` ritual. The host decides when work warrants a contract.
-2. **Settlement integrity.** The executor can never certify its own completion. Only the human discharges.
+2. **Settlement integrity.** The executor can never certify its own completion. In v1 only the human discharges.
 3. **Honest assurance.** Every status shown to the user states exactly what was checked and how.
-4. **Minimal footprint.** Zero new executor tools; in the executor's context, at most one bounded brief per terms
-   revision and one bounded residual per automatic repair; no contract logic in core.
+4. **Minimal footprint.** Zero new executor tools; in the executor's context, at most one live bounded brief at a time
+   (re-rendered from the contract when compaction, resume or an executor rebuild removed it) and one bounded residual per
+   automatic repair; no contract logic in core.
 5. **Record for later RSI.** Every policy, prompt, model, attempt, abstention and human act is versioned and recorded,
    without building any policy-succession machinery now.
 
@@ -40,15 +47,22 @@ responsibility.**
 - Remote environments, submodules, non-Cargo mechanical checks, cross-attempt build caches.
 - Subcontracts, dependency DAGs, sealed challenges, policy succession, RSI.
 - Human-authored evidence ("I reviewed it myself") as a substitute for automated support.
-- System-level non-bypass against a same-user adversary outside Codex's managed sandbox.
+- Configurations in which the executor can reach execution capabilities outside the managed sandbox — command hooks,
+  local MCP servers and similar (§5.1). v1 abstains there instead of certifying.
+- System-level non-bypass against a same-user adversary outside Codex's managed sandbox. The real fix is a protected
+  institution service (§3.6, §10), which is also the prerequisite for RSI.
 
 ### 1.3 Success criteria
 
 1. Kernel axioms are mechanically tested (tests, not proofs): reference-model property tests and per-guard mutation
    tests pass.
-2. One end-to-end test through the real app-server with a mocked Responses server and a simulated trusted TUI
-   connection covers: request → intake → draft → Issue → edits → candidate → check fails → repair → pass → supported →
-   next human message with receipt → discharged.
+2. End-to-end tests through the real app-server with a mocked Responses server and the real trusted in-process
+   connection cover, in delivery order:
+   a. **the explicit core loop** — request → intake → draft → Issue → edits → candidate → check fails → repair → pass →
+      supported → explicit accept → discharged → challenge → duty restored → repaired → supported again — and it stays
+      correct under compaction (brief removed), restart, later unrelated input, and an **executor replacement**
+      (a different model or binary continues the same contract);
+   b. **the implicit path** — the same loop with the next human message carrying a receipt as presumed acceptance.
 3. Questions, chat, and trivial edits do not produce contracts on a frozen triage corpus within preregistered
    issuance, latency and cost ceilings.
 4. With the feature off, fresh threads without contracts behave identically to upstream: no additional requests,
@@ -64,8 +78,8 @@ responsibility.**
 |---|---|
 | A1 Monopoly | Recognized duty state changes only through the pure `transition`. Every command kind is bound to one authority role. The executor role has no settlement verb. |
 | A2 Exactness | Every recognizing command binds a complete coordinate; any mismatch rejects. Fencing is exactness over time. |
-| A3 Conservation | Outstanding duty ends only by human discharge on current support at the exact coordinate, or by human release. "Quiet" is derived, never stored. |
-| A4 Defeasance | An accepted defeater atomically withdraws current support (and a discharge that relied on it), restoring outstanding duty. History is append-only. |
+| A3 Conservation | Outstanding duty ends only by the Settler's discharge on current support at the exact coordinate, or by the Settler's release. "Quiet" is derived, never stored. |
+| A4 Defeasance | An accepted defeater, or an accepted withdrawal of a judgment, atomically removes current support (and a discharge that relied on it), restoring outstanding duty. Only what relied on the withdrawn judgment is lost. History is append-only. |
 
 **Kernel admission test.** A concept enters the kernel only if removing it produces a concrete counterexample
 (self-certification, substituted subject, stale support crossing a defeat, silently erased duty, unauthorized
@@ -76,7 +90,9 @@ weakening). Everything else is workflow and lives in the extension.
 The executor-visible footprint must justify every token. Development-grade evidence from earlier native experiments
 showed the envelope alone costing quality while envelope × execution policy helped; capability lives in the policy
 plane, the envelope is integrity overhead. Therefore: no executor tools, no countdowns, no recitation of terms beyond one
-bounded brief.
+live bounded brief. Thin is not empty, and thin is not forgetful: when compaction removes the brief, it is re-rendered
+from the contract, so the durable record keeps helping the executor continue instead of only refusing completion at
+the end.
 
 ### 2.3 Evidence is world-indexed
 
@@ -90,8 +106,30 @@ a 3.10 target failed).
 - "Supported" means the frozen evidence policy was satisfied at an exact coordinate. It is not proof of correctness and
   is never a utility label.
 - Implicit settlement relies on a standing interpretation convention chosen by the user ("moving on after support was
-  shown means acceptance"), not on a logical inference from the user's next message.
+  shown means acceptance"), not on a logical inference from the user's next message. A receipt proves what was shown,
+  not what was understood.
 - A4 restores responsibility; it does not undo side effects.
+- A small kernel is not a small trusted computing base (§3.5).
+- Protecting drafted terms is not preserving the user's intent: the chain is request → (drafting) → terms →
+  (verification) → support → (authorization rules) → discharge, and both ends involve model interpretation. The kernel
+  protects the middle; §5.4 and §8.5 attack the ends.
+
+### 2.5 Settlement authority is an authorization boundary
+
+The general principle: **the executor cannot obtain final authority over its own completion from its own claims;
+settlement comes from an authorization boundary outside the executor that acts under rules authorized in advance.** An
+explicit human acceptance is one realization; a controller applying a fixed rule the human authorized in advance is
+another (the paper's research-parent selection is of this kind). "The Settler is the human" is the **v1 interactive
+policy**, not a kernel theorem; the kernel binds the Settler role, and who may hold it is policy.
+
+Decision provenance is recorded, never collapsed:
+
+- `explicit` — the human pressed accept, reopen or release;
+- `presumed` — acceptance presumed under the user-authorized convention, bound to the convention version and the
+  intent-classifier version that interpreted the act.
+
+v1 never lets an automated controller settle; the generalization only keeps later headless evaluation and RSI from
+being blocked by an interactive product rule.
 
 ## 3. Architecture
 
@@ -101,11 +139,12 @@ a 3.10 target failed).
 |---|---|---|
 | Issuer | The human owner, or the automatic Principal as delegate under the standing grant "feature enabled on a trusted interactive connection" | Issue (human or delegate provenance); Revise (human provenance required) |
 | Executor | The main-thread model | Propose (implicit: a successful, bound turn end) |
-| Verifier | The automatic Principal's verification workers | Support, Defeat |
-| Settler | The human only | Discharge, Challenge, Release |
+| Verifier | The automatic Principal's verification workers and the custody controller | Support, Defeat, Withdraw |
+| Settler | v1 policy: the human only (§2.5) | Discharge, Challenge, Release |
 
 Roles are what the kernel binds (A1: one role per command kind). *Human* and *delegate* are provenance attributes
-carried by the authenticated command, not additional roles.
+carried by the authenticated command, not additional roles; Settler commands also carry decision provenance
+(`explicit` or `presumed`, §2.5).
 
 **Implicit settlement rule.** An implicit act may discharge only a contract that currently holds support at the exact
 coordinate that was presented to the human. It can never release a contract, override a defeat, or substitute for
@@ -120,6 +159,9 @@ missing support.
 | Protocol | `codex-rs/app-server-protocol` | Experimental v2 contract notification, list/read/decide RPCs, generic `clientAttestations` |
 | App-server | `codex-rs/app-server` | Install the extension; forward its events; trusted-origin checks |
 | TUI | `codex-rs/tui` | Status indicator, verdict cells, receipts at the submit gesture, optional `/contract` |
+
+Inside the extension, the **institution** — kernel, ledger, artifact store, certificates and custody state — sits behind
+a narrow interface (§3.6); the controller, workers, adapters and surfaces are its clients.
 
 ### 3.3 Generic host changes (no contract logic in core)
 
@@ -150,15 +192,41 @@ single extension install path in `app-server/src/extensions.rs` used by every su
 ### 3.4 End-to-end flow
 
 ```
-human input ─► [human control lane] ordered, durable: relations to existing contracts
+human input ─► [human control lane] ordered, durable: relations to contracts and pending intakes
             └► [automation lane]   intake (sync: verbatim input + base snapshot) ─► draft (async, frozen view)
-                                   ─► Issue(terms) ─► brief appears to executor
-executor works ─► bound successful turn end ─► terminal record ─► candidate snapshot ─► Propose
-  ─► verification: checks on fresh copies + review on a pristine copy
-       Support ─► assurance label on that answer ─► next human act with receipt ─► Discharge (defeasible)
-       Defeat  ─► repair (≤ 1 by default) via atomic admission ─► executor continues ─► new candidate
+                                   ─► Issue(terms) ─► brief appears to executor (re-rendered if compacted away)
+executor works ─► bound successful turn end ─► terminal record + artifact frozen at that boundary ─► Propose
+  ─► verification: checks on fresh copies + review on a pristine copy (incl. request → terms completeness)
+       Support ─► assurance label on that answer ─► explicit accept (or, later, presumed acceptance) ─► Discharge
+       Defeat  ─► repair (≤ 1 per work episode) via atomic admission ─► executor continues ─► new candidate
+       Withdraw (judgment no longer trusted) ─► same candidate re-verified ─► new certificate ─► re-accept
        cannot_judge / budget exhausted / blocker ─► shown to the human; duty stays outstanding
 ```
+
+### 3.5 Trusted computing base
+
+A small kernel is not a small TCB. The guarantees of this design hold only if all of the following are correct; they
+live in the extension and the host, and they are reviewed and tested as security-relevant code:
+
+- host authentication of actors and roles, and the trusted-origin check (§3.3 item 5);
+- human-input admission ordering, act identity and the admission permit (§3.3 items 3–4, §6.1, §6.3);
+- policy-coverage validation before `Support` (§4.2);
+- subject capture, artifact freezing and the SHA-256 store (§5.2, §6.2);
+- custody: reachable-capability checks, restricted sandboxes, quarantine (§5.1);
+- the check adapter, the frozen-evaluator lane and its configuration comparator (§5.3);
+- presentation receipts in the TUI (§7.2);
+- the ledger's transaction, idempotency and durability protocol (§5.6).
+
+### 3.6 Institution boundary
+
+The institution — kernel, ledger, artifact store, certificates and custody state — is reached only through a narrow
+interface: submit an authenticated command, read projections and history, publish and fetch content-addressed
+artifacts, and record custody events. In v1 it runs in-process inside the extension. The interface exists so that the
+institution can later move into a **separately protected service** — a different OS identity or an isolated runtime
+that neither the executor nor an evolving harness can write — without redesign. That move is the real fix for
+same-user custody (§5.1) and a prerequisite for RSI: if an agent may rebuild Codex itself, the components that approve
+and run the result must stay outside the candidate's write authority (§10). Crate separation alone does not provide
+this.
 
 ## 4. Kernel
 
@@ -205,15 +273,22 @@ The first seven fields must equal the contract's stored bindings and current can
 | Propose | Executor | Outstanding | generation+1; candidate set; support cleared | settled subject never handed off |
 | Support | Verifier | Outstanding; candidate present; no support; the coordinate's first seven fields equal the stored bindings and the current candidate | support set | — |
 | Defeat | Verifier | target = the exact current candidate `(generation, subject_hash)` of an Outstanding contract, or the exact settlement coordinate of a Discharged contract | Outstanding; support, candidate and settlement cleared; generation+1 | stale support crossing a defeat; a defeated discharge left standing |
+| Withdraw | Verifier | target = the exact current support coordinate of an Outstanding contract, or the exact settlement coordinate of a Discharged contract | Outstanding; support and settlement cleared; the candidate keeps its `subject_hash` and is re-bound to generation+1 | an untrusted judgment can be removed only by destroying a correct artifact; a pre-withdrawal certificate re-attaches |
 | Challenge | Settler | same exact-target rule as Defeat | same as Defeat | wrong settlement cannot restore responsibility |
 | Discharge | Settler | Outstanding; support present and equal to the receipt's coordinate | Discharged; settlement recorded | self-certification; settling unseen or stale support |
 | Release | Settler | Outstanding | Released | duty silently erased |
 | Revise | Issuer (human provenance required) | Outstanding | revision+1; new policy bindings; candidate and support cleared; generation+1 | terms silently weakened |
 
 Global guards: expected `version` must match, and every accepted command increments it; `Released` is terminal (every
-command rejected); `Discharged` accepts only `Defeat` and `Challenge`; a support certificate underlying a discharge can
-never be replaced. Every rejection is a variant of a typed `Rejection` enum tagged with the axiom (A1–A4) or
-`WellFormed` it protects.
+command rejected); `Discharged` accepts only `Defeat`, `Challenge` and `Withdraw`; a support certificate underlying a
+discharge can never be replaced. Every rejection is a variant of a typed `Rejection` enum tagged with the axiom (A1–A4)
+or `WellFormed` it protects.
+
+**Defeat versus Withdraw.** `Defeat` is a verdict against the artifact: the candidate is gone and new work must produce a
+new one. `Withdraw` says the *judgment* is no longer trusted (for example, custody of the evidence was lost, §5.1) while
+the artifact itself is not accused: the same subject is re-verified under the next generation, a new certificate is
+issued, and the Settler must accept again — the old acceptance never authorizes the new certificate. This is the
+paper's rule that withdrawing a judgment loses only the progress that relied on it.
 
 **Retries never reach the reducer.** The ledger performs a durable idempotency lookup before running the reducer and
 its compare-and-swap: an identical retry returns the originally committed result without a new transition; the same
@@ -238,6 +313,20 @@ extension job state.
 - v1 ships roots only. With roots only, removing graph support yields no counterexample, so the DAG does not enter the
   kernel until subcontracts are built.
 
+### 4.6 Relation to the paper's full mechanism (extension points)
+
+v1 is the **interactive settlement instance** of ProContract, not evidence for every mechanism of the paper. Where v1
+is narrower, the extension point is named so that later work does not mistake the audit log for live state:
+
+| Paper | v1 | Extension point |
+|---|---|---|
+| A task may hold several acceptances; one is selected as the delivered version | one current candidate and support; history in the event log | a live acceptance set per contract plus a separate delivery selection; the event log is never read as that set |
+| Improving a finished task records a new acceptance | a discharged contract accepts no `Propose`; improvement is a new contract | successor candidates on a discharged contract |
+| Acceptance-level dependency closure | deferred (§4.5) | support-certificate dependencies |
+| Task budgets, cumulative spend and deadlines in the Contract | extension automation budgets only | budget and deadline terms bound in the contract |
+| Harness replacement: trial from checkpoint, memory migration, rollback; the Contract is never restored | executor replacement is tested (§1.3 item 2a) but no replacement protocol exists | the version and controller protocol of §10 |
+| Generation, qualification, research-parent selection, incumbent adoption | recorded data only (§9) | §10 |
+
 ## 5. Evidence
 
 **Principle.** A missing or truncated *required* evidentiary link yields `cannot_judge`, never support. Irrelevant or
@@ -245,19 +334,45 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 
 ### 5.1 Custody
 
-- Certification is available only when the executor runs under a Codex-managed sandbox (read-only or workspace-write)
-  in a local environment. Under `danger-full-access` (`SandboxEnforcement::Disabled`) or an external sandbox, no
-  contract is issued: a same-user executor could forge the ledger, and an "unprotected" label cannot protect itself.
+- **Reachable capabilities, not sandbox mode.** What must hold is: *no capability the executor can trigger can write
+  authoritative state.* A managed shell sandbox is necessary but not sufficient. Certification is available only when
+  every capability reachable from the executor's thread (including its subagents) is custody-safe:
+  - tool execution runs under a Codex-managed sandbox (read-only or workspace-write) in a local environment. Under
+    `danger-full-access` (`SandboxEnforcement::Disabled`) or an external sandbox, no contract is issued: a same-user
+    executor could forge the ledger, and an "unprotected" label cannot protect itself;
+  - **no command hooks are configured** for events the executor can trigger. Upstream's hook runner builds and spawns
+    the command directly, outside the thread's sandbox (`hooks/src/engine/command_runner.rs`), and a hook may run a
+    script the executor can edit;
+  - **no local MCP servers are enabled.** The stdio launcher starts servers without a sandbox
+    (`rmcp-client/src/stdio_server_launcher.rs`), and the executor drives them through tool calls. Servers reached over
+    the network at a non-loopback address are allowed; loopback servers count as local;
+  - no approved escalation grants write access outside the executor's writable roots;
+  - any other capability that starts local processes outside the managed sandbox (plugins, apps, future host features)
+    is treated the same way: unknown means unsafe.
+  The check runs at intake and again at every admission; a capability appearing mid-contract is a custody break. v1
+  abstains rather than certifying; a general capability-security system is out of scope, and the protected
+  institution service (§3.6) is the real fix.
 - **One layout.** All verifier state — the SQLite ledger with its WAL and SHM files, the blob store, evidence
   artifacts, materialized copies and worker directories — lives under `CODEX_HOME/pro_contract/`, outside every
   executor's writable roots. Custody checks cover all of it.
 - **Custody is store-wide.** If Codex observes a custody break for the store — any session sharing this
-  `CODEX_HOME` running under `danger-full-access`, or an approved escalation granting write access to
+  `CODEX_HOME` with a reachable unsafe capability (above), or an approved escalation granting write access to
   `CODEX_HOME/pro_contract/` — every certificate issued before the break is quarantined: a quarantined certificate
-  supports **neither explicit nor implicit** discharge until trustworthy re-verification produces a new certificate
-  (anything else would recreate the evidence override of §4.3). Quarantine must survive restarts, so its authority
-  cannot live only in controller memory or only in the possibly tampered store; where it is anchored is a slice-0
-  custody finding (§12). Tampering by a same-user process outside Codex remains a non-goal (§1.2).
+  supports **neither explicit nor implicit** discharge (anything else would recreate the evidence override of §4.3).
+  Quarantine must survive restarts, so its authority cannot live only in controller memory or only in the possibly
+  tampered store; where it is anchored is a slice-0 custody finding (§12). Tampering by a same-user process outside
+  Codex remains a non-goal (§1.2).
+- **Two kinds of custody loss, two recovery paths.**
+  1. *Evidence needs re-verification* — the break could have affected artifacts, check outputs or certificates, but the
+     ledger's terms, owner and human decisions are still trustworthy (for example, the break is bounded in time and the
+     ledger's head was anchored before it). Each affected contract gets `Withdraw`: support (and a discharge that
+     relied on it) is removed, the candidate's subject is kept, re-verification runs against re-materialized bytes
+     whose SHA-256 still matches the manifest, a new certificate is issued, and the Settler accepts again.
+  2. *The authoritative record lost trusted provenance* — the ledger itself may have been written. No flag inside the
+     same database can certify its own recovery. The store is frozen read-only as untrusted history and a new store is
+     opened; outstanding duties from the old store are shown as "unverifiable — re-issue if still needed" and are never
+     silently carried over or treated as quiet. Recovery beyond this needs a trusted checkpoint or an external root of
+     trust, which v1 does not have (§3.6).
 - Check processes and review workers run with **restricted read** as well as write: the live workspace, the ledger,
   credentials, rollouts and unrelated host paths are denied. Upstream's default read-only policy grants root read
   (`protocol/src/permissions.rs`), so an explicit restricted profile with `FileSystemAccessMode::Deny` entries is
@@ -354,6 +469,13 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 - Output: `support{requirement → evidence references}` with full coverage required, `defeat{requirement, location,
   counterexample, residual}`, or `cannot_judge{missing}`. Malformed or truncated output is `cannot_judge`. Evidence
   references are validated deterministically. The residual addresses unmet frozen requirements only, never new goals.
+- **Request → terms completeness is judged separately.** Covering every numbered requirement is not enough: the
+  reviewer must also check, against the verbatim intake, that every substantive element of the human request is
+  represented by some requirement, or is listed as explicitly out of scope with a reason. Each requirement carries its
+  provenance (§6.2 step 2), so the reviewer can see what was quoted and what was inferred. A gap, a scope inflation, or
+  an unrequested weakening yields `cannot_judge{termsGap}` naming the element; it is shown to the human as "the
+  contract may have missed: …" for a Revise or an explicit decision. The reviewer never adds the missing requirement
+  itself — that would silently change the terms.
 
 ### 5.5 Support certificate and evidence classes
 
@@ -416,14 +538,20 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 - Receipts are frozen by the TUI at the **human submit gesture** and bound to: connection origin and owner, thread,
   contract id, the immutable support id actually rendered, the displayed assurance class, and the client message id.
   Queued input that predates a presentation carries no receipt for it.
-- Explicit TUI decisions (`accept`, `reopen`, `release`) map directly to kernel commands; no model is involved, and they
-  remain available during model outages and after any budget is exhausted.
+- Explicit TUI decisions (`accept`, `reopen`, `release`) map directly to kernel commands with decision provenance
+  `explicit`; no model is involved, and they remain available during model outages and after any budget is exhausted.
 - Natural-language inputs pass through a **tool-free human-intent stage** that sees only the authenticated input, its
-  receipts, and bounded records of the contracts it may refer to (including discharged ones when referenced). It never
-  reads repository content. It proposes relations — `accept`, `dispute(quote)`, `revise(requirements')`,
-  `continue` (an answer to a question or a request to keep going), `neutral`, `ambiguous` — which the host validates
-  (quotes must occur in the actual input; quoted logs or hypotheticals are not challenges) before issuing kernel
-  commands.
+  receipts, and bounded records of the contracts and pending intakes it may refer to (including discharged contracts
+  when referenced). It never reads repository content. It proposes relations — `accept`, `dispute(quote)`,
+  `revise(requirements')`, `continue` (an answer to a question or a request to keep going), `cancel`, `neutral`,
+  `ambiguous` — which the host validates (quotes must occur in the actual input; quoted logs or hypotheticals are not
+  challenges) before issuing kernel commands. An `accept` it proposes becomes a Discharge with provenance `presumed`,
+  bound to the convention and classifier versions (§2.5).
+- **Pending intakes are under human control too.** Until its draft is issued, an intake can be cancelled or modified:
+  `cancel` abandons it (no contract is issued, nothing is owed), and `revise` supersedes the draft, which is redrafted
+  from the original intake plus the modification. A draft whose intake was cancelled or superseded is never issued. On
+  an *outstanding* contract, a natural-language `cancel` never releases by interpretation; it prompts the human for an
+  explicit release.
 - **The intent stage is bounded, not immortal.** At most two attempts within a deadline and a token cap. On failure the
   act gets a durable `unresolved` outcome: nothing is discharged or challenged on its behalf, the act stays recorded in
   order, and explicit decisions remain available.
@@ -450,11 +578,18 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 2. **Draft (asynchronous, one hidden worker call).** Inputs: the frozen intake, bounded human-approved context needed to
    resolve references ("do option two"), and read-only access to a pristine base materialization. Never the executor's
    live work. Output (strict JSON): `none` or `new_contract{requirements[], evidence_class, checks, applicability rules,
-   evaluator paths}`. Unresolvable references produce a clarification request, not invented requirements.
-3. **Issue.** The delegate issues on the owner's behalf. The executor then sees one world-state section — at most 512
-   tokens: numbered requirements and evidence class; no budgets, no countdown — at its next sampling step; unchanged
-   terms render nothing new. If the executor's turn ended before Issue, the same terminal-status and binding checks run
-   against the ended turn.
+   evaluator paths, out_of_scope[]}`. Unresolvable references produce a clarification request, not invented
+   requirements. **Every requirement carries provenance:** the source act id, the verbatim span it comes from, and which
+   parts are inferred rather than stated. `out_of_scope` lists request elements deliberately not turned into
+   requirements, each with a reason. Both feed the completeness review (§5.4).
+3. **Issue.** The delegate issues on the owner's behalf, unless the intake was cancelled or superseded meanwhile
+   (§6.1). The executor then sees one world-state section — at most 512 tokens: numbered requirements and evidence class;
+   no budgets, no countdown — at its next sampling step. **The brief is deduplicated, not one-shot:** it is not repeated
+   while a valid copy is in context, and it is re-rendered from the contract (a bounded view, never a recitation of the
+   whole ledger) whenever compaction, resume or an executor rebuild removed it — using the world-state
+   `with_retained_fragment_matcher` mechanism, because persisted comparison state can outlive the text it describes
+   (`ext/extension-api/src/contributors/world_state.rs`). If the executor's turn ended before Issue, the candidate is
+   the artifact frozen at that turn's end (step 5), never a later capture of the workspace.
 4. **Work binding and episodes.** A binding `(contract, revision, act id, input sequence, turn id, host epoch)` is
    extension audit metadata, not kernel state. A turn is bound to contract C only when it was dispatched by the intake
    act that issued C, or by a human act the intent stage related to C (§6.1 work authorization). The relation is
@@ -469,6 +604,11 @@ Activation conditions gate **issuance** only. They never gate processing of huma
    reports `Completed` for every abort reason other than `Interrupted` and `BudgetLimited` (`core/src/tasks/mod.rs`).
    On idle, a bound, eligible contract whose terminal record says `completed` captures the candidate and proposes it.
    Every other outcome produces no candidate; "turn ended" is not a successful handoff.
+   **The artifact is fixed at the turn-end boundary.** If the turn's intake is still being drafted, the candidate
+   artifact is captured and frozen at that same boundary and bound to the intake act; a late Issue proposes exactly that
+   artifact. Identity checks on the turn prove *which turn* ended, not *which files it delivered*: capturing the
+   workspace later could attribute a following turn's edits to this contract. If the boundary capture fails, this
+   turn is not certified; the controller never falls back to the current workspace.
    **Questions never block evidence; they block automatic repair.** Upstream cannot tell a required clarification from
    an optional follow-up: native async questions (`request_user_input` messages carrying `questions`, phase
    `FinalAnswer`, delivery `Async`) return immediately and carry no "required" flag. So a candidate is verified even
@@ -566,7 +706,8 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
   `nextCursor` + watermark. `threadId` is required except with `tombstoned`, which lists the authenticated owner's
   tombstones from deleted threads (§6.6).
 - **`thread/contract/history`** `{threadId, contractId?, cursor, limit}` → paged presentation records (assessments and
-  decisions, each with a stable event id and a turn anchor), used to restore verdict cards on resume.
+  decisions, each with a stable event id, a turn anchor, and — for decisions — the decision provenance `explicit` or
+  `presumed`), used to restore verdict cards on resume.
 - **`thread/contract/read`** `{threadId, contractId, evidenceCursor, limit}` → requirements and redacted evidence
   receipts; separately authorized.
 - **`thread/contract/decide`** `{threadId, contractId, expectedVersion, idempotencyKey, decision}` with
@@ -593,7 +734,8 @@ stable for clients that do not opt in. All payloads use camelCase tagged unions.
   reopened, released) — not per workflow step. Each card is anchored to its answer's turn; a delayed card names the
   earlier answer it concerns. Codex's owned transcript supports replacement (`tui/src/transcript_view/mutations.rs`),
   so a card may be updated in place there; native terminal scrollback stays append-only. Assurance remains visible
-  after settlement ("Accepted · review supported · not executed").
+  after settlement ("Accepted · review supported · not executed"), and so does decision provenance: a presumed
+  acceptance reads "Accepted when you moved on", distinct from an explicit "Accepted", and offers reopen.
 - **Receipts.** A presentation is recorded only after the card, including its assurance qualifier, is visibly displayed
   in the active view — not when received, inserted, measured or painted offscreen. The receipt is frozen at the submit
   gesture and preserved through queueing and retries. Rendering a historical or revoked card never mints a receipt for
@@ -667,6 +809,19 @@ and benefit.
     abstain;
   - crash the controller around artifact publication and around repair submission, restart on the same storage, and
     assert the reconstructed kernel state and the number of spawned repairs;
+  - late Issue: turn A ends while its draft is pending, the human starts turn B and edits files, then A's draft issues →
+    A's candidate is the artifact frozen at A's turn end, never B's edits;
+  - the human cancels or modifies the original request while it is being drafted → the stale draft is never issued;
+  - compaction removes the brief while the revision is unchanged → the brief is re-rendered at the next step, once;
+  - a configured command hook or an enabled local MCP server → abstain; one appearing mid-contract → custody break;
+  - `Withdraw` after a custody break: the same subject is re-verified, a new certificate is issued, the old acceptance
+    does not carry over, and an explicit accept discharges again; an untrusted-ledger break freezes the store and
+    shows its outstanding duties as unverifiable;
+  - a hidden second requirement in the human request that the draft omitted → `cannot_judge{termsGap}`, never full
+    support;
+  - **executor replacement:** a contract issued and worked under executor v0 (one model or binary) is continued by v1
+    (another) → outstanding duty, bindings, certificates and spent budgets are unchanged, and v1's turns get their own
+    judgments;
   - flag off → parity for fresh threads.
 
 ### 8.4 TUI
@@ -684,15 +839,26 @@ and benefit.
    zero-test success; same-id weakened assertion in a separable file (must fail mechanically) and in an inline module
    (review-dependent, reported as partial coverage); evaluator redirection through `Cargo.toml` or
    `.cargo/config.toml`; same-metadata source edits; verifier defeat after human discharge; plain thread deletion
-   (must not release);
+   (must not release); an executor-edited script run by a command hook; a local MCP tool writing verifier state; late
+   Issue attributing a later turn's edits; a draft that drops a stated constraint;
    Python-3.12-versus-3.10-style environment mismatch.
 2. A frozen mixed triage corpus (questions, edits, Plan-mode, trivial changes) with preregistered issuance, latency and
    cost ceilings and an eligible-task coverage floor; every intake and abstention is in the denominators.
-3. A preregistered, randomized, equal-budget comparison against native Codex on a frozen task corpus, with
-   policy/model/config versions and thresholds frozen before a disjoint confirmation set. Report false support, false
-   defeat, acceptance-classification errors (separately from verifier errors), tail latency, total cost including all
-   hidden inference, checks and repairs, and independently evaluated outcome quality, stratified by evidence class,
-   with uncertainty bounds. "Supported" is never the utility label.
+3. A preregistered, randomized, equal-budget comparison on a frozen task corpus, with policy/model/config versions and
+   thresholds frozen before a disjoint confirmation set, over **three arms** so that the source of any gain can be
+   located:
+   | Arm | Question it answers |
+   |---|---|
+   | Native Codex | baseline capability and cost |
+   | Native + the same independent review and one repair, without the contract record or kernel | how much comes from extra verification and compute |
+   | Full ProContract (persistent record + enforced transitions) | the incremental value of the institution |
+   Ordinary tasks measure independently evaluated outcome quality. A **long-horizon perturbation suite** applies
+   compaction, restart, scope revision, late-arriving old results and later complaints, and measures responsibility
+   loss, false acceptance, stale-evidence reuse and recovery cost. Report false support, false defeat,
+   acceptance-classification errors (separately from verifier errors), **term omission, scope inflation and
+   unrequested weakening** (separately from false support), tail latency, and total cost including all hidden
+   inference, checks and repairs, stratified by evidence class, with uncertainty bounds. "Supported" is never the
+   utility label.
 4. The controlled experiment is not production enablement, and the gate may conclude "do not ship".
 
 ## 9. What v1 records for later RSI
@@ -703,7 +869,8 @@ Nothing in v1 selects, promotes or adopts policies. It records, from day one:
   each adapter;
 - coordinates and artifact provenance for every candidate and certificate;
 - every attempt, abstention, `cannot_judge`, defect and repair, with costs and latencies;
-- human-act provenance (receipts, decisions, disputes) and later reversals;
+- human-act provenance (receipts, decisions with `explicit`/`presumed` provenance, disputes) and later reversals;
+- requirement provenance and every `termsGap`, so drafting quality can be evaluated on its own;
 - cohort and randomization identifiers for controlled evaluation;
 - explicit privacy and retention rules for exportable evidence.
 
@@ -721,6 +888,33 @@ adoption gates are preserved.
 - `/goal` integration (goal completion as a candidate).
 - Sealed challenges; policy succession and RSI.
 - An always-on router model; summaries of all outstanding contracts in prompts.
+- The protected institution service (§3.6) and configurations with command hooks or local MCP servers, which it
+  would make certifiable.
+
+### 10.1 Path to RSI (after the essential ProContract)
+
+What v1 already provides: changing the method cannot reinterpret the past — unfinished duty stays unfinished, spent
+budgets do not reset, support stays bound to the artifact it judged, a new version needs its own judgments, and a
+failed trial does not roll back authorization decisions. What is missing, in order:
+
+1. **Replaceable versions.** A version is `v = (harness code, policy and prompts, configuration, state schema)`. It needs
+   build, qualification, start, continuation of an existing contract, and rollback paths. The first step is a new
+   process continuing the same contract — the executor-replacement test of §8.3 is the v1 precursor.
+2. **Separate decisions, none controlled by the candidate** (as in the paper): (a) the improvement task's verifier
+   accepts the exact candidate source; (b) a controller builds and qualifies the executable; (c) a rule fixed in advance
+   may select it as a research parent; (d) the Settler may adopt it as the incumbent that serves later work. A
+   candidate can seed exploration without replacing the incumbent; parentage is not evidence.
+3. **A protection boundary that survives running a new harness.** If an agent rebuilds Codex, the new binary could
+   replace the kernel, authentication, verification scheduling and ledger writes. Define which code may evolve, which
+   components approve and run evolution results, and keep the latter outside the candidate's write authority — the
+   protected institution service of §3.6.
+4. **Recursion, not only automation.** The recursion criterion is `v_{k+1} = G_{v_k}(E_k)`, where the generator `G` is
+   implemented by `v_k`'s own executable harness and generation policy. A fixed external Codex generating every
+   candidate is automated improvement, not recursion; producing offspring is not evidence of improvement, which needs
+   independent evaluation.
+
+The first RSI milestone: `v_0` completes a delivery under a contract; an independently run `v_1` continues the same
+contract with bindings intact; then `v_1` generates and runs `v_2`.
 
 ## 11. Open questions for planning
 
@@ -736,33 +930,47 @@ adoption gates are preserved.
 5. The source of the stable owner identity (account versus local user).
 6. The privacy and retention rule for tombstoned human content (§6.6) and for exportable evidence (§9).
 7. Default worker models and efforts, and the concrete ceilings to preregister for §8.5.
+8. How to enumerate reachable execution capabilities reliably (hooks by event, MCP servers by transport and address,
+   plugins and apps that start local processes), and how a capability that appears mid-contract is detected (§5.1).
+9. Where a ledger-head anchor could live so that bounded custody breaks can use recovery path 1 rather than path 2
+   (§5.1), given that v1 has no external root of trust.
+10. The shape of the narrow institution interface (§3.6), so that relocating the institution later is a deployment
+    change.
 
 ## 12. Delivery order
 
-The spec is larger than one implementation plan. Risk is retired first, then the feature is grown as vertical slices,
-each with its own plan, its own integration tests, and a green tree:
+The spec is larger than one implementation plan. Risk is retired first; then the **explicit core loop** is proven in a
+restricted, provably bounded configuration before implicit settlement, more adapters or RSI are added. Each slice has
+its own plan, its own integration tests, and a green tree:
 
 0. **Feasibility spikes (throwaway code, findings recorded):** the owner identity source; a prototype of the
    admission boundary (human-input observation, input sequence, conditional continuation) with concrete results for
-   revocation races and the linearization protocol of §11 item 3; actual restricted-read custody on each supported
-   platform, including where restart-safe quarantine authority is anchored and how custody loss is recovered; one
-   offline Cargo fixture with real registry dependencies through archive import, the conservative configuration
-   comparator and both evaluation lanes. Findings may send parts of this spec back for revision.
-1. **Kernel** — `codex-pro-contract`: state, coordinate, commands, typed rejections, reference-model property tests,
-   guard mutation tests, dependency whitelist.
+   revocation races and the linearization protocol of §11 item 3; reachable-capability enumeration (§11 item 8);
+   actual restricted-read custody on each supported platform, including where restart-safe quarantine authority is
+   anchored and how custody loss is recovered; artifact freezing at the turn-end boundary; one offline Cargo fixture
+   with real registry dependencies through archive import, the conservative configuration comparator and both
+   evaluation lanes. Findings may send parts of this spec back for revision.
+1. **Kernel** — `codex-pro-contract`: state, coordinate, commands including `Withdraw`, typed rejections,
+   reference-model property tests, guard mutation tests, dependency whitelist — behind the institution interface of
+   §3.6.
 2. **Walking skeleton (vertical)** — only the host changes the happy path needs, ledger and capture, the Cargo adapter
-   and review worker, the automation lane happy path, a minimal notification and TUI card, and an end-to-end test
-   through the real in-process app-server that ends at **supported** (request → intake → draft → Issue → edits →
-   candidate → check fails → repair → pass → supported). No institutional test bypass stands in for settlement.
-3. **Human control lane** — admission and dispatch, receipts, the intent stage, implicit discharge, `decide`, with the
-   real TUI event-loop test (§8.4); this slice completes the §1.3 scenario through human settlement.
-4. **Evidence hardening** — frozen-evaluator lane and machinery validation, store-wide custody quarantine,
-   classification at Issue, execution restrictions, with their adversarial tests.
-5. **Fencing and recovery** — every revocation source in the admission permit, work episodes, holds, crash and restart
-   reconciliation, with the corresponding integration tests.
-6. **Surfaces completeness** — `list`/`history`/`read`, reconnection, the `/contract` inspector, snapshots.
-7. **Expanded adversarial coverage** — the full suite of §8.5 item 1 beyond what earlier slices already added.
-8. **Controlled evaluation** — §8.5 items 2–4, planned and preregistered separately.
+   and review worker (including request → terms completeness), the automation lane happy path with brief
+   re-rendering, a minimal notification and TUI card, and an end-to-end test through the real in-process app-server
+   that ends at **supported**. No institutional test bypass stands in for settlement.
+3. **Explicit core loop** — ordered human admission, explicit `decide` (accept, reopen, release), challenge and
+   restored duty, `Withdraw` and re-acceptance, pending-intake cancel and supersede, late-Issue artifact binding;
+   proven robust to compaction, restart, later unrelated input and an **executor replacement** (§1.3 item 2a).
+4. **Fencing and recovery** — every revocation source in the admission permit, work episodes, holds, crash and restart
+   reconciliation.
+5. **Evidence hardening** — frozen-evaluator lane and machinery validation, reachable-capability custody and
+   store-wide quarantine with both recovery paths, classification at Issue, execution restrictions, with their
+   adversarial tests.
+6. **Implicit settlement** — presentation receipts, the intent stage, presumed acceptance with its provenance, and the
+   real TUI event-loop test (§8.4); completes §1.3 item 2b.
+7. **Surfaces completeness** — `list`/`history`/`read`, reconnection, the `/contract` inspector, snapshots.
+8. **Expanded adversarial coverage** — the full suite of §8.5 item 1 beyond what earlier slices already added.
+9. **Controlled evaluation** — §8.5 items 2–4 (three arms and the perturbation suite), planned and preregistered
+   separately.
 
 ## Appendix A. Review record
 
@@ -778,3 +986,10 @@ Stored outside the repository in `~/scratch/procontract-essential/` (Codex sessi
 | 4 | Surfaces, tests, cross-section consistency | `astra-round4-s5-s6-20260929.md`, `astra-review-round4-20260929.md` |
 | 5 | Whole written spec: 6 blocking, 5 should, 1 nit — all accepted | `astra-round5-spec-20260929.md`, `astra-review-round5-20260929.md` |
 | 6 | Confirmation: 5 resolved, 1 partial (left to slice 0); 1 new blocking, 3 should, 1 nit — all accepted; verdict "ready for planning from slice 0" | `astra-round6-confirm-20260929.md`, `astra-review-round6-20260929.md` |
+| Ext 1 | External review of `415e89c` and the paper: reachable-capability custody, quarantine recovery, late-Issue artifact binding, brief re-rendering, request → terms fidelity, settlement as authorization policy, TCB, ablation arms — all accepted | `external-review-1-spec-20260930.md` |
+| Ext 2 | External review of end-to-end, essence and RSI foundation: settlement generality, replaceable versions, separate adoption decisions, a boundary that survives a new harness, recursion criterion — accepted into §2.5, §3.6, §10.1 | `external-review-2-rsi-20260930.md` |
+
+Principal decisions on the external reviews (2026-09-30): **D1** v1 abstains when command hooks or local MCP servers
+are reachable; **D2** the kernel gains `Withdraw`; **D3** the explicit core loop precedes implicit settlement in
+delivery; **D4** the institution sits behind a narrow interface now, and a protected institution service is a stated
+prerequisite for RSI.
