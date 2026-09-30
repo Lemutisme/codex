@@ -43,7 +43,8 @@ responsibility.**
 
 ### 1.2 Non-goals (v1)
 
-- Headless surfaces: `codex exec`, the TypeScript SDK and the Python SDK never receive contracts in v1.
+- Headless surfaces: `codex exec`, the TypeScript SDK and the Python SDK never receive contracts in v1 — except a
+  connection pre-authorized as an evaluation Principal under the evaluation profile (§13).
 - Remote environments, submodules, non-Cargo mechanical checks, cross-attempt build caches.
 - Subcontracts, dependency DAGs, sealed challenges, policy succession, RSI.
 - Human-authored evidence ("I reviewed it myself") as a substitute for automated support.
@@ -1028,6 +1029,71 @@ its own plan, its own integration tests, and a green tree:
 8. **Expanded adversarial coverage** — the full suite of §8.5 item 1 beyond what earlier slices already added.
 9. **Controlled evaluation** — §8.5 items 2–4 (three arms and the perturbation suite), planned and preregistered
    separately.
+
+## 13. Evaluation profile (ProgramBench)
+
+Amendment approved by the Principal on 2026-09-30 so that the essential mechanism can be validated end to end on a real
+ProgramBench instance with `gpt-5.6-luna` at reasoning effort `max`. It changes three v1 decisions for this profile
+only: headless use (§1.2), remote environments (§1.2, §5.2) and the sandbox-mode part of custody (§5.1). Everything
+else in §1–§12 applies unchanged.
+
+### 13.1 Evaluation Principal
+
+- A benchmark runner that launches the app-server with an operator configuration granting it the evaluation-Principal
+  role is a **pre-authorized** origin (§2.5): the human who launches the benchmark authorizes, in advance, that this
+  connection's task message may be issued as a contract. The grant is honored only for the stdio connection of the
+  process that received it at launch, never for connections that merely declare a capability.
+- The runner sends the task as an ordinary user turn. ProContract activates invisibly exactly as in §6: intake,
+  drafting, Issue, work, candidate, verification, repair.
+- There are no presentation receipts and no implicit settlement. The runner waits until the contract reaches a
+  resting state — supported, did not pass, or not verified — or until the runner's wall-clock deadline, then packages
+  the workspace and runs the official evaluation. Scoring does not require discharge; the contract stays outstanding
+  and fully recorded. Official ProgramBench scores are the frozen external evaluator's verdict (runbook §11); they are
+  never fed back into the contract.
+
+### 13.2 Containerized executor environment
+
+- The thread's environment is an exec-server started through the `program` transport of environment configuration
+  (`exec-server/src/environment_toml.rs`): `docker run -i --rm --network none` on the instance's `task_cleanroom` image,
+  with the workspace bind-mounted and the Codex binary mounted read-only. Every executor tool, including host-applied
+  patches, runs inside that container.
+- The app-server — the institution, `CODEX_HOME`, the ledger and the model credential — stays on the host. Nothing of
+  `CODEX_HOME` is mounted into the container, and the container has no network, so no executor capability can reach
+  verifier state. **For this profile, custody's sandbox requirement (§5.1) is satisfied by this isolation instead of by
+  a managed sandbox:** an external sandbox is acceptable exactly when verifier state is unreachable from it. The closed
+  safe-capability profile of §5.1 still applies to host-side capabilities: no command hooks, no legacy `notify`, no
+  MCP servers, no client dynamic tools.
+- This is §3.6's protected institution in miniature: the executor and the institution live in different filesystem
+  and network namespaces.
+
+### 13.3 Capture and checks
+
+- The workspace is a host directory bind-mounted into the container, so capture (§5.2) reads it on the host at
+  `on_turn_stop`; the capture policy is unchanged.
+- **Container check adapter.** Each check runs in a fresh container from the same `task_cleanroom` image with
+  `--network none`, on a fresh materialization of the subject, so the check toolchain equals the executor's and the
+  evaluation's. The environment digest is the image digest plus the resolved toolchain versions reported inside the
+  container. The Cargo evaluation lanes of §5.3 run inside it; dependencies are whatever the image provides offline,
+  and anything missing is `cannot_judge`.
+- The review worker (§5.4) reads a pristine materialization on the host through a read-only local environment.
+
+### 13.4 Runner and arms
+
+- A host-side runner prepares the instance workspace from the `task_cleanroom` image, launches the app-server with the
+  evaluation profile, sends the standard ProgramBench task prompt, waits for a resting state or its deadline, packages
+  `submission.tar.gz` per the runbook, runs `programbench eval`, and archives the ledger, evidence store and rollouts.
+- Arms: **ON** (feature `pro_contract` enabled) and **OFF** (the same runner and binary with the feature disabled), both
+  with `gpt-5.6-luna` at effort `max` and the same deadline.
+- Claim discipline: `wfxr__csview` has been seen by earlier experiments, so this is engineering validation of the
+  mechanism, not scientific evidence of benefit (§8.5).
+
+### 13.5 Delivery for this profile
+
+This profile is delivered as a **benchmark vertical slice** ahead of §12 slices 3–8: slice 0 spikes (including the
+container environment, the container check adapter, the cleanroom image and the task prompt), then the kernel and the
+institution, the automation lane, the review worker, the container check adapter, the evaluation Principal and the
+runner, validated by the ON and OFF runs. TUI surfaces, presentation receipts, the intent stage and implicit settlement
+follow in the §12 order afterwards.
 
 ## Appendix A. Review record
 
