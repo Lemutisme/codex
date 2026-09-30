@@ -1,0 +1,7 @@
+load("//:defs.bzl", "codex_rust_crate")
+
+codex_rust_crate(
+    name = "pro-contract",
+    compile_data = ["Cargo.toml"],
+    crate_name = "codex_pro_contract",
+)
