@@ -90,7 +90,9 @@ VersionId = digest_of("version", manifest)
 ```
 
 A **build receipt**, produced by the protected builder, binds a VersionId to executable and image digests, the
-toolchain, dependency digests and the qualification gates it passed. A version without a receipt is not runnable.
+toolchain, dependency digests and the qualification gates it passed. A version without a receipt is not runnable, with
+one exception: the builder may run an unreceipted candidate inside its isolated qualification sandbox to collect the
+mechanism witness (§3.3), which would otherwise be circular.
 
 ### 3.2 Campaign contract
 
@@ -121,6 +123,9 @@ toolchain, dependency digests and the qualification gates it passed. A version w
   - a **host-collected mechanism witness**: the changed code path or the new policy identity actually executes on a
     smoke task.
 - **Outcomes:** Support means "qualified". Qualification says nothing about utility.
+- **Closure.** Under the campaign's pre-authorization, a failed qualification, an exhausted per-contract budget, and an
+  abandonment (a stop rule or a human decision) each end in Release, with the reason as the attestation. Archiving a
+  node is a view over events, not a closure, and never substitutes for Release.
 
 ### 3.4 Adoption contract
 
@@ -132,6 +137,10 @@ toolchain, dependency digests and the qualification gates it passed. A version w
 - It owes "adopt iff the preregistered gates pass". A failed gate leads to Release under the campaign's
   pre-authorization; nothing is left owed forever.
 - Discharge is the adoption act. It belongs to the human Settler in every slice of this spec.
+- The institution keeps an index from every receipt and gate result to the adoption certificates that cite it. When a
+  receipt or gate result is invalidated, the index names the certificates to Withdraw.
+- **Bootstrap.** At campaign start the human Issues and Discharges a bootstrap adoption of v0 (operator-seeded evidence).
+  So an incumbent always exists and is itself an adoption.
 
 ### 3.5 Experiment events
 
@@ -152,13 +161,30 @@ ExperimentEvent =
 
 ### 3.6 Derived views
 
-- **Incumbent**: the most recently Discharged adoption contract that is still Discharged.
-  - When a Discharge is applied, the institution checks in the same transaction that the adoption's bound expected
-    incumbent equals the current incumbent. There is no pointer write, no crash window and no stale promotion.
-  - A Challenge or Defeat on the latest adoption makes the view fall back to the previous still-valid adoption, which is
-    authorized and qualified by construction.
-- **Routing**: the incumbent, unless the operator has set an emergency suspension, which is operational and not
-  normative. Contracts in flight continue under the version they started with, through fenced continuation (P3).
+- **Incumbent** (per deployment scope, which the campaign names): the adoption whose accepted **Discharge event has the
+  highest ledger sequence** among the adoptions in scope that are still Discharged. Not creation time, id or contract
+  version.
+  - **Admission.** When a Discharge is applied, the institution runs, inside the ledger's single `BEGIN IMMEDIATE` write
+    transaction: the durable idempotency lookup first, then a recomputation of the incumbent, then validation, then the
+    event. It recomputes after every mutation, including within a batch. Two adoptions evaluated against I0 cannot both
+    succeed.
+  - **Fencing against ABA and revisions.** The adoption's terms bind the exact expected incumbent *authorization*: that
+    adoption contract's id plus its Discharge event sequence, the scope's monotonic **adoption epoch** (the count of
+    incumbent-changing events) and the campaign revision. Admission requires all three to match. A VersionId alone
+    cannot tell I0→A→I0 apart, nor a re-authorization of the same version. The bound expectation is never replaced by a
+    fresh read just to pass admission; reusing evidence across such events needs a new adoption contract.
+  - **Kernel interplay.**
+    - With I0→A→B, challenging A leaves B current; challenging B then skips A and returns to I0.
+    - Challenge clears candidate, support and settlement, so recovery is Propose → Support → Discharge again, which is a
+      new ordering event checked afresh (`transition.rs:124-132,202-211`).
+    - A Withdraw on a Discharged adoption targets its Settlement (`transition.rs:174-225`).
+    - An idempotent retry of a Discharge creates no new ordering event.
+- **Routing**: normally the incumbent. "Discharged" is necessary but not sufficient to launch:
+  - routing requires the incumbent's receipts and custody state to be currently valid;
+  - fallback walks back to the most recent still-Discharged adoption in scope whose receipts are valid;
+  - an operator emergency **suspension** is an appended operational event that persists across Discharge, Challenge and
+    fallback until it is explicitly cleared; during an emergency it may revoke active leases;
+  - otherwise, contracts in flight continue under the version they started with, through fenced continuation (P3).
 - **Frontier, calibration tables and cost ledgers**: pure functions of events and contracts.
 
 Rollback is three distinct operations:
@@ -200,13 +226,12 @@ observe → explore → improve → evaluate (T0→T1→T2→T3) → promote →
 - Merges (two parents) are deferred. An interaction claim needs matched base, A, B and A+B evaluations.
 - Rejected nodes remain explorable stepping stones. Nodes that failed custody or qualification are never executed.
 
-**First explorer (fixed in the first slice): bounded branching.**
+**First explorer (fixed in the first slice): bounded branching.** It is the simplest non-linear tree search.
 - Each expansion proposes 3 children.
 - The 2 best *qualified* children by development evidence are expanded next.
 - 20 % of expansions draw uniformly from the eligible archive.
-- Depth and width caps come from the campaign.
+- Depth, width and per-branch caps come from the campaign.
 - Allocation is round-robin at first, then modest ranking on dev evidence.
-- In effect this is a depth-1 MCTS with ε-uniform exploration.
 
 **Graduation path:** deeper subtree-yield backups → Thompson sampling → merges. Each is an L1 change, allowed only when
 per-node child counts can support it, and evaluated prospectively (§8).
@@ -306,8 +331,8 @@ The M1 sub-project gets its own spec and plan. Its acceptance tests are adversar
 |---|---|---|---|---|
 | M0 | Measurement (§10) | pinned evaluation manifest; certified-snapshot labels; immutable experiment events with identities; pools and seen-list; batch runner; dev artifact corpus v0 | drift, unexplained missing rows, label ≠ judged subject | about 60 full runs plus replays (user approval at plan time) |
 | M1 | Protected institution service (§7) | service, brokers, capabilities, thin client, hardened referee, fenced continuation | any adversarial acceptance test passes an attack | largest engineering item; ≤10 synthetic episodes |
-| M2 | First RSI slice: bounded branching evidence-package succession | one campaign; the mutable component is the *evidence package* (`policies.case_generation` plus `generator`, named together as one whitelist component); ≤6 candidates, depth 2, fixed explorer; ≥2 branches produce grandchildren through their own qualified packages; T0 on the mixed dev corpus plus small paired T1; synthetic promotion and withdrawal races; no production adoption | a budget reset, a hidden-data return path, a stale promotion, a rejected package affecting the default path | ≈3–6 generation episodes plus replays plus ≤30 T1 runs |
-| M3 | Paired end-to-end pilot | ON(v_k) vs ON(v0) vs OFF on the select pool under the query budget | calibration or cost regression | ≈120–180 runs |
+| M2 | First RSI slice: bounded branching evidence-package succession | one campaign; the mutable component is the *evidence package* (`policies.case_generation` plus `generator`, named together as one whitelist component); this widens the case-generation-only scope, and results concern the combined package, not each part; ≤6 candidates, depth 2, fixed explorer: 3 children, then 1 grandchild on each of the 2 best qualified branches (5), plus at most 1 uniform archive draw; ≥2 branches produce grandchildren through their own qualified packages; T0 on the mixed dev corpus plus small paired T1; synthetic promotion and withdrawal races; no production adoption | a budget reset, a hidden-data return path, a stale promotion, a rejected package affecting the default path | ≈3–6 generation episodes plus replays plus ≤30 T1 runs |
+| M3 | Paired end-to-end pilot | ON(v_k) vs ON(v0) vs OFF on a dev audit panel (detailed feedback allowed); the select pool is touched only by a later locked T2 gate | calibration or cost regression | ≈120–180 runs |
 | M4 | Preregistered confirmation, then a human-adopted canary; then harness-code components | one T3 per allocation; canary monitoring and fallback exercised | contamination, failed gates | scoped to the corpus |
 
 Each of M1–M4 gets its own spec, plan and review before implementation.
@@ -321,11 +346,18 @@ kernel.
    evaluator CLI version. Every Label records them as its evaluator epoch. The runner refuses to evaluate when a pin
    drifts.
 2. **Certified-snapshot labels.**
-   - The ON arm labels the frozen subject that was judged. For each verification the runner materializes it from the
-     blob store by `subject_hash` and packages *that*, not the live workspace.
-   - The OFF arm, and the ON arm's final handoff, are captured by the same capture policy at run end, and are labelled
-     by subject hash.
-   - The label reports `subject_hash`; packaging exclusions are unchanged (`./executable`, `./target`).
+   - **Persist resolvable subjects.** Capture writes the canonical manifest as a blob and records a durable binding:
+     `subject_hash` → (manifest blob, capture-policy identity). Today the manifest and the frozen snapshot live only in
+     runtime memory (`capture.rs:83-91`, `controller/runtime.rs:410-425`). Tested: rematerialize after a process
+     restart.
+   - The ON arm labels each **judged** subject. The runner materializes it from the blob store and packages *that*, not
+     the live workspace.
+   - The OFF arm, and the ON arm's final workspace, are captured at run end under the same policy. They are separate
+     subjects: a Support is **never transferred** to a run-end recapture, even when the bytes match.
+   - **Joins.** A Label references the run (assignment and run id) and, for judged subjects, the exact judgment
+     coordinate (contract id, generation, verdict event). Identical bytes across tasks, repeats or judgments are never
+     joined by hash alone.
+   - Packaging exclusions are unchanged (`./executable`, `./target`).
 3. **Immutable experiment events** (§3.5), as a new append-only, hash-chained table next to the ledger. Research
    writes go there; the `records` upsert stays only for operational status. Every event carries harness binary sha256,
    policy digests, model/effort and evaluator epoch.
@@ -338,6 +370,7 @@ kernel.
    - `turn.status` is recorded in run records.
    - The runner stops when no status record appears 10 minutes after the first turn completed.
    - `digest_of` fails loudly on serialization errors.
+   - The runner drops `from __future__ import annotations` (AGENTS.md forbids `__future__`).
 6. **Pools.**
    - Restrict to the 107 Rust instances. Instances used in earlier experiments are **dev-only**; the seen-list is
      compiled from `~/run-artifacts` manifests and the paper's task lists.
@@ -345,10 +378,16 @@ kernel.
      where it is known.
    - Commitments are recorded; the select and confirm lists are sealed in the operator's store and never passed to any
      harness.
-7. **Null sentinels.** A null submission is scored for every corpus instance, giving the per-instance null floor and
-   validating the evaluator. Branch errors (`results_read_failed`) are classified and follow the invalid-row policy.
+7. **Null sentinels (dev only in M0).** A null submission is scored for every corpus (dev) instance, giving the
+   per-instance null floor and validating the evaluator. Select and confirm instances get null sentinels only at a
+   campaign's start, as operator-only events: never shown to any generator, not charged as candidate queries, and they
+   do not mark an instance as exposed. Branch errors (`results_read_failed`) are classified and follow the invalid-row
+   policy.
 8. **Batch runner.**
-   - Parallel, detached from tool timeouts, resumable.
+   - Parallel and detached from tool timeouts.
+   - "Resumable" means **batch-level reconciliation**: completed runs are preserved; interrupted attempts are recorded
+     and charged against a bounded retry. It is *not* mid-contract recovery; the controller still starts with fresh
+     state (`controller/runtime.rs:131-155`).
    - Per-run manifests: instance, pool, arm, version identities, seed, order.
    - Randomized run order; preregistered invalid-row handling.
    - Cost accounting from rollouts: executor and workers, cached and uncached.
@@ -362,11 +401,25 @@ kernel.
    - costs.
 
    Before launch the user approves the run count and budget.
-10. **M0 report.** Per-arm solved counts with null floors; P(solved | supported), the missed-defect rate and the
-    false-defeat rate with confidence bounds; cost distributions; measured noise (a few duplicated runs), which sizes
-    M2–M4.
+10. **Frozen M0 protocol** (fixed before launch, recorded in the batch manifest):
+    - Retries: an evaluator branch error gets up to 2 re-evaluations of the same package; a crashed run (no terminal
+      turn) gets 1 rerun; after that the row is `invalid`.
+    - Missing or invalid rows are reported per arm and never dropped.
+    - Noise: 4 corpus instances per arm are run twice.
+    - Pools: ratios dev/select/confirm = 40/30/30 over non-seen instances, with a salt held by the operator.
+    - Exposure: every dev instance used in the corpus is marked exposed for later campaigns.
+11. **M0 report and estimands.**
+    - Per-arm solved counts with null floors.
+    - **P(solved | supported)** over judged, validly labelled supported subjects.
+    - **Missed-defect rate** = supported subjects labelled unsolved ÷ validly labelled supported subjects.
+    - **Validated defeats**: defeats whose stated counterexample reproduces on independent re-execution. "Defeated but
+      solved" is reported as *disagreement with the hidden suite*, not as a false-defeat rate.
+    - Unknown or invalid labels are excluded from denominators and counted separately.
+    - Confidence intervals are clustered by task.
+    - Cost distributions, and the measured noise from the duplicated runs, which sizes M2–M4.
 
-**M0 tests.** Unit tests for:
+**M0 tests.** Integration tests against a **fake evaluator**: a crash and retry; mutation of the workspace after
+freezing; a missing subject; invalid rows; duplicate labels. Plus unit tests for:
 - event chaining and immutability;
 - identities present on every event;
 - the label attaches to the materialized subject, not the workspace;
@@ -396,8 +449,8 @@ Plus a smoke run on one dev instance end to end before the corpus launch.
 
 - **Scale:** 107 Rust instances cap every claim. Other languages need their own prompts and toolchains (post-M4).
 - **Cost:** a full run is 25–60 min and 30–70 M mostly-cached tokens. M0 alone is about 60 runs.
-- **Verifier reward hacking** by a candidate executor: closed by M1's hardened referee. Until M1, generated executor
-  code is never run.
+- **Verifier reward hacking** by a candidate executor: closed by M1's hardened referee. Until M1, generated *harness
+  versions* are never run. Task programs that M0's executors build are run, as today, only inside the check containers.
 - **Evaluator drift or infrastructure faults:** pinned epochs and sentinels; corrections are new epochs.
 - **Open questions:**
   - Where the root evaluator runs relative to the service (same uid, or a further isolated runner).
