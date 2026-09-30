@@ -198,7 +198,7 @@ fn terms() -> Terms {
 
 #[test]
 fn the_brief_lists_requirements_and_identifies_its_contract() {
-    let brief = brief_text("c-1", 2, &terms());
+    let brief = brief_text("c-1", 2, &terms(), &policy());
     assert!(brief.contains("R1: Behaves like the reference."), "{brief}");
     assert!(is_current_brief(&brief, "c-1", 2));
     assert!(!is_current_brief(&brief, "c-1", 3));
@@ -216,7 +216,43 @@ fn the_brief_is_bounded() {
             inferred: false,
         })
         .collect();
-    let brief = brief_text("c-1", 1, &terms);
+    let brief = brief_text("c-1", 1, &terms, &policy());
     assert!(brief.len() <= EXECUTOR_TEXT_CAP + 64, "{}", brief.len());
     assert!(is_current_brief(&brief, "c-1", 1));
+    // How the handoff is checked survives the bound; the requirement list is what gets cut.
+    assert!(brief.contains("compared with the reference"), "{brief}");
+}
+
+#[test]
+fn the_brief_states_the_evidence_class_and_how_the_handoff_is_checked() {
+    let brief = brief_text("c-1", 2, &terms(), &policy());
+    assert!(brief.contains("Evidence: checks and review"), "{brief}");
+    assert!(brief.contains("`./compile.sh`"), "{brief}");
+    assert!(brief.contains("compared with the reference"), "{brief}");
+    assert!(!brief.contains("cargo test"), "{brief}");
+
+    let own_tests_only = EvidencePolicy {
+        candidate_tests: true,
+        differential: Vec::new(),
+        ..policy()
+    };
+    let brief = brief_text("c-1", 2, &terms(), &own_tests_only);
+    assert!(brief.contains("cargo test"), "{brief}");
+    assert!(!brief.contains("compared with the reference"), "{brief}");
+    // No case list, no budgets.
+    assert!(!brief.contains("--delimiter"), "{brief}");
+
+    let nothing_mechanical = EvidencePolicy {
+        build_command: None,
+        candidate_tests: false,
+        differential: Vec::new(),
+        ..policy()
+    };
+    let brief = brief_text("c-1", 2, &terms(), &nothing_mechanical);
+    assert!(
+        brief.contains(
+            "Evidence: checks and review. An independent reviewer checks each requirement."
+        ),
+        "{brief}"
+    );
 }

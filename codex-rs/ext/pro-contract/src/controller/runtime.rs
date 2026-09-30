@@ -362,7 +362,7 @@ impl ThreadRuntime {
             .ledger
             .put_record("evidence_policy", &contract_id.0, &policy)
             .await;
-        let brief = brief_text(&contract_id.0, contract.revision, &terms);
+        let brief = brief_text(&contract_id.0, contract.revision, &terms, &policy);
         let last_idle = {
             let mut state = self.state.lock().await;
             state.contract = Some(ActiveContract {

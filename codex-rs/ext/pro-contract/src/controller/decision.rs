@@ -2,6 +2,7 @@
 
 use crate::CheckError;
 use crate::CheckReceipts;
+use crate::EvidenceClass;
 use crate::EvidencePolicy;
 use crate::StepOutcome;
 use crate::Terms;
@@ -111,16 +112,55 @@ fn brief_header(contract_id: &str, revision: u32) -> String {
     format!("ProContract {contract_id} revision {revision}")
 }
 
-/// The executor's brief: numbered requirements, identified by contract and revision.
-pub(crate) fn brief_text(contract_id: &str, revision: u32, terms: &Terms) -> String {
+/// The executor's brief: the evidence class and the requirements, identified by contract and
+/// revision. How the handoff is checked comes first, so bounding cuts requirements, not that.
+pub(crate) fn brief_text(
+    contract_id: &str,
+    revision: u32,
+    terms: &Terms,
+    policy: &EvidencePolicy,
+) -> String {
     let mut text = format!(
-        "{}\nThis task is under a contract. When you end your turn, the workspace is handed off to an independent verifier, which checks these requirements:\n",
-        brief_header(contract_id, revision)
+        "{}\nThis task is under a contract. When you end your turn, the workspace is handed off to an independent verifier.\n{}\nRequirements:\n",
+        brief_header(contract_id, revision),
+        evidence_line(policy)
     );
     for requirement in &terms.requirements {
         text.push_str(&format!("{}: {}\n", requirement.id, requirement.text));
     }
     bounded(&text, EXECUTOR_TEXT_CAP)
+}
+
+/// The evidence class and the checks it implies, without cases or budgets.
+fn evidence_line(policy: &EvidencePolicy) -> String {
+    match policy.class {
+        EvidenceClass::ReviewOnly => {
+            "Evidence: review only. An independent reviewer checks each requirement.".to_string()
+        }
+        EvidenceClass::ChecksAndReview => {
+            let mut checks = Vec::new();
+            if let Some(build) = &policy.build_command {
+                checks.push(format!("a clean copy is built with `{build}`"));
+            }
+            if policy.candidate_tests {
+                checks.push("your own tests must pass under `cargo test --offline`".to_string());
+            }
+            if !policy.differential.is_empty() && policy.reference_command.is_some() {
+                checks.push(
+                    "standard output and exit status are compared with the reference program on fixed invocations"
+                        .to_string(),
+                );
+            }
+            if checks.is_empty() {
+                return "Evidence: checks and review. An independent reviewer checks each requirement."
+                    .to_string();
+            }
+            format!(
+                "Evidence: checks and review. {}; then an independent reviewer checks each requirement.",
+                checks.join("; ")
+            )
+        }
+    }
 }
 
 /// Whether `text` is the brief for this exact contract and revision.
