@@ -4245,12 +4245,16 @@ name = "codex-pro-contract-extension"
 version = "0.0.0"
 dependencies = [
  "codex-pro-contract",
+ "codex-state",
+ "codex-utils-absolute-path",
  "pretty_assertions",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sqlx",
  "tempfile",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
