@@ -89,6 +89,23 @@ class RestingTest(unittest.TestCase):
             )
 
 
+class AppServerTest(unittest.TestCase):
+    def test_the_server_starts_in_the_run_directory_not_the_callers(self):
+        # A caller's cwd may hold project-local `.codex` skills that must not reach the executor.
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp).resolve()
+            server = runner.AppServer(
+                ["sh", "-c", "pwd"],
+                dict(os.environ),
+                run_dir / "log",
+                run_dir / "err",
+                cwd=run_dir,
+            )
+            self.assertEqual(server.messages.get(timeout=10), {"method": "runner/eof"})
+            server.close()
+            self.assertEqual((run_dir / "log").read_text().strip(), str(run_dir))
+
+
 class TurnTrackerTest(unittest.TestCase):
     def turn_event(self, method, thread_id, turn_id):
         return {

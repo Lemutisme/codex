@@ -204,7 +204,9 @@ class TurnTracker:
 class AppServer:
     """Newline-delimited JSON-RPC (without the `jsonrpc` field) over the app-server's stdio."""
 
-    def __init__(self, command: list[str], env: dict, log: Path, stderr: Path):
+    def __init__(
+        self, command: list[str], env: dict, log: Path, stderr: Path, cwd: Path
+    ):
         self._log = log.open("a")
         self._stderr = stderr.open("a")
         self.process = subprocess.Popen(
@@ -213,6 +215,7 @@ class AppServer:
             stdout=subprocess.PIPE,
             stderr=self._stderr,
             env=env,
+            cwd=cwd,
             text=True,
             bufsize=1,
         )
@@ -337,6 +340,7 @@ def run(args: argparse.Namespace) -> None:
         env,
         run_dir / "app-server.jsonl",
         run_dir / "app-server.stderr",
+        cwd=run_dir,
     )
     started = time.monotonic()
     turns = TurnTracker()
