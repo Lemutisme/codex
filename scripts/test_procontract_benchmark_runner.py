@@ -106,6 +106,18 @@ class AppServerTest(unittest.TestCase):
             self.assertEqual((run_dir / "log").read_text().strip(), str(run_dir))
 
 
+class ServerEnvironmentTest(unittest.TestCase):
+    def test_the_server_sees_neither_the_hosts_home_nor_its_codex_home(self):
+        run_dir = Path("/runs/x")
+        env = runner.server_env(
+            run_dir, {"HOME": "/home/me", "OPENAI_API_KEY": "k", "PATH": "/bin"}
+        )
+        self.assertEqual(env["CODEX_HOME"], "/runs/x/codex-home")
+        # Personal skills under ~/.agents would otherwise reach the executor's context.
+        self.assertEqual(env["HOME"], "/runs/x/home")
+        self.assertEqual((env["OPENAI_API_KEY"], env["PATH"]), ("k", "/bin"))
+
+
 class TurnTrackerTest(unittest.TestCase):
     def turn_event(self, method, thread_id, turn_id):
         return {

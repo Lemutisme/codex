@@ -133,6 +133,15 @@ def app_server_command(codex_bin: Path, arm: str) -> list[str]:
     return [str(codex_bin), "--disable", "hooks", toggle, "pro_contract", "app-server"]
 
 
+def server_env(run_dir: Path, base: dict) -> dict:
+    """The host environment with CODEX_HOME and HOME confined to the run directory."""
+    return {
+        **base,
+        "CODEX_HOME": str(run_dir / "codex-home"),
+        "HOME": str(run_dir / "home"),
+    }
+
+
 def read_status(ledger: Path, thread_id: str) -> dict | None:
     if not ledger.exists():
         return None
@@ -333,7 +342,8 @@ def run(args: argparse.Namespace) -> None:
     home = run_dir / "codex-home"
     if "OPENAI_API_KEY" not in os.environ:
         sys.exit("OPENAI_API_KEY must be set in the runner's environment")
-    env = {**os.environ, "CODEX_HOME": str(home)}
+    (run_dir / "home").mkdir(exist_ok=True)
+    env = server_env(run_dir, dict(os.environ))
     prompt = (run_dir / "prompt.txt").read_text()
     server = AppServer(
         app_server_command(args.codex_bin, args.arm),
