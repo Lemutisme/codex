@@ -16,6 +16,8 @@ use crate::digest_of;
 const CASE_TIMEOUT_SECS: u64 = 20;
 /// Bytes of log kept per step.
 const STEP_DETAIL_CAP: usize = 4000;
+/// Where the pipeline copies the candidate before building it.
+const WORK_DIR: &str = "/tmp/pc-work";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -106,7 +108,12 @@ log() { head -c 4000 \"$2\" | awk -v prefix=\"@@LOG $1 \" '{ print prefix $0 }';
 for tool in 'rustc --version' 'cargo --version' 'uname -srm'; do printf '@@ENV %s\\n' \"$($tool 2>&1 | head -n 1)\"; done\n\
 export CARGO_NET_OFFLINE=true\n",
     );
-    script.push_str(&format!("cd {} || exit 90\n", shell_quote(candidate_root)));
+    // Build in a private copy owned by the container user, as the evaluator builds in a
+    // workspace it owns; the mounted subject stays untouched.
+    script.push_str(&format!(
+        "rm -rf {WORK_DIR} && mkdir -p {WORK_DIR} && cp -R {}/. {WORK_DIR}/ || exit 90\ncd {WORK_DIR} || exit 90\n",
+        shell_quote(candidate_root)
+    ));
     if let Some(build) = &policy.build_command {
         let built = policy
             .candidate_command
@@ -125,7 +132,7 @@ export CARGO_NET_OFFLINE=true\n",
     }
     if let (Some(reference), Some(candidate)) = (
         policy.reference_command.as_deref(),
-        candidate_path(policy, candidate_root),
+        candidate_path(policy, WORK_DIR),
     ) {
         let reference = shell_quote(reference);
         let candidate = shell_quote(&candidate);
@@ -318,10 +325,10 @@ pub async fn run(
         .map_err(launch)?;
     let subject = subject_dir.display().to_string();
     let scripts = script_dir.display().to_string();
-    // The container user must be able to build inside its disposable copy.
-    command_output("chmod", &["-R", "a+rwX", &subject, &scripts]).await?;
+    // The container user only needs to read the subject; it builds in its own copy.
+    command_output("chmod", &["-R", "a+rX", &subject, &scripts]).await?;
     let name = unique_name();
-    let mount = format!("{subject}:{}", env.candidate_mount);
+    let mount = format!("{subject}:{}:ro", env.candidate_mount);
     let script_mount = format!("{scripts}:/pc:ro");
     let child = tokio::process::Command::new(&env.docker)
         .args([

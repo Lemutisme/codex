@@ -45,7 +45,12 @@ fn the_script_is_deterministic_and_quotes_every_argument() {
     let script = pipeline_script(&policy(), "/candidate");
     assert_eq!(script, pipeline_script(&policy(), "/candidate"));
     assert!(script.contains("'hello world' 'it'\\''s'"), "{script}");
-    assert!(script.contains("cd '/candidate'"), "{script}");
+    // The mounted subject is only read; building happens in a private copy.
+    assert!(
+        script.contains("cp -R '/candidate'/. /tmp/pc-work/"),
+        "{script}"
+    );
+    assert!(script.contains("cd /tmp/pc-work "), "{script}");
     assert!(
         !script.contains("a,b"),
         "stdin must be encoded, not inlined"
@@ -132,20 +137,10 @@ async fn a_real_container_run_passes_and_fails_the_right_cases() {
         "#!/bin/sh\nprintf '#!/bin/sh\\necho \"$@\"\\n' > executable\nchmod +x executable\n",
     )
     .expect("compile.sh");
-    let status = std::process::Command::new("chmod")
-        .args(["-R", "a+rwX"])
-        .arg(dir.path())
-        .status()
-        .expect("chmod");
-    assert!(status.success());
-    std::fs::set_permissions(
-        dir.path().join("compile.sh"),
-        std::os::unix::fs::PermissionsExt::from_mode(0o777),
-    )
-    .expect("chmod compile.sh");
     let policy = EvidencePolicy {
         class: EvidenceClass::ChecksAndReview,
-        build_command: Some("./compile.sh".to_string()),
+        // The official evaluator's build command; the host, not the container user, owns the files.
+        build_command: Some("chmod +x ./compile.sh && ./compile.sh".to_string()),
         candidate_command: Some("./executable".to_string()),
         candidate_tests: false,
         differential: vec![
