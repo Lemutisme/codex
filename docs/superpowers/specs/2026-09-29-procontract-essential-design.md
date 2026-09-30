@@ -59,7 +59,8 @@ responsibility.**
 2. End-to-end tests through the real app-server with a mocked Responses server and the real trusted in-process
    connection cover, in delivery order:
    a. **the explicit core loop** — request → intake → draft → Issue → edits → candidate → check fails → repair → pass →
-      supported → explicit accept → discharged → challenge → duty restored → repaired → supported again — and it stays
+      supported → explicit accept → discharged → challenge → duty restored → the human asks to continue (a
+      work-authorizing act, §6.1) → repaired → supported again — and it stays
       correct under compaction (brief removed), restart, later unrelated input, and an **executor replacement**
       (a different model or binary continues the same contract);
    b. **the implicit path** — the same loop with the next human message carrying a receipt as presumed acceptance.
@@ -126,10 +127,13 @@ Decision provenance is recorded, never collapsed:
 
 - `explicit` — the human pressed accept, reopen or release;
 - `presumed` — acceptance presumed under the user-authorized convention, bound to the convention version and the
-  intent-classifier version that interpreted the act.
+  intent-classifier version that interpreted the act;
+- `interpreted` — any other Settler or Issuer act read from natural language (a dispute that becomes a Challenge, a
+  revision, a continue), bound to the classifier version.
 
-v1 never lets an automated controller settle; the generalization only keeps later headless evaluation and RSI from
-being blocked by an interactive product rule.
+In v1 there is **no autonomous settlement absent an authorized human act**: presumed acceptance is carried out by
+automation, but only on a human act under the convention the human chose. The generalization only keeps later headless
+evaluation and RSI from being blocked by an interactive product rule.
 
 ## 3. Architecture
 
@@ -290,6 +294,14 @@ the artifact itself is not accused: the same subject is re-verified under the ne
 issued, and the Settler must accept again — the old acceptance never authorizes the new certificate. This is the
 paper's rule that withdrawing a judgment loses only the progress that relied on it.
 
+`Withdraw` invariants: it advances the contract generation and re-binds the candidate to it, preserving subject,
+revision and policy bindings; the next `Support` requires an authorized re-verification that produces a new
+certificate, never a relabeled old one; the event records the cause and the exact judgment or custody incident it
+answers; custody-triggered withdrawal is a controller action, never an instruction a reviewer model can issue; and it
+preserves spent budgets and work authorization — it neither revives a finished episode's repair allowance nor
+authorizes unsolicited executor work. A pure reducer cannot establish that a stated cause is true; authentication and
+admission policy remain in the TCB (§3.5).
+
 **Retries never reach the reducer.** The ledger performs a durable idempotency lookup before running the reducer and
 its compare-and-swap: an identical retry returns the originally committed result without a new transition; the same
 key with a different payload rejects.
@@ -340,18 +352,34 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
   - tool execution runs under a Codex-managed sandbox (read-only or workspace-write) in a local environment. Under
     `danger-full-access` (`SandboxEnforcement::Disabled`) or an external sandbox, no contract is issued: a same-user
     executor could forge the ledger, and an "unprotected" label cannot protect itself;
-  - **no command hooks are configured** for events the executor can trigger. Upstream's hook runner builds and spawns
-    the command directly, outside the thread's sandbox (`hooks/src/engine/command_runner.rs`), and a hook may run a
-    script the executor can edit;
-  - **no local MCP servers are enabled.** The stdio launcher starts servers without a sandbox
-    (`rmcp-client/src/stdio_server_launcher.rs`), and the executor drives them through tool calls. Servers reached over
-    the network at a non-loopback address are allowed; loopback servers count as local;
-  - no approved escalation grants write access outside the executor's writable roots;
-  - any other capability that starts local processes outside the managed sandbox (plugins, apps, future host features)
-    is treated the same way: unknown means unsafe.
-  The check runs at intake and again at every admission; a capability appearing mid-contract is a custody break. v1
-  abstains rather than certifying; a general capability-security system is out of scope, and the protected
-  institution service (§3.6) is the real fix.
+  - every other reachable capability is in a **closed safe-capability profile**. Anything not in the profile makes the
+    thread ineligible; unknown executable authority is unsafe. The profile starts with Codex's built-in tools under the
+    managed sandbox and host-side writes (for example `apply_patch`) that are checked against the same writable roots.
+    It excludes by default:
+    - command hooks — the hook runner builds and spawns the command directly, outside the thread's sandbox
+      (`hooks/src/engine/command_runner.rs`), and a hook may run a script the executor can edit;
+    - the legacy `notify` command, which spawns directly and is registered separately from the hook-engine feature
+      (`hooks/src/legacy_notify.rs`, `hooks/src/registry.rs`);
+    - MCP servers of **any** transport — the stdio launcher starts servers without a sandbox
+      (`rmcp-client/src/stdio_server_launcher.rs`), and a network address is not a custody proof (a LAN address can be
+      the same machine; a remote service can have shared-storage authority);
+    - client dynamic tools, whose execution is delegated to the client (`app-server/src/bespoke_event_handling.rs`);
+    - executor-discovered plugin hooks, which can become available after earlier lifecycle events
+      (`core-plugins/src/executor_hooks.rs`); instruction-only plugins are not excluded merely for being present;
+    - network or IPC bridges into local daemons, such as the network proxy's unix-socket allowances
+      (`network-proxy/src/config.rs`);
+    - approved escalations that grant write access outside the executor's writable roots.
+    A capability leaves the exclusion list only by an explicit human allowlist entry in `[pro_contract]` configuration
+    asserting that it cannot write verifier state; the entry is recorded in the custody part of the environment digest.
+  - **Capability changes are gated, not just checked.** Checking at intake and at admission cannot stop a capability
+    that is installed, refreshed or launched mid-turn. For the duration of certification, capability installation,
+    refresh and launch on the thread must pass a gate the controller observes before launch, or be prohibited; if
+    upstream offers no such gate, slice 0 must either design a generic pre-launch capability hook (§3.3) or pin the
+    thread's capability set while any contract is being certified. Subagents, surviving subprocesses and host-side
+    write operations are audited under the same rule.
+  v1 abstains rather than certifying; a general capability-security system is out of scope, the eligible-task coverage
+  floor of §8.5 exposes excessive abstention instead of weakening custody, and the protected institution service
+  (§3.6) is the real fix.
 - **One layout.** All verifier state — the SQLite ledger with its WAL and SHM files, the blob store, evidence
   artifacts, materialized copies and worker directories — lives under `CODEX_HOME/pro_contract/`, outside every
   executor's writable roots. Custody checks cover all of it.
@@ -365,14 +393,20 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
 - **Two kinds of custody loss, two recovery paths.**
   1. *Evidence needs re-verification* — the break could have affected artifacts, check outputs or certificates, but the
      ledger's terms, owner and human decisions are still trustworthy (for example, the break is bounded in time and the
-     ledger's head was anchored before it). Each affected contract gets `Withdraw`: support (and a discharge that
-     relied on it) is removed, the candidate's subject is kept, re-verification runs against re-materialized bytes
-     whose SHA-256 still matches the manifest, a new certificate is issued, and the Settler accepts again.
+     ledger's head was anchored before it). An anchored head authenticates only its prefix: human decisions recorded
+     after the anchor are unauthenticated, and an unauthenticated suffix forces path 2 — never an authoritative replay
+     or a silent rollback. Each affected contract with support or a settlement gets `Withdraw`: support (and a
+     discharge that relied on it) is removed, the candidate's subject is kept, re-verification runs against
+     re-materialized bytes whose SHA-256 still matches the manifest, a new certificate is issued, and the Settler
+     accepts again. Candidates without support are not withdrawn; their in-flight verification jobs are fenced and
+     restarted.
   2. *The authoritative record lost trusted provenance* — the ledger itself may have been written. No flag inside the
-     same database can certify its own recovery. The store is frozen read-only as untrusted history and a new store is
-     opened; outstanding duties from the old store are shown as "unverifiable — re-issue if still needed" and are never
-     silently carried over or treated as quiet. Recovery beyond this needs a trusted checkpoint or an external root of
-     trust, which v1 does not have (§3.6).
+     same database can certify its own recovery, and an untrusted ledger cannot even enumerate its outstanding duties
+     reliably. The store is frozen read-only as untrusted history; the human is shown an **unknown or incomplete
+     inventory** ("records from before <time> cannot be verified — re-issue anything still needed"), never a list
+     presented as complete; a new store opens a fresh trust namespace; old jobs, receipts and certificates are rejected
+     by it. Nothing is silently carried over or treated as quiet. Recovery beyond this needs a trusted checkpoint or an
+     external root of trust, which v1 does not have (§3.6).
 - Check processes and review workers run with **restricted read** as well as write: the live workspace, the ledger,
   credentials, rollouts and unrelated host paths are denied. Upstream's default read-only policy grants root read
   (`protocol/src/permissions.rs`), so an explicit restricted profile with `FileSystemAccessMode::Deny` entries is
@@ -471,7 +505,9 @@ deliberately excluded diagnostics do not invalidate otherwise complete evidence.
   references are validated deterministically. The residual addresses unmet frozen requirements only, never new goals.
 - **Request → terms completeness is judged separately.** Covering every numbered requirement is not enough: the
   reviewer must also check, against the verbatim intake, that every substantive element of the human request is
-  represented by some requirement, or is listed as explicitly out of scope with a reason. Each requirement carries its
+  represented by some requirement, or was excluded **by the human** (an explicit statement in the intake or a later
+  human act). A drafter's reason for dropping a requested element is not authorization: an unauthorized exclusion of a
+  substantive element is a `termsGap`, just like an omission. Each requirement carries its
   provenance (§6.2 step 2), so the reviewer can see what was quoted and what was inferred. A gap, a scope inflation, or
   an unrequested weakening yields `cannot_judge{termsGap}` naming the element; it is shown to the human as "the
   contract may have missed: …" for a Revise or an explicit decision. The reviewer never adds the missing requirement
@@ -580,15 +616,20 @@ Activation conditions gate **issuance** only. They never gate processing of huma
    live work. Output (strict JSON): `none` or `new_contract{requirements[], evidence_class, checks, applicability rules,
    evaluator paths, out_of_scope[]}`. Unresolvable references produce a clarification request, not invented
    requirements. **Every requirement carries provenance:** the source act id, the verbatim span it comes from, and which
-   parts are inferred rather than stated. `out_of_scope` lists request elements deliberately not turned into
-   requirements, each with a reason. Both feed the completeness review (§5.4).
-3. **Issue.** The delegate issues on the owner's behalf, unless the intake was cancelled or superseded meanwhile
-   (§6.1). The executor then sees one world-state section — at most 512 tokens: numbered requirements and evidence class;
+   parts are inferred rather than stated. `out_of_scope` lists request elements not turned into requirements, each
+   citing the human statement that excluded it, or marked `nonSubstantive` (pleasantries, background); any other
+   exclusion is surfaced by the completeness review as a `termsGap` (§5.4).
+3. **Issue.** The delegate issues on the owner's behalf. Issue obeys the human-control barrier of §6.3: it commits
+   only after every earlier human act has been processed in order, with an atomic check of the intake's version, so a
+   cancellation or supersession admitted before the commit always wins — a flag checked while an interpretation is
+   still pending is not enough. The executor then sees one world-state section — at most 512 tokens: numbered
+   requirements and evidence class;
    no budgets, no countdown — at its next sampling step. **The brief is deduplicated, not one-shot:** it is not repeated
    while a valid copy is in context, and it is re-rendered from the contract (a bounded view, never a recitation of the
    whole ledger) whenever compaction, resume or an executor rebuild removed it — using the world-state
    `with_retained_fragment_matcher` mechanism, because persisted comparison state can outlive the text it describes
-   (`ext/extension-api/src/contributors/world_state.rs`). If the executor's turn ended before Issue, the candidate is
+   (`ext/extension-api/src/contributors/world_state.rs`). The matcher must match the **current contract and revision**,
+   never merely any historical `pro_contract` marker. If the executor's turn ended before Issue, the candidate is
    the artifact frozen at that turn's end (step 5), never a later capture of the workspace.
 4. **Work binding and episodes.** A binding `(contract, revision, act id, input sequence, turn id, host epoch)` is
    extension audit metadata, not kernel state. A turn is bound to contract C only when it was dispatched by the intake
@@ -602,13 +643,16 @@ Activation conditions gate **issuance** only. They never gate processing of huma
    the store is dropped: turn id, act id, input sequence, final message id, structured question signals, and the
    **actual turn outcome** (`completed`, `aborted(reason)` or `error`). The idle cause alone is insufficient: upstream
    reports `Completed` for every abort reason other than `Interrupted` and `BudgetLimited` (`core/src/tasks/mod.rs`).
-   On idle, a bound, eligible contract whose terminal record says `completed` captures the candidate and proposes it.
-   Every other outcome produces no candidate; "turn ended" is not a successful handoff.
-   **The artifact is fixed at the turn-end boundary.** If the turn's intake is still being drafted, the candidate
-   artifact is captured and frozen at that same boundary and bound to the intake act; a late Issue proposes exactly that
-   artifact. Identity checks on the turn prove *which turn* ended, not *which files it delivered*: capturing the
-   workspace later could attribute a following turn's edits to this contract. If the boundary capture fails, this
-   turn is not certified; the controller never falls back to the current workspace.
+   **The artifact is frozen at the turn-end boundary — in `on_turn_stop`, not on idle.** Upstream emits turn
+   completion and clears the active turn before idle contributors run, and the idle path releases its lock before
+   awaiting them (`core/src/tasks/mod.rs`, `core/src/tasks/lifecycle.rs`), so by idle time a following turn may already
+   be editing files. Therefore, for a turn bound to a contract **or** belonging to a still-drafting intake, the
+   candidate artifact is captured and frozen in `on_turn_stop`, bound to the turn and act ids, within the capture caps.
+   Idle only *promotes* a frozen artifact: a bound, eligible contract whose terminal record says `completed` proposes
+   exactly that artifact, and a late Issue proposes exactly the artifact frozen for its intake. Every other outcome
+   produces no candidate; "turn ended" is not a successful handoff. Identity checks on the turn prove *which turn*
+   ended, not *which files it delivered*. If the boundary capture fails or exceeds its cap, the turn is not certified;
+   the controller never falls back to the current workspace.
    **Questions never block evidence; they block automatic repair.** Upstream cannot tell a required clarification from
    an optional follow-up: native async questions (`request_user_input` messages carrying `questions`, phase
    `FinalAnswer`, delivery `Async`) return immediately and carry no "required" flag. So a candidate is verified even
@@ -631,7 +675,7 @@ Activation conditions gate **issuance** only. They never gate processing of huma
 
 | Situation | Rule |
 |---|---|
-| A complaint followed quickly by another message | The complaint is never discarded as stale; human acts are processed in order before automation effects are promoted. |
+| A complaint followed quickly by another message | The complaint is never discarded as stale; human acts are processed in order before automation effects — including `Issue` — are promoted. |
 | New human input during verification | Automatic effects are fenced at ingress. Pending human relations are applied before any verification result is promoted. |
 | Repair races input, interrupt, Plan mode, goal activation, or a permission/environment change | One admission permit (§3.3 item 4) covers every revocation source and is validated atomically with the reservation; the expected input sequence comes from the work binding, so intervening input can never be blessed. There is no check-then-submit window. |
 | Restart after repair submission | Reconcile the durable repair id with thread history before retrying; spent budgets persist. |
@@ -813,7 +857,13 @@ and benefit.
     A's candidate is the artifact frozen at A's turn end, never B's edits;
   - the human cancels or modifies the original request while it is being drafted → the stale draft is never issued;
   - compaction removes the brief while the revision is unchanged → the brief is re-rendered at the next step, once;
-  - a configured command hook or an enabled local MCP server → abstain; one appearing mid-contract → custody break;
+  - each excluded capability of the closed profile (command hook, legacy `notify`, an MCP server on any transport,
+    a client dynamic tool, an executor-discovered plugin hook, a unix-socket bridge) → abstain; a human allowlist
+    entry → eligible and recorded in custody; a capability installed or launched mid-turn → gated or treated as a
+    custody break before it can run;
+  - a draft that drops a requested element with only the drafter's reason → `termsGap`;
+  - a turn ends and the next human turn starts editing before idle contributors run → the candidate is the artifact
+    frozen in `on_turn_stop`;
   - `Withdraw` after a custody break: the same subject is re-verified, a new certificate is issued, the old acceptance
     does not carry over, and an explicit accept discharges again; an untrusted-ledger break freezes the store and
     shows its outstanding duties as unverifiable;
@@ -930,8 +980,11 @@ contract with bindings intact; then `v_1` generates and runs `v_2`.
 5. The source of the stable owner identity (account versus local user).
 6. The privacy and retention rule for tombstoned human content (§6.6) and for exportable evidence (§9).
 7. Default worker models and efforts, and the concrete ceilings to preregister for §8.5.
-8. How to enumerate reachable execution capabilities reliably (hooks by event, MCP servers by transport and address,
-   plugins and apps that start local processes), and how a capability that appears mid-contract is detected (§5.1).
+8. How to enumerate the reachable execution capabilities against the closed safe-capability profile (command hooks,
+   legacy `notify`, MCP servers, client dynamic tools, executor-discovered plugin hooks, network and IPC bridges,
+   escalations, host-side writes), and whether upstream offers a pre-launch gate for capability installation, refresh
+   and launch — or whether v1 needs a generic pre-launch capability hook or must pin the capability set during
+   certification (§5.1).
 9. Where a ledger-head anchor could live so that bounded custody breaks can use recovery path 1 rather than path 2
    (§5.1), given that v1 has no external root of trust.
 10. The shape of the narrow institution interface (§3.6), so that relocating the institution later is a deployment
@@ -945,7 +998,8 @@ its own plan, its own integration tests, and a green tree:
 
 0. **Feasibility spikes (throwaway code, findings recorded):** the owner identity source; a prototype of the
    admission boundary (human-input observation, input sequence, conditional continuation) with concrete results for
-   revocation races and the linearization protocol of §11 item 3; reachable-capability enumeration (§11 item 8);
+   revocation races and the linearization protocol of §11 item 3; reachable-capability enumeration and pre-launch
+   capability gating (§11 item 8);
    actual restricted-read custody on each supported platform, including where restart-safe quarantine authority is
    anchored and how custody loss is recovered; artifact freezing at the turn-end boundary; one offline Cargo fixture
    with real registry dependencies through archive import, the conservative configuration comparator and both
@@ -957,16 +1011,19 @@ its own plan, its own integration tests, and a green tree:
    and review worker (including request → terms completeness), the automation lane happy path with brief
    re-rendering, a minimal notification and TUI card, and an end-to-end test through the real in-process app-server
    that ends at **supported**. No institutional test bypass stands in for settlement.
-3. **Explicit core loop** — ordered human admission, explicit `decide` (accept, reopen, release), challenge and
-   restored duty, `Withdraw` and re-acceptance, pending-intake cancel and supersede, late-Issue artifact binding;
-   proven robust to compaction, restart, later unrelated input and an **executor replacement** (§1.3 item 2a).
+3. **Explicit core loop** — ordered human admission; the **non-settling** part of the intent stage (dispute, revise,
+   continue, cancel — everything except presumed acceptance); explicit `decide` (accept, reopen, release); challenge,
+   restored duty and a work-authorizing continue; `Withdraw` and re-acceptance; pending-intake cancel and supersede
+   with Issue behind the human-control barrier; boundary-frozen artifacts and late-Issue binding; and the minimum
+   fencing and recovery needed to justify restart robustness. Proven robust to compaction, restart, later unrelated
+   input and an **executor replacement** (§1.3 item 2a).
 4. **Fencing and recovery** — every revocation source in the admission permit, work episodes, holds, crash and restart
    reconciliation.
 5. **Evidence hardening** — frozen-evaluator lane and machinery validation, reachable-capability custody and
    store-wide quarantine with both recovery paths, classification at Issue, execution restrictions, with their
    adversarial tests.
-6. **Implicit settlement** — presentation receipts, the intent stage, presumed acceptance with its provenance, and the
-   real TUI event-loop test (§8.4); completes §1.3 item 2b.
+6. **Implicit settlement** — presentation receipts, presumed acceptance with its provenance, and the real TUI
+   event-loop test (§8.4); completes §1.3 item 2b.
 7. **Surfaces completeness** — `list`/`history`/`read`, reconnection, the `/contract` inspector, snapshots.
 8. **Expanded adversarial coverage** — the full suite of §8.5 item 1 beyond what earlier slices already added.
 9. **Controlled evaluation** — §8.5 items 2–4 (three arms and the perturbation suite), planned and preregistered
@@ -988,6 +1045,8 @@ Stored outside the repository in `~/scratch/procontract-essential/` (Codex sessi
 | 6 | Confirmation: 5 resolved, 1 partial (left to slice 0); 1 new blocking, 3 should, 1 nit — all accepted; verdict "ready for planning from slice 0" | `astra-round6-confirm-20260929.md`, `astra-review-round6-20260929.md` |
 | Ext 1 | External review of `415e89c` and the paper: reachable-capability custody, quarantine recovery, late-Issue artifact binding, brief re-rendering, request → terms fidelity, settlement as authorization policy, TCB, ablation arms — all accepted | `external-review-1-spec-20260930.md` |
 | Ext 2 | External review of end-to-end, essence and RSI foundation: settlement generality, replaceable versions, separate adoption decisions, a boundary that survives a new harness, recursion criterion — accepted into §2.5, §3.6, §10.1 | `external-review-2-rsi-20260930.md` |
+
+| 7 | External-review revision: 3 blocking (network address is not custody; capture must be in `on_turn_stop`, not idle; a drafter's reason does not authorize dropping a requirement) plus mid-turn capability gating, 4 should — all accepted; verdict "still ready for slice-0 planning" | `astra-round7-external-20260930.md`, `astra-review-round7-20260930.md` |
 
 Principal decisions on the external reviews (2026-09-30): **D1** v1 abstains when command hooks or local MCP servers
 are reachable; **D2** the kernel gains `Withdraw`; **D3** the explicit core loop precedes implicit settlement in
