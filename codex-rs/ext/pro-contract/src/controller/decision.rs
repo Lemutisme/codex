@@ -16,9 +16,13 @@ pub(crate) const EXECUTOR_TEXT_CAP: usize = 2000;
 pub(crate) enum Verdict {
     Support,
     /// A frozen requirement failed; the residual is shown to the executor on repair.
-    Defeat { residual: String },
+    Defeat {
+        residual: String,
+    },
     /// No judgment could be formed; nothing is shown to the executor.
-    NotVerified { reason: String },
+    NotVerified {
+        reason: String,
+    },
 }
 
 /// Combines check receipts and, when the checks passed, the review.

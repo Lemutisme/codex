@@ -11,7 +11,9 @@ pub(crate) fn workspace_view(subject: &Subject, store: &BlobStore, cap: usize) -
     let mut listing = String::from("Files:\n");
     for entry in &subject.manifest.entries {
         match &entry.kind {
-            EntryKind::File { len, .. } => listing.push_str(&format!("{} ({len} bytes)\n", entry.path)),
+            EntryKind::File { len, .. } => {
+                listing.push_str(&format!("{} ({len} bytes)\n", entry.path))
+            }
             EntryKind::Symlink { target } => {
                 listing.push_str(&format!("{} -> {target}\n", entry.path));
             }
@@ -23,7 +25,9 @@ pub(crate) fn workspace_view(subject: &Subject, store: &BlobStore, cap: usize) -
         .entries
         .iter()
         .filter_map(|entry| match &entry.kind {
-            EntryKind::File { digest, .. } => Some((priority(&entry.path), entry.path.as_str(), digest)),
+            EntryKind::File { digest, .. } => {
+                Some((priority(&entry.path), entry.path.as_str(), digest))
+            }
             EntryKind::Symlink { .. } => None,
         })
         .collect();

@@ -38,13 +38,17 @@ fn the_view_lists_everything_and_shows_documentation_before_sources() {
     let main = view.find("=== src/main.rs ===").expect("main section");
     assert!(readme < main, "{view}");
     assert!(view.contains("logo.bin (4 bytes)"), "{view}");
-    assert!(!view.contains("=== logo.bin ==="), "binary content must not be included");
+    assert!(
+        !view.contains("=== logo.bin ==="),
+        "binary content must not be included"
+    );
 }
 
 #[test]
 fn the_view_respects_its_cap_and_says_what_it_omitted() {
     let big = "line\n".repeat(10_000);
-    let (_ws, store, subject) = capture_tree(&[("README.md", b"short"), ("src/big.rs", big.as_bytes())]);
+    let (_ws, store, subject) =
+        capture_tree(&[("README.md", b"short"), ("src/big.rs", big.as_bytes())]);
     let view = workspace_view(&subject, &store, 2_000);
     assert!(view.len() <= 2_200, "{}", view.len());
     assert!(view.contains("omitted"), "{view}");

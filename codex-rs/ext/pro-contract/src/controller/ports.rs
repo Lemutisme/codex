@@ -1,0 +1,132 @@
+//! The lane's effects outside its own state — hidden workers, container checks and the repair
+//! turn — behind one seam, so the lane itself is testable without a model or Docker.
+
+use std::future::Future;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::Weak;
+
+use codex_core::ThreadManager;
+use codex_core::TurnInput;
+use codex_core::TurnInputRequest;
+use codex_core::TurnInputSubmission;
+use codex_core::TurnStartOptions;
+use codex_core::config::Config;
+use codex_core::context::ContextualUserFragment;
+use codex_core::context::InternalContextSource;
+use codex_core::context::InternalModelContextFragment;
+use codex_protocol::ThreadId;
+
+use crate::CheckEnvironment;
+use crate::CheckError;
+use crate::CheckReceipts;
+use crate::EvidencePolicy;
+use crate::WorkerError;
+use crate::WorkerSettings;
+use crate::checks;
+use crate::workers::runtime::WorkerTurn;
+use crate::workers::runtime::run_turn;
+use crate::workers::runtime::worker_config;
+
+pub(crate) type PortFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+pub(crate) trait Ports: Send + Sync {
+    /// Runs one strict-JSON turn on a hidden worker and returns its final message.
+    fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>>;
+
+    /// Runs the reference program once with `--help` and returns its bounded output.
+    fn probe_reference<'a>(
+        &'a self,
+        env: &'a CheckEnvironment,
+        reference: &'a str,
+    ) -> PortFuture<'a, Result<String, CheckError>>;
+
+    /// Runs the check pipeline over the materialized candidate.
+    fn run_checks<'a>(
+        &'a self,
+        env: &'a CheckEnvironment,
+        candidate: &'a Path,
+        policy: &'a EvidencePolicy,
+    ) -> PortFuture<'a, Result<CheckReceipts, CheckError>>;
+
+    /// Starts the repair turn on the executor thread, continuing `previous_turn_id`.
+    fn submit_repair(
+        &self,
+        residual: String,
+        previous_turn_id: String,
+    ) -> PortFuture<'_, Result<(), String>>;
+}
+
+/// The real ports: hidden threads on the host's thread manager and Docker checks.
+pub(crate) struct CodexPorts {
+    pub thread_id: ThreadId,
+    pub manager: Weak<ThreadManager>,
+    pub config: Config,
+    pub worker: WorkerSettings,
+}
+
+impl Ports for CodexPorts {
+    fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>> {
+        Box::pin(async move {
+            let manager = self
+                .manager
+                .upgrade()
+                .ok_or_else(|| WorkerError::Start("thread manager is gone".to_string()))?;
+            let config = worker_config(&self.config, &self.worker)?;
+            run_turn(&manager, config, turn).await
+        })
+    }
+
+    fn probe_reference<'a>(
+        &'a self,
+        env: &'a CheckEnvironment,
+        reference: &'a str,
+    ) -> PortFuture<'a, Result<String, CheckError>> {
+        Box::pin(
+            async move { checks::probe_reference(env, reference, &["--help".to_string()]).await },
+        )
+    }
+
+    fn run_checks<'a>(
+        &'a self,
+        env: &'a CheckEnvironment,
+        candidate: &'a Path,
+        policy: &'a EvidencePolicy,
+    ) -> PortFuture<'a, Result<CheckReceipts, CheckError>> {
+        Box::pin(checks::run(env, candidate, policy))
+    }
+
+    fn submit_repair(
+        &self,
+        residual: String,
+        previous_turn_id: String,
+    ) -> PortFuture<'_, Result<(), String>> {
+        Box::pin(async move {
+            let manager = self
+                .manager
+                .upgrade()
+                .ok_or_else(|| "thread manager is gone".to_string())?;
+            let thread = manager
+                .get_thread(self.thread_id)
+                .await
+                .map_err(|error| error.to_string())?;
+            let item = ContextualUserFragment::into(InternalModelContextFragment::new(
+                InternalContextSource::from_static("pro_contract"),
+                residual,
+            ));
+            let request =
+                TurnInputRequest::new(TurnInput::ResponseItem(item)).on_start(TurnStartOptions {
+                    turn_trigger: Some("pro_contract_repair".to_string()),
+                    ..Default::default()
+                });
+            match thread
+                .continue_turn_if_idle(request, previous_turn_id)
+                .await
+                .map_err(|error| error.to_string())?
+            {
+                TurnInputSubmission::Started { .. } => Ok(()),
+                other => Err(format!("{other:?}")),
+            }
+        })
+    }
+}

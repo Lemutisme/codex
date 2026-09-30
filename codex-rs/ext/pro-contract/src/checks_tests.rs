@@ -187,3 +187,34 @@ async fn a_real_container_run_passes_and_fails_the_right_cases() {
     );
     assert!(receipts.complete);
 }
+
+#[tokio::test]
+async fn a_reference_probe_reports_bounded_output_and_exit_status() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let env = CheckEnvironment {
+        docker: "docker".to_string(),
+        image,
+        user: "1000:1000".to_string(),
+        candidate_mount: "/candidate".to_string(),
+        timeout_secs: 120,
+        build_command: None,
+        candidate_command: None,
+    };
+
+    let output = super::probe_reference(
+        &env,
+        "/bin/sh",
+        &[
+            "-c".to_string(),
+            "yes probe | head -c 20000; exit 3".to_string(),
+        ],
+    )
+    .await
+    .expect("probe");
+
+    assert!(output.starts_with("probe\nprobe\n"), "{output}");
+    assert!(output.len() < 8100, "{} bytes", output.len());
+    assert!(output.trim_end().ends_with("[exit status 3]"), "{output}");
+}

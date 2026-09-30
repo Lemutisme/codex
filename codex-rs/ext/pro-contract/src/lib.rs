@@ -26,6 +26,7 @@ pub use checks::CheckError;
 pub use checks::CheckReceipts;
 pub use checks::StepOutcome;
 pub use checks::StepReceipt;
+pub use controller::runtime::StatusRecord;
 pub use hashing::digest_of;
 pub use settings::CheckEnvironment;
 pub use settings::EvaluationProfile;
@@ -44,3 +45,20 @@ pub use terms::OutOfScope;
 pub use terms::Requirement;
 pub use terms::Terms;
 pub use workers::WorkerError;
+
+/// Installs the ProContract automation lane. `enabled` decides per thread configuration whether
+/// the lane is active at all; eligibility then decides whether contracts are possible.
+pub fn install(
+    registry: &mut codex_extension_api::ExtensionRegistryBuilder<codex_core::config::Config>,
+    thread_manager: std::sync::Weak<codex_core::ThreadManager>,
+    enabled: impl Fn(&codex_core::config::Config) -> bool + Send + Sync + 'static,
+) {
+    let extension = std::sync::Arc::new(controller::ProContractExtension::new(
+        thread_manager,
+        Box::new(enabled),
+    ));
+    registry.thread_lifecycle_contributor(extension.clone());
+    registry.turn_lifecycle_contributor(extension.clone());
+    registry.turn_input_contributor(extension.clone());
+    registry.prompt_contributor(extension);
+}

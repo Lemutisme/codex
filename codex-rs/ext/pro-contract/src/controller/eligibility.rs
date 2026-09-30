@@ -41,7 +41,9 @@ pub(crate) fn eligibility<'a>(facts: &EligibilityFacts<'a>) -> Eligibility<'a> {
         return abstain("the thread has no persistent state");
     }
     if facts.environment_ids != [profile.environment_id.as_str()] {
-        return abstain("the executor environment is not exactly the configured isolated container");
+        return abstain(
+            "the executor environment is not exactly the configured isolated container",
+        );
     }
     if facts.mcp_server_count > 0 {
         return abstain("MCP servers are reachable outside the isolated environment");

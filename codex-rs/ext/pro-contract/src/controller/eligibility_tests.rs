@@ -82,7 +82,10 @@ fn without_the_evaluation_grant_the_thread_abstains() {
         settings: None,
         ..facts(&settings)
     };
-    assert!(matches!(eligibility(&facts(&settings)), Eligibility::Abstain(_)));
+    assert!(matches!(
+        eligibility(&facts(&settings)),
+        Eligibility::Abstain(_)
+    ));
     assert!(matches!(eligibility(&no_file), Eligibility::Abstain(_)));
 }
 

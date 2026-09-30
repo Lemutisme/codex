@@ -241,6 +241,60 @@ async fn command_output(program: &str, args: &[&str]) -> Result<String, CheckErr
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Runs the reference program once, black-box, in a fresh network-less container and returns
+/// its bounded combined output and exit status — observations the drafter may use.
+pub async fn probe_reference(
+    env: &CheckEnvironment,
+    reference: &str,
+    args: &[String],
+) -> Result<String, CheckError> {
+    let invocation = std::iter::once(shell_quote(reference))
+        .chain(args.iter().map(|arg| shell_quote(arg)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let script = format!(
+        "cd /tmp && timeout {CASE_TIMEOUT_SECS} {invocation} < /dev/null > /tmp/pc-probe.out 2>&1; status=$?; head -c 8000 /tmp/pc-probe.out; printf '\\n[exit status %s]\\n' \"$status\""
+    );
+    let name = unique_name();
+    let child = tokio::process::Command::new(&env.docker)
+        .args([
+            "run",
+            "--rm",
+            "--name",
+            &name,
+            "--network",
+            "none",
+            "--user",
+            &env.user,
+            "--entrypoint",
+            "bash",
+            &env.image,
+            "-c",
+            &script,
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| CheckError::Launch(error.to_string()))?;
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(CASE_TIMEOUT_SECS * 3),
+        child.wait_with_output(),
+    )
+    .await
+    {
+        Ok(output) => {
+            let output = output.map_err(|error| CheckError::Launch(error.to_string()))?;
+            Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        }
+        Err(_) => {
+            let _ = command_output(&env.docker, &["rm", "-f", &name]).await;
+            Err(CheckError::TimedOut)
+        }
+    }
+}
+
 /// Runs the pipeline over the materialized subject at `subject_dir`.
 pub async fn run(
     env: &CheckEnvironment,

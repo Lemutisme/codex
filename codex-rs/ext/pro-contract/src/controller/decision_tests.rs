@@ -36,7 +36,10 @@ fn policy() -> EvidencePolicy {
     }
 }
 
-fn receipts(steps: Vec<(&str, StepOutcome, &str)>, complete: bool) -> Result<CheckReceipts, CheckError> {
+fn receipts(
+    steps: Vec<(&str, StepOutcome, &str)>,
+    complete: bool,
+) -> Result<CheckReceipts, CheckError> {
     Ok(CheckReceipts {
         steps: steps
             .into_iter()
@@ -100,15 +103,25 @@ fn a_failed_check_defeats_with_the_invocation_and_diff_in_the_residual() {
         panic!("expected a defeat, got {verdict:?}");
     };
     assert!(residual.contains("--delimiter"), "{residual}");
-    assert!(residual.contains("exit status: reference 0, candidate 1"), "{residual}");
-    assert!(residual.len() <= EXECUTOR_TEXT_CAP + 64, "{}", residual.len());
+    assert!(
+        residual.contains("exit status: reference 0, candidate 1"),
+        "{residual}"
+    );
+    assert!(
+        residual.len() <= EXECUTOR_TEXT_CAP + 64,
+        "{}",
+        residual.len()
+    );
 }
 
 #[test]
 fn a_failed_build_defeats_even_if_the_review_would_support() {
     let review = Ok(ReviewVerdict::Support { coverage: vec![] });
     let verdict = decide(
-        &receipts(vec![("build", StepOutcome::Fail, "error: no compile.sh")], true),
+        &receipts(
+            vec![("build", StepOutcome::Fail, "error: no compile.sh")],
+            true,
+        ),
         Some(&review),
         &policy(),
     );
@@ -123,7 +136,10 @@ fn passing_checks_need_a_supporting_review() {
             evidence: "D1".to_string(),
         }],
     });
-    assert_eq!(decide(&passing(), Some(&support), &policy()), Verdict::Support);
+    assert_eq!(
+        decide(&passing(), Some(&support), &policy()),
+        Verdict::Support
+    );
     assert!(matches!(
         decide(&passing(), None, &policy()),
         Verdict::NotVerified { .. }
@@ -148,7 +164,10 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_is_not_verified() {
     let Verdict::Defeat { residual } = decide(&passing(), Some(&defeat), &policy()) else {
         panic!("expected a defeat");
     };
-    assert!(residual.contains("R2") && residual.contains("-p"), "{residual}");
+    assert!(
+        residual.contains("R2") && residual.contains("-p"),
+        "{residual}"
+    );
     let gap = Ok(ReviewVerdict::TermsGap {
         gaps: vec![TermsGap {
             element: "error messages".to_string(),
@@ -158,7 +177,10 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_is_not_verified() {
     let Verdict::NotVerified { reason } = decide(&passing(), Some(&gap), &policy()) else {
         panic!("expected not verified");
     };
-    assert!(reason.contains("termsGap") && reason.contains("error messages"), "{reason}");
+    assert!(
+        reason.contains("termsGap") && reason.contains("error messages"),
+        "{reason}"
+    );
 }
 
 fn terms() -> Terms {
