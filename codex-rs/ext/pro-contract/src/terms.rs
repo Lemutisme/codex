@@ -50,11 +50,14 @@ pub struct DifferentialCase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvidencePolicy {
     pub class: EvidenceClass,
-    /// Build the candidate with its `compile.sh` into `./executable`.
-    pub build: bool,
+    /// Shell command, run in the candidate root, that builds the candidate.
+    pub build_command: Option<String>,
+    /// Path of the built candidate program, relative to the candidate root.
+    pub candidate_command: Option<String>,
     /// Run the candidate's own `cargo test --offline` when it has a `Cargo.toml`.
     pub candidate_tests: bool,
     pub differential: Vec<DifferentialCase>,
+    /// The black-box reference program the differential cases compare against.
     pub reference_command: Option<String>,
 }
 

@@ -11,6 +11,7 @@ mod hashing;
 mod settings;
 mod store;
 mod terms;
+mod workers;
 
 pub use capture::CaptureError;
 pub use capture::Entry;
@@ -36,3 +37,4 @@ pub use terms::EvidencePolicy;
 pub use terms::OutOfScope;
 pub use terms::Requirement;
 pub use terms::Terms;
+pub use workers::WorkerError;

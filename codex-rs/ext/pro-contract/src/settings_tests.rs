@@ -35,7 +35,9 @@ fn an_evaluation_profile_loads_with_defaults() {
               "image": "img:tag",
               "user": "1000:1000",
               "candidate_mount": "/candidate",
-              "timeout_secs": 600
+              "timeout_secs": 600,
+              "build_command": "./compile.sh",
+              "candidate_command": "./executable"
             },
             "reference_command": "/workspace/executable"
           }
@@ -59,6 +61,8 @@ fn an_evaluation_profile_loads_with_defaults() {
                     user: "1000:1000".to_string(),
                     candidate_mount: "/candidate".to_string(),
                     timeout_secs: 600,
+                    build_command: Some("./compile.sh".to_string()),
+                    candidate_command: Some("./executable".to_string()),
                 },
                 reference_command: Some("/workspace/executable".to_string()),
             }),

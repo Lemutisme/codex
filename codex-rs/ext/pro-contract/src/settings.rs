@@ -48,6 +48,10 @@ pub struct CheckEnvironment {
     /// Where the materialized candidate is mounted inside the check container.
     pub candidate_mount: String,
     pub timeout_secs: u64,
+    /// Shell command, run in the candidate root, that builds the candidate.
+    pub build_command: Option<String>,
+    /// Path of the built candidate program, relative to the candidate root.
+    pub candidate_command: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
