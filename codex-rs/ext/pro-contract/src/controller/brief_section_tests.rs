@@ -41,11 +41,21 @@ fn the_brief_renders_once_per_contract_revision() {
     );
 }
 
+/// The text core records in history: the body wrapped in the section's markers.
+fn in_history(revision: u32) -> String {
+    let rendered = brief_section(brief(revision))
+        .render_diff(PreviousWorldStateSection::Absent)
+        .expect("render");
+    let (open, close) = rendered.markers();
+    format!("{open}{}{close}", rendered.body())
+}
+
 #[test]
-fn only_the_current_revision_is_retained_after_compaction() {
+fn only_the_current_revision_in_history_is_retained() {
     let section = brief_section(brief(2));
 
-    assert!(section.matches_retained_fragment("developer", &brief(2).text));
-    assert!(!section.matches_retained_fragment("developer", &brief(1).text));
-    assert!(!section.matches_retained_fragment("user", &brief(2).text));
+    assert!(section.matches_retained_fragment("developer", &in_history(2)));
+    assert!(!section.matches_retained_fragment("developer", &in_history(1)));
+    assert!(!section.matches_retained_fragment("user", &in_history(2)));
+    assert!(!section.matches_retained_fragment("developer", &brief(2).text));
 }

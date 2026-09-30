@@ -272,7 +272,13 @@ fn brief_section(brief: runtime::BriefView) -> WorldStateSectionContribution {
         ),
     })
     .with_retained_fragment_matcher(move |role, text| {
-        role == "developer" && is_current_brief(text, &contract_id, revision)
+        // History holds the body wrapped in the section's markers.
+        role == "developer"
+            && text
+                .trim()
+                .strip_prefix(OPEN_MARKER)
+                .and_then(|text| text.strip_suffix(CLOSE_MARKER))
+                .is_some_and(|body| is_current_brief(body, &contract_id, revision))
     })
 }
 
