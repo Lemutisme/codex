@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-ID = re.compile(r"[A-Za-z0-9_.-]+__[A-Za-z0-9_.-]+\.[0-9a-f]{7}")
+ID = re.compile(r"[A-Za-z0-9_.-]{1,100}__[A-Za-z0-9_.-]{1,100}\.[0-9a-f]{7}")
 TEXT_SUFFIXES = {
     ".json",
     ".jsonl",

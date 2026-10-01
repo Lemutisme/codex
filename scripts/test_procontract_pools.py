@@ -1,4 +1,5 @@
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -57,6 +58,15 @@ class SeenTest(unittest.TestCase):
                 [Path(tmp)], {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
             )
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
+
+    def test_long_identifier_like_runs_scan_in_bounded_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "blob.txt").write_text("a" * 300_000 + " wfxr__csview.8ac4de0")
+            start = time.monotonic()
+            found = pools.seen_ids([Path(tmp)], {"wfxr__csview.8ac4de0"})
+            elapsed = time.monotonic() - start
+        self.assertEqual(found, {"wfxr__csview.8ac4de0"})
+        self.assertLess(elapsed, 5)
 
     def test_unreadable_files_are_skipped_not_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:
