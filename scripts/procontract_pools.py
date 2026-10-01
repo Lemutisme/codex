@@ -60,7 +60,7 @@ def _scan_file(path: Path, relative: tuple[str, ...]) -> str | None:
         ):
             return None
         return path.read_text(errors="ignore")
-    except PermissionError:
+    except OSError:
         return None
 
 

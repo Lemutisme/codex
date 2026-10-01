@@ -1,6 +1,8 @@
+import errno
 import tempfile
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import procontract_pools as pools
@@ -67,6 +69,21 @@ class SeenTest(unittest.TestCase):
             elapsed = time.monotonic() - start
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
         self.assertLess(elapsed, 5)
+
+    def test_paths_the_filesystem_rejects_are_skipped_not_fatal(self):
+        too_long = OSError(errno.ENAMETOOLONG, "File name too long")
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "report.md").write_text("ran wfxr__csview.8ac4de0")
+            real_is_file = Path.is_file
+
+            def is_file(path):
+                if path.name == "report.md":
+                    raise too_long
+                return real_is_file(path)
+
+            with mock.patch.object(Path, "is_file", is_file):
+                found = pools.seen_ids([Path(tmp)], {"wfxr__csview.8ac4de0"})
+        self.assertEqual(found, set())
 
     def test_unreadable_files_are_skipped_not_fatal(self):
         with tempfile.TemporaryDirectory() as tmp:
