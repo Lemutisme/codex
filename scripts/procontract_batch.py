@@ -14,6 +14,7 @@ import random
 import shutil
 import subprocess
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -129,6 +130,7 @@ def drive(
     runner_cmd: list[str],
     label,
     extra_args: list[str],
+    stop: threading.Event,
 ) -> dict:
     run_root = batch_dir / "runs" / run["run_id"]
     state = _state(run_root)
@@ -141,6 +143,8 @@ def drive(
                     phase="invalid", reason=state.get("reason") or "run crashed twice"
                 )
                 _save(run_root, state)
+            return state
+        if action in ("prepare", "run") and stop.is_set():
             return state
         if action == "prepare":
             if state["phase"] != "planned":
@@ -196,7 +200,12 @@ def drive(
                 continue
             state["phase"] = "ran"
         elif action == "label":
-            label(run, attempt_dir)
+            try:
+                label(run, attempt_dir)
+            except BaseException:
+                # The run stays `ran`; the next launch relabels it.
+                stop.set()
+                raise
             state["phase"] = "labelled"
         _save(run_root, state)
 
@@ -210,16 +219,70 @@ def run_batch(
     parallel: int,
     extra_args: list[str] = (),
 ) -> list[dict]:
+    stop = threading.Event()
+    errors: list[BaseException] = []
+
+    def work(run: dict) -> dict:
+        try:
+            return drive(
+                run, batch_dir, protocol, runner_cmd, label, list(extra_args), stop
+            )
+        except BaseException as error:
+            errors.append(error)
+            return _state(batch_dir / "runs" / run["run_id"])
+
     with BatchLock(batch_dir):
         with ThreadPoolExecutor(max_workers=parallel) as pool:
-            return list(
-                pool.map(
-                    lambda run: drive(
-                        run, batch_dir, protocol, runner_cmd, label, list(extra_args)
-                    ),
-                    runs,
-                )
-            )
+            states = list(pool.map(work, runs))
+    if errors:
+        raise errors[0]
+    return states
+
+
+def missing_known(manifest_runs: list[dict], known: dict) -> list[str]:
+    return sorted({run["instance"] for run in manifest_runs} - set(known))
+
+
+def append_execution(
+    batch_store: Path, identities: dict, run: dict, run_dir: Path
+) -> None:
+    """Append the execution event once per (run_id, attempt), so relabelling is idempotent."""
+    attempt = int(run_dir.name.removeprefix("attempt-"))
+    for event in store.events(batch_store):
+        body = event["event"]["body"]
+        if event["event"]["kind"] == "execution" and (
+            body.get("run_id"),
+            body.get("attempt"),
+        ) == (run["run_id"], attempt):
+            return
+    summary = json.loads((run_dir / "run.json").read_text())
+    body = {
+        "run_id": run["run_id"],
+        "instance": run["instance"],
+        "arm": run["arm"],
+        "repeat": run["repeat"],
+        "attempt": attempt,
+        **summary,
+    }
+    store.append(batch_store, "execution", identities, body)
+
+
+def archive_run(source: Path, archive: Path) -> None:
+    """Hard-link (copy across filesystems) into a tmp dir, then move it into place atomically."""
+    if not source.exists() or archive.exists():
+        return
+    tmp = archive.with_name(f"{archive.name}.tmp-{os.getpid()}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    archive.parent.mkdir(parents=True, exist_ok=True)
+
+    def link_or_copy(src, dst):
+        try:
+            os.link(src, dst)
+        except OSError:
+            shutil.copy2(src, dst)
+
+    shutil.copytree(source, tmp, copy_function=link_or_copy)
+    os.replace(tmp, archive)
 
 
 def _image_id(image: str) -> str:
@@ -301,6 +364,7 @@ def cmd_null(args) -> None:
     manifest = json.loads((args.batch_dir / "batch.json").read_text())
     programbench = Path(manifest["programbench"])
     known = {}
+    failed = []
     for instance, pins in sorted(manifest["pins"].items()):
         work = args.batch_dir / "null" / instance
         archive = evaluation.null_package(work / "submission.tar.gz")
@@ -317,6 +381,8 @@ def cmd_null(args) -> None:
         )
         if result["outcome"] is not None:
             result.update(validity="valid", reason="")
+        if result["outcome"] is None:
+            failed.append(instance)
         known[instance] = (result["outcome"] or {}).get("branch_errors", [])
         evaluator_epoch = evaluation.epoch(pins)
         role = {"kind": "null_sentinel"}
@@ -334,6 +400,8 @@ def cmd_null(args) -> None:
             store.identities(evaluator_epoch=evaluator_epoch),
             body,
         )
+    if failed:
+        sys.exit(f"null evaluation produced no outcome for: {', '.join(failed)}")
     (args.batch_dir / "known_branch_errors.json").write_text(
         json.dumps(known, indent=2) + "\n"
     )
@@ -341,7 +409,14 @@ def cmd_null(args) -> None:
 
 def cmd_run(args) -> None:
     manifest = json.loads((args.batch_dir / "batch.json").read_text())
-    known = json.loads((args.batch_dir / "known_branch_errors.json").read_text())
+    known_path = args.batch_dir / "known_branch_errors.json"
+    if not known_path.exists():
+        sys.exit("known_branch_errors.json is missing; run `null` first")
+    known = json.loads(known_path.read_text())
+    if missing := missing_known(manifest["runs"], known):
+        sys.exit(
+            f"known_branch_errors.json lacks planned instances: {', '.join(missing)}"
+        )
     programbench = Path(manifest["programbench"])
     batch_store = args.batch_dir / "store"
     identities = store.identities(
@@ -354,19 +429,7 @@ def cmd_run(args) -> None:
             pins,
             evaluation.current_pins(programbench, run["instance"], HF_CACHE, _image_id),
         )
-        summary = json.loads((run_dir / "run.json").read_text())
-        store.append(
-            batch_store,
-            "execution",
-            identities,
-            {
-                "run_id": run["run_id"],
-                "instance": run["instance"],
-                "arm": run["arm"],
-                "repeat": run["repeat"],
-                **summary,
-            },
-        )
+        append_execution(batch_store, identities, run, run_dir)
         evaluation.label_run(
             run_dir,
             batch_store,
@@ -379,11 +442,10 @@ def cmd_run(args) -> None:
             set(known.get(run["instance"], [])),
             identities,
         )
-        source = run_dir / "codex-home" / "pro_contract"
-        archive = ARCHIVE / args.batch_dir.name / run["run_id"]
-        if source.exists() and not archive.exists():
-            archive.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(source, archive, copy_function=os.link)
+        archive_run(
+            run_dir / "codex-home" / "pro_contract",
+            ARCHIVE / args.batch_dir.name / run["run_id"],
+        )
 
     runner_cmd = [
         sys.executable,
