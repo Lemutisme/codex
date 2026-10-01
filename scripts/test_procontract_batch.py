@@ -31,6 +31,52 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(len(repeats), 8)
 
 
+class PlanOptionsTest(unittest.TestCase):
+    dev = [f"o{i}__r{i}.abc{i:04d}" for i in range(10)]
+    difficulty = {i: "easy" for i in dev}
+
+    def test_explicit_instances_zero_duplicates_and_one_arm(self):
+        runs = batch.plan_runs(
+            self.dev,
+            self.difficulty,
+            1,
+            0,
+            seed=1,
+            instances=[self.dev[3]],
+            arms=("on",),
+        )
+
+        self.assertEqual(
+            runs,
+            [
+                {
+                    "run_id": f"{self.dev[3]}-on-1",
+                    "instance": self.dev[3],
+                    "arm": "on",
+                    "repeat": 1,
+                    "order": 0,
+                }
+            ],
+        )
+
+    def test_unknown_instance_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "not in the dev pool"):
+            batch.plan_runs(
+                self.dev, self.difficulty, 1, 0, seed=1, instances=["x__y.0000000"]
+            )
+
+    def test_duplicates_beyond_chosen_instances_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "duplicates"):
+            batch.plan_runs(
+                self.dev, self.difficulty, 1, 4, seed=1, instances=[self.dev[0]]
+            )
+
+    def test_sampled_plan_with_zero_duplicates(self):
+        runs = batch.plan_runs(self.dev, self.difficulty, 3, 0, seed=2)
+
+        self.assertEqual(len(runs), 6)
+
+
 class ReconcileTest(unittest.TestCase):
     def test_actions_follow_the_state_machine_and_crash_budget(self):
         self.assertEqual(

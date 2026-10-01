@@ -38,19 +38,35 @@ PROGRAMBENCH_CMD = ["uv", "run", "programbench"]
 
 
 def plan_runs(
-    dev: list[str], difficulty: dict[str, str], n: int, duplicates: int, seed: int
+    dev: list[str],
+    difficulty: dict[str, str],
+    n: int,
+    duplicates: int,
+    seed: int,
+    instances: list[str] | None = None,
+    arms: tuple[str, ...] = ("on", "off"),
 ) -> list[dict]:
     rng = random.Random(seed)
-    strata: dict[str, list[str]] = {}
-    for instance in sorted(dev):
-        strata.setdefault(difficulty.get(instance, "unknown"), []).append(instance)
-    chosen: list[str] = []
-    for name in sorted(strata):
-        quota = round(n * len(strata[name]) / len(dev))
-        chosen += rng.sample(strata[name], min(quota, len(strata[name])))
-    chosen = sorted(chosen)[:n]
-    while len(chosen) < n:
-        chosen.append(rng.choice(sorted(set(dev) - set(chosen))))
+    if instances is not None:
+        outside = sorted(set(instances) - set(dev))
+        if outside:
+            raise ValueError(f"instances not in the dev pool: {outside}")
+        chosen = sorted(set(instances))
+    else:
+        strata: dict[str, list[str]] = {}
+        for instance in sorted(dev):
+            strata.setdefault(difficulty.get(instance, "unknown"), []).append(instance)
+        chosen = []
+        for name in sorted(strata):
+            quota = round(n * len(strata[name]) / len(dev))
+            chosen += rng.sample(strata[name], min(quota, len(strata[name])))
+        chosen = sorted(chosen)[:n]
+        while len(chosen) < n:
+            chosen.append(rng.choice(sorted(set(dev) - set(chosen))))
+    if duplicates > len(chosen):
+        raise ValueError(
+            f"cannot plan {duplicates} duplicates from {len(chosen)} chosen instances"
+        )
     doubled = set(rng.sample(sorted(chosen), duplicates))
     runs = [
         {
@@ -60,7 +76,7 @@ def plan_runs(
             "repeat": repeat,
         }
         for instance in chosen
-        for arm in ("on", "off")
+        for arm in arms
         for repeat in ((1, 2) if instance in doubled else (1,))
     ]
     order = list(range(len(runs)))
@@ -307,13 +323,18 @@ def _phase_counts(states: list[dict]) -> dict:
 
 def cmd_plan(args) -> None:
     pools = json.loads(args.pools.read_text())
-    runs = plan_runs(
-        pools["dev"],
-        pools["difficulty"],
-        args.n,
-        PROTOCOL["duplicates_per_arm"],
-        args.seed,
-    )
+    try:
+        runs = plan_runs(
+            pools["dev"],
+            pools["difficulty"],
+            args.n,
+            args.duplicates,
+            args.seed,
+            instances=args.instances,
+            arms=("on", "off") if args.arms == "both" else (args.arms,),
+        )
+    except ValueError as err:
+        raise SystemExit(f"plan: {err}") from err
     instances = sorted({run["instance"] for run in runs})
     pins = {}
     for instance in instances:
@@ -493,6 +514,9 @@ def main() -> None:
     plan.add_argument("--pools", type=Path, required=True)
     plan.add_argument("--batch-dir", type=Path, required=True)
     plan.add_argument("--n", type=int, default=30)
+    plan.add_argument("--instances", nargs="+")
+    plan.add_argument("--duplicates", type=int, default=PROTOCOL["duplicates_per_arm"])
+    plan.add_argument("--arms", choices=["on", "off", "both"], default="both")
     plan.add_argument("--seed", type=int, required=True)
     plan.add_argument("--codex-bin", type=Path, required=True)
     plan.add_argument("--prompt", type=Path, required=True)
