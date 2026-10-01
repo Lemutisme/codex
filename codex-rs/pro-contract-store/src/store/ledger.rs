@@ -59,6 +59,8 @@ pub enum LedgerError {
     IdempotencyConflict,
     #[error("ledger record is corrupt: {0}")]
     Corrupt(String),
+    #[error("experiment event is invalid: {0}")]
+    InvalidEvent(String),
 }
 
 /// One accepted command in the hash-chained event log.
@@ -76,7 +78,7 @@ pub struct EventRecord {
 /// idempotency index, and extension records (intakes, artifacts, verdicts, status).
 #[derive(Clone, Debug)]
 pub struct Ledger {
-    pool: SqlitePool,
+    pub(super) pool: SqlitePool,
 }
 
 impl Ledger {
@@ -88,6 +90,10 @@ impl Ledger {
             .await
             .map_err(storage)?;
         sqlx::raw_sql(SCHEMA)
+            .execute(&pool)
+            .await
+            .map_err(storage)?;
+        sqlx::raw_sql(super::experiments::SCHEMA)
             .execute(&pool)
             .await
             .map_err(storage)?;
@@ -319,7 +325,7 @@ async fn read_binding(
     .transpose()
 }
 
-fn storage(error: impl std::fmt::Display) -> LedgerError {
+pub(super) fn storage(error: impl std::fmt::Display) -> LedgerError {
     LedgerError::Storage(error.to_string())
 }
 
@@ -331,7 +337,7 @@ fn decode<T: DeserializeOwned>(json: &str) -> Result<T, LedgerError> {
     serde_json::from_str(json).map_err(|error| LedgerError::Corrupt(error.to_string()))
 }
 
-fn parse_digest(hex: &str) -> Result<Digest, LedgerError> {
+pub(super) fn parse_digest(hex: &str) -> Result<Digest, LedgerError> {
     Digest::parse_hex(hex).ok_or_else(|| LedgerError::Corrupt(format!("invalid digest {hex}")))
 }
 
