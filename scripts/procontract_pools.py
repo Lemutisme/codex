@@ -24,6 +24,7 @@ TEXT_SUFFIXES = {
     ".tex",
     ".csv",
     ".log",
+    ".py",
 }
 MAX_SCAN_BYTES = 5 << 20
 
@@ -45,7 +46,7 @@ def load_tasks(tasks_dir: Path, language: str) -> list[dict]:
 
 
 def _is_test_path(parts: tuple[str, ...]) -> bool:
-    return any(part.startswith("test") for part in parts)
+    return "tests" in parts or parts[-1] == "tests.json"
 
 
 def seen_ids(paths: list[Path], known: set[str]) -> set[str]:

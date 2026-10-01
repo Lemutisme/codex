@@ -62,11 +62,14 @@ class SeenTest(unittest.TestCase):
         known = {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp, "tests", "artifacts")
-            (root / "test_cases").mkdir(parents=True)
+            (root / "tests").mkdir(parents=True)
             (root / "tests.json").write_text("sharkdp__hexyl.1234567")
-            (root / "test_cases" / "x.md").write_text("sharkdp__hexyl.1234567")
+            (root / "tests" / "test_x.md").write_text("sharkdp__hexyl.1234567")
             (root / "notes.md").write_text("wfxr__csview.8ac4de0")
             self.assertEqual(pools.seen_ids([root], known), {"wfxr__csview.8ac4de0"})
+            (root / "notes.md").unlink()
+            (root / "test_classification.py").write_text("# sharkdp__hexyl.1234567")
+            self.assertEqual(pools.seen_ids([root], known), {"sharkdp__hexyl.1234567"})
             self.assertEqual(pools.seen_ids([root / "tests.json"], known), set())
 
 
