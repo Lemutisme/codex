@@ -121,6 +121,14 @@ def write_codex_home(home: Path, workspace: Path, codex_bin: Path, image: str) -
     )
 
 
+def harness_ready(codex_bin: Path) -> str | None:
+    """Return why codex cannot start its tool host, or None when it can."""
+    host = codex_bin.resolve().parent / "codex-code-mode-host"
+    if not (host.is_file() and os.access(host, os.X_OK)):
+        return f"no executable codex-code-mode-host beside {codex_bin}: expected {host}"
+    return None
+
+
 def app_server_command(codex_bin: Path, arm: str) -> list[str]:
     toggle = "--enable" if arm == "on" else "--disable"
     return [str(codex_bin), "--disable", "hooks", toggle, "pro_contract", "app-server"]
@@ -369,6 +377,9 @@ def prepare(args: argparse.Namespace) -> None:
     run_dir: Path = args.run_dir
     if run_dir.exists() and any(run_dir.iterdir()):
         sys.exit(f"{run_dir} is not empty; choose a fresh run directory")
+    problem = harness_ready(args.codex_bin)
+    if problem:
+        sys.exit(problem)
     workspace = run_dir / "workspace"
     workspace.mkdir(parents=True)
     ensure_images(args.instance)

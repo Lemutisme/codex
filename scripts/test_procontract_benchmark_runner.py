@@ -10,6 +10,25 @@ from pathlib import Path
 import procontract_benchmark_runner as runner
 
 
+class HarnessReadyTest(unittest.TestCase):
+    def test_codex_needs_an_executable_tool_host_beside_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            codex = Path(tmp, "codex")
+            codex.write_bytes(b"x")
+            host = Path(tmp, "codex-code-mode-host")
+
+            missing = runner.harness_ready(codex)
+            host.write_bytes(b"x")
+            host.chmod(0o644)
+            not_executable = runner.harness_ready(codex)
+            host.chmod(0o755)
+            ready = runner.harness_ready(codex)
+
+        self.assertIn("codex-code-mode-host", missing)
+        self.assertIn("codex-code-mode-host", not_executable)
+        self.assertIsNone(ready)
+
+
 class PackagingTest(unittest.TestCase):
     def test_package_excludes_reference_and_build_output_and_zeroes_owners(self):
         with tempfile.TemporaryDirectory() as tmp:
