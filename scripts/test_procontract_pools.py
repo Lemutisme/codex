@@ -74,10 +74,15 @@ class SeenTest(unittest.TestCase):
             locked = Path(tmp, "locked.json")
             locked.write_text("sharkdp__hexyl.1234567")
             locked.chmod(0)
+            sealed = Path(tmp, "sealed")
+            sealed.mkdir()
+            Path(sealed, "inner.json").write_text("sharkdp__hexyl.1234567")
+            sealed.chmod(0)
             found = pools.seen_ids(
                 [Path(tmp)], {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
             )
             locked.chmod(0o600)
+            sealed.chmod(0o700)
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
 
     def test_test_named_paths_are_never_read_and_roots_under_tests_still_scan(self):

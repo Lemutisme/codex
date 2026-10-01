@@ -49,24 +49,29 @@ def _is_test_path(parts: tuple[str, ...]) -> bool:
     return "tests" in parts or parts[-1] == "tests.json"
 
 
+def _scan_file(path: Path, relative: tuple[str, ...]) -> str | None:
+    """Return the text worth scanning, or None for non-text, test or unreadable files."""
+    try:
+        if (
+            _is_test_path(relative)
+            or not path.is_file()
+            or path.suffix not in TEXT_SUFFIXES
+            or path.stat().st_size > MAX_SCAN_BYTES
+        ):
+            return None
+        return path.read_text(errors="ignore")
+    except PermissionError:
+        return None
+
+
 def seen_ids(paths: list[Path], known: set[str]) -> set[str]:
     found: set[str] = set()
     for root in paths:
         for path in [root] if root.is_file() else root.rglob("*"):
             relative = (root.name,) if root.is_file() else path.relative_to(root).parts
-            if (
-                _is_test_path(relative)
-                or not path.is_file()
-                or path.suffix not in TEXT_SUFFIXES
-            ):
-                continue
-            if path.stat().st_size > MAX_SCAN_BYTES:
-                continue
-            try:
-                text = path.read_text(errors="ignore")
-            except PermissionError:
-                continue
-            found |= set(ID.findall(text)) & known
+            text = _scan_file(path, relative)
+            if text is not None:
+                found |= set(ID.findall(text)) & known
     return found
 
 
