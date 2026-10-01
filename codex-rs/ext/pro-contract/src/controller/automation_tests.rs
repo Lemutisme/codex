@@ -7,10 +7,13 @@ use std::time::Duration;
 use codex_extension_api::ThreadIdleCause;
 use codex_pro_contract::ContractId;
 use codex_pro_contract::Digest;
+use codex_pro_contract_store::ExperimentKind;
+use codex_pro_contract_store::LEDGER_FILE;
 use codex_protocol::ThreadId;
 use codex_state::SqliteConfig;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
+use pretty_assertions::assert_ne;
 use tokio::sync::Notify;
 
 use super::STATUS_KIND;
@@ -31,6 +34,7 @@ use crate::WorkerError;
 use crate::WorkerSettings;
 use crate::controller::ports::PortFuture;
 use crate::controller::ports::Ports;
+use crate::controller::ports::WorkerIdentity;
 use crate::workers::runtime::WorkerTurn;
 
 const INTAKE: &str = "Please make answer.txt say done.";
@@ -46,6 +50,7 @@ struct FakePorts {
     reviews: Mutex<VecDeque<&'static str>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
+    worker_model: &'static str,
     /// The candidate's answer.txt at each check run.
     checked: Mutex<Vec<String>>,
     /// (residual, previous turn id) of each repair submission.
@@ -60,6 +65,7 @@ impl FakePorts {
             reviews: Mutex::new(VecDeque::new()),
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
+            worker_model: "model-a",
             checked: Mutex::new(Vec::new()),
             repairs: Mutex::new(Vec::new()),
         }
@@ -137,6 +143,13 @@ impl Ports for FakePorts {
                 evaluator_digest: Digest::of(b"evaluator"),
             })
         })
+    }
+
+    fn worker_identity(&self) -> WorkerIdentity {
+        WorkerIdentity {
+            model: Some(self.worker_model.to_string()),
+            effort: Some("max".to_string()),
+        }
     }
 
     fn submit_repair(
@@ -403,10 +416,97 @@ async fn only_the_first_human_turn_is_intake() {
     lane.wait_for("abstained").await;
     lane.runtime.intake("Another request.".to_string()).await;
 
-    let intake: Option<(String, Digest, crate::CapturePolicy)> = lane
+    let intakes: Vec<String> = lane
         .ledger
-        .record("intake", &lane.thread_id.to_string())
+        .experiments()
         .await
-        .expect("intake record");
-    assert_eq!(intake.map(|(text, _, _)| text), Some(INTAKE.to_string()));
+        .expect("events")
+        .into_iter()
+        .filter(|record| record.event.kind == ExperimentKind::Intake)
+        .map(|record| {
+            record.event.body["text"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(intakes, vec![INTAKE.to_string()]);
+}
+
+#[tokio::test]
+async fn a_verification_is_an_immutable_event_with_identities() {
+    let lane = lane(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+
+    lane.runtime.intake(INTAKE.to_string()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("turn-1", "done").await;
+    lane.wait_for("supported").await;
+
+    let events = lane.ledger.experiments().await.expect("events");
+    let kinds: Vec<ExperimentKind> = events.iter().map(|record| record.event.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![
+            ExperimentKind::Intake,
+            ExperimentKind::Draft,
+            ExperimentKind::Issue,
+            ExperimentKind::Verification
+        ]
+    );
+    let verification = &events[3].event;
+    assert_eq!(verification.body["verdict"], "support");
+    assert_eq!(verification.identities.model.as_deref(), Some("model-a"));
+    assert!(verification.identities.policies.contains_key("reviewer"));
+    assert!(
+        verification
+            .identities
+            .policies
+            .contains_key("check_pipeline")
+    );
+
+    // The records table holds operational status only, read through a second pool on the file.
+    let sqlite = SqliteConfig::new_for_testing(
+        AbsolutePathBuf::from_absolute_path(lane._dirs.path()).expect("absolute tempdir"),
+    );
+    let pool = sqlite
+        .open_read_write_pool(&lane._dirs.path().join("pro_contract").join(LEDGER_FILE))
+        .await
+        .expect("ledger pool");
+    let research_records: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM records WHERE kind != 'status'")
+            .fetch_one(&pool)
+            .await
+            .expect("count records");
+    assert_eq!(research_records, 0);
+}
+
+#[tokio::test]
+async fn the_reviewer_model_is_part_of_the_certificates_evaluator() {
+    let mut digests = Vec::new();
+    for model in ["model-a", "model-b"] {
+        let mut ports = FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]);
+        ports.worker_model = model;
+        let lane = lane(ports).await;
+        lane.runtime.intake(INTAKE.to_string()).await;
+        lane.wait_for("working").await;
+        lane.executor_turn("turn-1", "done").await;
+        lane.wait_for("supported").await;
+        let contract = lane.contract().await.expect("contract");
+        digests.push(
+            contract
+                .support
+                .expect("support")
+                .coordinate
+                .evaluator_digest,
+        );
+    }
+
+    assert_ne!(digests[0], digests[1]);
 }

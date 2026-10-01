@@ -2,6 +2,7 @@
 
 pub(crate) mod decision;
 pub(crate) mod eligibility;
+pub(crate) mod identity;
 pub(crate) mod ports;
 pub(crate) mod runtime;
 pub(crate) mod views;

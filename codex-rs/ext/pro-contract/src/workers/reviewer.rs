@@ -119,6 +119,11 @@ pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
     )
 }
 
+/// Identity of this worker's policy: its instructions and output schema.
+pub(crate) fn policy_digest() -> codex_pro_contract::Digest {
+    crate::digest_of("reviewer_policy", &(INSTRUCTIONS, schema()))
+}
+
 pub(crate) fn schema() -> Value {
     strict_object(json!({
         "verdict": {"type": "string", "enum": ["support", "defeat", "cannot_judge"]},

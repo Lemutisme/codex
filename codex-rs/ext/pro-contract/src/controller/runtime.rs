@@ -15,6 +15,7 @@ use codex_pro_contract::Command;
 use codex_pro_contract::Contract;
 use codex_pro_contract::ContractId;
 use codex_pro_contract::Coordinate;
+use codex_pro_contract::Digest;
 use codex_pro_contract::OwnerId;
 use codex_pro_contract::Provenance;
 use codex_pro_contract::Role;
@@ -22,10 +23,12 @@ use codex_pro_contract::Target;
 use codex_protocol::ThreadId;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::json;
 
 use super::decision::Verdict;
 use super::decision::brief_text;
 use super::decision::decide;
+use super::identity;
 use super::ports::Ports;
 use super::views::workspace_view;
 use crate::BlobStore;
@@ -43,6 +46,9 @@ use crate::materialize;
 use crate::workers::drafter;
 use crate::workers::reviewer;
 use crate::workers::runtime::WorkerTurn;
+use codex_pro_contract_store::ExperimentEvent;
+use codex_pro_contract_store::ExperimentKind;
+use codex_pro_contract_store::Identities;
 use codex_pro_contract_store::SubjectBinding;
 use codex_pro_contract_store::persist_manifest;
 
@@ -248,17 +254,41 @@ impl ThreadRuntime {
                 return;
             }
         };
-        let _ = self
-            .ledger
-            .put_record(
-                "intake",
-                &self.thread_id.to_string(),
-                &(&text, base.subject_hash, &self.capture_policy),
-            )
-            .await;
+        self.record_event(
+            ExperimentKind::Intake,
+            /*check_pipeline*/ None,
+            json!({
+                "thread_id": self.thread_id.to_string(),
+                "text": text,
+                "base_subject": base.subject_hash,
+                "capture_policy": digest_of("capture_policy", &self.capture_policy),
+            }),
+        )
+        .await;
         self.record_status("drafting", "", /*resting*/ false).await;
         let runtime = Arc::clone(self);
         self.spawn(async move { runtime.draft(text, base).await });
+    }
+
+    fn identities(&self, check_pipeline: Option<Digest>) -> Identities {
+        identity::identities(&self.ports.worker_identity(), check_pipeline)
+    }
+
+    /// Appends an immutable research event stamped with the current producer identities.
+    async fn record_event(
+        &self,
+        kind: ExperimentKind,
+        check_pipeline: Option<Digest>,
+        body: serde_json::Value,
+    ) {
+        let event = ExperimentEvent {
+            kind,
+            identities: self.identities(check_pipeline),
+            body,
+        };
+        if let Err(error) = self.ledger.append_experiment(&event).await {
+            tracing::warn!("pro_contract could not record {kind:?}: {error}");
+        }
     }
 
     async fn draft(self: Arc<Self>, text: String, base: Subject) {
@@ -299,10 +329,12 @@ impl ThreadRuntime {
                 return;
             }
         };
-        let _ = self
-            .ledger
-            .put_record("draft", &self.thread_id.to_string(), &message)
-            .await;
+        self.record_event(
+            ExperimentKind::Draft,
+            /*check_pipeline*/ None,
+            json!({"thread_id": self.thread_id.to_string(), "message": message}),
+        )
+        .await;
         match drafter::parse(&message, &input) {
             Ok(drafter::Draft::Contract {
                 terms,
@@ -364,14 +396,17 @@ impl ThreadRuntime {
                 return;
             }
         };
-        let _ = self
-            .ledger
-            .put_record("terms", &contract_id.0, &terms)
-            .await;
-        let _ = self
-            .ledger
-            .put_record("evidence_policy", &contract_id.0, &policy)
-            .await;
+        self.record_event(
+            ExperimentKind::Issue,
+            /*check_pipeline*/ None,
+            json!({
+                "contract_id": contract_id.0,
+                "terms": terms,
+                "evidence_policy": policy,
+                "capture_policy": digest_of("capture_policy", &self.capture_policy),
+            }),
+        )
+        .await;
         let brief = brief_text(&contract_id.0, contract.revision, &terms, &policy);
         let last_idle = {
             let mut state = self.state.lock().await;
@@ -599,19 +634,29 @@ impl ThreadRuntime {
             None
         };
         let verdict = decide(&checks, review.as_ref(), &policy);
-        let _ = self
-            .ledger
-            .put_record(
-                "verification",
-                &format!("{}:{}", contract.id.0, contract.generation),
-                &(
-                    checks.as_ref().ok(),
-                    checks.as_ref().err().map(ToString::to_string),
-                    review.as_ref().map(|review| review.as_ref().ok()),
-                    format!("{verdict:?}"),
-                ),
-            )
-            .await;
+        let (verdict_name, detail) = match &verdict {
+            Verdict::Support => ("support", ""),
+            Verdict::Defeat { residual } => ("defeat", residual.as_str()),
+            Verdict::NotVerified { reason } => ("not_verified", reason.as_str()),
+        };
+        self.record_event(
+            ExperimentKind::Verification,
+            checks
+                .as_ref()
+                .ok()
+                .map(|receipts| receipts.evaluator_digest),
+            json!({
+                "contract_id": contract.id.0,
+                "generation": contract.generation,
+                "subject_hash": subject.subject_hash,
+                "verdict": verdict_name,
+                "detail": detail,
+                "receipts": checks.as_ref().ok(),
+                "check_error": checks.as_ref().err().map(ToString::to_string),
+                "review": review.as_ref().and_then(|review| review.as_ref().ok()),
+            }),
+        )
+        .await;
         match verdict {
             Verdict::Support => self.support(contract, &subject, checks.ok(), review).await,
             Verdict::Defeat { residual } => {
@@ -634,6 +679,16 @@ impl ThreadRuntime {
         };
         let review = review.and_then(Result::ok);
         let evidence_hash = digest_of("evidence", &(&receipts, &review));
+        let worker = self.ports.worker_identity();
+        let evaluator_digest = digest_of(
+            "evaluator",
+            &(
+                receipts.evaluator_digest,
+                reviewer::policy_digest(),
+                &worker.model,
+                &worker.effort,
+            ),
+        );
         let coordinate = Coordinate {
             contract_id: contract.id.clone(),
             revision: contract.revision,
@@ -643,7 +698,7 @@ impl ThreadRuntime {
             capture_policy_hash: contract.bindings.capture_policy_hash,
             evidence_policy_hash: contract.bindings.evidence_policy_hash,
             environment_digest: receipts.environment_digest,
-            evaluator_digest: receipts.evaluator_digest,
+            evaluator_digest,
             evidence_hash,
         };
         let certificate = digest_of("certificate", &(&coordinate, &receipts, &review));

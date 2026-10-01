@@ -82,6 +82,11 @@ pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
     )
 }
 
+/// Identity of this worker's policy: its instructions and output schema.
+pub(crate) fn policy_digest() -> codex_pro_contract::Digest {
+    crate::digest_of("drafter_policy", &(INSTRUCTIONS, schema()))
+}
+
 pub(crate) fn schema() -> Value {
     strict_object(json!({
         "decision": {"type": "string", "enum": ["contract", "none"]},

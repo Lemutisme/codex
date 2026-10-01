@@ -30,6 +30,13 @@ use crate::workers::runtime::worker_config;
 
 pub(crate) type PortFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// The model and effort the hidden workers actually use.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WorkerIdentity {
+    pub model: Option<String>,
+    pub effort: Option<String>,
+}
+
 pub(crate) trait Ports: Send + Sync {
     /// Runs one strict-JSON turn on a hidden worker and returns its final message.
     fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>>;
@@ -48,6 +55,9 @@ pub(crate) trait Ports: Send + Sync {
         candidate: &'a Path,
         policy: &'a EvidencePolicy,
     ) -> PortFuture<'a, Result<CheckReceipts, CheckError>>;
+
+    /// The model and effort hidden workers run with; part of every judgment's identity.
+    fn worker_identity(&self) -> WorkerIdentity;
 
     /// Starts the repair turn on the executor thread, continuing `previous_turn_id`.
     fn submit_repair(
@@ -94,6 +104,22 @@ impl Ports for CodexPorts {
         policy: &'a EvidencePolicy,
     ) -> PortFuture<'a, Result<CheckReceipts, CheckError>> {
         Box::pin(checks::run(env, candidate, policy))
+    }
+
+    fn worker_identity(&self) -> WorkerIdentity {
+        WorkerIdentity {
+            model: self
+                .worker
+                .model
+                .clone()
+                .or_else(|| self.config.model.clone()),
+            effort: self.worker.reasoning_effort.clone().or_else(|| {
+                self.config
+                    .model_reasoning_effort
+                    .as_ref()
+                    .map(|effort| format!("{effort:?}").to_lowercase())
+            }),
+        }
     }
 
     fn submit_repair(
