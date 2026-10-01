@@ -71,3 +71,15 @@ pub struct CapturePolicy {
     pub max_file_bytes: u64,
     pub max_total_bytes: u64,
 }
+
+impl CapturePolicy {
+    /// The capture policy every ProContract capture uses: version 1, 4 MiB per file, 256 MiB in total.
+    pub fn standard(excluded_paths: Vec<String>) -> Self {
+        Self {
+            version: 1,
+            excluded_paths,
+            max_file_bytes: 4 << 20,
+            max_total_bytes: 256 << 20,
+        }
+    }
+}

@@ -1,13 +1,16 @@
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
+use codex_pro_contract::Digest;
 use pretty_assertions::assert_eq;
 use pretty_assertions::assert_ne;
 
 use super::CaptureError;
 use super::EntryKind;
 use super::capture;
+use super::load_subject;
 use super::materialize;
+use super::persist_manifest;
 use crate::BlobStore;
 use crate::CapturePolicy;
 
@@ -167,4 +170,44 @@ fn materialize_round_trips_bytes_modes_and_links() {
         .permissions()
         .mode();
     assert_eq!(mode & 0o111, 0o111);
+}
+
+#[test]
+fn a_persisted_manifest_resolves_to_the_same_subject() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let root = dir.path().join("ws");
+    std::fs::create_dir_all(root.join("src"))?;
+    std::fs::write(root.join("src/main.rs"), "fn main() {}\n")?;
+    let store = BlobStore::open(&dir.path().join("blobs"))?;
+    let policy = CapturePolicy::standard(Vec::new());
+    let subject = capture(&root, &policy, &store).map_err(std::io::Error::other)?;
+
+    let manifest = persist_manifest(&subject, &store).map_err(std::io::Error::other)?;
+    let reopened = BlobStore::open(&dir.path().join("blobs"))?;
+    let loaded =
+        load_subject(&reopened, &manifest, &subject.subject_hash).map_err(std::io::Error::other)?;
+
+    assert_eq!(loaded, subject);
+    Ok(())
+}
+
+#[test]
+fn a_manifest_that_is_not_the_claimed_subject_is_rejected() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let root = dir.path().join("ws");
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(root.join("a.txt"), "a")?;
+    let store = BlobStore::open(&dir.path().join("blobs"))?;
+    let subject = capture(&root, &CapturePolicy::standard(Vec::new()), &store)
+        .map_err(std::io::Error::other)?;
+    let manifest = persist_manifest(&subject, &store).map_err(std::io::Error::other)?;
+
+    let other = Digest::of(b"another subject");
+    let result = load_subject(&store, &manifest, &other);
+
+    assert!(
+        matches!(result, Err(CaptureError::Corrupt(_))),
+        "{result:?}"
+    );
+    Ok(())
 }

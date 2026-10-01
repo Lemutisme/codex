@@ -297,6 +297,16 @@ async fn late_issue_verifies_the_artifact_frozen_at_handoff() {
     );
     let contract = lane.contract().await.expect("issued contract");
     assert!(contract.support.is_some(), "{contract:?}");
+    let judged = contract.support.expect("support").coordinate.subject_hash;
+    let binding = lane
+        .ledger
+        .subject_binding(&judged)
+        .await
+        .expect("binding read");
+    assert!(
+        binding.is_some(),
+        "the judged subject must be resolvable from its hash"
+    );
 }
 
 #[tokio::test]

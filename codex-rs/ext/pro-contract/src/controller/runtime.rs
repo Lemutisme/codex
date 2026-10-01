@@ -43,6 +43,8 @@ use crate::materialize;
 use crate::workers::drafter;
 use crate::workers::reviewer;
 use crate::workers::runtime::WorkerTurn;
+use codex_pro_contract_store::SubjectBinding;
+use codex_pro_contract_store::persist_manifest;
 
 /// Ledger record kind for the per-thread status the runner reads.
 pub(crate) const STATUS_KIND: &str = "status";
@@ -136,12 +138,7 @@ impl ThreadRuntime {
         ports: Arc<dyn Ports>,
     ) -> Self {
         let Stores { dir, ledger, store } = stores;
-        let capture_policy = CapturePolicy {
-            version: 1,
-            excluded_paths: profile.excluded_paths.clone(),
-            max_file_bytes: 4 << 20,
-            max_total_bytes: 256 << 20,
-        };
+        let capture_policy = CapturePolicy::standard(profile.excluded_paths.clone());
         Self {
             thread_id,
             settings,
@@ -211,13 +208,26 @@ impl ThreadRuntime {
         let root = self.profile.workspace_host_root.clone();
         let policy = self.capture_policy.clone();
         let store = self.store.clone();
-        let task = tokio::task::spawn_blocking(move || capture(&root, &policy, &store));
-        match tokio::time::timeout(CAPTURE_TIMEOUT, task).await {
-            Ok(Ok(Ok(subject))) => Ok(subject),
-            Ok(Ok(Err(error))) => Err(error.to_string()),
-            Ok(Err(error)) => Err(format!("capture task failed: {error}")),
-            Err(_) => Err("capture exceeded its time cap".to_string()),
-        }
+        let task = tokio::task::spawn_blocking(move || {
+            let subject = capture(&root, &policy, &store)?;
+            let manifest = persist_manifest(&subject, &store)?;
+            Ok::<_, codex_pro_contract_store::CaptureError>((subject, manifest))
+        });
+        let (subject, manifest) = match tokio::time::timeout(CAPTURE_TIMEOUT, task).await {
+            Ok(Ok(Ok(captured))) => captured,
+            Ok(Ok(Err(error))) => return Err(error.to_string()),
+            Ok(Err(error)) => return Err(format!("capture task failed: {error}")),
+            Err(_) => return Err("capture exceeded its time cap".to_string()),
+        };
+        let binding = SubjectBinding {
+            manifest,
+            capture_policy: digest_of("capture_policy", &self.capture_policy),
+        };
+        self.ledger
+            .bind_subject(&subject.subject_hash, &binding)
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(subject)
     }
 
     /// Intake at the dispatch of the first human turn: freeze the base, then draft in the

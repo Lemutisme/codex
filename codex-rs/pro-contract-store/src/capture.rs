@@ -47,6 +47,8 @@ pub struct Subject {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CaptureError {
+    #[error("subject record is corrupt: {0}")]
+    Corrupt(String),
     #[error("capture i/o error at {path}: {source}")]
     Io { path: String, source: io::Error },
     #[error("{path} is {len} bytes, over the per-file cap")]
@@ -88,6 +90,35 @@ pub fn capture(
     Ok(Subject {
         manifest,
         subject_hash,
+    })
+}
+
+/// Stores the subject's canonical manifest as a blob, so that the subject can later be resolved
+/// from its hash alone.
+pub fn persist_manifest(subject: &Subject, store: &BlobStore) -> Result<Digest, CaptureError> {
+    let bytes = serde_json::to_vec(&subject.manifest)
+        .map_err(|error| CaptureError::Corrupt(error.to_string()))?;
+    store.put(&bytes).map_err(io_error("manifest"))
+}
+
+/// Reads a persisted manifest back and checks that it is exactly the claimed subject.
+pub fn load_subject(
+    store: &BlobStore,
+    manifest: &Digest,
+    subject_hash: &Digest,
+) -> Result<Subject, CaptureError> {
+    let bytes = store.get(manifest).map_err(io_error("manifest"))?;
+    let manifest: Manifest =
+        serde_json::from_slice(&bytes).map_err(|error| CaptureError::Corrupt(error.to_string()))?;
+    let actual = digest_of("subject_manifest", &manifest);
+    if actual != *subject_hash {
+        return Err(CaptureError::Corrupt(format!(
+            "manifest describes subject {actual}, not {subject_hash}"
+        )));
+    }
+    Ok(Subject {
+        manifest,
+        subject_hash: *subject_hash,
     })
 }
 

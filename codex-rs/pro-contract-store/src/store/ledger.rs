@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS records (
     json TEXT NOT NULL,
     PRIMARY KEY (kind, key)
 );
+CREATE TABLE IF NOT EXISTS subjects (
+    subject_hash TEXT PRIMARY KEY NOT NULL,
+    manifest TEXT NOT NULL,
+    capture_policy TEXT NOT NULL
+);
 ";
 
 #[derive(Debug, thiserror::Error)]
@@ -242,6 +247,76 @@ impl Ledger {
             .map(|json| decode(&json))
             .transpose()
     }
+}
+
+/// Where a captured subject's manifest is stored and under which capture policy it was taken.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SubjectBinding {
+    pub manifest: Digest,
+    pub capture_policy: Digest,
+}
+
+impl Ledger {
+    /// Binds a subject hash to its persisted manifest. Rebinding identically is a no-op;
+    /// rebinding differently is corruption.
+    pub async fn bind_subject(
+        &self,
+        subject_hash: &Digest,
+        binding: &SubjectBinding,
+    ) -> Result<(), LedgerError> {
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(storage)?;
+        if let Some(found) = read_binding(&mut tx, subject_hash).await? {
+            return if found == *binding {
+                Ok(())
+            } else {
+                Err(LedgerError::Corrupt(format!(
+                    "subject {subject_hash} is already bound to another manifest"
+                )))
+            };
+        }
+        sqlx::query(
+            "INSERT INTO subjects (subject_hash, manifest, capture_policy) VALUES (?, ?, ?)",
+        )
+        .bind(subject_hash.to_string())
+        .bind(binding.manifest.to_string())
+        .bind(binding.capture_policy.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(storage)?;
+        tx.commit().await.map_err(storage)
+    }
+
+    pub async fn subject_binding(
+        &self,
+        subject_hash: &Digest,
+    ) -> Result<Option<SubjectBinding>, LedgerError> {
+        let mut connection = self.pool.acquire().await.map_err(storage)?;
+        read_binding(&mut connection, subject_hash).await
+    }
+}
+
+async fn read_binding(
+    connection: &mut sqlx::SqliteConnection,
+    subject_hash: &Digest,
+) -> Result<Option<SubjectBinding>, LedgerError> {
+    let row = sqlx::query("SELECT manifest, capture_policy FROM subjects WHERE subject_hash = ?")
+        .bind(subject_hash.to_string())
+        .fetch_optional(connection)
+        .await
+        .map_err(storage)?;
+    row.map(|row| {
+        let manifest: String = row.try_get("manifest").map_err(storage)?;
+        let capture_policy: String = row.try_get("capture_policy").map_err(storage)?;
+        Ok(SubjectBinding {
+            manifest: parse_digest(&manifest)?,
+            capture_policy: parse_digest(&capture_policy)?,
+        })
+    })
+    .transpose()
 }
 
 fn storage(error: impl std::fmt::Display) -> LedgerError {

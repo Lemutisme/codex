@@ -18,6 +18,7 @@ use serde::Serialize;
 
 use super::Ledger;
 use super::LedgerError;
+use super::SubjectBinding;
 
 async fn open(dir: &std::path::Path) -> Ledger {
     let sqlite = SqliteConfig::new_for_testing(
@@ -240,4 +241,36 @@ async fn records_upsert_and_read_back() {
             .expect("read"),
         None
     );
+}
+
+#[tokio::test]
+async fn a_subject_binding_survives_reopening_and_rejects_rebinding() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let subject = Digest::of(b"subject");
+    let binding = SubjectBinding {
+        manifest: Digest::of(b"manifest"),
+        capture_policy: Digest::of(b"policy"),
+    };
+    {
+        let ledger = open(dir.path()).await;
+        ledger.bind_subject(&subject, &binding).await.expect("bind");
+        ledger
+            .bind_subject(&subject, &binding)
+            .await
+            .expect("identical rebind is a no-op");
+    }
+    let reopened = open(dir.path()).await;
+
+    assert_eq!(
+        reopened.subject_binding(&subject).await.expect("read"),
+        Some(binding.clone())
+    );
+    let different = SubjectBinding {
+        manifest: Digest::of(b"other manifest"),
+        capture_policy: binding.capture_policy,
+    };
+    assert!(matches!(
+        reopened.bind_subject(&subject, &different).await,
+        Err(LedgerError::Corrupt(_))
+    ));
 }
