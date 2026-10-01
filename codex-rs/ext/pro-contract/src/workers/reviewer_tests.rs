@@ -10,6 +10,7 @@ use super::TermsGap;
 use super::parse;
 use super::prompt;
 use super::schema;
+use crate::OutOfScope;
 use crate::Requirement;
 use crate::Terms;
 use crate::WorkerError;
@@ -201,8 +202,17 @@ fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
     let huge = "x".repeat(super::super::PROMPT_EVIDENCE_CAP * 2);
     let terms = Terms {
         intake_text: huge.clone(),
-        requirements: vec![],
-        out_of_scope: vec![],
+        requirements: vec![Requirement {
+            id: "R1".to_string(),
+            text: huge.clone(),
+            source_quote: "q".to_string(),
+            inferred: false,
+        }],
+        out_of_scope: vec![OutOfScope {
+            element: huge.clone(),
+            human_statement: None,
+            non_substantive: true,
+        }],
     };
     let input = ReviewInput {
         terms: &terms,
@@ -212,13 +222,26 @@ fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
 
     let prompt = prompt(&input);
 
+    // The fixed part (instructions, tags, separators) is what an all-empty prompt weighs.
+    let empty_terms = Terms {
+        intake_text: String::new(),
+        requirements: vec![],
+        out_of_scope: vec![],
+    };
+    let fixed = super::prompt(&ReviewInput {
+        terms: &empty_terms,
+        check_summary: "",
+        candidate_view: "",
+    })
+    .len();
+    let evidence = prompt.len() - fixed;
+    let omission_notes = 5 * 64;
     assert!(
-        prompt.len() <= super::super::PROMPT_EVIDENCE_CAP + 8_000,
-        "{}",
-        prompt.len()
+        evidence <= super::super::PROMPT_EVIDENCE_CAP + omission_notes,
+        "evidence is {evidence} bytes"
     );
     assert!(
-        prompt.contains("omitted"),
-        "the prompt must say what to do when file contents are omitted"
+        prompt.contains("answer cannot_judge and name the omitted files in missing"),
+        "the instructions must say what to do when file contents are omitted"
     );
 }
