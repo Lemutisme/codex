@@ -3,6 +3,7 @@
 //! `codex-core`, so that operator tools and a protected institution service can link it directly.
 
 mod capture;
+pub mod cli;
 mod hashing;
 mod store;
 mod terms;
