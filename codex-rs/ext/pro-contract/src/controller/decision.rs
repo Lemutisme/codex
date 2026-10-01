@@ -8,6 +8,7 @@ use crate::StepOutcome;
 use crate::Terms;
 use crate::WorkerError;
 use crate::workers::bounded;
+use crate::workers::bounded_head_tail;
 use crate::workers::reviewer::ReviewVerdict;
 
 /// Cap on the brief and on a residual, about 512 tokens.
@@ -63,7 +64,7 @@ pub(crate) fn decide(
             residual.push_str(&format!(
                 "- {} failed{invocation}:\n{}\n",
                 failure.step,
-                bounded(failure.detail.trim_end(), 600)
+                bounded_head_tail(failure.detail.trim_end(), 600)
             ));
         }
         return Verdict::Defeat {

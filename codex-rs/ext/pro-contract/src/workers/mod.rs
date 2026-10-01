@@ -4,6 +4,10 @@ pub(crate) mod drafter;
 pub(crate) mod reviewer;
 pub(crate) mod runtime;
 
+#[cfg(test)]
+#[path = "mod_tests.rs"]
+mod tests;
+
 /// Hard cap on the evidence text placed in any worker prompt.
 pub(crate) const PROMPT_EVIDENCE_CAP: usize = 60_000;
 
@@ -33,6 +37,21 @@ pub(crate) fn bounded(text: &str, cap: usize) -> String {
         "{}\n[... {} bytes omitted ...]",
         &text[..end],
         text.len() - end
+    )
+}
+
+/// Keeps the first and last `cap / 2` bytes; errors usually sit at the end of a log.
+pub(crate) fn bounded_head_tail(text: &str, cap: usize) -> String {
+    if text.len() <= cap {
+        return text.to_string();
+    }
+    let head = text.floor_char_boundary(cap / 2);
+    let tail = text.ceil_char_boundary(text.len() - cap / 2);
+    format!(
+        "{}\n[... {} bytes omitted ...]\n{}",
+        &text[..head],
+        tail - head,
+        &text[tail..]
     )
 }
 

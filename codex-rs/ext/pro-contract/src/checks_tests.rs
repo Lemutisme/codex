@@ -251,3 +251,23 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
     );
     assert!(receipts.complete);
 }
+
+#[test]
+fn a_failure_log_keeps_its_head_and_its_tail() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let log = dir.path().join("build.log");
+    std::fs::write(
+        &log,
+        format!("FIRST\n{}\nLAST-ERROR\n", "noise\n".repeat(2000)),
+    )?;
+    let output = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(format!("{}\nlog build {}", super::PRELUDE, log.display()))
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(stdout.contains("@@LOG build FIRST"), "{stdout}");
+    assert!(stdout.contains("@@LOG build LAST-ERROR"), "{stdout}");
+    assert!(stdout.contains("bytes omitted"), "{stdout}");
+    Ok(())
+}

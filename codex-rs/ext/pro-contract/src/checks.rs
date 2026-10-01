@@ -99,20 +99,22 @@ fn runs_differential(policy: &EvidencePolicy) -> bool {
     policy.reference_command.is_some() && policy.candidate_command.is_some()
 }
 
+/// Shell functions shared by every pipeline script.
+pub(crate) const PRELUDE: &str = "set -u
+emit() { printf '@@PC %s %s\\n' \"$1\" \"$2\"; }
+log() { size=$(wc -c < \"$2\"); if [ \"$size\" -le 4000 ]; then cat \"$2\"; else head -c 2000 \"$2\"; printf '\\n[... %s bytes omitted ...]\\n' \"$((size - 4000))\"; tail -c 2000 \"$2\"; fi | awk -v prefix=\"@@LOG $1 \" '{ print prefix $0 }'; }
+step() { log_file=$1; shift; timeout \"$STEP_TIMEOUT\" \"$@\" > \"$log_file\" 2>&1; rc=$?; if [ $rc -eq 124 ]; then { echo \"timed out after $STEP_TIMEOUT s\"; cat \"$log_file\"; } > \"$log_file.t\"; mv \"$log_file.t\" \"$log_file\"; fi; return $rc; }
+for tool in 'rustc --version' 'cargo --version' 'uname -srm'; do printf '@@ENV %s\\n' \"$($tool 2>&1 | head -n 1)\"; done
+export CARGO_NET_OFFLINE=true
+";
+
 /// The ordered pipeline script for `policy`, run from `candidate_root` inside the container.
 pub(crate) fn pipeline_script(
     policy: &EvidencePolicy,
     candidate_root: &str,
     step_timeout_secs: u64,
 ) -> String {
-    let mut script = String::from(
-        "set -u\n\
-emit() { printf '@@PC %s %s\\n' \"$1\" \"$2\"; }\n\
-log() { head -c 4000 \"$2\" | awk -v prefix=\"@@LOG $1 \" '{ print prefix $0 }'; }\n\
-step() { log_file=$1; shift; timeout \"$STEP_TIMEOUT\" \"$@\" > \"$log_file\" 2>&1; rc=$?; if [ $rc -eq 124 ]; then { echo \"timed out after $STEP_TIMEOUT s\"; cat \"$log_file\"; } > \"$log_file.t\"; mv \"$log_file.t\" \"$log_file\"; fi; return $rc; }\n\
-for tool in 'rustc --version' 'cargo --version' 'uname -srm'; do printf '@@ENV %s\\n' \"$($tool 2>&1 | head -n 1)\"; done\n\
-export CARGO_NET_OFFLINE=true\n",
-    );
+    let mut script = String::from(PRELUDE);
     script.push_str(&format!("STEP_TIMEOUT={step_timeout_secs}\n"));
     // Build in a private copy owned by the container user, as the evaluator builds in a
     // workspace it owns; the mounted subject stays untouched.

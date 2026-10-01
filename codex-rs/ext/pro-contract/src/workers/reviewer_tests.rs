@@ -195,3 +195,30 @@ fn an_unknown_verdict_is_malformed() {
         Err(WorkerError::Malformed(_))
     ));
 }
+
+#[test]
+fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
+    let huge = "x".repeat(super::super::PROMPT_EVIDENCE_CAP * 2);
+    let terms = Terms {
+        intake_text: huge.clone(),
+        requirements: vec![],
+        out_of_scope: vec![],
+    };
+    let input = ReviewInput {
+        terms: &terms,
+        check_summary: &huge,
+        candidate_view: &huge,
+    };
+
+    let prompt = prompt(&input);
+
+    assert!(
+        prompt.len() <= super::super::PROMPT_EVIDENCE_CAP + 8_000,
+        "{}",
+        prompt.len()
+    );
+    assert!(
+        prompt.contains("omitted"),
+        "the prompt must say what to do when file contents are omitted"
+    );
+}

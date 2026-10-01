@@ -73,6 +73,7 @@ and a residual: a short instruction to the author that names only the unmet requ
 Separately, compare the human request with the requirements. In terms_gap, list every substantive element of the \
 request that no requirement covers, that a requirement widens, or that a requirement weakens; leave it empty when \
 the terms are faithful. Failed mechanical checks are listed in the check receipts and are already decisive.
+If the candidate view says file contents were omitted and a requirement depends on them, answer cannot_judge and name the omitted files in missing.
 Fill fields that do not apply with empty arrays or empty strings. Respond with JSON only, matching the schema.";
 
 pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
@@ -115,7 +116,7 @@ pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
         bounded(&requirements, PROMPT_EVIDENCE_CAP / 8),
         bounded(&out_of_scope, PROMPT_EVIDENCE_CAP / 16),
         bounded(input.check_summary, PROMPT_EVIDENCE_CAP / 4),
-        bounded(input.candidate_view, PROMPT_EVIDENCE_CAP / 2),
+        bounded(input.candidate_view, PROMPT_EVIDENCE_CAP * 7 / 16),
     )
 }
 
