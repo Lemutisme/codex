@@ -13,8 +13,10 @@ pub fn digest_of<T: Serialize>(domain: &str, value: &T) -> Digest {
     hasher.update(b"pro_contract/v1/");
     hasher.update(domain.as_bytes());
     hasher.update([0u8]);
-    // Serializing a plain struct of strings, numbers, digests and vectors cannot fail.
-    let json = serde_json::to_vec(value).unwrap_or_default();
+    // A serialization failure is a programming error: hashing the prefix alone would make
+    // different values collide silently.
+    let json = serde_json::to_vec(value)
+        .unwrap_or_else(|error| panic!("canonical JSON for {domain} failed: {error}"));
     hasher.update(&json);
     Digest::from_bytes(hasher.finalize().into())
 }

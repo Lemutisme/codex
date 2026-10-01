@@ -93,6 +93,7 @@ members = [
     "network-proxy",
     "ollama",
     "pro-contract",
+    "pro-contract-store",
     "process-hardening",
     "realtime-webrtc",
     "voice-host",
@@ -268,6 +269,7 @@ codex-process-hardening = { path = "process-hardening" }
 codex-protocol = { path = "protocol" }
 codex-prompts = { path = "prompts" }
 codex-pro-contract = { path = "pro-contract" }
+codex-pro-contract-store = { path = "pro-contract-store" }
 codex-pro-contract-extension = { path = "ext/pro-contract" }
 codex-queue-extension = { path = "ext/queue" }
 codex-responses-api-proxy = { path = "responses-api-proxy" }

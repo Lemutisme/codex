@@ -1,11 +1,11 @@
 [package]
 edition.workspace = true
 license.workspace = true
-name = "codex-pro-contract-extension"
+name = "codex-pro-contract-store"
 version.workspace = true
 
 [lib]
-name = "codex_pro_contract_extension"
+name = "codex_pro_contract_store"
 path = "src/lib.rs"
 doctest = false
 
@@ -13,18 +13,14 @@ doctest = false
 workspace = true
 
 [dependencies]
-codex-core = { workspace = true }
-codex-extension-api = { workspace = true }
-codex-features = { workspace = true }
 codex-pro-contract = { workspace = true }
-codex-pro-contract-store = { workspace = true }
-codex-protocol = { workspace = true }
 codex-state = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["fs", "macros", "process", "rt", "sync", "time"] }
-tracing = { workspace = true }
+tokio = { workspace = true, features = ["fs"] }
 
 [dev-dependencies]
 codex-utils-absolute-path = { workspace = true }

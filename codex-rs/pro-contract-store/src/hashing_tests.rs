@@ -30,3 +30,17 @@ fn digest_covers_the_versioned_domain_prefix_and_json() {
     bytes.extend_from_slice(br#"{"name":"a","size":1}"#);
     assert_eq!(digest_of("record", &record), Digest::of(&bytes));
 }
+
+struct Unserializable;
+
+impl Serialize for Unserializable {
+    fn serialize<S: serde::Serializer>(&self, _serializer: S) -> Result<S::Ok, S::Error> {
+        Err(serde::ser::Error::custom("refused"))
+    }
+}
+
+#[test]
+#[should_panic(expected = "canonical JSON for test failed: refused")]
+fn a_value_that_cannot_be_serialized_fails_loudly() {
+    digest_of("test", &Unserializable);
+}

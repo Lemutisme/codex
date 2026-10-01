@@ -4249,7 +4249,24 @@ dependencies = [
  "codex-extension-api",
  "codex-features",
  "codex-pro-contract",
+ "codex-pro-contract-store",
  "codex-protocol",
+ "codex-state",
+ "codex-utils-absolute-path",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "codex-pro-contract-store"
+version = "0.0.0"
+dependencies = [
+ "codex-pro-contract",
  "codex-state",
  "codex-utils-absolute-path",
  "pretty_assertions",
@@ -4260,7 +4277,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tracing",
 ]
 
 [[package]]
