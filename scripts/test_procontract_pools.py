@@ -58,6 +58,18 @@ class SeenTest(unittest.TestCase):
             )
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
 
+    def test_unreadable_files_are_skipped_not_fatal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "report.md").write_text("ran wfxr__csview.8ac4de0")
+            locked = Path(tmp, "locked.json")
+            locked.write_text("sharkdp__hexyl.1234567")
+            locked.chmod(0)
+            found = pools.seen_ids(
+                [Path(tmp)], {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
+            )
+            locked.chmod(0o600)
+        self.assertEqual(found, {"wfxr__csview.8ac4de0"})
+
     def test_test_named_paths_are_never_read_and_roots_under_tests_still_scan(self):
         known = {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
         with tempfile.TemporaryDirectory() as tmp:

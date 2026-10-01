@@ -62,7 +62,11 @@ def seen_ids(paths: list[Path], known: set[str]) -> set[str]:
                 continue
             if path.stat().st_size > MAX_SCAN_BYTES:
                 continue
-            found |= set(ID.findall(path.read_text(errors="ignore"))) & known
+            try:
+                text = path.read_text(errors="ignore")
+            except PermissionError:
+                continue
+            found |= set(ID.findall(text)) & known
     return found
 
 
