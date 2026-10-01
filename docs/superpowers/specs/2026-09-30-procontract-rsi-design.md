@@ -372,8 +372,13 @@ kernel.
    - `digest_of` fails loudly on serialization errors.
    - The runner drops `from __future__ import annotations` (AGENTS.md forbids `__future__`).
 6. **Pools.**
-   - Restrict to the 107 Rust instances. Instances used in earlier experiments are **dev-only**; the seen-list is
-     compiled from `~/run-artifacts` manifests and the paper's task lists.
+   - Restrict to the 107 Rust instances. Instances used in earlier **selection or adoption decisions** are
+     **dev-only**: development panels, confirmation blocks, screens, promotion floors, and research-parent or
+     incumbent data. The list is compiled from those experiments' protocol and decision records and the paper's RSI
+     task lists.
+     - Decided by the user on 2026-10-01: instances that appeared only in full-benchmark baseline runs (every instance
+       has been run at least once) do not count as seen. This is a declared limitation of every held-out claim.
+     - A raw scan of `~/run-artifacts` finds all 201 ids, so it is not the seen-list.
    - The remainder is split dev / select / confirm by a salted hash of the repository name, stratified by difficulty
      where it is known.
    - Commitments are recorded; the select and confirm lists are sealed in the operator's store and never passed to any
