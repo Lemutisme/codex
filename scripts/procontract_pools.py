@@ -44,12 +44,17 @@ def load_tasks(tasks_dir: Path, language: str) -> list[dict]:
     return tasks
 
 
+def _is_test_path(parts: tuple[str, ...]) -> bool:
+    return any(part.startswith("test") for part in parts)
+
+
 def seen_ids(paths: list[Path], known: set[str]) -> set[str]:
     found: set[str] = set()
     for root in paths:
         for path in [root] if root.is_file() else root.rglob("*"):
+            relative = (root.name,) if root.is_file() else path.relative_to(root).parts
             if (
-                "tests" in path.parts
+                _is_test_path(relative)
                 or not path.is_file()
                 or path.suffix not in TEXT_SUFFIXES
             ):

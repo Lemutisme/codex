@@ -34,7 +34,12 @@ class SplitTest(unittest.TestCase):
         self.assertEqual((len(first["select"]), len(first["confirm"])), (12, 10))
 
     def test_commitments_hide_lists_but_bind_them(self):
-        self.assertNotIn("o1", pools.commitment("salt", ["o1__r1.abc0001"]))
+        self.assertNotEqual(
+            pools.commitment("salt", ["a"]), pools.commitment("other", ["a"])
+        )
+        self.assertEqual(
+            pools.commitment("salt", ["a", "b"]), pools.commitment("salt", ["b", "a"])
+        )
         self.assertNotEqual(
             pools.commitment("salt", ["a"]), pools.commitment("salt", ["b"])
         )
@@ -52,6 +57,17 @@ class SeenTest(unittest.TestCase):
                 [Path(tmp)], {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
             )
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
+
+    def test_test_named_paths_are_never_read_and_roots_under_tests_still_scan(self):
+        known = {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "tests", "artifacts")
+            (root / "test_cases").mkdir(parents=True)
+            (root / "tests.json").write_text("sharkdp__hexyl.1234567")
+            (root / "test_cases" / "x.md").write_text("sharkdp__hexyl.1234567")
+            (root / "notes.md").write_text("wfxr__csview.8ac4de0")
+            self.assertEqual(pools.seen_ids([root], known), {"wfxr__csview.8ac4de0"})
+            self.assertEqual(pools.seen_ids([root / "tests.json"], known), set())
 
 
 if __name__ == "__main__":
