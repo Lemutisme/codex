@@ -1,4 +1,5 @@
 import errno
+import os
 import tempfile
 import time
 import unittest
@@ -82,10 +83,13 @@ class SeenTest(unittest.TestCase):
                 return real_is_file(path)
 
             with mock.patch.object(Path, "is_file", is_file):
-                found = pools.seen_ids([Path(tmp)], {"wfxr__csview.8ac4de0"})
+                report: dict = {}
+                found = pools.seen_ids([Path(tmp)], {"wfxr__csview.8ac4de0"}, report)
         self.assertEqual(found, set())
+        self.assertEqual(report, {"unreadable_files": 1, "unreadable_dirs": 0})
 
-    def test_unreadable_files_are_skipped_not_fatal(self):
+    @unittest.skipIf(os.geteuid() == 0, "root can read chmod 0 paths")
+    def test_unreadable_files_and_dirs_are_skipped_and_counted(self):
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "report.md").write_text("ran wfxr__csview.8ac4de0")
             locked = Path(tmp, "locked.json")
@@ -95,12 +99,16 @@ class SeenTest(unittest.TestCase):
             sealed.mkdir()
             Path(sealed, "inner.json").write_text("sharkdp__hexyl.1234567")
             sealed.chmod(0)
+            report: dict = {}
             found = pools.seen_ids(
-                [Path(tmp)], {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}
+                [Path(tmp)],
+                {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"},
+                report,
             )
             locked.chmod(0o600)
             sealed.chmod(0o700)
         self.assertEqual(found, {"wfxr__csview.8ac4de0"})
+        self.assertEqual(report, {"unreadable_files": 1, "unreadable_dirs": 1})
 
     def test_test_named_paths_are_never_read_and_roots_under_tests_still_scan(self):
         known = {"wfxr__csview.8ac4de0", "sharkdp__hexyl.1234567"}

@@ -9,6 +9,7 @@ import json
 import os
 import re
 import secrets
+import sys
 from pathlib import Path
 
 import yaml
@@ -49,27 +50,50 @@ def _is_test_path(parts: tuple[str, ...]) -> bool:
     return "tests" in parts or parts[-1] == "tests.json"
 
 
-def _scan_file(path: Path, relative: tuple[str, ...]) -> str | None:
-    """Return the text worth scanning, or None for non-text, test or unreadable files."""
+def _read_text(path: Path, report: dict) -> str | None:
+    """Return the text worth scanning, or None; OSError is counted as unreadable."""
     try:
         if (
-            _is_test_path(relative)
-            or not path.is_file()
+            not path.is_file()
             or path.suffix not in TEXT_SUFFIXES
             or path.stat().st_size > MAX_SCAN_BYTES
         ):
             return None
         return path.read_text(errors="ignore")
     except OSError:
+        report["unreadable_files"] += 1
         return None
 
 
-def seen_ids(paths: list[Path], known: set[str]) -> set[str]:
+def _candidates(root: Path, report: dict):
+    """Yield every non-test path under root."""
+    if root.is_file():
+        if not _is_test_path((root.name,)):
+            yield root
+        return
+
+    def on_error(_error: OSError) -> None:
+        report["unreadable_dirs"] += 1
+
+    for directory, dirnames, filenames in os.walk(root, onerror=on_error):
+        base = Path(directory).relative_to(root).parts
+        dirnames[:] = [name for name in dirnames if name != "tests"]
+        for name in filenames:
+            relative = (*base, name)
+            if not _is_test_path(relative):
+                yield Path(directory, name)
+
+
+def seen_ids(
+    paths: list[Path], known: set[str], report: dict | None = None
+) -> set[str]:
+    """Scan text artifacts for known ids; counts of unreadable paths go in report."""
+    report = report if report is not None else {}
+    report.update(unreadable_files=0, unreadable_dirs=0)
     found: set[str] = set()
     for root in paths:
-        for path in [root] if root.is_file() else root.rglob("*"):
-            relative = (root.name,) if root.is_file() else path.relative_to(root).parts
-            text = _scan_file(path, relative)
+        for path in _candidates(root, report):
+            text = _read_text(path, report)
             if text is not None:
                 found |= set(ID.findall(text)) & known
     return found
@@ -138,9 +162,12 @@ def main() -> None:
     args = parser.parse_args()
     known = {path.parent.name for path in args.tasks_dir.glob("*/task.yaml")}
     if args.command == "seen":
-        args.out.write_text(
-            json.dumps(sorted(seen_ids(args.scan, known)), indent=2) + "\n"
-        )
+        report: dict = {}
+        found = seen_ids(args.scan, known, report)
+        args.out.write_text(json.dumps(sorted(found), indent=2) + "\n")
+        skipped = json.dumps(report, indent=2) + "\n"
+        args.out.with_name(args.out.name + ".skipped.json").write_text(skipped)
+        print(f"seen scan skipped: {json.dumps(report)}", file=sys.stderr)
         return
     tasks = load_tasks(args.tasks_dir, args.language)
     salt = _salt(args.salt_file)
