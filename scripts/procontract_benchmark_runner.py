@@ -3,21 +3,17 @@
 
   prepare   copy the instance workspace out of the cleanroom image and write CODEX_HOME
   run       drive `codex app-server` over stdio with the task prompt until the thread rests
-  evaluate  package submission.tar.gz and run the official `programbench eval`
 
 Both arms use the same binary, prompt, model and deadline; ON enables the `pro_contract`
 feature, OFF disables it. The model credential stays in this process's environment: neither
 it nor CODEX_HOME is ever mounted into a container.
 """
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import json
 import os
 import queue
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -26,8 +22,6 @@ import threading
 import time
 from pathlib import Path
 
-INSTANCE = "wfxr__csview.8ac4de0"
-CLEANROOM_IMAGE = "programbench/wfxr_1776_csview.8ac4de0:task_cleanroom"
 MODEL = "gpt-5.6-luna"
 EFFORT = "max"
 ENVIRONMENT_ID = "cleanroom"
@@ -38,7 +32,6 @@ DEFAULT_CODEX = (
     ARTIFACTS / "musl" / "target" / "x86_64-unknown-linux-musl" / "release" / "codex"
 )
 DEFAULT_PROMPT = ARTIFACTS / "task-prompt.txt"
-PROGRAMBENCH = Path.home() / "ProgramBench"
 # Never captured as the candidate: the unreadable reference, build output and history.
 CAPTURE_EXCLUDED = ["executable", "target", ".git"]
 # Never submitted: the reference (a no-op compile.sh would submit it) and build output.
@@ -186,6 +179,79 @@ def package(workspace: Path, dest: Path) -> None:
     )
 
 
+def cleanroom_image(instance: str) -> str:
+    return f"programbench/{instance.replace('__', '_1776_')}:task_cleanroom"
+
+
+def task_image(instance: str) -> str:
+    return f"programbench/{instance.replace('__', '_1776_')}:task"
+
+
+def ensure_images(instance: str) -> None:
+    for image in (cleanroom_image(instance), task_image(instance)):
+        present = (
+            subprocess.run(
+                ["docker", "image", "inspect", image], capture_output=True
+            ).returncode
+            == 0
+        )
+        if not present:
+            subprocess.run(["docker", "pull", image], check=True)
+
+
+def lane_silent(
+    arm: str,
+    status: dict | None,
+    first_completion_at: float | None,
+    now: float,
+    limit: float = 600.0,
+) -> bool:
+    """The ON lane never wrote a status record long after the executor handed off."""
+    return (
+        arm == "on"
+        and status is None
+        and first_completion_at is not None
+        and now - first_completion_at >= limit
+    )
+
+
+def rollout_costs(codex_home: Path) -> dict:
+    keys = (
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "total_tokens",
+    )
+    totals = {
+        "executor": dict.fromkeys(keys, 0),
+        "workers": dict.fromkeys(keys, 0),
+        "worker_rollouts": 0,
+    }
+    for path in sorted((codex_home / "sessions").rglob("rollout-*.jsonl")):
+        source, usage = None, None
+        for line in path.read_text().splitlines():
+            record = json.loads(line)
+            payload = record.get("payload", {})
+            if record.get("type") == "session_meta":
+                source = payload.get("source")
+            elif (
+                record.get("type") == "event_msg"
+                and payload.get("type") == "token_count"
+                and payload.get("info")
+            ):
+                usage = payload["info"]["total_token_usage"]
+        worker = (
+            isinstance(source, dict) and source.get("internal") == "extension_worker"
+        )
+        totals["worker_rollouts"] += 1 if worker else 0
+        for key in keys:
+            totals["workers" if worker else "executor"][key] += (usage or {}).get(
+                key, 0
+            )
+    return totals
+
+
 class TurnTracker:
     """Turn state of the executor thread; hidden worker threads' turns are ignored."""
 
@@ -193,6 +259,7 @@ class TurnTracker:
         self.thread_id = thread_id
         self.active = False
         self.completed = 0
+        self.statuses: list[str] = []
         self.turn_id: str | None = None
 
     def observe(self, message: dict) -> None:
@@ -208,6 +275,7 @@ class TurnTracker:
         else:
             self.active = False
             self.completed += 1
+            self.statuses.append(params["turn"].get("status", "unknown"))
 
 
 class AppServer:
@@ -300,6 +368,7 @@ def prepare(args: argparse.Namespace) -> None:
         sys.exit(f"{run_dir} is not empty; choose a fresh run directory")
     workspace = run_dir / "workspace"
     workspace.mkdir(parents=True)
+    ensure_images(args.instance)
     subprocess.run(
         [
             "docker",
@@ -405,12 +474,15 @@ def run(args: argparse.Namespace) -> None:
         ledger = home / "pro_contract" / "ledger_1.sqlite"
         status = None
         last_poll = 0.0
+        first_completion_at = None
         while not eof.is_set():
             try:
                 handle(server.messages.get(timeout=1))
             except queue.Empty:
                 pass
             now = time.monotonic()
+            if first_completion_at is None and turns.completed == 1:
+                first_completion_at = now
             if now - last_poll >= STATUS_POLL_SECS:
                 last_poll = now
                 status = read_status(ledger, thread_id)
@@ -420,6 +492,9 @@ def run(args: argparse.Namespace) -> None:
                     turn_active=turns.active,
                     turns_completed=turns.completed,
                 ):
+                    break
+                if lane_silent(args.arm, status, first_completion_at, now):
+                    summary["stopped"] = "no_status_record"
                     break
             if now - started > args.deadline_secs:
                 summary["deadline_hit"] = True
@@ -434,6 +509,8 @@ def run(args: argparse.Namespace) -> None:
             status=read_status(ledger, thread_id),
             turns_completed=turns.completed,
             server_exited_early=eof.is_set(),
+            turn_statuses=turns.statuses,
+            cost=rollout_costs(home),
         )
     finally:
         summary["elapsed_secs"] = round(time.monotonic() - started)
@@ -442,63 +519,25 @@ def run(args: argparse.Namespace) -> None:
         print(json.dumps(summary, indent=2))
 
 
-def evaluate(args: argparse.Namespace) -> None:
-    run_dir: Path = args.run_dir
-    eval_dir = run_dir / "eval"
-    package(run_dir / "workspace", eval_dir / args.instance / "submission.tar.gz")
-    log = run_dir / "eval.log"
-    with log.open("w") as out:
-        subprocess.run(
-            [
-                "uv",
-                "run",
-                "programbench",
-                "eval",
-                str(eval_dir),
-                "--filter",
-                f"^{re.escape(args.instance)}$",
-                "-w",
-                "1",
-                "-b",
-                "1",
-                "--docker-cpus",
-                "4",
-            ],
-            cwd=args.programbench,
-            stdout=out,
-            stderr=subprocess.STDOUT,
-            check=True,
-        )
-    text = log.read_text()
-    match = re.search(rf"^\s*{re.escape(args.instance)}\s+(✅|\d+)", text, re.MULTILINE)
-    result = {
-        "instance": args.instance,
-        "score": None if match is None else match.group(1),
-        "solved": bool(match and match.group(1) == "✅"),
-    }
-    (run_dir / "evaluation.json").write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result, indent=2))
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("command", choices=["prepare", "run", "evaluate"])
+    parser.add_argument("command", choices=["prepare", "run"])
     parser.add_argument("--arm", choices=["on", "off"], required=True)
     parser.add_argument("--run-dir", type=Path)
-    parser.add_argument("--instance", default=INSTANCE)
-    parser.add_argument("--image", default=CLEANROOM_IMAGE)
+    parser.add_argument("--instance", required=True)
+    parser.add_argument("--image")
     parser.add_argument("--codex-bin", type=Path, default=DEFAULT_CODEX)
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
-    parser.add_argument("--programbench", type=Path, default=PROGRAMBENCH)
     args = parser.parse_args()
+    args.image = args.image or cleanroom_image(args.instance)
     if args.run_dir is None:
         args.run_dir = ARTIFACTS / "runs" / f"{args.instance}-{args.arm}"
     if shutil.which("docker") is None:
         sys.exit("docker is required")
-    {"prepare": prepare, "run": run, "evaluate": evaluate}[args.command](args)
+    {"prepare": prepare, "run": run}[args.command](args)
 
 
 if __name__ == "__main__":

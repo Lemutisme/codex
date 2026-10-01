@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 import procontract_evaluation as evaluation
+import procontract_store as store
 
 FAKE = [sys.executable, str(Path(__file__).parent / "testing" / "fake_programbench.py")]
 INSTANCE = "owner__tool.abc1234"
@@ -122,3 +123,130 @@ class LabelKeyTest(unittest.TestCase):
 if __name__ == "__main__":
     os.chdir(Path(__file__).parent)
     unittest.main()
+
+
+class LabelRunTest(unittest.TestCase):
+    def run_dir_with_judgment(self, tmp: str) -> tuple[Path, str]:
+        run_dir = Path(tmp, "run")
+        workspace = run_dir / "workspace"
+        workspace.mkdir(parents=True)
+        Path(workspace, "answer.txt").write_text("judged")
+        run_store = run_dir / "codex-home" / "pro_contract"
+        captured = store.capture(run_store, workspace, ["executable", "target", ".git"])
+        store.append(
+            run_store,
+            "verification",
+            {**store.identities(model="m"), "policies": {"reviewer": "00" * 32}},
+            {
+                "contract_id": "c1",
+                "generation": 1,
+                "subject_hash": captured["subject_hash"],
+                "verdict": "support",
+            },
+        )
+        Path(workspace, "answer.txt").write_text("edited after freezing")
+        return run_dir, captured["subject_hash"]
+
+    def label(self, tmp, run_dir, steps, known=frozenset()):
+        write_plan(tmp, steps)
+        return evaluation.label_run(
+            run_dir,
+            Path(tmp, "batch-store"),
+            "r1",
+            INSTANCE,
+            "ee" * 32,
+            FAKE,
+            Path(tmp),
+            "rev",
+            set(known),
+            store.identities(),
+        )
+
+    def test_the_judged_subject_is_labelled_from_its_frozen_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir, judged = self.run_dir_with_judgment(tmp)
+            labels = self.label(
+                tmp, run_dir, [{"score": "99", "solved": False, "branch_errors": []}]
+            )
+            seen_file = (
+                run_dir
+                / "labels"
+                / judged
+                / "eval"
+                / "attempt-1"
+                / INSTANCE
+                / "fake-seen.json"
+            )
+            seen = json.loads(seen_file.read_text())
+        roles = sorted(label["role"]["kind"] for label in labels)
+        self.assertEqual(roles, ["final_workspace", "judged"])
+        self.assertEqual(seen["./answer.txt"], "judged")
+
+    def test_label_run_labels_final_workspace_without_judgments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp, "run")
+            Path(run_dir, "workspace").mkdir(parents=True)
+            Path(run_dir, "workspace", "main.rs").write_text("x")
+            labels = self.label(
+                tmp, run_dir, [{"score": "70", "solved": False, "branch_errors": []}]
+            )
+        self.assertEqual(
+            [label["role"]["kind"] for label in labels], ["final_workspace"]
+        )
+
+    def test_labelling_twice_does_not_duplicate_labels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir, _ = self.run_dir_with_judgment(tmp)
+            step = [{"score": "99", "solved": False, "branch_errors": []}]
+            self.label(tmp, run_dir, step)
+            again = self.label(tmp, run_dir, step)
+            labels = [
+                e
+                for e in store.events(Path(tmp, "batch-store"))
+                if e["event"]["kind"] == "label"
+            ]
+        self.assertEqual((again, len(labels)), ([], 2))
+
+    def test_a_missing_subject_gives_an_invalid_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp, "run")
+            Path(run_dir, "workspace").mkdir(parents=True)
+            run_store = run_dir / "codex-home" / "pro_contract"
+            store.append(
+                run_store,
+                "verification",
+                {**store.identities(model="m"), "policies": {"reviewer": "00" * 32}},
+                {
+                    "contract_id": "c1",
+                    "generation": 1,
+                    "subject_hash": "ab" * 32,
+                    "verdict": "defeat",
+                },
+            )
+            labels = self.label(
+                tmp, run_dir, [{"score": "70", "solved": False, "branch_errors": []}]
+            )
+        judged = [label for label in labels if label["role"]["kind"] == "judged"]
+        self.assertEqual(
+            (judged[0]["validity"], "not bound" in judged[0]["reason"]),
+            ("invalid", True),
+        )
+
+    def test_unreadable_workspace_gives_an_invalid_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp, "run")
+            secret = Path(run_dir, "workspace", "secret")
+            secret.parent.mkdir(parents=True)
+            secret.write_text("x")
+            secret.chmod(0)
+            try:
+                labels = self.label(
+                    tmp,
+                    run_dir,
+                    [{"score": "70", "solved": False, "branch_errors": []}],
+                )
+            finally:
+                secret.chmod(0o600)
+        self.assertEqual(
+            (labels[0]["validity"], labels[0]["outcome"]), ("invalid", None)
+        )

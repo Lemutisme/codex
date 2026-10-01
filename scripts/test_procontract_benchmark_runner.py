@@ -220,3 +220,76 @@ class CodexHomeTest(unittest.TestCase):
 if __name__ == "__main__":
     os.chdir(Path(__file__).parent)
     unittest.main()
+
+
+class InstanceTest(unittest.TestCase):
+    def test_images_follow_programbench_naming(self):
+        self.assertEqual(
+            runner.cleanroom_image("wfxr__csview.8ac4de0"),
+            "programbench/wfxr_1776_csview.8ac4de0:task_cleanroom",
+        )
+        self.assertEqual(runner.task_image("a__b.c"), "programbench/a_1776_b.c:task")
+
+
+class SilentLaneTest(unittest.TestCase):
+    def test_on_arm_without_status_ten_minutes_after_handoff_is_silent(self):
+        self.assertFalse(runner.lane_silent("on", None, None, 1000.0))
+        self.assertFalse(runner.lane_silent("on", None, 100.0, 699.0))
+        self.assertTrue(runner.lane_silent("on", None, 100.0, 700.0))
+        self.assertFalse(runner.lane_silent("on", {"resting": False}, 100.0, 9999.0))
+        self.assertFalse(runner.lane_silent("off", None, 100.0, 9999.0))
+
+
+class TurnStatusTest(unittest.TestCase):
+    def test_completed_turn_statuses_are_recorded(self):
+        tracker = runner.TurnTracker("t")
+        tracker.observe(
+            {
+                "method": "turn/completed",
+                "params": {
+                    "threadId": "t",
+                    "turn": {"id": "1", "status": "interrupted"},
+                },
+            }
+        )
+        self.assertEqual(tracker.statuses, ["interrupted"])
+
+
+class CostTest(unittest.TestCase):
+    def test_rollout_costs_split_executor_and_workers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sessions = Path(tmp, "sessions", "2026", "10", "01")
+            sessions.mkdir(parents=True)
+            usage = {
+                "input_tokens": 10,
+                "cached_input_tokens": 4,
+                "output_tokens": 2,
+                "reasoning_output_tokens": 1,
+                "total_tokens": 12,
+            }
+            for name, source in [
+                ("rollout-a.jsonl", "vscode"),
+                ("rollout-b.jsonl", {"internal": "extension_worker"}),
+            ]:
+                Path(sessions, name).write_text(
+                    json.dumps({"type": "session_meta", "payload": {"source": source}})
+                    + "\n"
+                    + json.dumps(
+                        {
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "token_count",
+                                "info": {"total_token_usage": usage},
+                            },
+                        }
+                    )
+                    + "\n"
+                )
+            costs = runner.rollout_costs(Path(tmp))
+        self.assertEqual(costs["executor"]["total_tokens"], 12)
+        self.assertEqual(
+            (costs["workers"]["total_tokens"], costs["worker_rollouts"]), (12, 1)
+        )
+
+    def test_the_runner_has_no_future_import(self):
+        self.assertNotIn("from __future__", Path(runner.__file__).read_text())
