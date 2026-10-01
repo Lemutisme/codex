@@ -43,15 +43,35 @@ def _proportion(rows: list[dict], predicate, seed: int) -> dict:
     }
 
 
-def estimands(rows: list[dict], nulls: dict[str, float], seed: int = 0) -> dict:
+def _first_repeat(rows: list[dict]) -> list[dict]:
+    return [r for r in rows if r.get("repeat", 1) == 1]
+
+
+def estimands(
+    rows: list[dict],
+    nulls: dict[str, float],
+    seed: int = 0,
+    assigned: list[dict] | None = None,
+) -> dict:
+    """Per-arm and task-level statistics use repeat 1 only; repeat 2 feeds `noise`."""
+    rows = _first_repeat(rows)
     valid = [r for r in rows if r["validity"] == "valid" and r["solved"] is not None]
     judged = [r for r in valid if r["role"] == "judged"]
     supported = [r for r in judged if r["verdict"] == "support"]
     defeats = [r for r in judged if r["verdict"] == "defeat"]
-    checked_defeats = [r for r in defeats if r["validated"] is not None]
+    checked_defeats = [
+        r
+        for r in rows
+        if r["role"] == "judged"
+        and r["verdict"] == "defeat"
+        and r.get("validated") is not None
+    ]
     finals = [r for r in rows if r["role"] == "final_workspace"]
+    final_runs = {r["run_id"] for r in finals}
+    first_assigned = _first_repeat(assigned or [])
+    arms = {r["arm"] for r in finals} | {r["arm"] for r in first_assigned}
     by_arm = {}
-    for arm in sorted({r["arm"] for r in finals}, reverse=True):
+    for arm in sorted(arms, reverse=True):
         arm_rows = [r for r in finals if r["arm"] == arm]
         by_arm[arm] = {
             "solved": sum(
@@ -59,6 +79,11 @@ def estimands(rows: list[dict], nulls: dict[str, float], seed: int = 0) -> dict:
             ),
             "valid": sum(1 for r in arm_rows if r["validity"] == "valid"),
             "invalid": sum(1 for r in arm_rows if r["validity"] != "valid"),
+            "missing": sum(
+                1
+                for a in first_assigned
+                if a["arm"] == arm and a["run_id"] not in final_runs
+            ),
         }
     above_null = {}
     for arm in by_arm:
@@ -102,8 +127,12 @@ def _score(score: str | None) -> float | None:
     return float(score) if score and score.isdigit() else None
 
 
-def load_rows(batch_dir: Path) -> tuple[list[dict], dict[str, float]]:
-    events = [record["event"] for record in store.events(batch_dir / "store")]
+def load_rows(
+    batch_dir: Path,
+) -> tuple[list[dict], dict[str, float], list[dict]]:
+    """Returns label rows, null-sentinel scores and the assignments."""
+    records = store.events(batch_dir / "store")
+    events = [dict(record["event"], seq=record["seq"]) for record in records]
     assignments = {
         e["body"]["run_id"]: e["body"] for e in events if e["kind"] == "assignment"
     }
@@ -114,10 +143,22 @@ def load_rows(batch_dir: Path) -> tuple[list[dict], dict[str, float]]:
     }
     revalidation = batch_dir / "revalidation.json"
     validated = json.loads(revalidation.read_text()) if revalidation.exists() else {}
-    rows, nulls = [], {}
+    latest: dict[tuple, dict] = {}
     for event in events:
         if event["kind"] != "label":
             continue
+        role = event["body"]["role"]
+        key = (
+            event["body"].get("run_id"),
+            event["body"]["instance"],
+            role["kind"],
+            role.get("contract_id"),
+            role.get("generation"),
+        )
+        if key not in latest or event["seq"] > latest[key]["seq"]:
+            latest[key] = event
+    rows, nulls = [], {}
+    for event in sorted(latest.values(), key=lambda e: e["seq"]):
         body = event["body"]
         outcome = body.get("outcome") or {}
         role = body["role"]
@@ -133,6 +174,7 @@ def load_rows(batch_dir: Path) -> tuple[list[dict], dict[str, float]]:
                 "arm": run.get("arm"),
                 "repeat": run.get("repeat", 1),
                 "run_id": body["run_id"],
+                "seq": event["seq"],
                 "role": role["kind"],
                 "verdict": role.get("verdict"),
                 "validity": body["validity"],
@@ -147,50 +189,61 @@ def load_rows(batch_dir: Path) -> tuple[list[dict], dict[str, float]]:
                 + cost.get("workers", {}).get("total_tokens", 0),
             }
         )
-    return rows, nulls
+    return rows, nulls, list(assignments.values())
 
 
-def revalidate(batch_dir: Path) -> dict:
-    """Re-runs each defeat's recorded pipeline; validated when every originally failing step fails again."""
-    results: dict[str, bool] = {}
-    for record in store.events(batch_dir / "store"):
-        event = record["event"]
-        role = event["body"].get("role", {})
+def _failing_steps(stdout: str) -> set[str]:
+    """Steps reported by `@@PC <step> <outcome>` lines; any outcome but pass fails.
+    Malformed lines are skipped."""
+    failing = set()
+    for line in stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "@@PC" and parts[2] != "pass":
+            failing.add(parts[1])
+    return failing
+
+
+def _latest_attempt(run_root: Path) -> Path | None:
+    attempts = []
+    for path in run_root.glob("attempt-*"):
+        suffix = path.name.removeprefix("attempt-")
+        if suffix.isdigit():
+            attempts.append((int(suffix), path))
+    return max(attempts)[1] if attempts else None
+
+
+def _revalidate_one(batch_dir: Path, body: dict) -> bool | None:
+    """True when the failing mechanical steps fail again, False when they do not,
+    None when the defeat cannot be checked (reviewer-only or infrastructure failure)."""
+    role = body["role"]
+    attempt = _latest_attempt(batch_dir / "runs" / body["run_id"])
+    if attempt is None:
+        return None
+    run_store = attempt / "codex-home" / "pro_contract"
+    original: set[str] = set()
+    for run_event in store.events(run_store):
+        event = run_event["event"]
+        receipts = event["body"].get("receipts")
         if (
-            event["kind"] != "label"
-            or role.get("kind") != "judged"
-            or role.get("verdict") != "defeat"
+            event["kind"] == "verification"
+            and event["body"]["contract_id"] == role["contract_id"]
+            and event["body"]["generation"] == role["generation"]
+            and receipts
         ):
-            continue
-        key = f"{event['body']['run_id']}:{role['contract_id']}:{role['generation']}"
-        if key in results:
-            continue
-        attempt = sorted(
-            (batch_dir / "runs" / event["body"]["run_id"]).glob("attempt-*")
-        )[-1]
-        run_store = attempt / "codex-home" / "pro_contract"
-        original = set()
-        for run_event in store.events(run_store):
-            body = run_event["event"]["body"]
-            if (
-                run_event["event"]["kind"] == "verification"
-                and body["contract_id"] == role["contract_id"]
-                and body["generation"] == role["generation"]
-                and body.get("receipts")
-            ):
-                original = {
-                    step["step"]
-                    for step in body["receipts"]["steps"]
-                    if step["outcome"] == "fail"
-                }
-        work = (
-            run_store
-            / "work"
-            / role["contract_id"].replace("/", "_").replace(".", "_")
-            / str(role["generation"])
-        )
-        image = f"programbench/{event['body']['instance'].replace('__', '_1776_')}:task_cleanroom"
-        output = subprocess.run(
+            original = {
+                step["step"] for step in receipts["steps"] if step["outcome"] != "pass"
+            }
+    if not original:
+        return None
+    work = (
+        run_store
+        / "work"
+        / role["contract_id"].replace("/", "_").replace(".", "_")
+        / str(role["generation"])
+    )
+    image = f"programbench/{body['instance'].replace('__', '_1776_')}:task_cleanroom"
+    try:
+        completed = subprocess.run(
             [
                 "docker",
                 "run",
@@ -212,13 +265,34 @@ def revalidate(batch_dir: Path) -> dict:
             text=True,
             timeout=1800,
             check=False,
-        ).stdout
-        failing = {
-            line.split()[1]
-            for line in output.splitlines()
-            if line.startswith("@@PC ") and line.split()[2] == "fail"
-        }
-        results[key] = bool(original) and original <= failing
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return None
+    return original <= _failing_steps(completed.stdout)
+
+
+def revalidate(batch_dir: Path) -> dict:
+    """Re-runs each defeat's recorded pipeline. The result is written after every
+    defeat so a crash keeps the work done so far."""
+    results: dict[str, bool | None] = {}
+    for record in store.events(batch_dir / "store"):
+        event = record["event"]
+        role = event["body"].get("role", {})
+        if (
+            event["kind"] != "label"
+            or role.get("kind") != "judged"
+            or role.get("verdict") != "defeat"
+        ):
+            continue
+        key = f"{event['body']['run_id']}:{role['contract_id']}:{role['generation']}"
+        if key in results:
+            continue
+        results[key] = _revalidate_one(batch_dir, event["body"])
+        (batch_dir / "revalidation.json").write_text(
+            json.dumps(results, indent=2) + "\n"
+        )
     (batch_dir / "revalidation.json").write_text(json.dumps(results, indent=2) + "\n")
     return results
 
@@ -249,6 +323,7 @@ def noise(rows: list[dict]) -> dict:
 
 def costs(rows: list[dict]) -> dict:
     result = {}
+    rows = _first_repeat(rows)
     for arm in sorted({r["arm"] for r in rows if r["arm"]}):
         values = sorted(
             r["cost_total"]
@@ -275,9 +350,9 @@ def main() -> None:
     if args.command == "revalidate":
         print(json.dumps(revalidate(args.batch_dir), indent=2))
         return
-    rows, nulls = load_rows(args.batch_dir)
+    rows, nulls, assigned = load_rows(args.batch_dir)
     result = {
-        **estimands(rows, nulls, seed=0),
+        **estimands(rows, nulls, seed=0, assigned=assigned),
         "costs": costs(rows),
         "noise": noise(rows),
         "null_floors": nulls,
