@@ -2,7 +2,7 @@
 """A stand-in for `programbench eval` with scripted outcomes.
 
 Set FAKE_PROGRAMBENCH_PLAN to a JSON file
-`{"<instance>": [{"score": "99", "solved": false, "branch_errors": [], "crash": false}, ...]}`.
+`{"<instance>": [{"score": "99", "solved": false, "branch_errors": [], "crash": false, "malformed": false}, ...]}`.
 Attempt n uses entry n; the last entry repeats. Each run records the submitted members into
 `<dir>/<instance>/fake-seen.json`.
 """
@@ -38,6 +38,10 @@ def main() -> int:
             if member.isfile()
         }
     (instance_dir / "fake-seen.json").write_text(json.dumps(seen))
+    if step.get("malformed"):
+        (instance_dir / f"{instance}.eval.json").write_text('{"test_results": [')
+        print(f" {instance}    {step['score']}  fake")
+        return 0
     resolved = 10 if step["solved"] else 9
     (instance_dir / f"{instance}.eval.json").write_text(
         json.dumps(

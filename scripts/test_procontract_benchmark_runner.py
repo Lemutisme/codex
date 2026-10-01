@@ -293,3 +293,23 @@ class CostTest(unittest.TestCase):
 
     def test_the_runner_has_no_future_import(self):
         self.assertNotIn("from __future__", Path(runner.__file__).read_text())
+
+
+class TruncatedRolloutTest(unittest.TestCase):
+    def test_a_truncated_last_line_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sessions = Path(tmp, "sessions")
+            sessions.mkdir()
+            usage = {"total_tokens": 7}
+            good = json.dumps(
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "token_count",
+                        "info": {"total_token_usage": usage},
+                    },
+                }
+            )
+            Path(sessions, "rollout-a.jsonl").write_text(good + '\n{"type": "event_m')
+            costs = runner.rollout_costs(Path(tmp))
+        self.assertEqual(costs["executor"]["total_tokens"], 7)

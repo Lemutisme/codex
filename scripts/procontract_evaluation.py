@@ -151,11 +151,12 @@ def evaluate_package(
                 check=False,
             )
         eval_json = eval_dir / instance / f"{instance}.eval.json"
-        outcome = (
-            parse_eval(eval_json, log.read_text(), instance)
-            if done.returncode == 0 and eval_json.exists()
-            else None
-        )
+        outcome = None
+        if done.returncode == 0 and eval_json.exists():
+            try:
+                outcome = parse_eval(eval_json, log.read_text(), instance)
+            except (ValueError, OSError, KeyError, TypeError, AttributeError):
+                outcome = None  # unreadable or malformed eval.json is a crashed attempt
         if classify(outcome, known_branch_errors) == "valid":
             return {
                 "outcome": outcome,
@@ -256,7 +257,7 @@ def label_run(
                     hf_revision,
                     known_branch_errors,
                 )
-            except RuntimeError as error:
+            except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
                 results[subject] = {
                     "outcome": None,
                     "validity": "invalid",

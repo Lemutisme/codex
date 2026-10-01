@@ -1,8 +1,10 @@
 import json
+import subprocess
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import procontract_evaluation as evaluation
@@ -250,3 +252,39 @@ class LabelRunTest(unittest.TestCase):
         self.assertEqual(
             (labels[0]["validity"], labels[0]["outcome"]), ("invalid", None)
         )
+
+    def test_a_package_failure_is_an_invalid_label_and_later_subjects_still_label(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir, _ = self.run_dir_with_judgment(tmp)
+            real = evaluation.package
+            calls = []
+
+            def flaky(source, archive):
+                calls.append(archive)
+                if len(calls) == 1:
+                    raise subprocess.CalledProcessError(2, "tar")
+                real(source, archive)
+
+            with mock.patch.object(evaluation, "package", flaky):
+                labels = self.label(
+                    tmp,
+                    run_dir,
+                    [{"score": "99", "solved": False, "branch_errors": []}],
+                )
+        by_role = {label["role"]["kind"]: label for label in labels}
+        self.assertEqual(by_role["judged"]["validity"], "invalid")
+        self.assertEqual(by_role["final_workspace"]["validity"], "valid")
+
+    def test_malformed_eval_json_is_a_crashed_attempt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_plan(
+                tmp,
+                [
+                    {"score": "70", "malformed": True},
+                    {"score": "70", "solved": False, "branch_errors": []},
+                ],
+            )
+            result = evaluation.evaluate_package(
+                package(tmp), INSTANCE, Path(tmp, "work"), FAKE, Path(tmp), "rev", set()
+            )
+        self.assertEqual((result["validity"], result["attempts"]), ("valid", 2))

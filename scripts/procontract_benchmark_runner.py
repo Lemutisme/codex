@@ -231,7 +231,10 @@ def rollout_costs(codex_home: Path) -> dict:
     for path in sorted((codex_home / "sessions").rglob("rollout-*.jsonl")):
         source, usage = None, None
         for line in path.read_text().splitlines():
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # a rollout still being written may end mid-line
             payload = record.get("payload", {})
             if record.get("type") == "session_meta":
                 source = payload.get("source")
