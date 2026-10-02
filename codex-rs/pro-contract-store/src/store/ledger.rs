@@ -263,8 +263,9 @@ pub struct SubjectBinding {
 }
 
 impl Ledger {
-    /// Binds a subject hash to its persisted manifest. Rebinding identically is a no-op;
-    /// rebinding differently is corruption.
+    /// Binds a subject hash to its persisted manifest. Rebinding the same manifest is a
+    /// no-op, even under a different capture policy (the subject hash covers only the manifest,
+    /// so the first writer's policy is kept); rebinding a different manifest is corruption.
     pub async fn bind_subject(
         &self,
         subject_hash: &Digest,
@@ -276,7 +277,7 @@ impl Ledger {
             .await
             .map_err(storage)?;
         if let Some(found) = read_binding(&mut tx, subject_hash).await? {
-            return if found == *binding {
+            return if found.manifest == binding.manifest {
                 Ok(())
             } else {
                 Err(LedgerError::Corrupt(format!(

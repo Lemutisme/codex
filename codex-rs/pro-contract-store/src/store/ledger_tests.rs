@@ -274,3 +274,29 @@ async fn a_subject_binding_survives_reopening_and_rejects_rebinding() {
         Err(LedgerError::Corrupt(_))
     ));
 }
+
+#[tokio::test]
+async fn rebinding_with_another_capture_policy_keeps_the_first_binding() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let ledger = open(dir.path()).await;
+    let subject = Digest::of(b"subject");
+    let binding = SubjectBinding {
+        manifest: Digest::of(b"manifest"),
+        capture_policy: Digest::of(b"policy"),
+    };
+    ledger.bind_subject(&subject, &binding).await.expect("bind");
+    let other_policy = SubjectBinding {
+        manifest: binding.manifest,
+        capture_policy: Digest::of(b"other policy"),
+    };
+
+    ledger
+        .bind_subject(&subject, &other_policy)
+        .await
+        .expect("same manifest under another policy is accepted");
+
+    assert_eq!(
+        ledger.subject_binding(&subject).await.expect("read"),
+        Some(binding)
+    );
+}

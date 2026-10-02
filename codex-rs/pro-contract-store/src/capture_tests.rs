@@ -211,3 +211,24 @@ fn a_manifest_that_is_not_the_claimed_subject_is_rejected() -> std::io::Result<(
     );
     Ok(())
 }
+
+#[test]
+fn the_standard_policy_captures_a_five_mib_file() {
+    let ws = tempfile::tempdir().expect("ws");
+    let blobs = tempfile::tempdir().expect("blobs");
+    let store = BlobStore::open(blobs.path()).expect("store");
+    write(ws.path(), "media/main.gif", &vec![7u8; 5 << 20]).expect("write");
+
+    let captured =
+        capture(ws.path(), &CapturePolicy::standard(Vec::new()), &store).expect("capture");
+
+    assert_eq!(
+        captured
+            .manifest
+            .entries
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect::<Vec<_>>(),
+        vec!["media/main.gif"]
+    );
+}
