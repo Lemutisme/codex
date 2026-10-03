@@ -17,6 +17,7 @@ import procontract_store as store
 ATTEMPTS = 3  # one evaluation plus up to 2 re-evaluations
 SUBMISSION_EXCLUDED = ["./executable", "./target"]
 HF_REF = "datasets--programbench--ProgramBench-Tests/refs/main"
+TASKS = Path("src", "programbench", "data", "tasks")
 
 
 class PinDrift(Exception):
@@ -89,10 +90,56 @@ def null_package(dest: Path) -> Path:
     return dest
 
 
-def parse_eval(eval_json: Path, log_text: str, instance: str) -> dict:
+def ignored_tests(programbench: Path, instance: str) -> tuple[set[str], set[str]]:
+    """The instance's ignored branches and `branch/name` tests; a task without tests.json
+    ignores nothing."""
+    tests_json = programbench / TASKS / instance / "tests.json"
+    if not tests_json.exists():
+        return set(), set()
+    branches = json.loads(tests_json.read_text()).get("branches") or {}
+    return (
+        {branch for branch, info in branches.items() if info.get("ignored")},
+        {
+            f"{branch}/{test['name']}"
+            for branch, info in branches.items()
+            for test in info.get("ignored_tests") or []
+        },
+    )
+
+
+def pass_rate(
+    test_results: list[dict], ignored_branches: set[str], ignored: set[str]
+) -> dict:
+    """The fraction of distinct, non-ignored, non-skipped tests whose last record passed.
+
+    ProgramBench runs pytest with reruns and records every attempt, so a test failing all three
+    attempts reads (passed, passed, failure) and its official score counts two passes; only the
+    last record is the test's outcome. A test that did not run counts as failed."""
+    last: dict[tuple[str, str], str] = {}
+    for result in test_results:
+        branch = result.get("branch", "")
+        if branch in ignored_branches or f"{branch}/{result['name']}" in ignored:
+            continue
+        last[(branch, result["name"])] = result["status"]
+    counted = [status for status in last.values() if status != "skipped"]
+    passed = sum(status == "passed" for status in counted)
+    return {
+        "pass_rate": passed / len(counted) if counted else None,
+        "passed": passed,
+        "counted": len(counted),
+    }
+
+
+def parse_eval(
+    eval_json: Path,
+    log_text: str,
+    instance: str,
+    ignored: tuple[set[str], set[str]] = (set(), set()),
+) -> dict:
     data = json.loads(eval_json.read_text())
+    results = data.get("test_results") or []
     statuses: dict[str, int] = {}
-    for result in data.get("test_results") or []:
+    for result in results:
         statuses[result["status"]] = statuses.get(result["status"], 0) + 1
     match = re.search(rf"^\s*{re.escape(instance)}\s+(✅|\d+)", log_text, re.MULTILINE)
     score = match.group(1) if match else None
@@ -104,6 +151,7 @@ def parse_eval(eval_json: Path, log_text: str, instance: str) -> dict:
         "total": sum(statuses.values()),
         "statuses": statuses,
         "branch_errors": sorted(errors),
+        **pass_rate(results, *ignored),
     }
 
 
@@ -124,6 +172,7 @@ def evaluate_package(
     attempts: int = ATTEMPTS,
 ) -> dict:
     outcome = None
+    ignored = ignored_tests(programbench, instance)
     for attempt in range(1, attempts + 1):
         eval_dir = work / f"attempt-{attempt}"
         (eval_dir / instance).mkdir(parents=True, exist_ok=True)
@@ -154,7 +203,7 @@ def evaluate_package(
         outcome = None
         if done.returncode == 0 and eval_json.exists():
             try:
-                outcome = parse_eval(eval_json, log.read_text(), instance)
+                outcome = parse_eval(eval_json, log.read_text(), instance, ignored)
             except (ValueError, OSError, KeyError, TypeError, AttributeError):
                 outcome = None  # unreadable or malformed eval.json is a crashed attempt
         if classify(outcome, known_branch_errors) == "valid":

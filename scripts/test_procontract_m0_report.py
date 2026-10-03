@@ -18,6 +18,7 @@ def row(
     validity="valid",
     score=80.0,
     validated=None,
+    pass_rate=None,
 ):
     return {
         "task": task,
@@ -29,6 +30,7 @@ def row(
         "solved": solved,
         "score": score,
         "validated": validated,
+        "pass_rate": pass_rate,
         "cost_total": 10,
     }
 
@@ -105,6 +107,44 @@ class EstimandTest(unittest.TestCase):
         self.assertEqual(result["disagreement"]["n"], 2)
 
 
+class PassRateEstimandTest(unittest.TestCase):
+    def test_pass_rate_estimands_use_repeat_one_and_valid_labels(self):
+        rows = [
+            row("a", "on", "judged", "support", pass_rate=0.99),
+            row("b", "on", "judged", "support", pass_rate=0.80),
+            row("c", "on", "judged", "defeat", pass_rate=0.40),
+            row("d", "on", "judged", "support", validity="invalid"),
+            row("a", "on", "final_workspace", pass_rate=0.99),
+            row("a", "off", "final_workspace", pass_rate=0.90),
+            dict(
+                row("a", "on", "final_workspace", pass_rate=0.10),
+                run_id="a-on-2",
+                repeat=2,
+            ),
+        ]
+        result = report.pass_rate_estimands(rows, {"a": 0.05}, threshold=0.95, seed=1)
+
+        self.assertEqual(
+            result["pass_rate_by_arm"],
+            {"on": {"mean": 0.99, "n": 1}, "off": {"mean": 0.90, "n": 1}},
+        )
+        self.assertAlmostEqual(result["pass_rate_above_null"]["on"], 0.94)
+        self.assertAlmostEqual(result["pass_rate_by_verdict"]["support"]["mean"], 0.895)
+        self.assertEqual(result["pass_rate_by_verdict"]["support"]["n"], 2)
+        self.assertEqual(
+            result["pass_rate_by_verdict"]["defeat"], {"mean": 0.40, "n": 1}
+        )
+        missed = result["missed_defect_rate_at_threshold"]
+        self.assertEqual(
+            (missed["point"], missed["n"], missed["threshold"]), (0.5, 2, 0.95)
+        )
+
+    def test_without_pass_rates_the_estimands_are_empty(self):
+        result = report.pass_rate_estimands([row("a", "on", "final_workspace")], {})
+        self.assertEqual(result["pass_rate_by_arm"], {})
+        self.assertEqual(result["missed_defect_rate_at_threshold"]["n"], 0)
+
+
 class RevalidationPiecesTest(unittest.TestCase):
     def test_failing_steps_treats_non_pass_as_failure_and_skips_malformed(self):
         out = "noise\n@@PC a pass\n@@PC b fail\n@@PC c timeout\n@@PC d\n@@PC\n"
@@ -134,14 +174,18 @@ def _append(batch_store, kind, body):
     )
 
 
-def label(run_id, instance, role, validity="valid", solved=True, score="✅"):
+def label(
+    run_id, instance, role, validity="valid", solved=True, score="✅", pass_rate=None
+):
     return {
         "label_key": "2" * 64,
         "run_id": run_id,
         "instance": instance,
         "subject_hash": "0" * 64,
         "role": role,
-        "outcome": None if solved is None else {"solved": solved, "score": score},
+        "outcome": None
+        if solved is None
+        else {"solved": solved, "score": score, "pass_rate": pass_rate},
         "validity": validity,
         "reason": None,
         "attempts": 1,
@@ -184,30 +228,36 @@ class BatchTest(unittest.TestCase):
             "label",
             label("r1", "t__a", {"kind": "final_workspace"}, solved=False, score="50"),
         )
-        _append(
-            bs, "label", label("r2", "t__a", {"kind": "final_workspace"}, solved=True)
-        )
-        _append(
-            bs, "label", label("r1", "t__a", {"kind": "final_workspace"}, solved=True)
-        )
+        final = {"kind": "final_workspace"}
+        _append(bs, "label", label("r2", "t__a", final, solved=True, pass_rate=0.75))
+        _append(bs, "label", label("r1", "t__a", final, solved=True, pass_rate=1.0))
         _append(
             bs,
             "label",
-            label(None, "t__a", {"kind": "null_sentinel"}, solved=True, score="40"),
+            label(
+                None,
+                "t__a",
+                {"kind": "null_sentinel"},
+                solved=True,
+                score="40",
+                pass_rate=0.02,
+            ),
         )
         return batch
 
     def test_load_rows_dedupes_relabels_and_reads_nulls_and_costs(self):
         with tempfile.TemporaryDirectory() as tmp:
             batch = self.build(tmp)
-            rows, nulls, assigned = report.load_rows(batch)
+            rows, nulls, assigned, null_pass_rates = report.load_rows(batch)
         self.assertEqual(nulls, {"t__a": 40.0})
+        self.assertEqual(null_pass_rates, {"t__a": 0.02})
         self.assertEqual(len(assigned), 3)
         finals = {r["run_id"]: r for r in rows if r["role"] == "final_workspace"}
         self.assertEqual(sorted(finals), ["r1", "r2"])
         self.assertTrue(finals["r1"]["solved"])
         self.assertEqual(finals["r1"]["score"], 100.0)
         self.assertEqual(finals["r1"]["cost_total"], 12)
+        self.assertEqual(finals["r1"]["pass_rate"], 1.0)
         self.assertEqual(finals["r1"]["arm"], "on")
         self.assertEqual(finals["r2"]["repeat"], 2)
         self.assertEqual(len([r for r in rows if r["role"] == "judged"]), 1)
@@ -227,8 +277,16 @@ class BatchTest(unittest.TestCase):
             self.assertEqual(data["solved_by_arm"]["off"]["missing"], 1)
             self.assertEqual(
                 data["noise"],
-                {"pairs": 1, "solved_agreement": 1.0, "mean_abs_score_diff": 0.0},
+                {
+                    "pairs": 1,
+                    "solved_agreement": 1.0,
+                    "mean_abs_score_diff": 0.0,
+                    "mean_abs_pass_rate_diff": 0.25,
+                },
             )
+            self.assertEqual(data["pass_rate_by_arm"], {"on": {"mean": 1.0, "n": 1}})
+            self.assertEqual(data["null_pass_rates"], {"t__a": 0.02})
+            self.assertEqual(data["missed_defect_rate_at_threshold"]["threshold"], 0.95)
             self.assertEqual(data["costs"], {"on": {"median": 12, "p90": 12}})
             self.assertTrue(out.read_text().startswith("# M0 report"))
 
@@ -245,7 +303,12 @@ class HelperTest(unittest.TestCase):
         b = dict(a, repeat=2, solved=False, score=90.0)
         self.assertEqual(
             report.noise([dict(a, repeat=1), b]),
-            {"pairs": 1, "solved_agreement": 0.0, "mean_abs_score_diff": 10.0},
+            {
+                "pairs": 1,
+                "solved_agreement": 0.0,
+                "mean_abs_score_diff": 10.0,
+                "mean_abs_pass_rate_diff": None,
+            },
         )
         self.assertEqual(report.noise([dict(a, repeat=1)]), {"pairs": 0})
 

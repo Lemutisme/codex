@@ -95,6 +95,15 @@ class EvaluateTest(unittest.TestCase):
             )
         self.assertEqual((result["validity"], result["attempts"]), ("valid", 1))
 
+    def test_the_outcome_carries_the_per_test_pass_rate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.evaluate(
+                tmp, [{"score": "90", "solved": False, "branch_errors": []}]
+            )
+        self.assertEqual(
+            (result["outcome"]["pass_rate"], result["outcome"]["counted"]), (0.9, 10)
+        )
+
     def test_an_evaluator_crash_counts_as_an_attempt(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = self.evaluate(
@@ -105,6 +114,62 @@ class EvaluateTest(unittest.TestCase):
             (result["validity"], result["attempts"], result["outcome"]["solved"]),
             ("valid", 2, True),
         )
+
+
+class PassRateTest(unittest.TestCase):
+    def test_a_test_that_fails_every_rerun_counts_once_as_failed(self):
+        # ProgramBench runs pytest with --reruns=2 and records every attempt; a test that
+        # fails all three reads (passed, passed, failure).
+        results = [
+            {"name": "t1", "branch": "b", "status": "passed"},
+            {"name": "t1", "branch": "b", "status": "passed"},
+            {"name": "t1", "branch": "b", "status": "failure"},
+            {"name": "t2", "branch": "b", "status": "passed"},
+        ]
+        self.assertEqual(
+            evaluation.pass_rate(results, set(), set()),
+            {"pass_rate": 0.5, "passed": 1, "counted": 2},
+        )
+
+    def test_ignored_tests_and_branches_drop_out_and_skips_leave_the_denominator(self):
+        results = [
+            {"name": "t1", "branch": "b", "status": "passed"},
+            {"name": "t2", "branch": "b", "status": "failure"},
+            {"name": "t3", "branch": "x", "status": "failure"},
+            {"name": "t4", "branch": "b", "status": "skipped"},
+            {"name": "t5", "branch": "b", "status": "not_run"},
+        ]
+        self.assertEqual(
+            evaluation.pass_rate(results, {"x"}, {"b/t2"}),
+            {"pass_rate": 0.5, "passed": 1, "counted": 2},
+        )
+
+    def test_nothing_countable_has_no_pass_rate(self):
+        self.assertIsNone(evaluation.pass_rate([], set(), set())["pass_rate"])
+
+    def test_ignored_tests_come_from_the_instance_tests_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            task = Path(tmp, "src", "programbench", "data", "tasks", INSTANCE)
+            task.mkdir(parents=True)
+            Path(task, "tests.json").write_text(
+                json.dumps(
+                    {
+                        "branches": {
+                            "b": {"ignored_tests": [{"name": "t2"}]},
+                            "x": {"ignored": True},
+                        }
+                    }
+                )
+            )
+            self.assertEqual(
+                evaluation.ignored_tests(Path(tmp), INSTANCE), ({"x"}, {"b/t2"})
+            )
+
+    def test_a_task_without_tests_json_ignores_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(
+                evaluation.ignored_tests(Path(tmp), INSTANCE), (set(), set())
+            )
 
 
 class LabelKeyTest(unittest.TestCase):

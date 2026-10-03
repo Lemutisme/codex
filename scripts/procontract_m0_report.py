@@ -10,6 +10,8 @@ from pathlib import Path
 
 import procontract_store as store
 
+MISSED_DEFECT_THRESHOLD = 0.95
+
 
 def clustered_ci(
     values: dict[str, list[float]], seed: int, resamples: int = 2000
@@ -45,6 +47,10 @@ def _proportion(rows: list[dict], predicate, seed: int) -> dict:
 
 def _first_repeat(rows: list[dict]) -> list[dict]:
     return [r for r in rows if r.get("repeat", 1) == 1]
+
+
+def _mean(values: list[float]) -> dict:
+    return {"mean": statistics.fmean(values), "n": len(values)}
 
 
 def estimands(
@@ -121,6 +127,45 @@ def estimands(
     }
 
 
+def pass_rate_estimands(
+    rows: list[dict],
+    null_pass_rates: dict[str, float],
+    threshold: float = MISSED_DEFECT_THRESHOLD,
+    seed: int = 0,
+) -> dict:
+    """Pass-rate estimands over valid labels of repeat 1. A supported subject whose pass rate is
+    below `threshold` counts as a missed defect."""
+    rows = [
+        r
+        for r in _first_repeat(rows)
+        if r["validity"] == "valid" and r.get("pass_rate") is not None
+    ]
+    finals = [r for r in rows if r["role"] == "final_workspace"]
+    by_arm, above_null = {}, {}
+    for arm in sorted({r["arm"] for r in finals}, reverse=True):
+        arm_rows = [r for r in finals if r["arm"] == arm]
+        by_arm[arm] = _mean([r["pass_rate"] for r in arm_rows])
+        gaps = [
+            r["pass_rate"] - null_pass_rates[r["task"]]
+            for r in arm_rows
+            if r["task"] in null_pass_rates
+        ]
+        above_null[arm] = statistics.fmean(gaps) if gaps else None
+    judged = [r for r in rows if r["role"] == "judged"]
+    by_verdict = {
+        verdict: _mean([r["pass_rate"] for r in judged if r["verdict"] == verdict])
+        for verdict in sorted({r["verdict"] for r in judged})
+    }
+    supported = [r for r in judged if r["verdict"] == "support"]
+    missed = _proportion(supported, lambda r: r["pass_rate"] < threshold, seed)
+    return {
+        "pass_rate_by_arm": by_arm,
+        "pass_rate_above_null": above_null,
+        "pass_rate_by_verdict": by_verdict,
+        "missed_defect_rate_at_threshold": {**missed, "threshold": threshold},
+    }
+
+
 def _score(score: str | None) -> float | None:
     if score == "✅":
         return 100.0
@@ -129,8 +174,8 @@ def _score(score: str | None) -> float | None:
 
 def load_rows(
     batch_dir: Path,
-) -> tuple[list[dict], dict[str, float], list[dict]]:
-    """Returns label rows, null-sentinel scores and the assignments."""
+) -> tuple[list[dict], dict[str, float], list[dict], dict[str, float]]:
+    """Returns label rows, null-sentinel scores, the assignments and null-sentinel pass rates."""
     records = store.events(batch_dir / "store")
     events = [dict(record["event"], seq=record["seq"]) for record in records]
     assignments = {
@@ -157,7 +202,7 @@ def load_rows(
         )
         if key not in latest or event["seq"] > latest[key]["seq"]:
             latest[key] = event
-    rows, nulls = [], {}
+    rows, nulls, null_pass_rates = [], {}, {}
     for event in sorted(latest.values(), key=lambda e: e["seq"]):
         body = event["body"]
         outcome = body.get("outcome") or {}
@@ -165,6 +210,8 @@ def load_rows(
         if role["kind"] == "null_sentinel":
             if _score(outcome.get("score")) is not None:
                 nulls[body["instance"]] = _score(outcome.get("score"))
+            if outcome.get("pass_rate") is not None:
+                null_pass_rates[body["instance"]] = outcome["pass_rate"]
             continue
         run = assignments.get(body["run_id"], {})
         cost = costs.get(body["run_id"], {})
@@ -182,6 +229,9 @@ def load_rows(
                 if body["validity"] == "valid"
                 else None,
                 "score": _score(outcome.get("score")),
+                "pass_rate": outcome.get("pass_rate")
+                if body["validity"] == "valid"
+                else None,
                 "validated": validated.get(
                     f"{body['run_id']}:{role.get('contract_id')}:{role.get('generation')}"
                 ),
@@ -189,7 +239,7 @@ def load_rows(
                 + cost.get("workers", {}).get("total_tokens", 0),
             }
         )
-    return rows, nulls, list(assignments.values())
+    return rows, nulls, list(assignments.values()), null_pass_rates
 
 
 def _failing_steps(stdout: str) -> set[str]:
@@ -310,6 +360,11 @@ def noise(rows: list[dict]) -> dict:
     ]
     if not pairs:
         return {"pairs": 0}
+    rated = [
+        (x["pass_rate"], y["pass_rate"])
+        for x, y in pairs
+        if x.get("pass_rate") is not None and y.get("pass_rate") is not None
+    ]
     return {
         "pairs": len(pairs),
         "solved_agreement": statistics.fmean(
@@ -318,6 +373,9 @@ def noise(rows: list[dict]) -> dict:
         "mean_abs_score_diff": statistics.fmean(
             abs((x["score"] or 0) - (y["score"] or 0)) for x, y in pairs
         ),
+        "mean_abs_pass_rate_diff": statistics.fmean(abs(x - y) for x, y in rated)
+        if rated
+        else None,
     }
 
 
@@ -344,18 +402,21 @@ def main() -> None:
     rep = sub.add_parser("report")
     rep.add_argument("--batch-dir", type=Path, required=True)
     rep.add_argument("--out", type=Path, required=True)
+    rep.add_argument("--threshold", type=float, default=MISSED_DEFECT_THRESHOLD)
     val = sub.add_parser("revalidate")
     val.add_argument("--batch-dir", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "revalidate":
         print(json.dumps(revalidate(args.batch_dir), indent=2))
         return
-    rows, nulls, assigned = load_rows(args.batch_dir)
+    rows, nulls, assigned, null_pass_rates = load_rows(args.batch_dir)
     result = {
         **estimands(rows, nulls, seed=0, assigned=assigned),
+        **pass_rate_estimands(rows, null_pass_rates, args.threshold, seed=0),
         "costs": costs(rows),
         "noise": noise(rows),
         "null_floors": nulls,
+        "null_pass_rates": null_pass_rates,
     }
     args.out.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n")
     lines = ["# M0 report", ""]
