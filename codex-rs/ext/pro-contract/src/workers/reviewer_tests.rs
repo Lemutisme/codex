@@ -84,7 +84,7 @@ fn the_schema_is_strict() {
 #[test]
 fn the_prompt_carries_intake_and_requirements_and_stays_bounded() {
     let terms = terms();
-    let huge = "y".repeat(200_000);
+    let huge = "y".repeat(super::CANDIDATE_VIEW.cap * 2);
     let text = prompt(&ReviewInput {
         terms: &terms,
         check_summary: "build: pass",
@@ -93,7 +93,11 @@ fn the_prompt_carries_intake_and_requirements_and_stays_bounded() {
     assert!(text.contains("Implement the tool. Keep exit codes identical."));
     assert!(text.contains("R2"));
     assert!(text.contains("build: pass"));
-    assert!(text.len() < 90_000, "prompt is {} bytes", text.len());
+    assert!(
+        text.len() < super::CANDIDATE_VIEW.cap + super::super::PROMPT_EVIDENCE_CAP,
+        "prompt is {} bytes",
+        text.len()
+    );
 }
 
 #[test]
@@ -198,8 +202,9 @@ fn an_unknown_verdict_is_malformed() {
 }
 
 #[test]
-fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
+fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
     let huge = "x".repeat(super::super::PROMPT_EVIDENCE_CAP * 2);
+    let huge_view = "v".repeat(super::CANDIDATE_VIEW.cap * 2);
     let terms = Terms {
         intake_text: huge.clone(),
         requirements: vec![Requirement {
@@ -217,7 +222,7 @@ fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
     let input = ReviewInput {
         terms: &terms,
         check_summary: &huge,
-        candidate_view: &huge,
+        candidate_view: &huge_view,
     };
 
     let prompt = prompt(&input);
@@ -236,12 +241,31 @@ fn the_prompt_respects_the_evidence_cap_and_says_what_to_do_about_omissions() {
     .len();
     let evidence = prompt.len() - fixed;
     let omission_notes = 5 * 64;
+    // Terms and receipts share the evidence cap; the candidate view has its own.
     assert!(
-        evidence <= super::super::PROMPT_EVIDENCE_CAP + omission_notes,
+        evidence <= super::super::PROMPT_EVIDENCE_CAP + super::CANDIDATE_VIEW.cap + omission_notes,
         "evidence is {evidence} bytes"
     );
     assert!(
         prompt.contains("answer cannot_judge and name the omitted files in missing"),
         "the instructions must say what to do when file contents are omitted"
     );
+}
+
+#[test]
+fn a_candidate_view_of_several_hundred_kilobytes_reaches_the_reviewer_intact() {
+    let terms = terms();
+    let view = format!("{}END-OF-VIEW", "fn f() {}\n".repeat(30_000));
+    let text = prompt(&ReviewInput {
+        terms: &terms,
+        check_summary: "build: pass",
+        candidate_view: &view,
+    });
+    assert!(text.contains(&view), "the view was cut");
+}
+
+#[test]
+fn the_policy_digest_covers_the_candidate_view_policy() {
+    let without_view = crate::digest_of("reviewer_policy", &(super::INSTRUCTIONS, schema()));
+    assert_ne!(super::policy_digest(), without_view);
 }

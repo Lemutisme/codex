@@ -12,6 +12,16 @@ use super::WorkerError;
 use super::bounded;
 use super::strict_object;
 use crate::Terms;
+use crate::controller::views::ViewOrder;
+use crate::controller::views::ViewPolicy;
+
+/// What the reviewer sees of the candidate: build files and sources before documentation, and
+/// enough of them that a single-binary candidate of about 300 KB of source is shown whole while
+/// the prompt stays well inside a 272K-token context window.
+pub(crate) const CANDIDATE_VIEW: ViewPolicy = ViewPolicy {
+    cap: 480_000,
+    order: ViewOrder::SourcesFirst,
+};
 
 pub(crate) struct ReviewInput<'a> {
     pub terms: &'a Terms,
@@ -116,13 +126,13 @@ pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
         bounded(&requirements, PROMPT_EVIDENCE_CAP / 8),
         bounded(&out_of_scope, PROMPT_EVIDENCE_CAP / 16),
         bounded(input.check_summary, PROMPT_EVIDENCE_CAP / 4),
-        bounded(input.candidate_view, PROMPT_EVIDENCE_CAP * 7 / 16),
+        bounded(input.candidate_view, CANDIDATE_VIEW.cap),
     )
 }
 
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest() -> codex_pro_contract::Digest {
-    crate::digest_of("reviewer_policy", &(INSTRUCTIONS, schema()))
+    crate::digest_of("reviewer_policy", &(INSTRUCTIONS, schema(), CANDIDATE_VIEW))
 }
 
 pub(crate) fn schema() -> Value {

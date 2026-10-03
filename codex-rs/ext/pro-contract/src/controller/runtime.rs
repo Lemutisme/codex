@@ -30,6 +30,8 @@ use super::decision::brief_text;
 use super::decision::decide;
 use super::identity;
 use super::ports::Ports;
+use super::views::ViewOrder;
+use super::views::ViewPolicy;
 use super::views::workspace_view;
 use crate::BlobStore;
 use crate::CapturePolicy;
@@ -55,8 +57,10 @@ use codex_pro_contract_store::persist_manifest;
 /// Ledger record kind for the per-thread status the runner reads.
 pub(crate) const STATUS_KIND: &str = "status";
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(60);
-const BASE_VIEW_CAP: usize = 30_000;
-const CANDIDATE_VIEW_CAP: usize = 40_000;
+const BASE_VIEW: ViewPolicy = ViewPolicy {
+    cap: 30_000,
+    order: ViewOrder::DocumentationFirst,
+};
 const CHECK_SUMMARY_CAP: usize = 15_000;
 
 /// The status record: what the automation lane is doing, and whether it has come to rest.
@@ -292,7 +296,7 @@ impl ThreadRuntime {
     }
 
     async fn draft(self: Arc<Self>, text: String, base: Subject) {
-        let base_view = workspace_view(&base, &self.store, BASE_VIEW_CAP);
+        let base_view = workspace_view(&base, &self.store, BASE_VIEW);
         let reference_observations = match &self.profile.reference_command {
             Some(reference) => {
                 match self
@@ -616,7 +620,7 @@ impl ThreadRuntime {
         let review = if all_passed {
             let receipts = checks.as_ref().ok();
             let summary = receipts.map(render_receipts).unwrap_or_default();
-            let view = workspace_view(&subject, &self.store, CANDIDATE_VIEW_CAP);
+            let view = workspace_view(&subject, &self.store, reviewer::CANDIDATE_VIEW);
             let input = reviewer::ReviewInput {
                 terms: &terms,
                 check_summary: &crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),

@@ -8,7 +8,8 @@ pub(crate) mod runtime;
 #[path = "mod_tests.rs"]
 mod tests;
 
-/// Hard cap on the evidence text placed in any worker prompt.
+/// Hard cap on the evidence text placed in a worker prompt; the reviewer's candidate view has its
+/// own cap (`reviewer::CANDIDATE_VIEW`).
 pub(crate) const PROMPT_EVIDENCE_CAP: usize = 60_000;
 
 #[derive(Debug, thiserror::Error)]
