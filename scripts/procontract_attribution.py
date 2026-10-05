@@ -117,12 +117,15 @@ def attribute(
         key: ratio(child_behavior[key], parent_behavior[key]) for key in BEHAVIOR_KEYS
     }
     low, high = RATIO_BAND
-    if abs(delta) < noise:
-        reading = "within noise"
-    elif all(r is None or low <= r <= high for r in ratios.values()):
-        reading = "behavior unchanged"
-    else:
-        reading = "behavior changed"
+    changed = any(r is not None and not low <= r <= high for r in ratios.values())
+    outcome = (
+        "progress"
+        if delta >= noise
+        else "regress"
+        if delta <= -noise
+        else "within noise"
+    )
+    reading = f"behavior {'changed' if changed else 'unchanged'} · outcome {outcome}"
 
     def top(counts: dict[str, int]) -> list[tuple[str, int]]:
         return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_FAMILIES]
@@ -151,9 +154,16 @@ test failing in the parent and passing in the child, regress the reverse). A mea
 hide opposite stories, so read each row. Judge from the behavior ratios and the Prediction whether \
 the child did what it set out to do on that task; this view does not decide that for you.
 
-Noise floor: {noise:.3f} ({source}). A pass-rate delta smaller than that is not evidence of \
-anything. `reading` is `within noise` when |delta| is below the floor; otherwise `behavior \
-unchanged` when every ratio lies within [0.75, 1.33], else `behavior changed`."""
+Noise floor: {noise:.3f} ({source}). `reading` has two parts. Behavior is `changed` when any ratio \
+lies outside [0.75, 1.33], else `unchanged`; outcome is `progress` when delta >= the floor, \
+`regress` when delta <= -the floor, else `within noise`. The combinations mean:
+- changed + progress: the mechanism ran and the outcome moved with it.
+- changed + regress: the mechanism ran and the outcome moved against it.
+- changed + within noise: the mechanism ran; any effect is below one run's noise floor, so cost is \
+the visible effect.
+- unchanged + anything: the policy change did not reach behavior on this task, so the outcome \
+difference is trajectory noise, not the mechanism.
+"""
 
 
 def section(text: str, name: str) -> str:

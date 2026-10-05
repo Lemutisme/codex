@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -354,6 +355,31 @@ class SuccessionTest(unittest.TestCase):
 
             self.assertEqual(results[DEV[0]], 0.5)
             self.assertEqual([t for _, t in tasks.runs].count(DEV[0]), 2)
+
+
+class OraclePatternTest(unittest.TestCase):
+    def count(self, command):
+        patterns = [re.compile(p) for p in rsi.ProgramBench({}).oracle_patterns()]
+        return any(p.search(command) for p in patterns)
+
+    def test_only_invocations_of_the_reference_count(self):
+        for command in [
+            "ls -l ./executable",
+            "cat /workspace/executable",
+            "chmod +x ./executable",
+            "sha256sum ./executable",
+        ]:
+            self.assertFalse(self.count(command), command)
+        for command in [
+            "./executable --help",
+            "printf a | ./executable",
+            "cd x && /workspace/executable -v",
+            'bash -lc "/workspace/executable a"',
+            "diff <(./executable a) <(./mine a)",
+            "timeout 5 ./executable",
+            'tools.exec_command({cmd:"ls; FOO=1 ./executable x"})',
+        ]:
+            self.assertTrue(self.count(command), command)
 
 
 class HelperTest(unittest.TestCase):

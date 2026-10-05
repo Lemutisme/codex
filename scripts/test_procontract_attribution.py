@@ -103,10 +103,16 @@ def row(delta, child_stats, noise=0.087):
 
 class AttributeTest(unittest.TestCase):
     def test_readings(self):
-        self.assertEqual(row(0.05, stats(acquire=300))["reading"], "within noise")
-        self.assertEqual(row(0.2, stats(calls=110))["reading"], "behavior unchanged")
-        self.assertEqual(row(-0.2, stats(acquire=30))["reading"], "behavior changed")
-        self.assertEqual(row(0.2, stats(tokens=2500))["reading"], "behavior changed")
+        cases = [
+            (0.05, stats(acquire=300), "behavior changed · outcome within noise"),
+            (0.2, stats(calls=110), "behavior unchanged · outcome progress"),
+            (-0.2, stats(acquire=30), "behavior changed · outcome regress"),
+            (0.2, stats(tokens=2500), "behavior changed · outcome progress"),
+            (-0.09, stats(), "behavior unchanged · outcome regress"),
+            (0.01, stats(), "behavior unchanged · outcome within noise"),
+        ]
+        for delta, child, reading in cases:
+            self.assertEqual(row(delta, child)["reading"], reading)
 
     def test_row_carries_flips_and_ratios(self):
         result = row(0.2, stats(acquire=150))

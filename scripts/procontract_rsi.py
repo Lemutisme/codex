@@ -893,8 +893,14 @@ class ProgramBench:
         }
 
     def oracle_patterns(self) -> list[str]:
-        """How the executor invokes the reference program."""
-        return [r"/workspace/executable", r"\./executable"]
+        """The reference program invoked, not merely mentioned: `executable` in command position,
+        that is at the start of the text or after ; & | ( $( or a quote, optionally behind `exec`,
+        `timeout <n>` or `env VAR=...`. The candidate is also often built as ./executable in its own
+        directory; the two cannot be told apart from the command text, and that ambiguity is
+        inherent to this task family."""
+        prefix = r"(?:^|[;&|(\'\"]\s*|\$\(\s*)"
+        wrappers = r"(?:(?:exec|env)\s+|timeout\s+\S+\s+|\w+=\S*\s+)*"
+        return [prefix + wrappers + r"(?:\./|/workspace/)executable\b"]
 
     def witness(self, host: Host, vid: str) -> str:
         """The candidate's bundle actually ran: its lane identity and its executor instructions
