@@ -149,6 +149,12 @@ class RevalidationPiecesTest(unittest.TestCase):
     def test_failing_steps_treats_non_pass_as_failure_and_skips_malformed(self):
         out = "noise\n@@PC a pass\n@@PC b fail\n@@PC c timeout\n@@PC d\n@@PC\n"
         self.assertEqual(report._failing_steps(out), {"b", "c"})
+        self.assertEqual(
+            report._failing_steps(
+                "@@PC sealed:s1 unqualified - 1\n@@PC public:p fail rc 0\n"
+            ),
+            {"public:p"},
+        )
 
     def test_latest_attempt_is_numeric(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -261,6 +267,30 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(finals["r1"]["arm"], "on")
         self.assertEqual(finals["r2"]["repeat"], 2)
         self.assertEqual(len([r for r in rows if r["role"] == "judged"]), 1)
+
+    def test_a_failed_executor_turn_excludes_the_final_workspace_not_judgments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            batch = self.build(tmp)
+            bs = batch / "store"
+            _append(
+                bs,
+                "execution",
+                {
+                    "run_id": "r2",
+                    "instance": "t__a",
+                    "arm": "on",
+                    "repeat": 2,
+                    "attempt": 1,
+                    "turn_statuses": ["completed", "failed"],
+                },
+            )
+            rows, _, _, _ = report.load_rows(batch)
+        finals = {r["run_id"]: r for r in rows if r["role"] == "final_workspace"}
+        self.assertEqual(finals["r2"]["validity"], "invalid")
+        self.assertIsNone(finals["r2"]["pass_rate"])
+        self.assertEqual(finals["r1"]["validity"], "valid")
+        judged = [r for r in rows if r["role"] == "judged"]
+        self.assertEqual([r["validity"] for r in judged], ["valid"])
 
     def test_report_cli_writes_json_and_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:

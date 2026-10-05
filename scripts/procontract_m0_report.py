@@ -186,6 +186,14 @@ def load_rows(
         for e in events
         if e["kind"] == "execution"
     }
+    # A run whose last executor turn failed (a provider or transport error) never finished:
+    # its final workspace is excluded as infrastructure, never scored.
+    turn_failed = {
+        e["body"]["run_id"]
+        for e in events
+        if e["kind"] == "execution"
+        and (e["body"].get("turn_statuses") or [""])[-1] == "failed"
+    }
     revalidation = batch_dir / "revalidation.json"
     validated = json.loads(revalidation.read_text()) if revalidation.exists() else {}
     latest: dict[tuple, dict] = {}
@@ -215,6 +223,9 @@ def load_rows(
             continue
         run = assignments.get(body["run_id"], {})
         cost = costs.get(body["run_id"], {})
+        validity = body["validity"]
+        if role["kind"] == "final_workspace" and body["run_id"] in turn_failed:
+            validity = "invalid"
         rows.append(
             {
                 "task": body["instance"],
@@ -224,14 +235,10 @@ def load_rows(
                 "seq": event["seq"],
                 "role": role["kind"],
                 "verdict": role.get("verdict"),
-                "validity": body["validity"],
-                "solved": outcome.get("solved")
-                if body["validity"] == "valid"
-                else None,
+                "validity": validity,
+                "solved": outcome.get("solved") if validity == "valid" else None,
                 "score": _score(outcome.get("score")),
-                "pass_rate": outcome.get("pass_rate")
-                if body["validity"] == "valid"
-                else None,
+                "pass_rate": outcome.get("pass_rate") if validity == "valid" else None,
                 "validated": validated.get(
                     f"{body['run_id']}:{role.get('contract_id')}:{role.get('generation')}"
                 ),
@@ -243,12 +250,16 @@ def load_rows(
 
 
 def _failing_steps(stdout: str) -> set[str]:
-    """Steps reported by `@@PC <step> <outcome>` lines; any outcome but pass fails.
-    Malformed lines are skipped."""
+    """Steps reported by `@@PC <step> <outcome> ...` lines; any outcome but pass fails, except
+    `unqualified`, which is no evidence either way. Malformed lines are skipped."""
     failing = set()
     for line in stdout.splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[0] == "@@PC" and parts[2] != "pass":
+        if (
+            len(parts) >= 3
+            and parts[0] == "@@PC"
+            and parts[2] not in ("pass", "unqualified")
+        ):
             failing.add(parts[1])
     return failing
 
@@ -281,7 +292,9 @@ def _revalidate_one(batch_dir: Path, body: dict) -> bool | None:
             and receipts
         ):
             original = {
-                step["step"] for step in receipts["steps"] if step["outcome"] != "pass"
+                step["step"]
+                for step in receipts["steps"]
+                if step["outcome"] not in ("pass", "unqualified")
             }
     if not original:
         return None
@@ -292,6 +305,9 @@ def _revalidate_one(batch_dir: Path, body: dict) -> bool | None:
         / str(role["generation"])
     )
     image = f"programbench/{body['instance'].replace('__', '_1776_')}:task_cleanroom"
+    # Pipelines from the case runner run every case over the base workspace; older ones ignore it.
+    base = work.parent / "base"
+    base_mount = ["-v", f"{base}:/pc-base:ro"] if base.is_dir() else []
     try:
         completed = subprocess.run(
             [
@@ -306,6 +322,7 @@ def _revalidate_one(batch_dir: Path, body: dict) -> bool | None:
                 f"{work / 'candidate'}:/candidate:ro",
                 "-v",
                 f"{work / 'candidate.pipeline'}:/pc:ro",
+                *base_mount,
                 "--entrypoint",
                 "bash",
                 image,

@@ -207,6 +207,11 @@ def ensure_images(instance: str) -> None:
             subprocess.run(["docker", "pull", image], check=True)
 
 
+def issued(status: dict | None) -> bool:
+    """The ON lane has issued its contract (or come to rest without one)."""
+    return bool(status) and status.get("phase") not in ("idle", "drafting")
+
+
 def lane_silent(
     arm: str,
     status: dict | None,
@@ -271,6 +276,7 @@ class TurnTracker:
         self.active = False
         self.completed = 0
         self.statuses: list[str] = []
+        self.errors: list[str] = []
         self.turn_id: str | None = None
 
     def observe(self, message: dict) -> None:
@@ -287,6 +293,9 @@ class TurnTracker:
             self.active = False
             self.completed += 1
             self.statuses.append(params["turn"].get("status", "unknown"))
+            error = params["turn"].get("error") or {}
+            if error.get("message"):
+                self.errors.append(error["message"])
 
 
 class AppServer:
@@ -500,14 +509,33 @@ def run(args: argparse.Namespace) -> None:
             if now - last_poll >= STATUS_POLL_SECS:
                 last_poll = now
                 status = read_status(ledger, thread_id)
-                if is_done(
+                if args.stop_after_issue:
+                    # Intake is done once the lane drafts; the executor's work is not needed,
+                    # so stop it and wait for the drafter and prober to issue the contract.
+                    if (
+                        status
+                        and status.get("phase") == "drafting"
+                        and turns.active
+                        and turns.turn_id
+                        and not summary.get("interrupted_executor")
+                    ):
+                        server.request(
+                            "turn/interrupt",
+                            {"threadId": thread_id, "turnId": turns.turn_id},
+                            handle,
+                        )
+                        summary["interrupted_executor"] = True
+                    if issued(status):
+                        summary["stopped"] = "after_issue"
+                        break
+                elif is_done(
                     args.arm,
                     status,
                     turn_active=turns.active,
                     turns_completed=turns.completed,
                 ):
                     break
-                if lane_silent(args.arm, status, first_completion_at, now):
+                elif lane_silent(args.arm, status, first_completion_at, now):
                     summary["stopped"] = "no_status_record"
                     break
             if now - started > args.deadline_secs:
@@ -524,6 +552,7 @@ def run(args: argparse.Namespace) -> None:
             turns_completed=turns.completed,
             server_exited_early=eof.is_set(),
             turn_statuses=turns.statuses,
+            turn_errors=turns.errors,
             cost=rollout_costs(home),
         )
     finally:
@@ -545,7 +574,14 @@ def main() -> None:
     parser.add_argument("--codex-bin", type=Path, default=DEFAULT_CODEX)
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
+    parser.add_argument(
+        "--stop-after-issue",
+        action="store_true",
+        help="interrupt the executor once the contract is issued (offline replay evidence)",
+    )
     args = parser.parse_args()
+    if args.stop_after_issue and args.arm != "on":
+        parser.error("--stop-after-issue needs the ON arm")
     args.image = args.image or cleanroom_image(args.instance)
     if args.run_dir is None:
         args.run_dir = ARTIFACTS / "runs" / f"{args.instance}-{args.arm}"

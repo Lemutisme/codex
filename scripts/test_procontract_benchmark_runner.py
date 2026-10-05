@@ -84,6 +84,14 @@ class RestingTest(unittest.TestCase):
             runner.is_done("on", abstained, turn_active=False, turns_completed=1)
         )
 
+    def test_the_contract_counts_as_issued_once_the_lane_leaves_drafting(self):
+        self.assertFalse(runner.issued(None))
+        for phase in ["idle", "drafting"]:
+            self.assertFalse(runner.issued({"phase": phase, "resting": False}))
+        for phase in ["working", "checking", "supported", "not_verified"]:
+            self.assertTrue(runner.issued({"phase": phase, "resting": False}))
+        self.assertTrue(runner.issued({"phase": "abstained", "resting": True}))
+
     def test_on_arm_without_any_status_is_not_done(self):
         self.assertFalse(
             runner.is_done("on", None, turn_active=False, turns_completed=3)
@@ -143,6 +151,19 @@ class TurnTrackerTest(unittest.TestCase):
             "method": method,
             "params": {"threadId": thread_id, "turn": {"id": turn_id}},
         }
+
+    def test_a_failed_turns_error_is_kept(self):
+        tracker = runner.TurnTracker("executor")
+        tracker.observe(self.turn_event("turn/started", "executor", "t1"))
+        failed = self.turn_event("turn/completed", "executor", "t1")
+        failed["params"]["turn"].update(
+            status="failed", error={"message": "stream disconnected before completion"}
+        )
+        tracker.observe(failed)
+        self.assertEqual(
+            (tracker.statuses, tracker.errors),
+            (["failed"], ["stream disconnected before completion"]),
+        )
 
     def test_only_the_executor_threads_turns_are_counted(self):
         tracker = runner.TurnTracker("executor")
