@@ -919,9 +919,12 @@ def cmd_init(args) -> None:
         adoption, {"bootstrap": "operator-seeded"}, {"operator": True}, "within"
     )
     host.adopt(v0)
+    # The sealed confirmation tasks stay sealed: only their count and commitment are shown.
+    sealed_view = {"count": len(confirm), "commitment": store.digest("pool", confirm)}
     print(
         json.dumps(
-            {"campaign": str(camp), "v0": v0, "dev": dev, "confirm": confirm}, indent=2
+            {"campaign": str(camp), "v0": v0, "dev": dev, "confirm": sealed_view},
+            indent=2,
         )
     )
 
