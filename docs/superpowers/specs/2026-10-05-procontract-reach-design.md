@@ -95,15 +95,17 @@ These definitions live at L1 (the institution). The kernel only records what the
   - plus every source exposed to those runs.
 - **Basis of a piece of evidence.** The sources it depends on. For an oracle answer, the basis is the pair *(oracle,
   chooser of the question)*.
-- **Beyond.** Evidence is beyond a claim when its basis contains either:
-  - a source outside the claim's lineage view; or
-  - an oracle answer whose question was chosen with information outside that view, for example:
-    - a principal's hidden test;
-    - a disagreement between independently produced peers;
-    - a seeded random draw the producer never saw.
+- **Beyond.** Evidence is beyond a claim when its basis contains information **from the criterion's holder** that lies
+  outside the claim's lineage view. Examples:
+  - the principal's statements and settlements;
+  - a delegated hidden test suite or rubric;
+  - a pool the principal sealed.
 
-  An oracle answer to a question chosen from within the view is within reach: the producer could have asked it. This is
-  exactly what §1 measured.
+  Independence from the producer is necessary but not sufficient (corrected after §9.1):
+  - An oracle answer to a question chosen from within the view is within reach, because the producer could have asked
+    it. §1 measured exactly this.
+  - Questions chosen outside the view by anyone other than the criterion's holder can be independent and still carry
+    nothing about what the principal weighs. Disagreement between peers and seeded random draws are examples.
 - **Exposure ledger.** For each source, the runs that read it. Reading adds the source to their lineage views. Exposure is
   append-only and never resets (P1).
 
@@ -234,14 +236,29 @@ explicit acceptance, rejection, or the implicit acceptance the essential spec de
 
 ## 9. Falsifiable predictions and the next experiment
 
-1. **Questions chosen from beyond outperform questions chosen from within.** At equal oracle-query cost, compare three
-   ways of choosing questions:
-   - (a) from the documentation, as today;
-   - (b) where independently produced peers disagree over a broad input space;
-   - (c) by seeded random draws.
+1. **Questions chosen outside the producer's view outperform questions chosen within it. Tested, and falsified.**
+   - **Design.** At 40 oracle queries per candidate, compare three ways of choosing questions:
+     - (a) from the documentation;
+     - (b) where leave-one-out peers disagree over a 400-case mutated pool;
+     - (c) by seeded random draws from that pool.
+   - **Results** (75 candidates, `calibration-v1/reach-experiment/REPORT.md`):
 
-   (b) and (c) are beyond the executor's reach; (a) is not. Prediction: (b) and (c) predict hidden pass rates on held-out
-   candidates better than (a). If they do not, reach is the wrong partition. This experiment needs no executor runs.
+     | Choice | Overall ρ | Within-task concordance | Missed at ≥ 0.95 |
+     |---|---|---|---|
+     | (a) Documentation | 0.31 | 0.81 | 10 / 21 |
+     | (b) Peer disagreement | 0.29 | 0.65 | 9 / 9 |
+     | (c) Random draws | 0.02 | 0.77 | 5 / 5 |
+
+   - **Reading.** The partition "inside versus outside the producer's view" was too loose. Neither peers nor random draws
+     hold the criterion, so their independence bought no certifying power.
+   - **Correction.** Beyond now requires information from the criterion's holder (§3). The kernel sentence already said
+     so: authority is the holder of what lies beyond.
+   - **What the corrected definition predicts.** Only principal-side sources certify: hidden tests, settlements, sealed
+     delegated suites. The development-time instruments ((a)–(c)) rank but do not certify.
+1b. **Only the criterion's holder certifies.** For a fixed query cost, evidence drawn from a principal-side source predicts
+   the principal's verdict better than any producer-independent source. For example, take a disjoint half of a delegated
+   suite as the evidence and score it against the other half. The test is close to definitional for random halves. It is
+   informative when the delegated half is small or skewed, and in deployment, where settlements are the only such source.
 2. **Comparative evidence from within reach is enough to choose research parents.** Prospectively, the parent it prefers is
    more often better on fresh confirmation than chance.
 3. **Reach predicts reliability.** Settlement on `Beyond` support misses fewer defects than settlement on `Within` support.
