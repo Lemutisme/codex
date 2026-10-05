@@ -181,6 +181,36 @@ class TurnTrackerTest(unittest.TestCase):
 
 
 class CodexHomeTest(unittest.TestCase):
+    def test_a_version_brings_its_instructions_and_its_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp, "codex-home")
+            instructions = 'Observe the reference "early".\nThen test.'
+            runner.write_codex_home(
+                home,
+                Path(tmp, "workspace"),
+                Path(tmp, "codex"),
+                "image:tag",
+                policy=Path(tmp, "policy"),
+                developer_instructions=instructions,
+            )
+            config = tomllib.loads((home / "config.toml").read_text())
+            self.assertEqual(config["developer_instructions"], instructions)
+            self.assertIn("openai-custom", config["model_providers"])
+            settings = json.loads((home / "pro_contract" / "settings.json").read_text())
+            self.assertEqual(settings["policy"], str(Path(tmp, "policy")))
+
+    def test_without_instructions_the_executor_keeps_its_defaults(self):
+        config = tomllib.loads(runner.config_toml("  \n"))
+        self.assertNotIn("developer_instructions", config)
+
+    def test_a_task_without_a_reference_has_nothing_to_build_or_compare(self):
+        evaluation = runner.settings(Path("/w"), "image:tag", reference=False)[
+            "evaluation"
+        ]
+        self.assertIsNone(evaluation["reference_command"])
+        self.assertIsNone(evaluation["check"]["build_command"])
+        self.assertIsNone(evaluation["check"]["candidate_command"])
+
     def test_codex_home_has_the_model_the_container_environment_and_the_evaluation_grant(
         self,
     ):

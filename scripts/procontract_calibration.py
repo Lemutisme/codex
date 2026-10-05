@@ -485,7 +485,10 @@ def report(rows: list[dict], controls: dict, seed: int) -> dict:
 
 def cmd_report(args) -> None:
     rows, controls, excluded = load_replay(args.out)
-    result = {**report(rows, controls, args.seed), "excluded_tasks_without_sealed_cases": excluded}
+    result = {
+        **report(rows, controls, args.seed),
+        "excluded_tasks_without_sealed_cases": excluded,
+    }
     args.report.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n")
     (args.out / "rows.json").write_text(
         json.dumps(

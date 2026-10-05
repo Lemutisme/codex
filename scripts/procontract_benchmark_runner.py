@@ -39,14 +39,21 @@ SUBMISSION_EXCLUDED = ["./executable", "./target"]
 STATUS_POLL_SECS = 5.0
 
 
-def config_toml() -> str:
+def config_toml(developer_instructions: str = "") -> str:
+    """The executor's configuration; a version's standing instructions become its developer
+    instructions."""
+    instructions = (
+        f"developer_instructions = {json.dumps(developer_instructions)}\n"
+        if developer_instructions.strip()
+        else ""
+    )
     return f"""model = "{MODEL}"
 model_reasoning_effort = "{EFFORT}"
 model_provider = "openai-custom"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 web_search = "disabled"
-
+{instructions}
 [model_providers.openai-custom]
 name = "OpenAI Custom"
 base_url = "https://model-proxy.development.research-platform.isara.io/v1"
@@ -87,8 +94,12 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
     )
 
 
-def settings(workspace: Path, image: str) -> dict:
-    return {
+def settings(
+    workspace: Path, image: str, reference: bool = True, policy: Path | None = None
+) -> dict:
+    """The evaluation grant. Without a reference the lane has nothing to build or compare and
+    decides from review alone; a policy bundle replaces the built-in worker instructions."""
+    result = {
         "evaluation": {
             "environment_id": ENVIRONMENT_ID,
             "workspace_container_root": CONTAINER_WORKSPACE,
@@ -108,16 +119,31 @@ def settings(workspace: Path, image: str) -> dict:
         "repair_attempts": 1,
         "worker": {"model": MODEL, "reasoning_effort": EFFORT, "deadline_secs": 2400},
     }
+    if not reference:
+        result["evaluation"]["reference_command"] = None
+        result["evaluation"]["check"]["build_command"] = None
+        result["evaluation"]["check"]["candidate_command"] = None
+    if policy is not None:
+        result["policy"] = str(policy)
+    return result
 
 
-def write_codex_home(home: Path, workspace: Path, codex_bin: Path, image: str) -> None:
+def write_codex_home(
+    home: Path,
+    workspace: Path,
+    codex_bin: Path,
+    image: str,
+    reference: bool = True,
+    policy: Path | None = None,
+    developer_instructions: str = "",
+) -> None:
     (home / "pro_contract").mkdir(parents=True, exist_ok=True)
-    (home / "config.toml").write_text(config_toml())
+    (home / "config.toml").write_text(config_toml(developer_instructions))
     (home / "environments.toml").write_text(
         environments_toml(workspace, codex_bin, image)
     )
     (home / "pro_contract" / "settings.json").write_text(
-        json.dumps(settings(workspace, image), indent=2) + "\n"
+        json.dumps(settings(workspace, image, reference, policy), indent=2) + "\n"
     )
 
 
@@ -391,7 +417,16 @@ def prepare(args: argparse.Namespace) -> None:
         sys.exit(problem)
     workspace = run_dir / "workspace"
     workspace.mkdir(parents=True)
-    ensure_images(args.instance)
+    if args.workspace_from is None:
+        ensure_images(args.instance)
+        source = []
+        copy = (
+            "cp -a /workspace/. /out/ && chown -R 1000:1000 /out "
+            "&& chown 0:0 /out/executable && chmod 0111 /out/executable"
+        )
+    else:
+        source = ["-v", f"{args.workspace_from.resolve()}:/in:ro"]
+        copy = "cp -a /in/. /out/ && chown -R 1000:1000 /out"
     subprocess.run(
         [
             "docker",
@@ -401,19 +436,33 @@ def prepare(args: argparse.Namespace) -> None:
             "none",
             "--user",
             "0:0",
+            *source,
             "-v",
             f"{workspace}:/out",
             "--entrypoint",
             "sh",
             args.image,
             "-c",
-            "cp -a /workspace/. /out/ && chown -R 1000:1000 /out "
-            "&& chown 0:0 /out/executable && chmod 0111 /out/executable",
+            copy,
         ],
         check=True,
     )
+    # A frozen copy of the version's bundle: the run reads it, the version cannot change it.
+    policy = None
+    instructions = ""
+    if args.policy is not None:
+        policy = run_dir / "policy"
+        shutil.copytree(args.policy, policy)
+        chosen = policy / args.instructions
+        instructions = chosen.read_text() if chosen.exists() else ""
     write_codex_home(
-        run_dir / "codex-home", workspace, args.codex_bin.resolve(), args.image
+        run_dir / "codex-home",
+        workspace,
+        args.codex_bin.resolve(),
+        args.image,
+        reference=not args.no_reference,
+        policy=policy,
+        developer_instructions=instructions,
     )
     prompt = args.prompt.read_bytes()
     (run_dir / "prompt.txt").write_bytes(prompt)
@@ -574,6 +623,26 @@ def main() -> None:
     parser.add_argument("--codex-bin", type=Path, default=DEFAULT_CODEX)
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        help="a version's policy bundle directory (prepare)",
+    )
+    parser.add_argument(
+        "--instructions",
+        default="executor.md",
+        help="the bundle file used as the executor's developer instructions (prepare)",
+    )
+    parser.add_argument(
+        "--workspace-from",
+        type=Path,
+        help="build the workspace from this directory instead of the instance image (prepare)",
+    )
+    parser.add_argument(
+        "--no-reference",
+        action="store_true",
+        help="the task has no reference program to compare against (prepare)",
+    )
     parser.add_argument(
         "--stop-after-issue",
         action="store_true",

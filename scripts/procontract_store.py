@@ -70,3 +70,21 @@ def events(store: Path) -> list[dict]:
     if not (store / "ledger_1.sqlite").exists():
         return []
     return json.loads(_run(["events", "--store", str(store)]))
+
+
+def apply(store: Path, key: str, command: dict) -> dict:
+    """Applies an authenticated kernel command; a rejection raises with the kernel's reason."""
+    return json.loads(
+        _run(["apply", "--store", str(store), "--key", key], stdin=json.dumps(command))
+    )
+
+
+def contract(store: Path, contract_id: str) -> dict | None:
+    if not (store / "ledger_1.sqlite").exists():
+        return None
+    return json.loads(_run(["contract", "--store", str(store), "--id", contract_id]))
+
+
+def digest(domain: str, value) -> str:
+    """The store's own domain-separated digest of a JSON value."""
+    return _run(["digest", "--domain", domain], stdin=json.dumps(value)).strip()
