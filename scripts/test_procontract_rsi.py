@@ -40,6 +40,7 @@ class FakeTasks:
                 "reason": "the executor turn failed",
             }
         executor = (bundle / "executor.md").read_text()
+        self.write_evidence(run_dir, executor.count("better"))
         rate = 0.5 + 0.1 * executor.count("better") - 0.1 * executor.count("worse")
         return {
             "validity": "valid",
@@ -54,6 +55,33 @@ class FakeTasks:
 
     def witness(self, host, vid):
         return ""
+
+    @staticmethod
+    def write_evidence(run_dir, wins):
+        """Hidden tests m.A.t0..t2 where the first `wins` pass, and one executor rollout whose
+        reference calls and file writes grow with `wins`."""
+        results = [
+            {"name": f"m.A.t{i}", "status": "passed" if i < wins else "failure"}
+            for i in range(3)
+        ]
+        eval_file = run_dir / "eval" / "attempt-1" / "task" / "task.eval.json"
+        eval_file.parent.mkdir(parents=True)
+        eval_file.write_text(json.dumps({"test_results": results}))
+        calls = [{"type": "custom_tool_call", "input": "./executable --help"}] * (
+            1 + wins
+        )
+        calls += [{"type": "function_call", "arguments": "apply_patch"}]
+        rollout = run_dir / "codex-home" / "sessions" / "2026" / "rollout-x.jsonl"
+        rollout.parent.mkdir(parents=True)
+        rollout.write_text(
+            "".join(json.dumps({"payload": call}) + "\n" for call in calls)
+        )
+
+    def items(self, run_dir):
+        return rsi.ProgramBench.items(self, run_dir)
+
+    def oracle_patterns(self):
+        return rsi.ProgramBench.oracle_patterns(self)
 
 
 def campaign(tmp, **overrides) -> Path:
@@ -204,6 +232,25 @@ class SuccessionTest(unittest.TestCase):
                 if e["body"]["view"] == "research:2"
             ]
             self.assertFalse(set(exposure[0]["sources"]) & set(SEALED))
+
+    def test_the_research_view_explains_a_child_against_its_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp, adoption="presumed"), FakeTasks())
+            v0 = h.incumbent()
+            h.step()
+            v1 = h.incumbent()
+            h.step()
+
+            view = h.camp / "research" / "step-2" / "workspace" / "archive"
+            report = (view / "attribution" / f"{v1[:12]}-vs-{v0[:12]}.md").read_text()
+
+            self.assertIn("attribution/", (view / "README.md").read_text())
+            self.assertEqual(len(list((view / "attribution").iterdir())), 1)
+            for task in DEV:
+                self.assertIn(f"| {task} | 0.500 | 0.600 | +0.100 | 1 | 0 |", report)
+            self.assertIn("acquire 1 -> 2", report)
+            self.assertIn("Noise floor: 0.087", report)
+            self.assertIn("## Child's Hypothesis", report)
 
     def test_a_worse_candidate_stays_in_research_and_the_incumbent_keeps_serving(self):
         with tempfile.TemporaryDirectory() as tmp:

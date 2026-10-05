@@ -31,6 +31,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import procontract_attribution as attribution
 import procontract_store as store
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -49,6 +50,8 @@ EXPERIMENT_SECTIONS = [
     "Risks",
 ]
 OWNER = "principal"
+NOISE_FLOOR = 0.087
+NOISE_SOURCE = "same-task repeat runs in corpus-v1, mean absolute difference"
 
 RESEARCH_PROTOCOL = """This is a research task: improve how an agent works.
 
@@ -349,13 +352,58 @@ class Host:
 
     def dev_results(self, vid: str) -> dict[str, float]:
         """Development pass rates already measured; never starts a run."""
+        return {
+            task: result["pass_rate"] for task, result in self.dev_runs(vid).items()
+        }
+
+    def dev_runs(self, vid: str) -> dict[str, dict]:
+        """Valid development results per task, as cached; never starts a run."""
         vid = self.twin(vid)
         results = {}
         for path in sorted((self.camp / "runs").glob(f"dev-{vid[:12]}-*/result.json")):
             result = json.loads(path.read_text())
             if result["validity"] == "valid":
-                results[result["task"]] = result["pass_rate"]
+                results[result["task"]] = result
         return results
+
+    def attribution(self, vid: str) -> tuple[str, list[dict]] | None:
+        """The attribution rows of a version against its parent's twin over the tasks both have
+        valid development results for; None for the root and for method-only versions."""
+        parent = self.versions()[vid]["lineage"]["parent"]
+        if parent is None or self.twin(vid) != vid:
+            return None
+        parent = self.twin(parent)
+        child_runs, parent_runs = self.dev_runs(vid), self.dev_runs(parent)
+        noise = self.terms.get("noise_floor", NOISE_FLOOR)
+        patterns = self.adapter.oracle_patterns()
+        rows = []
+        for task in sorted(child_runs.keys() & parent_runs.keys()):
+            child, base = child_runs[task], parent_runs[task]
+            rows.append(
+                attribution.attribute(
+                    base,
+                    child,
+                    self.adapter.items(Path(base["run_dir"])),
+                    self.adapter.items(Path(child["run_dir"])),
+                    attribution.behavior(base["run_dir"], patterns),
+                    attribution.behavior(child["run_dir"], patterns),
+                    noise,
+                )
+            )
+        return (parent, rows) if rows else None
+
+    def write_attribution(self, archive: Path) -> None:
+        noise = self.terms.get("noise_floor", NOISE_FLOOR)
+        for vid in self.versions():
+            if (found := self.attribution(vid)) is None:
+                continue
+            parent, rows = found
+            target = archive / "attribution" / f"{vid[:12]}-vs-{parent[:12]}.md"
+            target.parent.mkdir(exist_ok=True)
+            experiment = (self.version_dir(vid) / "EXPERIMENT.md").read_text()
+            target.write_text(
+                attribution.render(vid, parent, rows, experiment, noise, NOISE_SOURCE)
+            )
 
     # ---- research -----------------------------------------------------------------------------
 
@@ -411,7 +459,13 @@ class Host:
             vdir.mkdir(parents=True)
             shutil.copy(self.version_dir(vid) / "EXPERIMENT.md", vdir / "EXPERIMENT.md")
             shutil.copytree(self.version_dir(vid) / "bundle", vdir / "bundle")
+        lines += [
+            "",
+            "archive/attribution/ explains, per task, how each version's behavior and hidden-test",
+            "outcomes differ from its parent's: read it before judging why a version progressed or regressed.",
+        ]
         (archive / "README.md").write_text("\n".join(lines) + "\n")
+        self.write_attribution(archive)
         for result_file in sorted((self.camp / "runs").glob("dev-*/result.json")):
             result = json.loads(result_file.read_text())
             run = archive / "runs" / result_file.parent.name
@@ -823,6 +877,24 @@ class ProgramBench:
             "failures": failure_excerpt(run_dir / "eval"),
             "label": label,
         }
+
+    def items(self, run_dir: Path) -> dict[str, bool]:
+        """Hidden tests by name, passed iff their last record says so; skipped tests are omitted."""
+        paths = sorted(run_dir.glob("eval/attempt-*/*/*.eval.json"))
+        if not paths:
+            return {}
+        last: dict = {}
+        for result in json.loads(paths[-1].read_text()).get("test_results") or []:
+            last[result["name"]] = result["status"]
+        return {
+            name: status == "passed"
+            for name, status in last.items()
+            if status != "skipped"
+        }
+
+    def oracle_patterns(self) -> list[str]:
+        """How the executor invokes the reference program."""
+        return [r"/workspace/executable", r"\./executable"]
 
     def witness(self, host: Host, vid: str) -> str:
         """The candidate's bundle actually ran: its lane identity and its executor instructions
