@@ -220,6 +220,41 @@ class SuccessionTest(unittest.TestCase):
             # by development mean: the incumbent.
             self.assertEqual(h.choose_parent(), (v0, "best_dev_mean"))
 
+    def test_a_method_only_candidate_is_not_measured_and_researches_next(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            os.environ["FAKE_RESEARCH_MODE"] = "method"
+            h = host(campaign(tmp), tasks)
+            v0 = h.incumbent()
+
+            outcome = h.step()
+
+            self.assertIn("changes only the research method", outcome)
+            [v1] = [vid for vid in h.versions() if vid != v0]
+            self.assertEqual(h.twin(v1), v0)
+            self.assertEqual(
+                len(tasks.runs), len(DEV), "only the parent's development runs"
+            )
+            self.assertEqual(h.dev_results(v1), h.dev_results(v0))
+            self.assertEqual(h.choose_parent(), (v1, "newest_qualified"))
+
+            os.environ["FAKE_RESEARCH_MODE"] = "better"
+            h.step()
+
+            [v2] = [vid for vid in h.versions() if vid not in (v0, v1)]
+            self.assertEqual(h.versions()[v2]["lineage"]["parent"], v1)
+            self.assertIn(
+                "Count distinct tasks.",
+                (
+                    h.camp
+                    / "research"
+                    / "step-2"
+                    / "workspace"
+                    / "policy"
+                    / "research.md"
+                ).read_text(),
+            )
+
     def test_a_null_experiment_completes_research_without_a_version(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["FAKE_RESEARCH_MODE"] = "null"

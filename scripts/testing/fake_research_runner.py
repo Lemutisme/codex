@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stands in for the benchmark runner in succession tests. Research runs edit the bundle as
 FAKE_RESEARCH_MODE says: `better` adds a line the fake adapter rewards, `worse` one it punishes,
-`null` changes nothing, `incomplete` delivers an experiment without its sections, `crash` fails
+`method` changes only research.md, `null` changes nothing, `incomplete` delivers an experiment without its sections, `crash` fails
 to prepare."""
 
 import json
@@ -34,6 +34,9 @@ def main() -> int:
     executor = workspace / "policy" / "executor.md"
     if mode in ("better", "worse"):
         executor.write_text(executor.read_text() + f"{mode}\n")
+    if mode == "method":
+        research = workspace / "policy" / "research.md"
+        research.write_text(research.read_text() + "Count distinct tasks.\n")
     sections = SECTIONS if mode != "incomplete" else SECTIONS[:2]
     (workspace / "EXPERIMENT.md").write_text(
         "".join(f"## {name}\n{mode}\n" for name in sections)

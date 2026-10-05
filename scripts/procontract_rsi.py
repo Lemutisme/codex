@@ -37,6 +37,8 @@ SCRIPTS = Path(__file__).resolve().parent
 RUNNER = [sys.executable, str(SCRIPTS / "procontract_benchmark_runner.py")]
 V0_BUNDLE = SCRIPTS.parent / "codex-rs" / "ext" / "pro-contract" / "policies"
 BUNDLE_FILES = ["executor.md", "research.md", "drafter.md", "prober.md", "reviewer.md"]
+# The files that shape how a version does tasks; research.md shapes only how it researches.
+TASK_FILES = ["executor.md", "drafter.md", "prober.md", "reviewer.md"]
 MAX_BUNDLE_FILE = 32 << 10
 EXPERIMENT_SECTIONS = [
     "Deficiency",
@@ -328,13 +330,26 @@ class Host:
             results = list(pool.map(lambda pair: self.measure(*pair, purpose), pairs))
         return dict(zip(pairs, results))
 
+    def twin(self, vid: str) -> str:
+        """The earliest ancestor that does tasks exactly as `vid` does. Task behavior is measured
+        once per twin: a change to the research method alone changes no task result."""
+        versions = self.versions()
+        while (parent := versions[vid]["lineage"]["parent"]) is not None and all(
+            versions[vid]["bundle"][name] == versions[parent]["bundle"][name]
+            for name in TASK_FILES
+        ):
+            vid = parent
+        return vid
+
     def dev(self, vid: str) -> dict[str, float]:
         """Pass rate per development task (valid runs only), measuring what is missing."""
+        vid = self.twin(vid)
         self.measure_all([(vid, task) for task in self.terms["pools"]["dev"]], "dev")
         return self.dev_results(vid)
 
     def dev_results(self, vid: str) -> dict[str, float]:
         """Development pass rates already measured; never starts a run."""
+        vid = self.twin(vid)
         results = {}
         for path in sorted((self.camp / "runs").glob(f"dev-{vid[:12]}-*/result.json")):
             result = json.loads(path.read_text())
@@ -591,6 +606,14 @@ class Host:
         if not changed:
             return f"step {step}: {reason}"
         candidate = self.register(delivery / "policy", parent, parent, experiment)
+        if self.twin(candidate) != candidate:
+            # Only the research method changed: its tasks are its ancestor's by construction, so
+            # nothing is measured and nothing is put forward; it shows its worth in its successors.
+            self.record(
+                "selection",
+                {"role": "qualified", "version": candidate, "method_only": True},
+            )
+            return f"step {step}: candidate {candidate[:12]} changes only the research method; it continues in research"
         witness = self.adapter.witness(self, candidate)
         if witness:
             self.record(
