@@ -277,6 +277,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
             min_sealed_qualified: 4,
             min_success_permille: 500,
         },
+        policy: None,
     };
     let ports = Arc::new(ports);
     let thread_id = ThreadId::new();
@@ -284,6 +285,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
         thread_id,
         settings,
         profile,
+        crate::workers::policies::Policies::default(),
         Stores {
             dir,
             ledger: ledger.clone(),
@@ -640,6 +642,15 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
     let verification = &events[4].event;
     assert_eq!(verification.body["sealed"]["qualified"], 4);
     assert!(verification.identities.policies.contains_key("prober"));
+    let default = crate::workers::policies::Policies::default();
+    assert_eq!(
+        verification.identities.policies["bundle"],
+        crate::digest_of(
+            "policy_bundle",
+            &serde_json::json!([default.drafter, default.prober, default.reviewer]),
+        ),
+        "a controller can recompute the bundle identity from the files"
+    );
     let probe = &events[1].event.body;
     assert_eq!(probe["exploration"][0]["id"], "e1");
     assert_eq!(probe["observations"][0]["stdout"], "usage: reference\n");

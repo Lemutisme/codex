@@ -9,6 +9,7 @@ use sha2::Digest as _;
 
 use super::ports::WorkerIdentity;
 use crate::workers::drafter;
+use crate::workers::policies::Policies;
 use crate::workers::prober;
 use crate::workers::reviewer;
 
@@ -24,11 +25,29 @@ pub(crate) fn harness_sha256() -> Option<String> {
 }
 
 /// The identities stamped on an event: harness, worker policies, and the worker's model.
-pub(crate) fn identities(worker: &WorkerIdentity, check_pipeline: Option<Digest>) -> Identities {
+pub(crate) fn identities(
+    worker: &WorkerIdentity,
+    bundle: &Policies,
+    check_pipeline: Option<Digest>,
+) -> Identities {
     let mut policies = BTreeMap::from([
-        ("drafter".to_string(), drafter::policy_digest()),
-        ("prober".to_string(), prober::policy_digest()),
-        ("reviewer".to_string(), reviewer::policy_digest()),
+        (
+            "drafter".to_string(),
+            drafter::policy_digest(&bundle.drafter),
+        ),
+        ("prober".to_string(), prober::policy_digest(&bundle.prober)),
+        (
+            "reviewer".to_string(),
+            reviewer::policy_digest(&bundle.reviewer),
+        ),
+        // The bundle's texts themselves, so a controller can tell which version actually ran.
+        (
+            "bundle".to_string(),
+            crate::digest_of(
+                "policy_bundle",
+                &(&bundle.drafter, &bundle.prober, &bundle.reviewer),
+            ),
+        ),
     ]);
     if let Some(check_pipeline) = check_pipeline {
         policies.insert("check_pipeline".to_string(), check_pipeline);

@@ -2,6 +2,7 @@
 
 pub(crate) mod cases;
 pub(crate) mod drafter;
+pub(crate) mod policies;
 pub(crate) mod prober;
 pub(crate) mod reviewer;
 pub(crate) mod runtime;

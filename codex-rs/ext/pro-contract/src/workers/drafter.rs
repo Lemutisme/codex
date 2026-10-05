@@ -20,8 +20,10 @@ use crate::Terms;
 /// Most public differential cases a draft may freeze.
 const MAX_DIFFERENTIAL_CASES: usize = 40;
 
-/// Everything the drafter may see.
+/// Everything the drafter may see, and how it is told to work.
 pub(crate) struct DraftInput<'a> {
+    /// The version's drafting instructions.
+    pub instructions: &'a str,
     pub intake_text: &'a str,
     /// Base workspace listing and documentation excerpts, already bounded by the caller.
     pub base_view: &'a str,
@@ -45,35 +47,12 @@ pub(crate) enum Draft {
     },
 }
 
-const INSTRUCTIONS: &str = "You are the drafting worker of an automatic Principal. You turn a human request into \
-contract terms that an independent verifier will check later. You never do the work yourself.
+/// The built-in instructions: version 0 of this part of a policy bundle.
+pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/drafter.md");
 
-Rules:
-- Decide \"contract\" when the request asks for substantive work on the workspace whose result can be checked. \
-Decide \"none\" for questions, chat, exploration or trivial edits, and explain why in reason.
-- Each requirement quotes, verbatim, the span of the human request it comes from (source_quote). Mark a \
-requirement you infer rather than read as inferred=true, and still quote the span that motivates it.
-- Cover every substantive element of the request; do not drop an element because it is hard to check. List an \
-element in out_of_scope only when the human excluded it (quote that statement in human_statement) or when it is \
-non-substantive (non_substantive=true and human_statement=null).
-- process_constraints: constraints on how the work is done or what must not be touched (for example \
-\"do not read the reference program\" or \"do not delete X while working\"), each with its verbatim source_quote. \
-They bind the worker but are not requirements on the result and never belong in out_of_scope.
-- Never add goals the human did not ask for.
-- differential_cases: when a reference program is available, list invocations whose behavior must be identical \
-for the candidate and the reference. Only the invocation is frozen, never an expected output. Exercise the \
-documented interface broadly: help and version output, typical inputs on real files, options, boundaries and error \
-cases. At most 40 cases. Leave the list empty when there is no reference program.
-- candidate_tests: true when the candidate's own test suite must also pass.
-- The verifier also builds the candidate with the configured build command.
-Respond with JSON only, matching the schema.";
-
-/// The full instructions: the drafting rules, then the case rules the prober shares.
-fn instructions() -> String {
-    format!(
-        "{INSTRUCTIONS}\n\nDifferential cases: {}",
-        cases::CASE_RULES
-    )
+/// The full instructions: the version's drafting rules, then the case rules the prober shares.
+fn instructions(policy: &str) -> String {
+    format!("{policy}\n\nDifferential cases: {}", cases::CASE_RULES)
 }
 
 pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
@@ -86,15 +65,15 @@ pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
     };
     format!(
         "{}\n\n<human_request>\n{}\n</human_request>\n\n<base_workspace>\n{}\n</base_workspace>\n\n{reference}\n",
-        instructions(),
+        instructions(input.instructions),
         bounded(input.intake_text, PROMPT_EVIDENCE_CAP / 6),
         bounded(input.base_view, PROMPT_EVIDENCE_CAP / 2),
     )
 }
 
 /// Identity of this worker's policy: its instructions and output schema.
-pub(crate) fn policy_digest() -> codex_pro_contract::Digest {
-    crate::digest_of("drafter_policy", &(instructions(), schema()))
+pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
+    crate::digest_of("drafter_policy", &(instructions(policy), schema()))
 }
 
 pub(crate) fn schema() -> Value {

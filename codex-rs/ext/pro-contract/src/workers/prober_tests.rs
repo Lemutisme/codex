@@ -15,6 +15,7 @@ use crate::WorkerError;
 
 fn input() -> ProbeInput<'static> {
     ProbeInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         intake_text: "Implement this program from scratch so that it behaves exactly like the reference.",
         base_view: "=== README.md ===\n# dutree\nUsage: dutree [options] <path>\n",
         reference_help: "$ executable --help\nUsage: dutree [options] <path>\n[exit status 0]\n",
@@ -77,6 +78,7 @@ fn the_prompts_carry_the_request_the_documentation_and_the_help() {
 fn the_prompts_stay_bounded() {
     let huge = "y".repeat(1_000_000);
     let input = ProbeInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         intake_text: &huge,
         base_view: &huge,
         reference_help: &huge,
@@ -137,9 +139,14 @@ fn a_malformed_probe_is_rejected() {
 
 #[test]
 fn the_policy_digest_is_the_probers_own() {
-    assert_eq!(super::policy_digest(), super::policy_digest());
+    let default = super::DEFAULT_INSTRUCTIONS;
+    assert_eq!(super::policy_digest(default), super::policy_digest(default));
     assert_ne!(
-        super::policy_digest(),
-        crate::workers::drafter::policy_digest()
+        super::policy_digest(default),
+        super::policy_digest("Probe only the help output.")
+    );
+    assert_ne!(
+        super::policy_digest(default),
+        crate::workers::drafter::policy_digest(default)
     );
 }

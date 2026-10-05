@@ -44,6 +44,7 @@ use self::runtime::ThreadRuntime;
 use crate::BlobStore;
 use crate::Ledger;
 use crate::Settings;
+use crate::workers::policies::Policies;
 
 const SECTION_ID: &str = "pro_contract";
 const OPEN_MARKER: &str = "<pro_contract>";
@@ -124,6 +125,17 @@ impl ProContractExtension {
         let Some(settings) = settings.ok().flatten() else {
             return;
         };
+        let policies = match &settings.policy {
+            Some(bundle) => match Policies::load(bundle) {
+                Ok(policies) => policies,
+                Err(error) => {
+                    let reason = format!("cannot read the policy bundle: {error}");
+                    record_abstention(&ledger, thread_id, &reason).await;
+                    return;
+                }
+            },
+            None => Policies::default(),
+        };
         let ports = Arc::new(ports::CodexPorts {
             thread_id,
             manager: Weak::clone(&self.thread_manager),
@@ -134,6 +146,7 @@ impl ProContractExtension {
             thread_id,
             settings,
             profile,
+            policies,
             runtime::Stores { dir, ledger, store },
             ports,
         );

@@ -21,6 +21,10 @@ pub struct Settings {
     pub worker: WorkerSettings,
     #[serde(default)]
     pub evidence: EvidenceSettings,
+    /// A version's policy bundle: a directory whose `drafter.md`, `prober.md` and `reviewer.md`
+    /// replace the built-in worker instructions.
+    #[serde(default)]
+    pub policy: Option<PathBuf>,
 }
 
 /// The sealed-evidence rules copied into every evidence policy at Issue.

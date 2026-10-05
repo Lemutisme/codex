@@ -87,6 +87,7 @@ fn the_prompt_carries_intake_and_requirements_and_stays_bounded() {
     let terms = terms();
     let huge = "y".repeat(super::CANDIDATE_VIEW.cap * 2);
     let text = prompt(&ReviewInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         terms: &terms,
         check_summary: "build: pass",
         candidate_view: &huge,
@@ -225,6 +226,7 @@ fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
         process_constraints: vec![],
     };
     let input = ReviewInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         terms: &terms,
         check_summary: &huge,
         candidate_view: &huge_view,
@@ -240,6 +242,7 @@ fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
         process_constraints: vec![],
     };
     let fixed = super::prompt(&ReviewInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         terms: &empty_terms,
         check_summary: "",
         candidate_view: "",
@@ -263,6 +266,7 @@ fn a_candidate_view_of_several_hundred_kilobytes_reaches_the_reviewer_intact() {
     let terms = terms();
     let view = format!("{}END-OF-VIEW", "fn f() {}\n".repeat(30_000));
     let text = prompt(&ReviewInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         terms: &terms,
         check_summary: "build: pass",
         candidate_view: &view,
@@ -272,8 +276,12 @@ fn a_candidate_view_of_several_hundred_kilobytes_reaches_the_reviewer_intact() {
 
 #[test]
 fn the_policy_digest_covers_the_candidate_view_policy() {
-    let without_view = crate::digest_of("reviewer_policy", &(super::INSTRUCTIONS, schema()));
-    assert_ne!(super::policy_digest(), without_view);
+    let without_view =
+        crate::digest_of("reviewer_policy", &(super::DEFAULT_INSTRUCTIONS, schema()));
+    assert_ne!(
+        super::policy_digest(super::DEFAULT_INSTRUCTIONS),
+        without_view
+    );
 }
 
 #[test]
@@ -286,6 +294,7 @@ fn the_prompt_lists_process_constraints_and_says_how_to_judge_them() {
         ..terms()
     };
     let text = prompt(&ReviewInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         terms: &terms,
         check_summary: "build: pass",
         candidate_view: "",

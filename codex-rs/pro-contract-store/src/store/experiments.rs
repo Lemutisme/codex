@@ -45,6 +45,13 @@ pub enum ExperimentKind {
     Execution,
     Label,
     Correction,
+    /// A version registered for succession: its manifest and lineage.
+    Version,
+    /// A choice that carries no authority by itself: a research parent, a candidate put forward,
+    /// an incumbent recorded after its adoption was settled.
+    Selection,
+    /// Sources made readable to a view; exposure only accumulates.
+    Exposure,
 }
 
 /// What produced an event. Every event carries one.
@@ -120,7 +127,10 @@ fn validate(event: &ExperimentEvent) -> Result<(), LedgerError> {
         | ExperimentKind::Capture
         | ExperimentKind::Execution
         | ExperimentKind::Label
-        | ExperimentKind::Correction => Ok(()),
+        | ExperimentKind::Correction
+        | ExperimentKind::Version
+        | ExperimentKind::Selection
+        | ExperimentKind::Exposure => Ok(()),
     }
 }
 

@@ -78,6 +78,7 @@ fn an_evaluation_profile_loads_with_defaults() {
                 min_sealed_qualified: 100,
                 min_success_permille: 500,
             },
+            policy: None,
         })
     );
 }

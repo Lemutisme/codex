@@ -21,6 +21,7 @@ const INTAKE: &str =
 
 fn input() -> DraftInput<'static> {
     DraftInput {
+        instructions: super::DEFAULT_INSTRUCTIONS,
         intake_text: INTAKE,
         base_view: "README.md (407 bytes)",
         reference_observations: Some("usage: tool [OPTIONS] [FILE]"),

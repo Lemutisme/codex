@@ -55,6 +55,7 @@ use crate::materialize;
 use crate::workers::PROMPT_EVIDENCE_CAP;
 use crate::workers::cases;
 use crate::workers::drafter;
+use crate::workers::policies::Policies;
 use crate::workers::prober;
 use crate::workers::reviewer;
 use crate::workers::runtime::WorkerTurn;
@@ -149,6 +150,8 @@ pub(crate) struct ThreadRuntime {
     settings: Settings,
     profile: EvaluationProfile,
     capture_policy: CapturePolicy,
+    /// The worker instructions of the running version's policy bundle.
+    policies: Policies,
     dir: PathBuf,
     ledger: Ledger,
     store: BlobStore,
@@ -176,6 +179,7 @@ impl ThreadRuntime {
         thread_id: ThreadId,
         settings: Settings,
         profile: EvaluationProfile,
+        policies: Policies,
         stores: Stores,
         ports: Arc<dyn Ports>,
     ) -> Self {
@@ -186,6 +190,7 @@ impl ThreadRuntime {
             settings,
             profile,
             capture_policy,
+            policies,
             dir,
             ledger,
             store,
@@ -331,7 +336,11 @@ impl ThreadRuntime {
     }
 
     fn identities(&self, check_pipeline: Option<Digest>) -> Identities {
-        identity::identities(&self.ports.worker_identity(), check_pipeline)
+        identity::identities(
+            &self.ports.worker_identity(),
+            &self.policies,
+            check_pipeline,
+        )
     }
 
     /// Appends an immutable research event stamped with the current producer identities.
@@ -367,6 +376,7 @@ impl ThreadRuntime {
         };
         let base_view = workspace_view(&base, &self.store, BASE_VIEW);
         let input = drafter::DraftInput {
+            instructions: &self.policies.drafter,
             intake_text: &text,
             base_view: &base_view,
             reference_observations: reference_help.as_deref(),
@@ -476,6 +486,7 @@ impl ThreadRuntime {
         };
         let base_view = workspace_view(base, &self.store, prober::BASE_VIEW);
         let input = prober::ProbeInput {
+            instructions: &self.policies.prober,
             intake_text: text,
             base_view: &base_view,
             reference_help: reference_help.unwrap_or_default(),
@@ -798,6 +809,7 @@ impl ThreadRuntime {
                 let summary = decision::review_summary(receipts, &policy);
                 let view = workspace_view(&subject, &self.store, reviewer::CANDIDATE_VIEW);
                 let input = reviewer::ReviewInput {
+                    instructions: &self.policies.reviewer,
                     terms: &terms,
                     check_summary: &crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
                     candidate_view: &view,
@@ -873,7 +885,7 @@ impl ThreadRuntime {
             "evaluator",
             &(
                 receipts.evaluator_digest,
-                reviewer::policy_digest(),
+                reviewer::policy_digest(&self.policies.reviewer),
                 &worker.model,
                 &worker.effort,
             ),
