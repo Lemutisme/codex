@@ -22,6 +22,10 @@ use crate::workers::reviewer::ReviewVerdict;
 
 /// Cap on the brief and on a residual, about 512 tokens.
 pub(crate) const EXECUTOR_TEXT_CAP: usize = 2000;
+/// Bytes of one public failure's detail in a residual.
+const FAILURE_DETAIL_CAP: usize = 600;
+/// Room kept in a residual for the line that counts omitted failures.
+const OMITTED_LINE_RESERVE: usize = 60;
 /// Failing sealed families named in a residual.
 const RESIDUAL_FAMILIES: usize = 12;
 
@@ -195,8 +199,8 @@ fn below_threshold(tally: &SealedTally, policy: &EvidencePolicy) -> bool {
         < u64::from(policy.sealed_threshold_permille) * u64::from(tally.qualified)
 }
 
-/// The residual of a mechanical defeat: public failures in full, sealed failures only in
-/// aggregate.
+/// The residual of a mechanical defeat: the sealed line first (it alone measures breadth), then
+/// public failures in full while they fit, sealed failures only in aggregate.
 fn residual(
     failures: &[&StepReceipt],
     sealed: Option<&SealedTally>,
@@ -205,40 +209,6 @@ fn residual(
     let mut residual = String::from(
         "Independent verification of your handoff did not pass. Fix these unmet requirements, then end your turn:\n",
     );
-    for failure in failures {
-        let invocation = failure
-            .step
-            .strip_prefix(&format!("{PUBLIC}:"))
-            .and_then(|id| policy.differential.iter().find(|case| case.id == id))
-            .map(|case| {
-                let stdin = case
-                    .stdin
-                    .as_deref()
-                    .map(|stdin| format!(" with stdin {:?}", bounded(stdin, 200)))
-                    .unwrap_or_default();
-                let fixtures: Vec<&str> = case
-                    .files
-                    .iter()
-                    .map(|file| file.path.as_str())
-                    .chain(case.dirs.iter().map(String::as_str))
-                    .collect();
-                let fixtures = if fixtures.is_empty() {
-                    String::new()
-                } else {
-                    format!(" over fixtures {}", fixtures.join(", "))
-                };
-                format!(
-                    " (program arguments {:?}{stdin}{fixtures}, run in a copy of the workspace; behavior must match the reference)",
-                    case.args
-                )
-            })
-            .unwrap_or_default();
-        residual.push_str(&format!(
-            "- {} failed{invocation}:\n{}\n",
-            failure.step,
-            bounded_head_tail(failure.detail.trim_end(), 600)
-        ));
-    }
     if let Some(tally) = sealed {
         let families: Vec<&str> = tally
             .failing_families
@@ -253,7 +223,66 @@ fn residual(
             families.join(", ")
         ));
     }
+    let mut shown = 0;
+    for failure in failures {
+        let entry = failure_entry(failure, policy, FAILURE_DETAIL_CAP);
+        if residual.len() + entry.len() + OMITTED_LINE_RESERVE > EXECUTOR_TEXT_CAP {
+            if shown == 0 {
+                // Never leave the executor without a single public failure: shrink the first.
+                let room = EXECUTOR_TEXT_CAP.saturating_sub(residual.len() + OMITTED_LINE_RESERVE);
+                let overhead = entry.len().saturating_sub(FAILURE_DETAIL_CAP);
+                let shrunk = failure_entry(failure, policy, room.saturating_sub(overhead).max(80));
+                residual.push_str(&shrunk);
+                shown = 1;
+            }
+            break;
+        }
+        residual.push_str(&entry);
+        shown += 1;
+    }
+    if shown < failures.len() {
+        residual.push_str(&format!(
+            "[... {} more failed checks omitted ...]\n",
+            failures.len() - shown
+        ));
+    }
     bounded(&residual, EXECUTOR_TEXT_CAP)
+}
+
+/// One public failure of a residual, its detail kept at head and tail within `detail_cap`.
+fn failure_entry(failure: &StepReceipt, policy: &EvidencePolicy, detail_cap: usize) -> String {
+    let invocation = failure
+        .step
+        .strip_prefix(&format!("{PUBLIC}:"))
+        .and_then(|id| policy.differential.iter().find(|case| case.id == id))
+        .map(|case| {
+            let stdin = case
+                .stdin
+                .as_deref()
+                .map(|stdin| format!(" with stdin {:?}", bounded(stdin, 200)))
+                .unwrap_or_default();
+            let fixtures: Vec<&str> = case
+                .files
+                .iter()
+                .map(|file| file.path.as_str())
+                .chain(case.dirs.iter().map(String::as_str))
+                .collect();
+            let fixtures = if fixtures.is_empty() {
+                String::new()
+            } else {
+                format!(" over fixtures {}", fixtures.join(", "))
+            };
+            format!(
+                " (program arguments {:?}{stdin}{fixtures}, run in a copy of the workspace; behavior must match the reference)",
+                case.args
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "- {} failed{invocation}:\n{}\n",
+        failure.step,
+        bounded_head_tail(failure.detail.trim_end(), detail_cap)
+    )
 }
 
 /// Decides from the review once the mechanical checks pass.

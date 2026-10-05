@@ -52,7 +52,6 @@ use crate::Terms;
 use crate::capture;
 use crate::digest_of;
 use crate::materialize;
-use crate::workers::PROMPT_EVIDENCE_CAP;
 use crate::workers::cases;
 use crate::workers::drafter;
 use crate::workers::policies::Policies;
@@ -142,6 +141,8 @@ struct State {
     last_idle: Option<ThreadIdleCause>,
     proposed_turns: HashSet<String>,
     repairs_used: u32,
+    /// The note of the repair turn in flight; compaction drops the copy in history.
+    repair_note: Option<String>,
 }
 
 /// Everything the automation lane needs for one thread.
@@ -466,7 +467,7 @@ impl ThreadRuntime {
             .await
         {
             Ok(observations) => {
-                cases::render_observations(&help, &observations, PROMPT_EVIDENCE_CAP / 6)
+                cases::render_observations(&help, &observations, prober::REFERENCE_HELP_CAP)
             }
             Err(error) => format!("reference probe failed: {error}"),
         }
@@ -641,6 +642,15 @@ impl ThreadRuntime {
         })
     }
 
+    /// The repair note the executor has not yet answered with a handoff.
+    pub(crate) async fn outstanding_repair(&self) -> Option<String> {
+        let state = self.state.lock().await;
+        state
+            .repair_note
+            .clone()
+            .filter(|_| state.phase == Phase::Working)
+    }
+
     /// A new turn supersedes whatever the previous one froze.
     pub(crate) async fn turn_started(&self) {
         let mut state = self.state.lock().await;
@@ -705,6 +715,7 @@ impl ThreadRuntime {
                     };
                     state.proposed_turns.insert(values.turn_id.clone());
                     state.phase = Phase::Verifying;
+                    state.repair_note = None;
                     Some(values)
                 }
                 (None, _) => None,
@@ -987,6 +998,7 @@ impl ThreadRuntime {
             let mut state = self.state.lock().await;
             state.repairs_used += 1;
             state.phase = Phase::Working;
+            state.repair_note = Some(residual.clone());
         }
         match self.ports.submit_repair(residual.clone(), turn_id).await {
             Ok(()) => {

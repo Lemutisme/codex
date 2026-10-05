@@ -507,3 +507,34 @@ fn a_failure_log_keeps_its_head_and_its_tail() -> std::io::Result<()> {
     assert!(stdout.contains("bytes omitted"), "{stdout}");
     Ok(())
 }
+
+#[test]
+fn an_observed_stream_keeps_its_head_and_its_tail_up_to_the_larger_bound() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let help = dir.path().join("out");
+    let observe = |text: String| -> std::io::Result<String> {
+        std::fs::write(&help, text)?;
+        let output = std::process::Command::new("bash")
+            .arg("-c")
+            .arg(format!(
+                "OBSERVATION_CAP={}\n{}\n{}\nobs '@@OUT help ' {}",
+                super::OBSERVATION_STREAM_CAP,
+                super::PRELUDE,
+                super::CASE_RUNNER,
+                help.display()
+            ))
+            .output()?;
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    };
+
+    // 10 KB used to lose its second half at 2000 bytes; now it is whole.
+    let whole = observe(format!("FIRST\n{}LAST\n", "option line\n".repeat(800)))?;
+    assert!(whole.contains("@@OUT help LAST"), "{whole}");
+    assert!(!whole.contains("bytes omitted"), "{whole}");
+
+    let cut = observe(format!("FIRST\n{}LAST\n", "option line\n".repeat(5000)))?;
+    assert!(cut.contains("@@OUT help FIRST"), "{cut}");
+    assert!(cut.contains("@@OUT help LAST"), "{cut}");
+    assert!(cut.contains("bytes omitted"), "{cut}");
+    Ok(())
+}

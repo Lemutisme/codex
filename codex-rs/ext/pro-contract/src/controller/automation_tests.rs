@@ -410,8 +410,15 @@ async fn defeat_repairs_once_then_rests_did_not_pass() {
     let repairing = lane.wait_for("repairing").await;
     assert!(!repairing.resting);
     assert_eq!(repairing.repairs_used, 1);
+    // Until the executor hands off again, compaction may need the note stated anew.
+    let outstanding = lane.runtime.outstanding_repair().await;
+    assert_eq!(
+        outstanding.as_deref(),
+        Some(lane.ports.repairs.lock().unwrap()[0].0.as_str())
+    );
     lane.executor_turn("turn-2", "still not").await;
     let status = lane.wait_for("did_not_pass").await;
+    assert_eq!(lane.runtime.outstanding_repair().await, None);
 
     assert!(status.resting);
     let repairs = lane.ports.repairs.lock().unwrap().clone();

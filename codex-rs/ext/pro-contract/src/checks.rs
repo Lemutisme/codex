@@ -25,8 +25,9 @@ const CASE_TIMEOUT_SECS: u64 = 10;
 const HANG_BREAKER: u32 = 5;
 /// Bytes of log kept per step.
 const STEP_DETAIL_CAP: usize = 4000;
-/// Bytes of each stream kept per observation.
-const OBSERVATION_STREAM_CAP: usize = 2000;
+/// Bytes of each stream kept per observation, head and tail, so a long `--help` keeps its option
+/// list and its closing sections. Observations feed the prober only; comparisons use their own diff.
+const OBSERVATION_STREAM_CAP: usize = 16384;
 /// Where the pipeline copies the candidate before building it.
 const WORK_DIR: &str = "/tmp/pc-work";
 /// Where the base workspace is mounted, read-only.
@@ -201,13 +202,14 @@ run_case() {
   run_side \"$input\" \"$REFERENCE\" \"$d/r2\" \"$@\"
   judge \"$step_name\" \"$d\"
 }
+obs() { size=$(wc -c < \"$2\"); if [ \"$size\" -le \"$OBSERVATION_CAP\" ]; then cat \"$2\"; else head -c \"$((OBSERVATION_CAP / 2))\" \"$2\"; printf '\\n[... %s bytes omitted ...]\\n' \"$((size - OBSERVATION_CAP))\"; tail -c \"$((OBSERVATION_CAP / 2))\" \"$2\"; fi | awk -v prefix=\"$1\" '{ print prefix $0 }'; }
 observe_case() {
   id=$1; input=$2; d=$3; shift 3
   run_side \"$input\" \"$REFERENCE\" \"$d/r1\" \"$@\"
   run_side \"$input\" \"$REFERENCE\" \"$d/r2\" \"$@\"
   agree=stable; for ch in rc out err files; do cmp -s \"$d/r1/$ch\" \"$d/r2/$ch\" || agree=unstable; done
-  head -c \"$OBSERVATION_CAP\" \"$d/r1/out\" | awk -v prefix=\"@@OUT $id \" '{ print prefix $0 }'
-  head -c \"$OBSERVATION_CAP\" \"$d/r1/err\" | awk -v prefix=\"@@ERR $id \" '{ print prefix $0 }'
+  obs \"@@OUT $id \" \"$d/r1/out\"
+  obs \"@@ERR $id \" \"$d/r1/err\"
   printf '@@OBS %s %s %s\\n' \"$id\" \"$(cat \"$d/r1/rc\")\" \"$agree\"
 }
 ";

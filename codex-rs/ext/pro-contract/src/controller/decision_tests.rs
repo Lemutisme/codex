@@ -166,6 +166,42 @@ fn a_failed_public_case_defeats_with_its_invocation_and_diff() {
 }
 
 #[test]
+fn long_public_failures_do_not_push_out_the_sealed_line() {
+    let long = format!("{}\nlast line", "x".repeat(900));
+    let mut steps = vec![step("build", StepOutcome::Pass, "")];
+    steps.extend((0..6).map(|_| step("public:D1", StepOutcome::Fail, &long)));
+    steps.extend(
+        [
+            StepOutcome::Pass,
+            StepOutcome::Fail,
+            StepOutcome::Fail,
+            StepOutcome::Pass,
+        ]
+        .iter()
+        .enumerate()
+        .map(|(index, outcome)| step(&format!("sealed:S{index}"), *outcome, "")),
+    );
+    let Verdict::Defeat { residual } = decide(&receipts(steps, true), Some(&support()), &policy())
+    else {
+        panic!("expected a defeat");
+    };
+    let sealed_line = "- 2 of 4 independent sealed checks did not match the reference, in these behavior families: errors, sizes. Their invocations are not disclosed; re-check the documented behavior in these areas.\n";
+    let header_end = residual.find('\n').unwrap() + 1;
+    assert!(
+        residual[header_end..].starts_with(sealed_line),
+        "{residual}"
+    );
+    assert!(residual.contains("--delimiter"), "{residual}");
+    assert!(
+        residual.contains("more failed checks omitted"),
+        "{residual}"
+    );
+    assert!(!residual.contains("bytes omitted ...]\n[..."), "{residual}");
+    assert!(residual.len() <= EXECUTOR_TEXT_CAP, "{}", residual.len());
+    assert!(!residual.contains(SEALED_SECRET), "{residual}");
+}
+
+#[test]
 fn a_failed_build_defeats_without_a_sealed_line_even_if_the_review_would_support() {
     let mut steps = vec![step("build", StepOutcome::Fail, "error: no compile.sh")];
     steps.push(StepReceipt::new("public:D1", StepOutcome::Fail, ""));
