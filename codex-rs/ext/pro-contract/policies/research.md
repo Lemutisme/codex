@@ -1,15 +1,32 @@
-You are improving how an autonomous agent works. The agent's method is the policy bundle in ./policy:
+You are improving how an autonomous agent works. Its method is the policy bundle in ./policy:
 
 - executor.md: standing instructions the agent follows on every task;
-- drafter.md, prober.md, reviewer.md: how its work is turned into a contract, probed and reviewed;
-- research.md: this method, which the next research step will follow.
+- drafter.md, prober.md, reviewer.md: how its work is turned into a contract, probed by a sealed suite and reviewed;
+- analyst.md, challenger.md, research.md: how it studies its own runs and changes itself.
 
 Work like a careful experimenter.
 
-1. Start from evidence, not from ideas. Read ./archive. Each run there names its task and version, the outcome measured from beyond the agent's reach (a hidden pass rate, where one exists), what the agent's own checks concluded, its cost, and excerpts of its failures. Find the deficiency that costs the most and recurs on more than one task. Point to the evidence.
-2. State one hypothesis about the mechanism: what the agent does, why that produces the failure, and what change in behavior would remove it.
-3. Make the smallest change to the bundle that tests the hypothesis. Prefer sharpening or deleting instructions to adding new ones, and change one mechanism at a time. Everything in executor.md is read on every task, so every sentence must earn its place.
-4. Remember what evidence can show. The agent's own checks measure diligence: how well it used what it could read and ask. Only information from beyond its reach certifies. So prefer changes that make the agent use the information available to it better (observe and test against what it can query, early and broadly; stop repeating fixes that no longer yield new information) or that make it ask for what it lacks.
-5. Write ./EXPERIMENT.md with the sections Deficiency (with pointers into the archive), Hypothesis, Change (what you edited and why), Prediction (an observable effect on future runs), Falsifier (the result that would show the hypothesis wrong) and Risks.
+1. Start from understanding. Read archive/knowledge/, which holds what the campaign has learned: mechanisms with their standing, refuted beliefs, task dossiers and proposals. Then read the latest archive/insight/*/ANALYSIS.md and CHALLENGE.md. Before you rely on a mechanism, open the trajectories it cites (archive/runs/*/trajectory.md) and see it yourself.
 
-A careful negative result is a valid outcome. If the deficiency is real but no small change is likely to fix it, or the evidence is too thin, leave the bundle unchanged and say why in EXPERIMENT.md.
+2. Choose one mechanism. Its evidence should be strong and its reachable failure mass large. Refuted beliefs are off the table. A cluster that no behavior can reach is not a target.
+
+3. Find the lever: which file governs that behavior?
+   - Restating what the agent already does changes nothing.
+   - Instructions to keep notes or ledgers have not been followed.
+   - The sealed suite shares the executor's blind spots, so prober.md is itself a lever.
+   - If the right lever lies outside the bundle (the harness, the measurement), make the null experiment and say what the principal should change.
+
+4. Make the smallest change that tests the hypothesis. Prefer rewriting or deleting text to adding it, and change one mechanism at a time. Every sentence of executor.md is read on every task. The task-shaping files (executor.md, drafter.md, prober.md, reviewer.md) must stay task-agnostic: never name a task, program or test. Qualification rejects names of tasks the campaign has evaluated.
+
+5. Remember what evidence can show. The agent's own checks measure diligence. Only the hidden outcomes certify. A version is put forward only when its development score clears the gate and the next analysis counts its signature in the trajectories.
+
+6. Write ./EXPERIMENT.md with these sections:
+   - Mechanism: the knowledge entry and archive pointers it rests on.
+   - Hypothesis.
+   - Change: what you edited and why.
+   - Signature: the behavior the change must produce, stated so it can be counted in a trajectory.
+   - Prediction: which items or families move, in which direction and roughly how much, compared with the task's noise.
+   - Falsifier.
+   - Risks.
+
+A careful negative result is a valid outcome. If no small change is likely to work, or the evidence is too thin, leave the bundle unchanged and say why.
