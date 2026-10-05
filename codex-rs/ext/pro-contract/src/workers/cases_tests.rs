@@ -108,7 +108,7 @@ fn fixtures_are_bounded_after_repetition() {
 #[test]
 fn environment_variables_are_named_plainly_and_hold_one_line() {
     for env in [
-        json!([{"name": "lower", "value": "1"}]),
+        json!([{"name": "has-dash", "value": "1"}]),
         json!([{"name": "9START", "value": "1"}]),
         json!([{"name": "OK", "value": "two\nlines"}]),
     ] {
@@ -124,6 +124,16 @@ fn environment_variables_are_named_plainly_and_hold_one_line() {
         "env": [{"name": "A", "value": "1"}, {"name": "A", "value": "2"}],
     }]));
     assert!(message.contains("sets A twice"), "{message}");
+}
+
+#[test]
+fn lowercase_environment_variables_are_allowed() {
+    let cases = validate_cases(
+        raw(json!([{"id": "proxy", "args": [], "env": [{"name": "http_proxy", "value": "http://127.0.0.1:9"}]}])),
+        10,
+    )
+    .expect("valid");
+    assert_eq!(cases[0].env["http_proxy"], "http://127.0.0.1:9");
 }
 
 #[test]

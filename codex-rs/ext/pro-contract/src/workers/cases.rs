@@ -87,12 +87,13 @@ fn is_plain_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
 }
 
+/// A portable environment variable name; lowercase names such as `http_proxy` are common.
 fn is_env_name(name: &str) -> bool {
     let mut chars = name.chars();
     chars
         .next()
-        .is_some_and(|first| first.is_ascii_uppercase() || first == '_')
-        && chars.all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// Validates at most `max` raw cases into differential cases.
