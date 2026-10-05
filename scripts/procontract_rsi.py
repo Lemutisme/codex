@@ -2,8 +2,8 @@
 """ProContract succession: the institution's side of recursive self-improvement.
 
 A version is a policy bundle (executor.md, research.md, analyst.md, challenger.md, drafter.md,
-prober.md, reviewer.md) run by one codex binary. Improving the method is an ordinary task whose product may succeed the version
-that does the work (reach spec §5). This host stays outside every version's write authority: it
+prober.md, reviewer.md) run by one codex binary. Improving the method is an ordinary task whose
+product may succeed the version that does the work (reach spec §5). This host stays outside every version's write authority: it
 runs from its own checkout, holds the campaign ledger, chooses research parents, runs and measures
 versions, and keeps every claim in the kernel through the store CLI.
 
@@ -529,9 +529,13 @@ class Host:
         return seed if seed.is_dir() else None
 
     def pending_experiment(self) -> str | None:
-        """The newest candidate measured on every development task that no analysis has yet been
-        asked to settle: the experiment the next analysis must judge."""
-        asked = {body["experiment"] for body in self.insights()}
+        """The newest candidate measured on every development task that no qualified analysis has
+        yet settled: the experiment the next analysis must judge."""
+        asked = {
+            body["experiment"]
+            for body in self.insights()
+            if body["status"] == "qualified"
+        }
         pending = None
         for event in self.events("selection"):
             body = event["body"]
@@ -667,9 +671,13 @@ class Host:
     ) -> Path:
         """Runs a codex agent on the research image in root/workspace, no network and no
         reference, with the parent's bundle file `instructions` as its standing instructions;
-        returns the workspace it leaves. A finished run (run.json) is never run again."""
+        returns the workspace it leaves. A finished run (run.json) is never run again, and neither
+        is one that ended without it: that attempt is spent and marked, so a resumed host judges
+        what it left instead of paying for the attempt twice. A failed prepare starts no agent, so
+        it stops the host, which resumes there."""
         run_dir = root / "run"
-        if not (run_dir / "run.json").exists():
+        ended = root / "ended-without-run-json"
+        if not (run_dir / "run.json").exists() and not ended.exists():
             shutil.rmtree(run_dir, ignore_errors=True)
             common = [
                 "--arm",
@@ -701,17 +709,25 @@ class Host:
             subprocess.run([*self.runner, "prepare", *prepare], check=True)
             run = common + ["--deadline-secs", str(deadline)]
             subprocess.run([*self.runner, "run", *run], check=False)
+            if not (run_dir / "run.json").exists():
+                ended.write_text("the run ended without run.json\n")
         return run_dir / "workspace"
 
     def analyze(self, parent: str) -> int:
         """The analysis that covers every valid run stored now: the latest when the set of runs has
-        not grown since, otherwise a new one. An analyst explains the outcomes and settles the
-        pending experiment; a challenger tries to defeat that; only a challenged delivery that
-        qualifies becomes the campaign's, else the failure is recorded, the knowledge stays and the
-        verdict is unknown. Each stage may retry once; finished runs are never run again."""
+        not grown since and it qualified, otherwise a new one (a failed analysis is tried again on
+        the next call, with the same experiment pending). An analyst explains the outcomes and
+        settles the pending experiment; a challenger tries to defeat that; only a challenged
+        delivery that qualifies becomes the campaign's, else the failure is recorded, the knowledge
+        stays and the verdict is unknown. Each stage may retry once; finished runs are never run
+        again."""
         coverage = sorted(self.observed())
         done = self.insights()
-        if done and done[-1]["coverage"] == coverage:
+        if (
+            done
+            and done[-1]["coverage"] == coverage
+            and done[-1]["status"] == "qualified"
+        ):
             return done[-1]["k"]
         k = len(done) + 1
         root = self.camp / "insight" / str(k)
@@ -929,7 +945,10 @@ class Host:
                 for token in self.adapter.task_tokens(task)
             }
         )
-        for name in (name for name in changed if name in TASK_FILES):
+        # A deleted file names nothing.
+        for name in (
+            name for name in changed if name in TASK_FILES and (policy / name).exists()
+        ):
             text = (policy / name).read_text()
             for token in tokens:
                 if re.search(rf"(?<!\w){re.escape(token)}(?!\w)", text, re.IGNORECASE):
@@ -1034,7 +1053,8 @@ class Host:
         incumbent = self.incumbent()
         delta = paired_delta(self.dev(candidate), self.dev(incumbent))
         # The measured runs settle the experiment: was the signature present, whatever the score.
-        verdict = self.insight(self.analyze(parent))["verdict"] or "unknown"
+        self.analyze(parent)
+        verdict = self.settled_verdict(candidate)
         gates = self.terms["gates"]
         if (
             delta < gates["dev_min_delta"]
@@ -1054,6 +1074,14 @@ class Host:
             f"(development delta {delta:+.3f}; verdict: signature {verdict}); "
             + self.confirm(candidate, incumbent)
         )
+
+    def settled_verdict(self, candidate: str) -> str:
+        """What the challenged analysis of this very candidate says of its signature, else unknown.
+        The latest analysis may be about another experiment, or may have failed."""
+        for body in self.insights():
+            if body["status"] == "qualified" and body["experiment"] == candidate:
+                return body["verdict"]
+        return "unknown"
 
     def campaign_hash(self) -> str:
         return store.digest("campaign", self.terms)
@@ -1265,12 +1293,17 @@ class ProgramBench:
         }
 
     def task_tokens(self, task: str) -> set[str]:
-        """The lowercase words that identify a task named owner__repo.commit: its owner and its
-        repository, never the commit, and none shorter than three characters (too common to
-        mean the task)."""
+        """The lowercase words that identify a task named owner__repo.commit, never the commit: its
+        owner, its repository when that is distinctive (at least six characters or not plain
+        letters and digits; a name like run, walk or dust is an ordinary word of policy text, which
+        the owner and the full name still cover), and the full owner__repo. None is shorter than
+        three characters."""
         owner, _, rest = task.partition("__")
         repo = rest.rsplit(".", 1)[0]
-        return {token for token in (owner.lower(), repo.lower()) if len(token) >= 3}
+        tokens = {owner, f"{owner}__{repo}"}
+        if len(repo) >= 6 or not repo.isalnum():
+            tokens.add(repo)
+        return {token.lower() for token in tokens if len(token) >= 3}
 
     def oracle_patterns(self) -> list[str]:
         """The reference program invoked, not merely mentioned: `executable` in command position,
@@ -1347,18 +1380,26 @@ def failure_excerpt(eval_dir: Path, limit: int = 40) -> str:
 
 
 def knowledge_problem(root: Path) -> str:
-    """Why a knowledge directory is not acceptable, or an empty string: UTF-8 text files only, no
-    links, at most 512 KiB in total, so that it is distilled rather than dumped. A missing
-    directory is empty knowledge."""
+    """Why a knowledge directory is not acceptable, or an empty string: a real directory (a deleted
+    or linked one would wipe the campaign's knowledge or pull in host paths), UTF-8 text files
+    only, no links or special files, at most 512 KiB in total, so that it is distilled rather
+    than dumped."""
+    if root.is_symlink():
+        return "knowledge/ is a link"
+    if not root.is_dir():
+        return "knowledge/ is missing"
     total = 0
-    for path in sorted(root.rglob("*")) if root.is_dir() else []:
+    for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
         if path.is_symlink():
             return f"knowledge/{rel} is a link"
-        if path.is_file():
-            if not trajectory.utf8_text(path, KNOWLEDGE_CAP)[0]:
-                return f"knowledge/{rel} is not UTF-8 text"
-            total += path.stat().st_size
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            return f"knowledge/{rel} is not a regular file"
+        if not trajectory.utf8_text(path, KNOWLEDGE_CAP)[0]:
+            return f"knowledge/{rel} is not UTF-8 text"
+        total += path.stat().st_size
     if total > KNOWLEDGE_CAP:
         return f"knowledge holds {total} bytes, over 512 KiB"
     return ""
@@ -1366,6 +1407,8 @@ def knowledge_problem(root: Path) -> str:
 
 def verdict_problem(path: Path, pending: str) -> str:
     """Why verdict.json does not settle the pending experiment, or an empty string."""
+    if path.is_symlink():
+        return "verdict.json is a link"
     try:
         verdict = json.loads(path.read_text())
     except (OSError, ValueError):
@@ -1394,7 +1437,8 @@ def delivery_problem(workspace: Path, document: str, pending: str | None) -> str
 
 
 def copy_knowledge(source: Path | None, dest: Path) -> None:
-    """A copy of a knowledge directory; an empty directory when there is none."""
+    """A copy of a knowledge directory; an empty directory when there is none (a campaign with
+    neither seed nor analysis yet)."""
     if source is not None and source.is_dir():
         shutil.copytree(source, dest)
     else:

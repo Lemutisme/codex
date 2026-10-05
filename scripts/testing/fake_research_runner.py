@@ -3,12 +3,12 @@
 
 research.md: edits the bundle as FAKE_RESEARCH_MODE says: `better` adds a line the fake adapter
 rewards, `worse` one it punishes, `method` changes only research.md, `leak` writes a development
-task's name into executor.md, `null` changes nothing, `incomplete` delivers an experiment without
-its sections, `crash` fails to prepare.
+task's name into executor.md, `delete` deletes prober.md, `null` changes nothing, `incomplete`
+delivers an experiment without its sections, `crash` fails to prepare.
 
 analyst.md: writes ANALYSIS.md, appends a line to knowledge/mechanisms.md and, when the archive
 README names a pending experiment, a verdict.json whose signature is FAKE_SIGNATURE (default
-`present`). FAKE_ANALYSIS=fail delivers nothing.
+`present`). FAKE_ANALYSIS=fail delivers nothing; FAKE_ANALYSIS=silent ends the run without run.json.
 
 challenger.md: writes CHALLENGE.md. FAKE_CHALLENGE=fail delivers nothing; FAKE_CHALLENGE=crash fails
 to prepare.
@@ -41,6 +41,8 @@ def research(workspace: Path, mode: str) -> None:
         executor.write_text(executor.read_text() + f"{mode}\n")
     if mode == "leak":
         executor.write_text(executor.read_text() + f"Behave as {LEAK} does.\n")
+    if mode == "delete":
+        (workspace / "policy" / "prober.md").unlink()
     if mode == "method":
         text = workspace / "policy" / "research.md"
         text.write_text(text.read_text() + "Count distinct tasks.\n")
@@ -107,6 +109,8 @@ def main() -> int:
     if instructions == "research.md":
         research(workspace, mode)
     elif instructions == "analyst.md":
+        if os.environ.get("FAKE_ANALYSIS") == "silent":
+            return 1
         analyst(workspace)
     else:
         challenger(workspace)

@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -541,6 +542,66 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual(h.contract("improvement.1")["standing"], "released")
             self.assertEqual(len(h.versions()), 1)
 
+    def test_a_candidate_that_deletes_a_task_shaping_file_is_judged_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_RESEARCH_MODE"] = "delete"
+            h = host(campaign(tmp), FakeTasks())
+
+            outcome = h.step()
+
+            self.assertIn("candidate", outcome)
+            self.assertEqual(len(h.versions()), 2)
+            self.assertEqual(h.contract("improvement.1")["standing"], "discharged")
+
+    def test_a_failed_analysis_is_tried_again_for_the_same_experiment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+            h.analyze(v0)
+            os.environ["FAKE_CHALLENGE"] = "fail"
+            h.step()
+            [v1] = [vid for vid in h.versions() if vid != v0]
+            self.assertEqual(h.insight(2)["status"], "failed")
+            self.assertEqual(h.settled_verdict(v1), "unknown")
+            del os.environ["FAKE_CHALLENGE"]
+
+            k = h.analyze(v0)
+
+            self.assertEqual(k, 3, "no new runs, yet the failed analysis is not final")
+            self.assertEqual(h.insight(3)["experiment"], v1)
+            self.assertEqual(h.settled_verdict(v1), "present")
+            self.assertEqual(h.analyze(v0), 3, "a qualified analysis is final")
+
+    def test_only_the_analysis_of_this_candidate_gives_its_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.step()
+            [v1] = [vid for vid in h.versions() if vid != v0]
+
+            # The confirmation runs brought a later analysis, about no experiment; it is not v1's.
+            self.assertIsNone(h.insight(h.analyze(v0))["experiment"])
+            self.assertEqual(h.settled_verdict(v1), "present")
+            self.assertEqual(h.settled_verdict(v0), "unknown")
+            self.assertEqual(h.settled_verdict("other"), "unknown")
+
+    def test_a_run_that_ends_without_run_json_is_one_spent_attempt_across_resumes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp, "log")
+            os.environ["FAKE_LOG"] = str(log)
+            os.environ["FAKE_ANALYSIS"] = "silent"
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+
+            h.analyze(v0)
+
+            self.assertEqual(log.read_text().split(), ["analyst.md"] * 2)
+            first = h.camp / "insight" / "1" / "analyst-1"
+            h.run_agent(first, "analyst-1-1", v0, "analyst.md", 1)
+            self.assertEqual(log.read_text().split(), ["analyst.md"] * 2)
+
     def test_a_spent_confirmation_run_enters_a_later_view_and_an_unspent_task_never_does(
         self,
     ):
@@ -729,10 +790,68 @@ class ProgramBenchTest(unittest.TestCase):
 
     def test_task_tokens_are_the_owner_and_the_repository_but_not_the_commit(self):
         tokens = rsi.ProgramBench({}).task_tokens
-        self.assertEqual(tokens("Yoav-Lavi__Melody.f4af9b4"), {"yoav-lavi", "melody"})
-        self.assertEqual(tokens("pls-rs__pls.4e1ae50"), {"pls-rs", "pls"})
-        self.assertEqual(tokens("ab__cd.0123456"), set(), "too short to mean the task")
-        self.assertEqual(tokens("owner__re.po.0123456"), {"owner", "re.po"})
+        self.assertEqual(
+            tokens("Yoav-Lavi__Melody.f4af9b4"),
+            {"yoav-lavi", "melody", "yoav-lavi__melody"},
+        )
+        self.assertEqual(
+            tokens("owner__re.po.0123456"), {"owner", "re.po", "owner__re.po"}
+        )
+        self.assertEqual(
+            tokens("ab__cd.0123456"), {"ab__cd"}, "only the full name is long enough"
+        )
+
+    def test_a_repository_named_like_an_ordinary_word_is_not_a_token_by_itself(self):
+        tokens = rsi.ProgramBench({}).task_tokens
+        self.assertEqual(
+            tokens("antonmedv__walk.1234567"), {"antonmedv", "antonmedv__walk"}
+        )
+        self.assertEqual(
+            tokens("esubaalew__run.1234567"), {"esubaalew", "esubaalew__run"}
+        )
+        self.assertEqual(tokens("pls-rs__pls.4e1ae50"), {"pls-rs", "pls-rs__pls"})
+
+
+class KnowledgeTest(unittest.TestCase):
+    def test_knowledge_is_a_real_directory_of_regular_text_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp, "outside")
+            outside.mkdir()
+            (outside / "secret.md").write_text("host data\n")
+            ws = Path(tmp, "ws")
+            ws.mkdir()
+            self.assertEqual(
+                rsi.knowledge_problem(ws / "knowledge"), "knowledge/ is missing"
+            )
+            (ws / "knowledge").symlink_to(outside)
+            self.assertEqual(
+                rsi.knowledge_problem(ws / "knowledge"), "knowledge/ is a link"
+            )
+            (ws / "knowledge").unlink()
+            (ws / "knowledge").mkdir()
+            self.assertEqual(rsi.knowledge_problem(ws / "knowledge"), "")
+            os.mkfifo(ws / "knowledge" / "pipe")
+            self.assertIn("not a regular file", rsi.knowledge_problem(ws / "knowledge"))
+
+    def test_a_linked_verdict_or_document_does_not_qualify_a_delivery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ws = Path(tmp, "ws")
+            (ws / "knowledge").mkdir(parents=True)
+            (ws / "CHALLENGE.md").write_text("The challenge.\n")
+            real = Path(tmp, "real.json")
+            real.write_text(json.dumps({"experiment": "abc", "signature": "present"}))
+            (ws / "verdict.json").symlink_to(real)
+            self.assertEqual(
+                rsi.delivery_problem(ws, "CHALLENGE.md", "abc"),
+                "verdict.json is a link",
+            )
+            (ws / "verdict.json").unlink()
+            shutil.copy(real, ws / "verdict.json")
+            self.assertEqual(rsi.delivery_problem(ws, "CHALLENGE.md", "abc"), "")
+            shutil.rmtree(ws / "knowledge")
+            self.assertEqual(
+                rsi.delivery_problem(ws, "CHALLENGE.md", "abc"), "knowledge/ is missing"
+            )
 
 
 class ItemsTest(unittest.TestCase):
