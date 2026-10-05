@@ -481,12 +481,12 @@ class Host:
                 runs[path.parent.name] = result
         return runs
 
-    def observe(self, result: dict) -> Path:
-        """Normalizes one valid run into observations/<run>/ once: what happened (trajectory) beside
+    def observe(self, name: str, result: dict) -> Path:
+        """Normalizes one valid run into observations/<name>/ once: what happened (trajectory) beside
         what the hidden tests said (outcomes). Built aside and renamed, so a directory that exists
         is complete; a run without a rollout has a null trajectory block and no trajectory files."""
         run_dir = Path(result["run_dir"])
-        dest = self.camp / "observations" / run_dir.parent.name
+        dest = self.camp / "observations" / name
         if dest.exists():
             return dest
         partial = dest.with_name(dest.name + ".partial")
@@ -570,7 +570,7 @@ class Host:
                     self.camp / "insight" / str(settled[vid]) / "verdict.json", vdir
                 )
         for name, result in runs.items():
-            shutil.copytree(self.observe(result), archive / "runs" / name)
+            shutil.copytree(self.observe(name, result), archive / "runs" / name)
         self.write_outcomes(archive, runs)
         self.write_attribution(archive)
         for body in self.insights():

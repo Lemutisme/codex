@@ -738,7 +738,7 @@ class SuccessionTest(unittest.TestCase):
                 "status": None,
             }
 
-            dest = h.observe(result)
+            dest = h.observe("dev-x-task", result)
 
             self.assertEqual(dest, h.camp / "observations" / "dev-x-task")
             summary = json.loads((dest / "summary.json").read_text())
@@ -746,7 +746,7 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual(summary["pass_rate"], 0.5)
             self.assertEqual(json.loads((dest / "outcomes.json").read_text()), {})
             self.assertFalse((dest / "trajectory.md").exists())
-            self.assertEqual(h.observe(result), dest, "cached")
+            self.assertEqual(h.observe("dev-x-task", result), dest, "cached")
 
     def test_an_invalid_run_is_retried_once_and_never_scored_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
