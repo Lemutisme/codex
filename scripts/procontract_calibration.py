@@ -393,12 +393,17 @@ def control_rate(receipts: dict, outcome: str) -> tuple[int, int]:
     return sum(step["outcome"] == outcome for step in qualified), len(qualified)
 
 
-def load_replay(out: Path) -> tuple[list[dict], dict]:
-    rows, controls = [], {}
+def load_replay(out: Path) -> tuple[list[dict], dict, list[str]]:
+    """Rows and controls of every replayed task, and the tasks left out because their prober
+    froze no sealed cases (there is nothing to calibrate)."""
+    rows, controls, excluded = [], {}, []
     for task_dir in sorted((out / "replay").glob("*")):
         if not (task_dir / "subjects.json").exists():
             continue
         policy = json.loads((task_dir / "policy.json").read_text())
+        if not policy.get("sealed"):
+            excluded.append(task_dir.name)
+            continue
         for row in json.loads((task_dir / "subjects.json").read_text()):
             receipts_path = task_dir / "subjects" / f"{row['subject']}.json"
             if receipts_path.exists():
@@ -409,7 +414,7 @@ def load_replay(out: Path) -> tuple[list[dict], dict]:
             for name in ("negative", "positive")
             if (task_dir / f"{name}.json").exists()
         }
-    return rows, controls
+    return rows, controls, excluded
 
 
 def report(rows: list[dict], controls: dict, seed: int) -> dict:
@@ -479,8 +484,8 @@ def report(rows: list[dict], controls: dict, seed: int) -> dict:
 
 
 def cmd_report(args) -> None:
-    rows, controls = load_replay(args.out)
-    result = report(rows, controls, args.seed)
+    rows, controls, excluded = load_replay(args.out)
+    result = {**report(rows, controls, args.seed), "excluded_tasks_without_sealed_cases": excluded}
     args.report.with_suffix(".json").write_text(json.dumps(result, indent=2) + "\n")
     (args.out / "rows.json").write_text(
         json.dumps(
