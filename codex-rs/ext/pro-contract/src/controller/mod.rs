@@ -259,18 +259,24 @@ impl ContextContributor for ProContractExtension {
 /// The executor's brief, rendered once per contract revision and kept across compaction.
 fn brief_section(brief: runtime::BriefView) -> WorldStateSectionContribution {
     let snapshot = json!({ "contract": brief.contract_id, "revision": brief.revision });
-    let current = snapshot.clone();
     let runtime::BriefView {
         contract_id,
         revision,
         text,
     } = brief;
-    WorldStateSectionContribution::new(SECTION_ID, snapshot, move |previous| match previous {
-        PreviousWorldStateSection::Known(value) if *value == current => None,
-        PreviousWorldStateSection::Unknown => None,
-        PreviousWorldStateSection::Absent | PreviousWorldStateSection::Known(_) => Some(
-            RenderedWorldStateFragment::new("developer", (OPEN_MARKER, CLOSE_MARKER), text.clone()),
-        ),
+    WorldStateSectionContribution::new(SECTION_ID, move |previous| {
+        let fragment = match previous {
+            PreviousWorldStateSection::Known(value) if *value == snapshot => None,
+            PreviousWorldStateSection::Unknown => None,
+            PreviousWorldStateSection::Absent | PreviousWorldStateSection::Known(_) => {
+                Some(RenderedWorldStateFragment::new(
+                    "developer",
+                    (OPEN_MARKER, CLOSE_MARKER),
+                    text.clone(),
+                ))
+            }
+        };
+        (Some(snapshot.clone()), fragment)
     })
     .with_retained_fragment_matcher(move |role, text| {
         // History holds the body wrapped in the section's markers.

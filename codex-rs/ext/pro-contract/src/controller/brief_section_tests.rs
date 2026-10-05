@@ -19,9 +19,9 @@ fn the_brief_renders_once_per_contract_revision() {
     let same = json!({ "contract": "thread.1", "revision": 1 });
     let older = json!({ "contract": "thread.1", "revision": 0 });
 
-    let rendered = section
-        .render_diff(PreviousWorldStateSection::Absent)
-        .expect("first render");
+    let (snapshot, rendered) = section.render_diff(PreviousWorldStateSection::Absent);
+    let rendered = rendered.expect("first render");
+    assert_eq!(snapshot, Some(same.clone()));
     assert_eq!(
         (rendered.role(), rendered.markers(), rendered.body()),
         (
@@ -32,19 +32,22 @@ fn the_brief_renders_once_per_contract_revision() {
     );
     assert_eq!(
         section.render_diff(PreviousWorldStateSection::Known(&same)),
-        None
+        (Some(same.clone()), None)
     );
-    assert!(
-        section
-            .render_diff(PreviousWorldStateSection::Known(&older))
-            .is_some()
+    assert_eq!(
+        section.render_diff(PreviousWorldStateSection::Unknown),
+        (Some(same.clone()), None)
     );
+    let (snapshot, rendered) = section.render_diff(PreviousWorldStateSection::Known(&older));
+    assert_eq!(snapshot, Some(same));
+    assert!(rendered.is_some());
 }
 
 /// The text core records in history: the body wrapped in the section's markers.
 fn in_history(revision: u32) -> String {
     let rendered = brief_section(brief(revision))
         .render_diff(PreviousWorldStateSection::Absent)
+        .1
         .expect("render");
     let (open, close) = rendered.markers();
     format!("{open}{}{close}", rendered.body())

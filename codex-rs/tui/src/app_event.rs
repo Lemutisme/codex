@@ -276,9 +276,24 @@ pub(crate) struct AgentsOverviewThreadRefresh {
     pub(crate) discovery: Option<crate::app::agents_overview_discovery::AgentsOverviewDiscovery>,
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct AgentPickerThreadRefresh {
+    pub(crate) threads: Vec<Thread>,
+    pub(crate) archived_thread_ids: std::collections::HashSet<ThreadId>,
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, IntoStaticStr)]
 pub(crate) enum AppEvent {
+    AccountEmailLoaded {
+        request_id: uuid::Uuid,
+        email: Option<String>,
+    },
+    SecuritySetupLoaded {
+        request_id: uuid::Uuid,
+        identity: crate::security_setup::Identity,
+        notice: crate::security_setup::Notice,
+    },
     OpenDaemonMenu,
     ConfirmDaemonUpdate(crate::update_action::DaemonUpdateSource),
     RunDaemonUpdate(crate::update_action::DaemonUpdateSource),
@@ -373,7 +388,7 @@ pub(crate) enum AppEvent {
     AgentPickerThreadsLoaded {
         primary_thread_id: ThreadId,
         request_id: Uuid,
-        result: Result<Vec<Thread>, String>,
+        result: Result<AgentPickerThreadRefresh, String>,
     },
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),
@@ -458,6 +473,14 @@ pub(crate) enum AppEvent {
     ExportTranscript {
         destination: TranscriptExportDestination,
     },
+
+    /// Select a response or block directly in the owned transcript.
+    SelectTranscriptCopy {
+        guard: Arc<crate::copy_input_guard::CopyInputGuard>,
+    },
+
+    /// Retry queued input after the transcript copy owner is released.
+    TranscriptCopyClosed,
 
     /// Copy text through the session clipboard worker.
     CopySelection {
@@ -1151,6 +1174,7 @@ pub(crate) enum AppEvent {
     /// transcript without first writing its provisional render to scrollback.
     ConsolidateAgentMessage {
         source: String,
+        copy_source: Option<String>,
         cwd: PathBuf,
         inline_visualization_context: Option<InlineVisualizationContext>,
         scrollback_reflow: ConsolidationScrollbackReflow,
@@ -1233,6 +1257,9 @@ pub(crate) enum AppEvent {
     OpenRealtimeDevicePicker {
         kind: codex_realtime_webrtc::AudioDeviceKind,
     },
+    OpenRealtimeInputChannels {
+        device: codex_realtime_webrtc::AudioDevice,
+    },
     RealtimeDevicesListed {
         origin: Option<ThreadId>,
         kind: codex_realtime_webrtc::AudioDeviceKind,
@@ -1241,6 +1268,9 @@ pub(crate) enum AppEvent {
     PersistRealtimeDevice {
         kind: codex_realtime_webrtc::AudioDeviceKind,
         name: Option<String>,
+    },
+    PersistRealtimeInputChannel {
+        channel: Option<codex_config::config_toml::MicrophoneChannels>,
     },
 
     /// Save the voice for subsequent conversations through the app server.
@@ -1251,6 +1281,12 @@ pub(crate) enum AppEvent {
     /// Persist the selected service tier to the appropriate config.
     PersistServiceTierSelection {
         service_tier: Option<String>,
+    },
+
+    /// Persist the current thread's Daybreak preference and the new-thread default.
+    PersistDaybreakSelection {
+        thread_id: ThreadId,
+        enabled: bool,
     },
 
     /// Fetch the current catalog even when cached models produce no picker.
@@ -1558,6 +1594,9 @@ pub(crate) enum AppEvent {
     },
     /// Dismiss the terminal-title setup UI without changing config.
     TerminalTitleSetupCancelled,
+
+    /// Remember the Command Center grouping across launches.
+    PersistAgentsOverviewGrouping(codex_config::types::AgentsOverviewGrouping),
 
     /// Save the transcript renderer preference for the next launch only.
     FullscreenTranscriptSelected {

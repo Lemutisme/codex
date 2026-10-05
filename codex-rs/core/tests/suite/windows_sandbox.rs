@@ -122,7 +122,7 @@ fn stage_windows_sandbox_helpers() -> anyhow::Result<()> {
         let helper = codex_utils_cargo_bin::cargo_bin(helper_name)?;
         let file_name = Path::new(helper_name).with_extension("exe");
         let destination = resources_dir.join(file_name);
-        if let Err(err) = std::fs::copy(&helper, &destination) {
+        if let Err(err) = codex_utils_cargo_bin::copy_executable(&helper, &destination) {
             // A sandbox helper can briefly remain alive after the sandboxed
             // command exits. Bazel may retry the test while that process still
             // has the staged executable open, so keep the already-staged copy.
@@ -152,18 +152,18 @@ fn stage_windows_sandbox_cli(fixture_bin: &Path) -> anyhow::Result<(PathBuf, Pat
 
     let codex_source = codex_utils_cargo_bin::cargo_bin("codex")?;
     let codex = fixture_bin.join("codex.exe");
-    std::fs::copy(&codex_source, &codex)
+    codex_utils_cargo_bin::copy_executable(&codex_source, &codex)
         .with_context(|| format!("copy {} to {}", codex_source.display(), codex.display()))?;
     for helper_name in ["codex-windows-sandbox-setup", "codex-command-runner"] {
         let helper = codex_utils_cargo_bin::cargo_bin(helper_name)?;
         let destination = resources_dir.join(Path::new(helper_name).with_extension("exe"));
-        std::fs::copy(&helper, &destination)
+        codex_utils_cargo_bin::copy_executable(&helper, &destination)
             .with_context(|| format!("copy {} to {}", helper.display(), destination.display()))?;
     }
 
     let probe_source = codex_utils_cargo_bin::cargo_bin("codex-windows-managed-deny-probe")?;
     let probe = fixture_bin.join("managed-deny-probe.exe");
-    std::fs::copy(&probe_source, &probe)
+    codex_utils_cargo_bin::copy_executable(&probe_source, &probe)
         .with_context(|| format!("copy {} to {}", probe_source.display(), probe.display()))?;
     Ok((codex, probe))
 }
@@ -669,6 +669,134 @@ async fn windows_elevated_enforces_deny_read_and_protects_setup_marker() -> anyh
     Ok(())
 }
 
+#[tokio::test]
+#[serial(codex_home)]
+async fn windows_elevated_powershell_preserves_relative_paths() -> anyhow::Result<()> {
+    let _account_guard = WindowsSandboxAccountTestGuard::acquire()?;
+    let codex_home = codex_home_for_windows_sandbox_test(
+        "windows-elevated-powershell-relative-paths-codex-home",
+    )?;
+    let _codex_home_guard = EnvVarGuard::set("CODEX_HOME", codex_home.path().as_os_str());
+    stage_windows_sandbox_helpers()?;
+    // The refresh caller must own the helper directory after provisioning protects its DACL.
+    std::fs::create_dir_all(codex_windows_sandbox::sandbox_bin_dir(codex_home.path()))?;
+
+    let profile_dir = TempDir::new()?;
+    let fake_profile = dunce::canonicalize(profile_dir.path())?;
+    // Exclude inherited sandbox permissions so this reproduces an inaccessible profile root.
+    let profile_acl_setup = std::process::Command::new("powershell.exe")
+        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command"])
+        .arg(
+            r#"$ErrorActionPreference = 'Stop'
+$owner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$security = [System.Security.AccessControl.DirectorySecurity]::new()
+$security.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;${owner})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", [System.Security.AccessControl.AccessControlSections]::Access)
+[System.IO.DirectoryInfo]::new($env:CODEX_TEST_PROFILE).SetAccessControl($security)"#,
+        )
+        .env("CODEX_TEST_PROFILE", &fake_profile)
+        .output()
+        .context("configure protected synthetic user-profile ACL")?;
+    assert!(
+        profile_acl_setup.status.success(),
+        "synthetic profile ACL setup failed: {profile_acl_setup:?}"
+    );
+    let workspace = fake_profile.join("project");
+    std::fs::create_dir(&workspace)?;
+    let cwd = dunce::canonicalize(&workspace)?.abs();
+    std::fs::write(cwd.join("public.txt"), "public ok\n")?;
+    // Elevated setup requires root read access, including PowerShell's runtime.
+    let file_system_sandbox_policy = FileSystemSandboxPolicy::restricted(vec![
+        FileSystemSandboxEntry::new(
+            FileSystemPath::Special {
+                value: FileSystemSpecialPath::Root,
+            },
+            FileSystemAccessMode::Read,
+        ),
+        FileSystemSandboxEntry::new(cwd.clone().into(), FileSystemAccessMode::Write),
+    ]);
+    let permission_profile = PermissionProfile::from_runtime_permissions(
+        &file_system_sandbox_policy,
+        NetworkSandboxPolicy::Restricted,
+    );
+    let env = HashMap::from([
+        (
+            "USERPROFILE".to_string(),
+            fake_profile.to_string_lossy().into_owned(),
+        ),
+        (
+            "SystemRoot".to_string(),
+            std::env::var("SystemRoot").context("Windows PowerShell requires SystemRoot")?,
+        ),
+    ]);
+    // Provision and refresh synchronously so USERPROFILE is restored before any await.
+    {
+        let _user_profile_guard = EnvVarGuard::set("USERPROFILE", fake_profile.as_os_str());
+        codex_core::windows_sandbox::prepare_elevated_sandbox(
+            &permission_profile,
+            std::slice::from_ref(&cwd),
+            cwd.as_path(),
+            &env,
+            codex_home.path(),
+        )?;
+    }
+
+    let expected = format!("CWD={}\nPUBLIC=public ok", cwd.as_path().display());
+    let mut attempts = 0;
+    loop {
+        let output = process_exec_tool_call(
+            ExecParams {
+                command: [
+                    "powershell.exe",
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    r#"$ErrorActionPreference = 'Stop'
+Write-Output ('CWD=' + (Get-Location).ProviderPath)
+Write-Output ('PUBLIC=' + (Get-Content -LiteralPath .\public.txt -Raw).Trim())"#,
+                ]
+                .map(str::to_owned)
+                .into(),
+                cwd: cwd.clone(),
+                expiration: 30_000.into(),
+                capture_policy: ExecCapturePolicy::ShellTool,
+                env: env.clone(),
+                network: None,
+                network_environment_id: None,
+                sandbox_permissions: SandboxPermissions::UseDefault,
+                windows_sandbox_level: WindowsSandboxLevel::Elevated,
+                justification: None,
+                arg0: None,
+            },
+            &permission_profile,
+            &cwd,
+            std::slice::from_ref(&cwd),
+            &None,
+            /*codex_self_exe*/ &None,
+            /*use_legacy_landlock*/ false,
+            /*stdout_stream*/ None,
+        )
+        .await?;
+        if output.exit_code == 0
+            && output
+                .stdout
+                .text
+                .trim()
+                .replace("\r\n", "\n")
+                .eq_ignore_ascii_case(&expected)
+        {
+            return Ok(());
+        }
+        attempts += 1;
+        assert!(
+            attempts < 5,
+            "PowerShell should preserve cwd and read .\\public.txt: {output:?}"
+        );
+        // The async read-ACL helper briefly uses a temporary startup junction.
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial(codex_home)]
 async fn windows_elevated_unified_exec_enforces_large_recursive_deny_reads() -> anyhow::Result<()> {
@@ -721,10 +849,15 @@ async fn windows_elevated_unified_exec_enforces_large_recursive_deny_reads() -> 
             ]);
             config
                 .permissions
-                .set_permission_profile(PermissionProfile::from_runtime_permissions(
-                    &file_system_sandbox_policy,
-                    NetworkSandboxPolicy::Restricted,
-                ))
+                .set_permission_profile(
+                    PermissionProfile::from_runtime_permissions(
+                        &file_system_sandbox_policy,
+                        NetworkSandboxPolicy::Restricted,
+                    )
+                    .materialize_project_roots_with_workspace_roots(
+                        std::slice::from_ref(&config.cwd),
+                    ),
+                )
                 .expect("set managed deny-read permission profile");
         })
         .with_workspace_setup(|cwd, _fs| async move {
@@ -838,6 +971,95 @@ async fn windows_elevated_unified_exec_enforces_large_recursive_deny_reads() -> 
     assert!(
         !output.contains("EXACT-READ") && !output.contains("exact secret"),
         "exec_command leaked exact-path-denied file contents: {output:?}"
+    );
+
+    // Re-enter real setup after corrupting this test's bookkeeping, then exercise
+    // recovery through the same agent tool path rather than relying on a cached launch.
+    let state_path = codex_home.path().join(".sandbox/deny_read_acl_state.json");
+    std::fs::write(&state_path, b"malformed bookkeeping")?;
+    let permission_profile = harness
+        .test()
+        .config
+        .permissions
+        .effective_permission_profile();
+    run_windows_sandbox_setup(WindowsSandboxSetupRequest {
+        mode: WindowsSandboxSetupMode::Elevated,
+        permission_profile: permission_profile.clone(),
+        workspace_roots: vec![harness.test().config.cwd.clone()],
+        command_cwd: harness.test().cwd_path().to_path_buf(),
+        env_map: std::env::vars().collect(),
+        codex_home: codex_home.path().to_path_buf(),
+    })
+    .await?;
+    let rebuilt: serde_json::Value = serde_json::from_slice(&std::fs::read(&state_path)?)?;
+    let principals = rebuilt["principals"]
+        .as_object()
+        .expect("rebuilt principals");
+    assert!(
+        principals
+            .values()
+            .any(|paths| paths.as_array().is_some_and(|paths| !paths.is_empty()))
+    );
+
+    std::fs::write(
+        harness.test().workspace_path("remove-after-recovery.txt"),
+        b"must be removed by the sandboxed command",
+    )?;
+    let recovery_call_id = "windows-recovered-deny-read-exec-command";
+    let recovery_args = json!({
+        "cmd": concat!(
+            "(echo edited-after-recovery)>public.txt & ",
+            "del remove-after-recovery.txt & ",
+            "(type secret.env 1>NUL 2>NUL && echo GLOB-READ || echo GLOB-DENIED) & ",
+            "(type exact-secret.txt 1>NUL 2>NUL && echo EXACT-READ || echo EXACT-DENIED)"
+        ),
+        "yield_time_ms": 30_000,
+        "tty": false,
+        "login": false,
+    });
+    mount_sse_sequence(
+        harness.server(),
+        vec![
+            sse(vec![
+                ev_response_created("resp-windows-recovered"),
+                ev_function_call(
+                    recovery_call_id,
+                    "exec_command",
+                    &serde_json::to_string(&recovery_args)?,
+                ),
+                ev_completed("resp-windows-recovered"),
+            ]),
+            sse(vec![
+                ev_assistant_message("msg-windows-recovered", "done"),
+                ev_completed("resp-windows-recovered-complete"),
+            ]),
+        ],
+    )
+    .await;
+    harness
+        .submit_with_permission_profile(
+            "edit and delete the allowed fixtures and try the denied reads",
+            permission_profile,
+        )
+        .await?;
+    let output = harness.function_call_stdout(recovery_call_id).await;
+    assert!(
+        output.contains("GLOB-DENIED") && output.contains("EXACT-DENIED"),
+        "denies must survive recovery: {output:?}"
+    );
+    assert!(
+        !output.contains("GLOB-READ") && !output.contains("EXACT-READ"),
+        "recovery must not allow denied reads: {output:?}"
+    );
+    assert_eq!(
+        std::fs::read(harness.test().workspace_path("public.txt"))?,
+        b"edited-after-recovery\r\n"
+    );
+    assert!(
+        !harness
+            .test()
+            .workspace_path("remove-after-recovery.txt")
+            .exists()
     );
 
     Ok(())
