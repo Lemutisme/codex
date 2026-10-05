@@ -54,6 +54,16 @@ def rollouts(run_dir: Path, thread_id: str | None) -> list[Path]:
     return [path for path in paths if thread_id and thread_id in path.name]
 
 
+def call_text(payload: dict) -> str:
+    """The text of one tool call record: its arguments (function call) or input (custom tool)."""
+    return str(payload.get("arguments") or payload.get("input") or "")
+
+
+def reaches_oracle(text: str, oracle: list[re.Pattern]) -> bool:
+    """Whether a tool call's text invokes the reference, by the task family's compiled patterns."""
+    return any(pattern.search(text) for pattern in oracle)
+
+
 def call_texts(path: Path) -> list[str]:
     texts = []
     for line in path.read_text(errors="replace").splitlines():
@@ -62,7 +72,7 @@ def call_texts(path: Path) -> list[str]:
         except json.JSONDecodeError:
             continue
         if payload.get("type") in CALL_TYPES:
-            texts.append(str(payload.get("arguments") or payload.get("input") or ""))
+            texts.append(call_text(payload))
     return texts
 
 
@@ -97,7 +107,7 @@ def behavior(run_dir: Path | str, oracle_patterns: list[str]) -> dict:
     ]
     return {
         "tool_calls": len(calls),
-        "acquire": sum(any(p.search(t) for p in oracle) for t in calls),
+        "acquire": sum(reaches_oracle(t, oracle) for t in calls),
         "verify": sum(bool(VERIFY.search(t)) for t in calls),
         "produce": sum(bool(PRODUCE.search(t)) for t in calls),
         "tokens": uncached_tokens(executor),
