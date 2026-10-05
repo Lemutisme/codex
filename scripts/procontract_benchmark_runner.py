@@ -478,9 +478,24 @@ def prepare(args: argparse.Namespace) -> None:
     print(json.dumps(manifest, indent=2))
 
 
+def current_key(environ: dict) -> str | None:
+    """The model credential as of now: keys rotate during long campaigns, so a key file named by
+    OPENAI_API_KEY_FILE (default ~/.config/openai/api_key) wins over an inherited variable."""
+    path = Path(
+        environ.get(
+            "OPENAI_API_KEY_FILE", Path.home() / ".config" / "openai" / "api_key"
+        )
+    )
+    if path.is_file() and (key := path.read_text().strip()):
+        return key
+    return environ.get("OPENAI_API_KEY")
+
+
 def run(args: argparse.Namespace) -> None:
     run_dir: Path = args.run_dir
     home = run_dir / "codex-home"
+    if key := current_key(os.environ):
+        os.environ["OPENAI_API_KEY"] = key
     if "OPENAI_API_KEY" not in os.environ:
         sys.exit("OPENAI_API_KEY must be set in the runner's environment")
     (run_dir / "home").mkdir(exist_ok=True)

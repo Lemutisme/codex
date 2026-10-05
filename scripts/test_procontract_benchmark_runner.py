@@ -180,6 +180,17 @@ class TurnTrackerTest(unittest.TestCase):
         )
 
 
+class KeyTest(unittest.TestCase):
+    def test_a_rotated_key_file_wins_over_the_inherited_variable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            key_file = Path(tmp, "api_key")
+            key_file.write_text("fresh\n")
+            environ = {"OPENAI_API_KEY": "stale", "OPENAI_API_KEY_FILE": str(key_file)}
+            self.assertEqual(runner.current_key(environ), "fresh")
+            environ["OPENAI_API_KEY_FILE"] = str(Path(tmp, "missing"))
+            self.assertEqual(runner.current_key(environ), "stale")
+
+
 class CodexHomeTest(unittest.TestCase):
     def test_a_version_brings_its_instructions_and_its_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:

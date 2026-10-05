@@ -289,7 +289,12 @@ class Host:
         """Runs a version on one task and labels the result; cached by run directory."""
         run_dir = self.camp / "runs" / f"{purpose}-{vid[:12]}-{task}"
         result_file = run_dir / "result.json"
-        if result_file.exists():
+        # Only valid measurements are kept: an invalid run is infrastructure, never a result, so a
+        # later invocation measures again.
+        if (
+            result_file.exists()
+            and json.loads(result_file.read_text())["validity"] == "valid"
+        ):
             return json.loads(result_file.read_text())
         result = None
         for attempt in (1, 2):
