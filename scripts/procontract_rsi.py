@@ -366,7 +366,9 @@ class Host:
                 results[result["task"]] = result
         return results
 
-    def attribution(self, vid: str) -> tuple[str, list[dict]] | None:
+    def attribution(
+        self, vid: str, noise: float = NOISE_FLOOR
+    ) -> tuple[str, list[dict]] | None:
         """The attribution rows of a version against its parent's twin over the tasks both have
         valid development results for; None for the root and for method-only versions."""
         parent = self.versions()[vid]["lineage"]["parent"]
@@ -374,7 +376,6 @@ class Host:
             return None
         parent = self.twin(parent)
         child_runs, parent_runs = self.dev_runs(vid), self.dev_runs(parent)
-        noise = self.terms.get("noise_floor", NOISE_FLOOR)
         patterns = self.adapter.oracle_patterns()
         rows = []
         for task in sorted(child_runs.keys() & parent_runs.keys()):
@@ -395,7 +396,7 @@ class Host:
     def write_attribution(self, archive: Path) -> None:
         noise = self.terms.get("noise_floor", NOISE_FLOOR)
         for vid in self.versions():
-            if (found := self.attribution(vid)) is None:
+            if (found := self.attribution(vid, noise)) is None:
                 continue
             parent, rows = found
             target = archive / "attribution" / f"{vid[:12]}-vs-{parent[:12]}.md"
@@ -879,26 +880,27 @@ class ProgramBench:
         }
 
     def items(self, run_dir: Path) -> dict[str, bool]:
-        """Hidden tests by name, passed iff their last record says so; skipped tests are omitted."""
-        paths = sorted(run_dir.glob("eval/attempt-*/*/*.eval.json"))
-        if not paths:
-            return {}
-        last: dict = {}
-        for result in json.loads(paths[-1].read_text()).get("test_results") or []:
-            last[result["name"]] = result["status"]
+        """Hidden tests by name, passed iff their last record says so; skipped tests are omitted.
+        Keyed by name alone, so families group by the dotted name: in the campaigns read so far no
+        name occurs on two branches, and a branch prefix would only break the dotted structure."""
+        records = last_records(run_dir / "eval")
         return {
-            name: status == "passed"
-            for name, status in last.items()
-            if status != "skipped"
+            name: record["status"] == "passed"
+            for (_, name), record in records.items()
+            if record["status"] != "skipped"
         }
 
     def oracle_patterns(self) -> list[str]:
         """The reference program invoked, not merely mentioned: `executable` in command position,
-        that is at the start of the text or after ; & | ( $( or a quote, optionally behind `exec`,
-        `timeout <n>` or `env VAR=...`. The candidate is also often built as ./executable in its own
-        directory; the two cannot be told apart from the command text, and that ambiguity is
-        inherent to this task family."""
-        prefix = r"(?:^|[;&|(\'\"]\s*|\$\(\s*)"
+        that is at the start of the text or after ; & | ( $( a quote, a newline (real or the
+        JSON-escaped backslash-n) or a shell keyword (do then else in elif), optionally behind
+        `exec`, `env`, `timeout <n>` or `VAR=x`. The candidate is also often built as ./executable
+        in its own directory; the two cannot be told apart from the command text, and that
+        ambiguity is inherent to this task family."""
+        prefix = (
+            r"(?:^|[;&|(\'\"\n]\s*|\\n\s*|\$\(\s*"
+            r"|(?<![\w-])(?:do|then|else|elif|in)\s+)"
+        )
         wrappers = r"(?:(?:exec|env)\s+|timeout\s+\S+\s+|\w+=\S*\s+)*"
         return [prefix + wrappers + r"(?:\./|/workspace/)executable\b"]
 
@@ -932,16 +934,28 @@ class ProgramBench:
         return ""
 
 
-def failure_excerpt(eval_dir: Path, limit: int = 40) -> str:
-    """The last record of each failing hidden test, bounded: development evidence only."""
+def last_records(eval_dir: Path) -> dict[tuple[str, str], dict]:
+    """The last record of each hidden test, keyed by (branch, name), from the latest evaluation
+    attempt. Missing directories, malformed files and records without a name or status yield
+    nothing rather than an error."""
     paths = sorted(eval_dir.glob("attempt-*/*/*.eval.json"))
     if not paths:
-        return ""
-    last: dict = {}
-    for result in json.loads(paths[-1].read_text()).get("test_results") or []:
-        last[(result.get("branch", ""), result["name"])] = result
+        return {}
+    try:
+        results = json.loads(paths[-1].read_text()).get("test_results") or []
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return {
+        (record.get("branch", ""), record["name"]): record
+        for record in results
+        if isinstance(record, dict) and record.get("name") and record.get("status")
+    }
+
+
+def failure_excerpt(eval_dir: Path, limit: int = 40) -> str:
+    """The last record of each failing hidden test, bounded: development evidence only."""
     lines = []
-    for (_, name), result in sorted(last.items()):
+    for (_, name), result in sorted(last_records(eval_dir).items()):
         if result["status"] not in ("passed", "skipped") and len(lines) < limit:
             message = (result.get("extra") or {}).get("message") or ""
             lines.append(

@@ -72,6 +72,7 @@ class FakeTasks:
             1 + wins
         )
         calls += [{"type": "function_call", "arguments": "apply_patch"}]
+        (run_dir / "run.json").write_text(json.dumps({"thread_id": "x"}))
         rollout = run_dir / "codex-home" / "sessions" / "2026" / "rollout-x.jsonl"
         rollout.parent.mkdir(parents=True)
         rollout.write_text(
@@ -251,6 +252,10 @@ class SuccessionTest(unittest.TestCase):
                 self.assertIn(f"| {task} | 0.500 | 0.600 | +0.100 | 1 | 0 |", report)
             self.assertIn("acquire 1 -> 2", report)
             self.assertIn("Noise floor: 0.087", report)
+            self.assertFalse(
+                [p for p in (view / "attribution").iterdir() if "confirm" in p.name]
+            )
+            self.assertFalse(list((view / "runs").glob("confirm-*")))
             self.assertIn("## Child's Hypothesis", report)
 
     def test_a_worse_candidate_stays_in_research_and_the_incumbent_keeps_serving(self):
@@ -357,6 +362,35 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual([t for _, t in tasks.runs].count(DEV[0]), 2)
 
 
+class ItemsTest(unittest.TestCase):
+    def items(self, payload, name="task.eval.json"):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            if payload is not None:
+                path = run / "eval" / "attempt-1" / "t" / name
+                path.parent.mkdir(parents=True)
+                path.write_text(payload)
+            return rsi.ProgramBench({}).items(run)
+
+    def test_last_record_wins_and_skipped_tests_are_omitted(self):
+        records = [
+            {"name": "m.T.a", "status": "failure", "branch": "b"},
+            {"name": "m.T.a", "status": "passed", "branch": "b"},
+            {"name": "m.T.b", "status": "failure", "branch": "b"},
+            {"name": "m.T.c", "status": "skipped"},
+            {"status": "passed"},
+        ]
+        self.assertEqual(
+            self.items(json.dumps({"test_results": records}), "t.eval.json"),
+            {"m.T.a": True, "m.T.b": False},
+        )
+
+    def test_missing_or_malformed_evaluations_yield_nothing(self):
+        self.assertEqual(self.items(None), {})
+        self.assertEqual(self.items("{not json", "t.eval.json"), {})
+        self.assertEqual(self.items("[1]", "t.eval.json"), {})
+
+
 class OraclePatternTest(unittest.TestCase):
     def count(self, command):
         patterns = [re.compile(p) for p in rsi.ProgramBench({}).oracle_patterns()]
@@ -368,6 +402,8 @@ class OraclePatternTest(unittest.TestCase):
             "cat /workspace/executable",
             "chmod +x ./executable",
             "sha256sum ./executable",
+            "grep -in ./executable notes",
+            "cp ./executable ./backup",
         ]:
             self.assertFalse(self.count(command), command)
         for command in [
@@ -377,6 +413,11 @@ class OraclePatternTest(unittest.TestCase):
             'bash -lc "/workspace/executable a"',
             "diff <(./executable a) <(./mine a)",
             "timeout 5 ./executable",
+            "for exe in ./executable ./mine; do echo $exe; done",
+            "for i in 1 2; do ./executable $i; done",
+            "if true; then /workspace/executable a; fi",
+            r"cd /workspace\n./executable --help",
+            "cd /workspace\n./executable --help",
             'tools.exec_command({cmd:"ls; FOO=1 ./executable x"})',
         ]:
             self.assertTrue(self.count(command), command)
