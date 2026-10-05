@@ -3,6 +3,9 @@
 
 use std::path::Path;
 
+use codex_pro_contract::AuthenticatedCommand;
+use codex_pro_contract::Contract;
+use codex_pro_contract::ContractId;
 use codex_pro_contract::Digest;
 use codex_state::SqliteConfig;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -130,6 +133,26 @@ pub async fn events_command(store: &Path) -> CliResult<Vec<ListedEvent>> {
             hash: record.hash.to_string(),
         })
         .collect())
+}
+
+/// Applies an `AuthenticatedCommand` given as JSON under an idempotency key; returns the new state.
+/// A rejection is an error carrying the kernel's reason.
+pub async fn apply_command(store: &Path, key: &str, command_json: &str) -> CliResult<Contract> {
+    let command: AuthenticatedCommand = serde_json::from_str(command_json)?;
+    let (ledger, _) = open(store).await?;
+    Ok(ledger.apply(&command, key).await?)
+}
+
+/// The current state of a contract, if it exists.
+pub async fn contract_command(store: &Path, id: &str) -> CliResult<Option<Contract>> {
+    let (ledger, _) = open(store).await?;
+    Ok(ledger.contract(&ContractId(id.to_string())).await?)
+}
+
+/// The domain-separated digest of a JSON value, so callers hash exactly as the store does.
+pub fn digest_command(domain: &str, value_json: &str) -> CliResult<String> {
+    let value: serde_json::Value = serde_json::from_str(value_json)?;
+    Ok(digest_of(domain, &value).to_string())
 }
 
 /// Verifies the experiment hash chain.

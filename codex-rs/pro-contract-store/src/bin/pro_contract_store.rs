@@ -47,6 +47,26 @@ enum Command {
         #[arg(long)]
         store: PathBuf,
     },
+    /// Apply an authenticated kernel command read as JSON from stdin; print the new contract state.
+    Apply {
+        #[arg(long)]
+        store: PathBuf,
+        /// Idempotency key: replaying the same command under the same key is a no-op.
+        #[arg(long)]
+        key: String,
+    },
+    /// Print a contract's current state as JSON (`null` when it does not exist).
+    Contract {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        id: String,
+    },
+    /// Print the domain-separated digest of a JSON value read from stdin.
+    Digest {
+        #[arg(long)]
+        domain: String,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -78,6 +98,21 @@ async fn main() -> cli::CliResult<()> {
             println!("{}", serde_json::to_string(&events)?);
         }
         Command::Verify { store } => cli::verify_command(&store).await?,
+        Command::Apply { store, key } => {
+            let mut command = String::new();
+            std::io::stdin().read_to_string(&mut command)?;
+            let contract = cli::apply_command(&store, &key, &command).await?;
+            println!("{}", serde_json::to_string(&contract)?);
+        }
+        Command::Contract { store, id } => {
+            let contract = cli::contract_command(&store, &id).await?;
+            println!("{}", serde_json::to_string(&contract)?);
+        }
+        Command::Digest { domain } => {
+            let mut value = String::new();
+            std::io::stdin().read_to_string(&mut value)?;
+            println!("{}", cli::digest_command(&domain, &value)?);
+        }
     }
     Ok(())
 }

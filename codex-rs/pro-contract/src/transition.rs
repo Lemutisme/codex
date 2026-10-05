@@ -9,6 +9,7 @@ use crate::DecisionProvenance;
 use crate::Digest;
 use crate::OwnerId;
 use crate::Provenance;
+use crate::Reach;
 use crate::Rejection;
 use crate::Settlement;
 use crate::Standing;
@@ -238,6 +239,10 @@ fn discharge(
         return Err(Rejection::CoordinateMismatch {
             field: CoordinateField::Support,
         });
+    }
+    // Only the holder of what lies beyond the claim's reach may settle on evidence from within it.
+    if coordinate.reach == Reach::Within && decision != &DecisionProvenance::Explicit {
+        return Err(Rejection::WithinReach);
     }
     next.standing = Standing::Discharged;
     next.settlement = Some(Settlement {

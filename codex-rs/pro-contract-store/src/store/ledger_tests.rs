@@ -69,6 +69,8 @@ fn coordinate(contract: &Contract) -> Coordinate {
         environment_digest: Digest::of(b"env"),
         evaluator_digest: Digest::of(b"evaluator"),
         evidence_hash: Digest::of(b"evidence"),
+        basis: Digest::of(b"basis"),
+        reach: codex_pro_contract::Reach::Within,
     }
 }
 

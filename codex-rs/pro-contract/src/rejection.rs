@@ -66,12 +66,16 @@ pub enum Rejection {
     CoordinateMismatch { field: CoordinateField },
     #[error("target does not match the contract's current state")]
     TargetMismatch,
+    #[error("only an explicit human act may settle on evidence from within the claim's reach")]
+    WithinReach,
 }
 
 impl Rejection {
     pub fn axiom(&self) -> Axiom {
         match self {
-            Rejection::WrongRole { .. } | Rejection::RevisionRequiresHuman => Axiom::Monopoly,
+            Rejection::WrongRole { .. }
+            | Rejection::RevisionRequiresHuman
+            | Rejection::WithinReach => Axiom::Monopoly,
             Rejection::NoCandidate
             | Rejection::SupportPresent
             | Rejection::CoordinateMismatch { .. }

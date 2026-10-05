@@ -379,6 +379,12 @@ async fn late_issue_verifies_the_artifact_frozen_at_handoff() {
     );
     let contract = lane.contract().await.expect("issued contract");
     assert!(contract.support.is_some(), "{contract:?}");
+    // The lane's own evidence is within the executor's reach: it measures diligence.
+    assert_eq!(
+        contract.support.as_ref().expect("support").coordinate.reach,
+        codex_pro_contract::Reach::Within
+    );
+    assert!(status.detail.contains("diligence"), "{status:?}");
     let judged = contract.support.expect("support").coordinate.subject_hash;
     let binding = lane
         .ledger

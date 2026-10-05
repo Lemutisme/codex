@@ -27,6 +27,7 @@ pub use model::ContractId;
 pub use model::Coordinate;
 pub use model::DecisionProvenance;
 pub use model::OwnerId;
+pub use model::Reach;
 pub use model::Settlement;
 pub use model::Standing;
 pub use model::Support;

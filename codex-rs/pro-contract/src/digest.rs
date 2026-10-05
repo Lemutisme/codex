@@ -12,6 +12,9 @@ use sha2::Sha256;
 pub struct Digest([u8; 32]);
 
 impl Digest {
+    /// The all-zero digest: a field that predates its recording.
+    pub const ZERO: Digest = Digest([0; 32]);
+
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }

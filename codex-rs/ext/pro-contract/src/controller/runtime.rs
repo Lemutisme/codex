@@ -20,6 +20,7 @@ use codex_pro_contract::Coordinate;
 use codex_pro_contract::Digest;
 use codex_pro_contract::OwnerId;
 use codex_pro_contract::Provenance;
+use codex_pro_contract::Reach;
 use codex_pro_contract::Role;
 use codex_pro_contract::Target;
 use codex_protocol::ThreadId;
@@ -105,8 +106,14 @@ struct ActiveContract {
     terms: Terms,
     policy: EvidencePolicy,
     brief: String,
-    /// The materialized base workspace every case runs over.
-    base_dir: PathBuf,
+    base: Base,
+}
+
+/// The workspace as it was at intake: every case runs over it, and evidence depends on it.
+#[derive(Clone)]
+struct Base {
+    dir: PathBuf,
+    subject: Digest,
 }
 
 /// Everything verification needs about one handoff.
@@ -116,7 +123,7 @@ struct Handoff {
     turn_id: String,
     policy: EvidencePolicy,
     terms: Terms,
-    base_dir: PathBuf,
+    base: Base,
 }
 
 /// The workspace frozen at the end of the executor's last turn.
@@ -403,7 +410,11 @@ impl ThreadRuntime {
                     min_success_permille: evidence.min_success_permille,
                     ..*evidence_policy
                 };
-                self.issue(terms, policy, base_dir).await
+                let base = Base {
+                    dir: base_dir,
+                    subject: base.subject_hash,
+                };
+                self.issue(terms, policy, base).await
             }
             Ok(drafter::Draft::None { reason }) => {
                 self.rest("abstained", &format!("drafter declined: {reason}"))
@@ -540,7 +551,7 @@ impl ThreadRuntime {
             .await
     }
 
-    async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy, base_dir: PathBuf) {
+    async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy, base: Base) {
         let contract_id = self.contract_id();
         let bindings = Bindings {
             terms_hash: digest_of("terms", &terms),
@@ -588,7 +599,7 @@ impl ThreadRuntime {
                 terms,
                 policy,
                 brief,
-                base_dir,
+                base,
             });
             state.phase = Phase::Working;
             state.last_idle
@@ -679,7 +690,7 @@ impl ThreadRuntime {
                         turn_id: frozen.turn_id.clone(),
                         policy: active.policy.clone(),
                         terms: active.terms.clone(),
-                        base_dir: active.base_dir.clone(),
+                        base: active.base.clone(),
                     };
                     state.proposed_turns.insert(values.turn_id.clone());
                     state.phase = Phase::Verifying;
@@ -763,7 +774,7 @@ impl ThreadRuntime {
             turn_id,
             policy,
             terms,
-            base_dir,
+            base,
         } = handoff;
         let work = self
             .work_dir()
@@ -779,7 +790,7 @@ impl ThreadRuntime {
         }
         let checks = self
             .ports
-            .run_checks(&self.profile.check, &work, &base_dir, &policy)
+            .run_checks(&self.profile.check, &work, &base.dir, &policy)
             .await;
         // The reviewer is asked only when the mechanical evidence leaves the decision to it.
         let review = match (&checks, decision::mechanical_verdict(&checks, &policy)) {
@@ -831,7 +842,10 @@ impl ThreadRuntime {
         )
         .await;
         match verdict {
-            Verdict::Support => self.support(contract, &subject, checks.ok(), review).await,
+            Verdict::Support => {
+                self.support(contract, &subject, base.subject, checks.ok(), review)
+                    .await
+            }
             Verdict::Defeat { residual } => {
                 self.defeat(contract, &subject, residual, turn_id).await
             }
@@ -843,6 +857,7 @@ impl ThreadRuntime {
         &self,
         contract: Contract,
         subject: &Subject,
+        base_subject: Digest,
         receipts: Option<CheckReceipts>,
         review: Option<Result<reviewer::Review, crate::WorkerError>>,
     ) {
@@ -874,6 +889,20 @@ impl ThreadRuntime {
             environment_digest: receipts.environment_digest,
             evaluator_digest,
             evidence_hash,
+            // The request (in the terms), the base workspace, the cases and the oracle image.
+            basis: digest_of(
+                "basis",
+                &(
+                    contract.bindings.terms_hash,
+                    base_subject,
+                    contract.bindings.evidence_policy_hash,
+                    receipts.environment_digest,
+                ),
+            ),
+            // Every source the lane draws on (the request, the workspace, the reference it queries)
+            // was within the executor's reach: its support measures diligence and certifies
+            // nothing beyond. Only the principal, or what the principal seals, is beyond.
+            reach: Reach::Within,
         };
         let certificate = digest_of("certificate", &(&coordinate, &receipts, &review));
         match self
@@ -890,8 +919,11 @@ impl ThreadRuntime {
             .await
         {
             Ok(_) => {
-                self.rest("supported", "checks passed · review supported")
-                    .await
+                self.rest(
+                    "supported",
+                    "checks passed · review supported · on evidence within the executor's reach (diligence)",
+                )
+                .await
             }
             Err(error) => {
                 self.not_verified(

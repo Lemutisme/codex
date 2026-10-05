@@ -14,6 +14,7 @@ use crate::DecisionProvenance;
 use crate::Digest;
 use crate::OwnerId;
 use crate::Provenance;
+use crate::Reach;
 use crate::Rejection;
 use crate::Role;
 use crate::Settlement;
@@ -89,6 +90,8 @@ fn coordinate(contract: &Contract) -> Coordinate {
         environment_digest: digest("env"),
         evaluator_digest: digest("evaluator"),
         evidence_hash: digest("evidence"),
+        basis: digest("basis"),
+        reach: Reach::Within,
     }
 }
 
@@ -311,6 +314,8 @@ fn support_requires_a_candidate() {
                 environment_digest: digest("env"),
                 evaluator_digest: digest("evaluator"),
                 evidence_hash: digest("evidence"),
+                basis: digest("basis"),
+                reach: Reach::Within,
             },
         },
     );
@@ -499,6 +504,8 @@ fn discharge_rejects_a_receipt_for_different_support() {
     let contract = supported(&proposed(&issued(), "s"));
     let presented = Coordinate {
         evidence_hash: digest("something else"),
+        basis: digest("basis"),
+        reach: Reach::Within,
         ..contract.support.clone().expect("support").coordinate
     };
     let result = apply(
@@ -596,6 +603,8 @@ fn a_challenge_must_name_the_exact_settlement() {
             target: Target::Settlement {
                 coordinate: Coordinate {
                     evidence_hash: digest("other"),
+                    basis: digest("basis"),
+                    reach: Reach::Within,
                     ..settlement_coordinate(&settled)
                 },
             },
@@ -718,6 +727,8 @@ fn withdraw_must_name_the_exact_current_support() {
             target: Target::Support {
                 coordinate: Coordinate {
                     evidence_hash: digest("other"),
+                    basis: digest("basis"),
+                    reach: Reach::Within,
                     ..coordinate(&contract)
                 },
             },
@@ -815,6 +826,7 @@ fn every_rejection_protects_an_axiom_or_well_formedness() {
             Axiom::Monopoly,
         ),
         (Rejection::RevisionRequiresHuman, Axiom::Monopoly),
+        (Rejection::WithinReach, Axiom::Monopoly),
         (Rejection::NoCandidate, Axiom::Exactness),
         (Rejection::SupportPresent, Axiom::Exactness),
         (
@@ -865,4 +877,66 @@ fn support_records_the_certificate_and_coordinate() {
             coordinate: coordinate(&contract),
         })
     );
+}
+
+/// A contract supported by evidence of the given reach.
+fn supported_with(reach: Reach) -> Contract {
+    let contract = proposed(&issued(), "s");
+    apply(
+        Some(&contract),
+        Role::Verifier,
+        Command::Support {
+            certificate: digest("certificate"),
+            coordinate: Coordinate {
+                reach,
+                ..coordinate(&contract)
+            },
+        },
+    )
+    .expect("support")
+}
+
+fn settle(contract: &Contract, decision: DecisionProvenance) -> Result<Contract, Rejection> {
+    apply(
+        Some(contract),
+        Role::Settler,
+        Command::Discharge {
+            attestation: digest("accept"),
+            coordinate: contract.support.clone().expect("support").coordinate,
+            decision,
+        },
+    )
+}
+
+#[test]
+fn only_an_explicit_human_act_settles_on_evidence_from_within_reach() {
+    let within = supported_with(Reach::Within);
+    let presumed = DecisionProvenance::Presumed {
+        convention: digest("convention"),
+        classifier: digest("classifier"),
+    };
+    let interpreted = DecisionProvenance::Interpreted {
+        classifier: digest("classifier"),
+    };
+    assert_eq!(
+        settle(&within, presumed.clone()),
+        Err(Rejection::WithinReach)
+    );
+    assert_eq!(settle(&within, interpreted), Err(Rejection::WithinReach));
+    let explicit = settle(&within, DecisionProvenance::Explicit).expect("explicit settles");
+    assert_eq!(explicit.standing, Standing::Discharged);
+
+    let beyond = supported_with(Reach::Beyond);
+    let presumed = settle(&beyond, presumed).expect("beyond settles by convention");
+    assert_eq!(presumed.standing, Standing::Discharged);
+}
+
+#[test]
+fn a_coordinate_recorded_before_reach_existed_reads_as_within_reach() {
+    let mut value = serde_json::to_value(coordinate(&proposed(&issued(), "s"))).expect("json");
+    let object = value.as_object_mut().expect("object");
+    object.remove("basis");
+    object.remove("reach");
+    let old: Coordinate = serde_json::from_value(value).expect("old coordinate");
+    assert_eq!((old.basis, old.reach), (Digest::ZERO, Reach::Within));
 }

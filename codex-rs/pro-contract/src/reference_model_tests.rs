@@ -18,6 +18,7 @@ use crate::DecisionProvenance;
 use crate::Digest;
 use crate::OwnerId;
 use crate::Provenance;
+use crate::Reach;
 use crate::Role;
 use crate::Standing;
 use crate::Target;
@@ -156,8 +157,16 @@ fn model_step(model: Option<&Model>, command: &AuthenticatedCommand) -> Option<M
                 subject_hash: kept.subject_hash,
             });
         }
-        Command::Discharge { coordinate, .. } => match &model.phase {
-            Phase::Supported(candidate, support) if support == coordinate => {
+        Command::Discharge {
+            coordinate,
+            decision,
+            ..
+        } => match &model.phase {
+            Phase::Supported(candidate, support)
+                if support == coordinate
+                    && (coordinate.reach == Reach::Beyond
+                        || decision == &DecisionProvenance::Explicit) =>
+            {
                 next.phase = Phase::Settled(*candidate, coordinate.clone());
             }
             _ => return None,
@@ -284,6 +293,8 @@ fn coordinate(rng: &mut Rng, contract: Option<&Contract>) -> Coordinate {
                 environment_digest: Digest::of(b"env"),
                 evaluator_digest: Digest::of(b"evaluator"),
                 evidence_hash: Digest::of(b"evidence"),
+                basis: Digest::of(b"basis"),
+                reach: Reach::Within,
             }
         }
         None => Coordinate {
@@ -297,7 +308,14 @@ fn coordinate(rng: &mut Rng, contract: Option<&Contract>) -> Coordinate {
             environment_digest: digest(rng),
             evaluator_digest: digest(rng),
             evidence_hash: digest(rng),
+            basis: Digest::of(b"basis"),
+            reach: Reach::Within,
         },
+    };
+    coordinate.reach = if rng.chance(50) {
+        Reach::Within
+    } else {
+        Reach::Beyond
     };
     if rng.chance(25) {
         match rng.below(5) {
@@ -411,7 +429,14 @@ fn random_command(rng: &mut Rng, contract: Option<&Contract>) -> AuthenticatedCo
         6 => Command::Discharge {
             attestation: digest(rng),
             coordinate: recorded(rng, contract),
-            decision: DecisionProvenance::Explicit,
+            decision: if rng.chance(50) {
+                DecisionProvenance::Explicit
+            } else {
+                DecisionProvenance::Presumed {
+                    convention: digest(rng),
+                    classifier: digest(rng),
+                }
+            },
         },
         7 => Command::Release {
             attestation: digest(rng),

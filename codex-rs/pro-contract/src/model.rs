@@ -33,10 +33,29 @@ pub struct Candidate {
     pub subject_hash: Digest,
 }
 
+/// Where a support's evidence lies relative to the reach of the claim it judges: everything the
+/// claim's producer could read or ask, and everything that selected the claim read.
+///
+/// Evidence settles only what it carries from beyond that reach; evidence from within it measures
+/// diligence. `Beyond` also holds, vacuously, when no part of the criterion lies beyond reach (a
+/// complete mechanical criterion, such as a proof under its checker).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Reach {
+    /// Within reach: only an explicit human act may settle on it. Unrecorded reach reads as this.
+    #[default]
+    Within,
+    Beyond,
+}
+
+fn unrecorded() -> Digest {
+    Digest::ZERO
+}
+
 /// The complete world coordinate a recognizing command binds.
 ///
-/// The first seven fields must equal the contract's bindings and current candidate. The last
-/// three are assertions of the authenticated verifier, recorded verbatim.
+/// The first seven fields must equal the contract's bindings and current candidate. The rest are
+/// assertions of the authenticated verifier, recorded verbatim.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coordinate {
     pub contract_id: ContractId,
@@ -49,6 +68,11 @@ pub struct Coordinate {
     pub environment_digest: Digest,
     pub evaluator_digest: Digest,
     pub evidence_hash: Digest,
+    /// The content-addressed set of sources the evidence depends on.
+    #[serde(default = "unrecorded")]
+    pub basis: Digest,
+    #[serde(default)]
+    pub reach: Reach,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
