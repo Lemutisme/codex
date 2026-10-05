@@ -18,11 +18,13 @@ use codex_extension_api::ExtensionData;
 use codex_extension_api::ExtensionFuture;
 use codex_extension_api::ExtensionMetrics;
 use codex_extension_api::PreviousWorldStateSection;
+use codex_extension_api::PromptFragment;
 use codex_extension_api::RenderedWorldStateFragment;
 use codex_extension_api::ThreadIdleInput;
 use codex_extension_api::ThreadLifecycleContributor;
 use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ThreadStopInput;
+use codex_extension_api::TurnContextContributionInput;
 use codex_extension_api::TurnInputContext;
 use codex_extension_api::TurnInputContributor;
 use codex_extension_api::TurnLifecycleContributor;
@@ -32,6 +34,7 @@ use codex_extension_api::WorldStateContributionInput;
 use codex_extension_api::WorldStateSectionContribution;
 use codex_features::Feature;
 use codex_protocol::ThreadId;
+use codex_protocol::models::ContentItemKind;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::user_input::UserInput;
 use serde_json::json;
@@ -49,6 +52,8 @@ use crate::workers::policies::Policies;
 const SECTION_ID: &str = "pro_contract";
 const OPEN_MARKER: &str = "<pro_contract>";
 const CLOSE_MARKER: &str = "</pro_contract>";
+const REPAIR_OPEN_MARKER: &str = "<pro_contract_repair>";
+const REPAIR_CLOSE_MARKER: &str = "</pro_contract_repair>";
 
 type EnabledFn = dyn Fn(&Config) -> bool + Send + Sync;
 
@@ -254,6 +259,24 @@ impl TurnInputContributor for ProContractExtension {
 }
 
 impl ContextContributor for ProContractExtension {
+    /// Full context is rebuilt after compaction, which drops the repair note the executor was
+    /// given; while the repair is unanswered, it is stated again.
+    fn contribute_turn_context<'a>(
+        &'a self,
+        input: TurnContextContributionInput<'a>,
+    ) -> ExtensionFuture<'a, Vec<PromptFragment>> {
+        Box::pin(async move {
+            let Some(runtime) = runtime_of(input.thread_store) else {
+                return Vec::new();
+            };
+            runtime
+                .outstanding_repair()
+                .await
+                .map(|note| vec![repair_fragment(&note)])
+                .unwrap_or_default()
+        })
+    }
+
     fn contribute_world_state<'a>(
         &'a self,
         input: WorldStateContributionInput<'a>,
@@ -268,6 +291,17 @@ impl ContextContributor for ProContractExtension {
             vec![brief_section(brief)]
         })
     }
+}
+
+/// The unanswered repair note as developer context.
+fn repair_fragment(note: &str) -> PromptFragment {
+    PromptFragment::developer_policy(
+        format!(
+            "{REPAIR_OPEN_MARKER}\n{}\n{REPAIR_CLOSE_MARKER}",
+            note.trim_end()
+        ),
+        ContentItemKind("pro_contract.repair_note".to_string()),
+    )
 }
 
 /// The executor's brief, rendered once per contract revision and kept across compaction.

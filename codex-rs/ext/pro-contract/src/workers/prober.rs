@@ -27,6 +27,9 @@ pub(crate) const BASE_VIEW: ViewPolicy = ViewPolicy {
     cap: 120_000,
     order: ViewOrder::DocumentationFirst,
 };
+/// Bytes of the reference's help shown to both prober turns: one observation of two streams at the
+/// checks' per-stream bound, with room for its framing.
+pub(crate) const REFERENCE_HELP_CAP: usize = 36_000;
 /// Bytes of reference observations shown to the writing turn.
 pub(crate) const OBSERVATIONS_CAP: usize = 40_000;
 
@@ -78,7 +81,7 @@ fn context(input: &ProbeInput<'_>) -> String {
         "<human_request>\n{}\n</human_request>\n\n<documentation>\n{}\n</documentation>\n\n<reference_help>\n{}\n</reference_help>\n",
         bounded(input.intake_text, PROMPT_EVIDENCE_CAP / 6),
         bounded(input.base_view, BASE_VIEW.cap),
-        bounded(input.reference_help, PROMPT_EVIDENCE_CAP / 6),
+        bounded(input.reference_help, REFERENCE_HELP_CAP),
     )
 }
 

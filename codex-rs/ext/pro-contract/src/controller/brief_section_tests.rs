@@ -3,6 +3,7 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::brief_section;
+use super::repair_fragment;
 use super::runtime::BriefView;
 
 fn brief(revision: u32) -> BriefView {
@@ -61,4 +62,15 @@ fn only_the_current_revision_in_history_is_retained() {
     assert!(!section.matches_retained_fragment("developer", &in_history(1)));
     assert!(!section.matches_retained_fragment("user", &in_history(2)));
     assert!(!section.matches_retained_fragment("developer", &brief(2).text));
+}
+
+#[test]
+fn the_outstanding_repair_note_is_stated_again_as_developer_context() {
+    let fragment = repair_fragment("Fix these:\n- public:D1 failed\n");
+
+    assert_eq!(
+        fragment.text(),
+        "<pro_contract_repair>\nFix these:\n- public:D1 failed\n</pro_contract_repair>"
+    );
+    assert_eq!(fragment.content_kind().0, "pro_contract.repair_note");
 }

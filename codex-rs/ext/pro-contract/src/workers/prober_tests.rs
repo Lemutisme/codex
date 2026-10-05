@@ -84,7 +84,7 @@ fn the_prompts_stay_bounded() {
         reference_help: &huge,
     };
     let prompt = write_prompt(&input, &huge);
-    assert!(prompt.len() < 200_000, "prompt is {} bytes", prompt.len());
+    assert!(prompt.len() < 210_000, "prompt is {} bytes", prompt.len());
 }
 
 #[test]
