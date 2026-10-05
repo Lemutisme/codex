@@ -108,6 +108,8 @@ each, so one to three minutes per verification; the hang breaker bounds the wors
 ## 4. The prober worker (`workers/prober.rs`)
 
 A hidden, isolated, tool-less worker that runs in parallel with the drafter, independent of it. Issue waits for both.
+It runs only when the profile names a reference program: without one there is no differential evidence to seal, and
+the sealed rules of §6 do not apply (the lane decides from build, tests and review as before).
 
 1. **Explore.** Input: the verbatim intake, a documentation-first base view (120 KB cap) and the reference `--help`
    observation the drafter also receives. Output: at most 30 exploration cases (with fixtures), for example each
@@ -141,7 +143,8 @@ ends `not_verified` (insufficient evidence). Failure is visible and never silent
 1. The checks did not run (launch error, container timeout, incomplete receipts) → `NotVerified(Infrastructure)`.
 2. The build failed → `Defeat`; the residual carries the build log.
 3. A public case failed → `Defeat`; the residual names each failing public case (invocation, channel, bounded diff).
-4. Sealed partition. Let Q be the qualified cases, P the passing ones, S the share of Q whose reference exits 0.
+4. Sealed partition (only when the policy has a reference and a candidate program). Let Q be the qualified cases, P
+   the passing ones, S the share of Q whose reference exits 0.
    - If Q < `min_sealed_qualified` or S < `min_success_permille` → `NotVerified(InsufficientEvidence)`.
    - If P/Q < θ_s → `Defeat`. The residual says only "N of Q independent sealed checks failed" and lists the failing
      families.
@@ -154,8 +157,9 @@ cases and sealed aggregates only, because reviewer residuals reach the executor.
 
 **Outcome classes.** `NotVerified` carries one of `Infrastructure`, `InsufficientEvidence`, `ReviewerUnable`,
 `TermsGap` or `NoHandoff`, in the verification event and the status record (new field, default empty). In the M0
-report, a run whose executor turn failed with a provider or transport error is invalid (infrastructure) and excluded,
-never scored zero. A candidate's own build failure stays a genuine zero.
+report, a run whose last executor turn failed (a provider or transport error; the runner records the turn's error
+message) has its final workspace marked invalid and excluded, never scored zero; candidates judged before the failure
+stay valid. A candidate's own build failure stays a genuine zero.
 
 ## 7. Process constraints and terms gaps
 
@@ -164,8 +168,9 @@ never scored zero. A candidate's own build failure stays a genuine zero.
 - **Brief.** A "Work constraints" block lists them verbatim.
 - **Reviewer.** Process constraints count as covered, so they are never a terms gap and never by themselves a reason to
   answer cannot_judge. They are judged only through the artifact, for example an embedded copy of the reference
-  program or a runtime dependency on it. We do not claim the environment enforces them; the current check environment
-  does not.
+  program or a runtime dependency on it. The lane does not rely on the environment to enforce them. (The ProgramBench
+  runner does make the executor's copy of the reference root-owned and execute-only, which enforces the read and
+  copy prohibition for the executor; the check environment does not.)
 - **Verdict and gaps are separate.** The parsed review becomes `{verdict: Support | Defeat | CannotJudge, terms_gap}`.
   A non-empty gap list still yields `NotVerified(TermsGap)`, but the verification event keeps the underlying verdict.
 
@@ -178,8 +183,9 @@ calibration (§9) and not changed afterwards.
 ## 9. Validation
 
 **V1, offline replay (calibration; no executor reruns, same code).**
-1. **Evidence.** For each of the 30 corpus-v1 tasks, the runner runs the real lane with `--stop-after-issue`: drafting,
-   probing and Issue are real, then the executor turn is interrupted. This yields terms, public and sealed cases.
+1. **Evidence.** For each of the 30 corpus-v1 tasks, the runner runs the real lane with `--stop-after-issue`: it
+   interrupts the executor as soon as the lane reports drafting (intake is done), then waits for drafting, probing and
+   Issue, which are real. This yields terms, public and sealed cases at almost no executor cost.
 2. **Replay.** A thin command, `pro-contract-check` (ext crate bin over the exported `checks::run`), runs the pipeline
    for every labelled frozen subject of corpus-v1 and retest-v2 (judged and final; about 100 or more).
 3. **Controls.**
