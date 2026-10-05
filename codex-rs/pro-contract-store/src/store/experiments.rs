@@ -52,6 +52,9 @@ pub enum ExperimentKind {
     Selection,
     /// Sources made readable to a view; exposure only accumulates.
     Exposure,
+    /// One analysis of the archive: the runs it covered, its verdict on the pending experiment and
+    /// whether its challenged delivery qualified.
+    Insight,
 }
 
 /// What produced an event. Every event carries one.
@@ -130,7 +133,8 @@ fn validate(event: &ExperimentEvent) -> Result<(), LedgerError> {
         | ExperimentKind::Correction
         | ExperimentKind::Version
         | ExperimentKind::Selection
-        | ExperimentKind::Exposure => Ok(()),
+        | ExperimentKind::Exposure
+        | ExperimentKind::Insight => Ok(()),
     }
 }
 

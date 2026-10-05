@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import re
@@ -13,7 +15,7 @@ FAKE_RUNNER = [
     sys.executable,
     str(Path(__file__).parent / "testing" / "fake_research_runner.py"),
 ]
-DEV = ["dev__a.0000001", "dev__b.0000002", "dev__c.0000003"]
+DEV = ["acme__widget.0000001", "acme__gadget.0000002", "zeta__sprocket.0000003"]
 SEALED = [f"sel__t{index}.000000{index}" for index in range(8)]
 
 
@@ -82,6 +84,12 @@ class FakeTasks:
     def items(self, run_dir):
         return rsi.ProgramBench.items(self, run_dir)
 
+    def outcomes(self, run_dir):
+        return rsi.ProgramBench.outcomes(self, run_dir)
+
+    def task_tokens(self, task):
+        return rsi.ProgramBench.task_tokens(self, task)
+
     def oracle_patterns(self):
         return rsi.ProgramBench.oracle_patterns(self)
 
@@ -89,7 +97,7 @@ class FakeTasks:
 def campaign(tmp, **overrides) -> Path:
     camp = Path(tmp, "camp")
     pools = Path(tmp, "pools.json")
-    pools.write_text(json.dumps({"dev": DEV + ["dev__d.0000004"]}))
+    pools.write_text(json.dumps({"dev": DEV + ["acme__extra.0000004"]}))
     sealed = Path(tmp, "sealed.json")
     sealed.write_text(
         json.dumps({"select": SEALED, "confirm": ["never__used.0000009"]})
@@ -233,7 +241,8 @@ class SuccessionTest(unittest.TestCase):
                 for e in h.events("exposure")
                 if e["body"]["view"] == "research:2"
             ]
-            self.assertFalse(set(exposure[0]["sources"]) & set(SEALED))
+            second = {name.split("-", 2)[2] for name in exposure[0]["sources"]}
+            self.assertEqual(second - set(DEV), set(spent[:3]), "only spent tasks")
 
     def test_the_research_view_explains_a_child_against_its_parent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -255,7 +264,6 @@ class SuccessionTest(unittest.TestCase):
             self.assertFalse(
                 [p for p in (view / "attribution").iterdir() if "confirm" in p.name]
             )
-            self.assertFalse(list((view / "runs").glob("confirm-*")))
             self.assertIn("## Child's Hypothesis", report)
 
     def test_a_worse_candidate_stays_in_research_and_the_incumbent_keeps_serving(self):
@@ -350,6 +358,335 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual(len(parents), 1)
             self.assertEqual(h.contract("improvement.1")["standing"], "discharged")
 
+    def test_analysis_runs_before_the_first_research_and_its_knowledge_reaches_the_research_view(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+
+            h.step()
+
+            first = h.insight(1)
+            self.assertEqual(
+                (first["status"], first["verdict"], first["experiment"]),
+                ("qualified", None, None),
+            )
+            view = h.camp / "research" / "step-1" / "workspace" / "archive"
+            self.assertIn(
+                "a mechanism the analyst noted",
+                (view / "knowledge" / "mechanisms.md").read_text(),
+            )
+            self.assertEqual(
+                sorted(p.name for p in (view / "insight" / "1").iterdir()),
+                ["ANALYSIS.md", "CHALLENGE.md"],
+            )
+            self.assertNotIn("Pending experiment", (view / "README.md").read_text())
+            # The second analysis settles the candidate, which the analyst's view names.
+            [v1] = [vid for vid in h.versions() if vid != v0]
+            second = h.insight(2)
+            self.assertEqual((second["experiment"], second["verdict"]), (v1, "present"))
+            readme = (
+                h.camp
+                / "insight"
+                / "2"
+                / "analyst-1"
+                / "workspace"
+                / "archive"
+                / "README.md"
+            ).read_text()
+            self.assertIn(f"\nPending experiment: {v1[:12]}\n", readme)
+            self.assertIn(f"| {v1[:12]} | {v0[:12]} | 0.600 | 3 |", readme)
+            # The confirmation runs the step spent are new evidence; asking again adds nothing.
+            self.assertEqual(h.analyze(v0), 3)
+            self.assertEqual(h.analyze(v0), 3)
+            self.assertEqual(len(h.insights()), 3)
+
+    def test_knowledge_carries_from_one_steps_analysis_into_the_next_steps_analyst_workspace(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_RESEARCH_MODE"] = "worse"
+            h = host(campaign(tmp), FakeTasks())
+            h.step()
+            os.environ["FAKE_RESEARCH_MODE"] = "better"
+
+            h.step()
+
+            workspace = h.camp / "insight" / "3" / "analyst-1" / "workspace"
+            line = "- a mechanism the analyst noted\n"
+            self.assertEqual(
+                (workspace / "archive" / "knowledge" / "mechanisms.md").read_text(),
+                line * 2,
+            )
+            self.assertEqual(
+                (workspace / "knowledge" / "mechanisms.md").read_text(), line * 2
+            )
+            self.assertEqual(
+                (h.current_knowledge() / "mechanisms.md").read_text(), line * 3
+            )
+
+    def test_the_seed_knowledge_appears_in_the_first_analyst_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp, "seed")
+            seed.mkdir()
+            (seed / "mechanisms.md").write_text("a seed claim\n")
+            camp = campaign(tmp, knowledge=seed)
+            h = host(camp, FakeTasks())
+            v0 = h.incumbent()
+            self.assertEqual(h.current_knowledge(), camp / "knowledge-seed")
+
+            h.dev(v0)
+            h.analyze(v0)
+
+            workspace = camp / "insight" / "1" / "analyst-1" / "workspace"
+            self.assertEqual(
+                (workspace / "archive" / "knowledge" / "mechanisms.md").read_text(),
+                "a seed claim\n",
+            )
+            self.assertEqual(
+                (workspace / "knowledge" / "mechanisms.md").read_text(),
+                "a seed claim\n",
+            )
+            self.assertEqual(
+                (h.current_knowledge() / "mechanisms.md").read_text(),
+                "a seed claim\n- a mechanism the analyst noted\n",
+            )
+            self.assertEqual(
+                h.current_knowledge(), camp / "insight" / "1" / "knowledge"
+            )
+
+    def test_seed_knowledge_that_is_not_utf8_text_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            seed = Path(tmp, "seed")
+            seed.mkdir()
+            (seed / "blob").write_bytes(b"\xff\xfe")
+            with self.assertRaises(SystemExit):
+                campaign(tmp, knowledge=seed)
+
+    def test_a_better_candidate_whose_signature_is_absent_stays_in_research(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_SIGNATURE"] = "absent"
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+
+            outcome = h.step()
+
+            self.assertIn("stays in research", outcome)
+            self.assertIn("development delta +0.100", outcome)
+            self.assertIn("signature absent", outcome)
+            self.assertEqual(h.used_confirmation_tasks(), [])
+            [v1] = [vid for vid in h.versions() if vid != v0]
+            self.assertEqual(h.insight(2)["verdict"], "absent")
+            roles = [e["body"]["role"] for e in h.events("selection")]
+            self.assertNotIn("put_forward", roles)
+
+    def test_a_failed_challenge_leaves_the_verdict_unknown_and_keeps_the_knowledge(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp, "log")
+            os.environ["FAKE_LOG"] = str(log)
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+            h.analyze(v0)
+            kept = h.current_knowledge()
+            os.environ["FAKE_CHALLENGE"] = "fail"
+
+            outcome = h.step()
+
+            self.assertIn("stays in research", outcome)
+            self.assertIn("signature unknown", outcome)
+            failed = h.insight(2)
+            self.assertEqual(
+                (failed["status"], failed["verdict"]), ("failed", "unknown")
+            )
+            self.assertIn("challenger: no CHALLENGE.md was delivered", failed["reason"])
+            self.assertEqual(h.current_knowledge(), kept)
+            self.assertEqual(h.used_confirmation_tasks(), [])
+            self.assertFalse((h.camp / "insight" / "2" / "knowledge").exists())
+            # The analysis ran once, the challenger twice (its one retry), after the first analysis.
+            self.assertEqual(
+                log.read_text().split(),
+                ["analyst.md", "challenger.md", "research.md", "analyst.md"]
+                + ["challenger.md"] * 2,
+            )
+
+    def test_a_failed_analysis_is_recorded_without_a_challenge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_ANALYSIS"] = "fail"
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+
+            k = h.analyze(v0)
+
+            body = h.insight(k)
+            self.assertEqual((body["status"], body["verdict"]), ("failed", "unknown"))
+            self.assertIn("analyst: no ANALYSIS.md", body["reason"])
+            self.assertTrue((h.camp / "insight" / "1" / "analyst-2").exists())
+            self.assertFalse((h.camp / "insight" / "1" / "challenger-1").exists())
+            self.assertIsNone(h.current_knowledge())
+
+    def test_a_candidate_that_names_a_development_task_does_not_qualify(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_RESEARCH_MODE"] = "leak"
+            h = host(campaign(tmp), FakeTasks())
+
+            outcome = h.step()
+
+            self.assertIn("did not qualify", outcome)
+            self.assertIn("executor.md names the exposed task token 'widget'", outcome)
+            self.assertEqual(h.contract("improvement.1")["standing"], "released")
+            self.assertEqual(len(h.versions()), 1)
+
+    def test_a_spent_confirmation_run_enters_a_later_view_and_an_unspent_task_never_does(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp, adoption="presumed"), FakeTasks())
+            v0 = h.incumbent()
+
+            h.step()
+            v1 = h.incumbent()
+            spent = h.used_confirmation_tasks()
+            h.step()
+
+            self.assertEqual(len(spent), 3)
+            # Not while the confirmation was still to come: analysis 2 read the candidate's
+            # development runs only.
+            before = h.camp / "insight" / "2" / "analyst-1" / "workspace" / "archive"
+            self.assertFalse(list((before / "runs").glob("confirm-*")))
+            view = h.camp / "research" / "step-2" / "workspace" / "archive"
+            confirmed = {p.name for p in (view / "runs").glob("confirm-*")}
+            self.assertEqual({name.split("-", 2)[2] for name in confirmed}, set(spent))
+            self.assertEqual(len(confirmed), 2 * len(spent), "candidate and incumbent")
+            self.assertEqual(
+                {p.name for p in (view / "tasks").iterdir()}, set(DEV) | set(spent)
+            )
+            matrix = (view / "tasks" / spent[0] / "outcomes.md").read_text()
+            for name in confirmed:
+                if name.endswith(spent[0]):
+                    self.assertIn(name, matrix)
+            self.assertEqual(
+                json.loads((view / "versions" / v1[:12] / "verdict.json").read_text())[
+                    "experiment"
+                ],
+                v1[:12],
+            )
+            self.assertFalse((view / "versions" / v0[:12] / "verdict.json").exists())
+
+    def test_an_interrupted_analysis_resumes_without_rerunning_a_finished_analyst(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp, "log")
+            os.environ["FAKE_LOG"] = str(log)
+            os.environ["FAKE_CHALLENGE"] = "crash"
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+            with self.assertRaises(rsi.subprocess.CalledProcessError):
+                h.analyze(v0)
+            self.assertEqual(h.insights(), [])
+            del os.environ["FAKE_CHALLENGE"]
+
+            k = h.analyze(v0)
+
+            self.assertEqual(h.insight(k)["status"], "qualified")
+            self.assertEqual(log.read_text().split(), ["analyst.md", "challenger.md"])
+            exposures = [
+                e["body"]["view"]
+                for e in h.events("exposure")
+                if "analysis" in e["body"]["view"]
+            ]
+            self.assertEqual(exposures, ["analysis:1"], "one view, recorded once")
+
+    def test_analysis_restarts_when_the_runs_changed_during_an_interruption(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_CHALLENGE"] = "crash"
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.measure(v0, DEV[0], "dev")
+            with self.assertRaises(rsi.subprocess.CalledProcessError):
+                h.analyze(v0)
+            del os.environ["FAKE_CHALLENGE"]
+            h.dev(v0)
+
+            h.analyze(v0)
+
+            self.assertEqual(len(h.insight(1)["coverage"]), len(DEV))
+            archive = h.camp / "insight" / "1" / "analyst-1" / "workspace" / "archive"
+            self.assertEqual(len(list((archive / "runs").iterdir())), len(DEV))
+
+    def test_status_lists_the_latest_verdicts_and_the_head_of_the_proposals(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = campaign(tmp)
+            h = host(camp, FakeTasks())
+            h.step()
+            (h.current_knowledge() / "proposals.md").write_text("Fix the harness.\n")
+
+            out = io.StringIO()
+            with (
+                mock.patch.object(sys, "argv", ["rsi", "status", "--camp", str(camp)]),
+                contextlib.redirect_stdout(out),
+            ):
+                rsi.main()
+
+            status = json.loads(out.getvalue())
+            self.assertEqual(
+                [(a["k"], a["verdict"], a["status"]) for a in status["analyses"]],
+                [(1, None, "qualified"), (2, "present", "qualified")],
+            )
+            self.assertEqual(status["proposals"], ["Fix the harness."])
+
+    def test_every_valid_run_is_observed_once_with_its_trajectory_and_outcomes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            v0 = h.incumbent()
+            h.dev(v0)
+
+            h.analyze(v0)
+
+            observed = sorted(p.name for p in (h.camp / "observations").iterdir())
+            self.assertEqual(observed, sorted(f"dev-{v0[:12]}-{t}" for t in DEV))
+            run = h.camp / "observations" / f"dev-{v0[:12]}-{DEV[0]}"
+            summary = json.loads((run / "summary.json").read_text())
+            self.assertNotIn("label", summary)
+            self.assertNotIn("failures", summary)
+            self.assertEqual(summary["final"], {"copied": 0, "omitted": 0})
+            self.assertEqual(summary["trajectory"]["compactions"], 0)
+            self.assertEqual(
+                json.loads((run / "outcomes.json").read_text()),
+                {f"m.A.t{i}": {"passed": False, "message": ""} for i in range(3)},
+            )
+            self.assertEqual((run / "failures.txt").read_text(), "t1: assert\n")
+            self.assertTrue((run / "trajectory.md").exists())
+            self.assertTrue((run / "events.jsonl").exists())
+
+    def test_a_run_without_a_rollout_is_observed_with_a_null_trajectory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            attempt = Path(tmp, "elsewhere", "dev-x-task", "attempt-1")
+            attempt.mkdir(parents=True)
+            result = {
+                "validity": "valid",
+                "run_dir": str(attempt),
+                "pass_rate": 0.5,
+                "failures": "t: boom\n",
+                "label": {"task": "task"},
+                "status": None,
+            }
+
+            dest = h.observe(result)
+
+            self.assertEqual(dest, h.camp / "observations" / "dev-x-task")
+            summary = json.loads((dest / "summary.json").read_text())
+            self.assertIsNone(summary["trajectory"])
+            self.assertEqual(summary["pass_rate"], 0.5)
+            self.assertEqual(json.loads((dest / "outcomes.json").read_text()), {})
+            self.assertFalse((dest / "trajectory.md").exists())
+            self.assertEqual(h.observe(result), dest, "cached")
+
     def test_an_invalid_run_is_retried_once_and_never_scored_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
             tasks = FakeTasks()
@@ -360,6 +697,42 @@ class SuccessionTest(unittest.TestCase):
 
             self.assertEqual(results[DEV[0]], 0.5)
             self.assertEqual([t for _, t in tasks.runs].count(DEV[0]), 2)
+
+
+class ProgramBenchTest(unittest.TestCase):
+    def test_outcomes_keep_the_message_and_omit_skipped_tests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "eval", "attempt-1", "t", "t.eval.json")
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "test_results": [
+                            {"name": "m.T.a", "status": "passed"},
+                            {
+                                "name": "m.T.b",
+                                "status": "failure",
+                                "extra": {"message": "x" * 5000},
+                            },
+                            {"name": "m.T.c", "status": "skipped"},
+                        ]
+                    }
+                )
+            )
+
+            outcomes = rsi.ProgramBench({}).outcomes(Path(tmp))
+
+            self.assertEqual(set(outcomes), {"m.T.a", "m.T.b"})
+            self.assertEqual(outcomes["m.T.a"], {"passed": True, "message": ""})
+            self.assertFalse(outcomes["m.T.b"]["passed"])
+            self.assertLess(len(outcomes["m.T.b"]["message"]), 1100)
+
+    def test_task_tokens_are_the_owner_and_the_repository_but_not_the_commit(self):
+        tokens = rsi.ProgramBench({}).task_tokens
+        self.assertEqual(tokens("Yoav-Lavi__Melody.f4af9b4"), {"yoav-lavi", "melody"})
+        self.assertEqual(tokens("pls-rs__pls.4e1ae50"), {"pls-rs", "pls"})
+        self.assertEqual(tokens("ab__cd.0123456"), set(), "too short to mean the task")
+        self.assertEqual(tokens("owner__re.po.0123456"), {"owner", "re.po"})
 
 
 class ItemsTest(unittest.TestCase):

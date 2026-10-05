@@ -1,17 +1,24 @@
 #!/usr/bin/env python3
 """ProContract succession: the institution's side of recursive self-improvement.
 
-A version is a policy bundle (executor.md, research.md, drafter.md, prober.md, reviewer.md) run by
-one codex binary. Improving the method is an ordinary task whose product may succeed the version
+A version is a policy bundle (executor.md, research.md, analyst.md, challenger.md, drafter.md,
+prober.md, reviewer.md) run by one codex binary. Improving the method is an ordinary task whose product may succeed the version
 that does the work (reach spec §5). This host stays outside every version's write authority: it
 runs from its own checkout, holds the campaign ledger, chooses research parents, runs and measures
 versions, and keeps every claim in the kernel through the store CLI.
 
   init     start a campaign: pools, budgets, gates; register v0 and adopt it as the first incumbent
-  step     one research step: parent → research run → delivery → qualification → development
-           evaluation → (when it earns it) paired confirmation against the incumbent
+  step     one research step: parent → analysis of what the runs show → research run → delivery →
+           qualification → development evaluation → analysis that settles the experiment → (when
+           it earns it) paired confirmation against the incumbent
+  analyze  run the analysis that is due, if any (the host runs it inside every step)
   adopt    the human adopts a confirmed candidate (an explicit settlement)
-  status   derived views: incumbent, versions, budgets
+  status   derived views: incumbent, versions, budgets, the latest verdicts and proposals
+
+Observation and analysis (insight spec): every valid run is normalized into observations/ once; an
+analyst run explains outcomes from trajectories and a challenger run tries to defeat the
+explanation. Only a challenged delivery becomes the campaign's knowledge and verdict, and a candidate
+is put forward only when the verdict says its signature is present.
 
 Reach in practice:
 - exploration (choosing a parent, putting a candidate forward) may use any information and needs no
@@ -25,6 +32,7 @@ Every phase is resumable: runs are cached by directory, kernel commands are idem
 import argparse
 import json
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -32,19 +40,36 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import procontract_attribution as attribution
+import procontract_outcomes as outcome_matrix
 import procontract_store as store
+import procontract_trajectory as trajectory
 
 SCRIPTS = Path(__file__).resolve().parent
 RUNNER = [sys.executable, str(SCRIPTS / "procontract_benchmark_runner.py")]
 V0_BUNDLE = SCRIPTS.parent / "codex-rs" / "ext" / "pro-contract" / "policies"
-BUNDLE_FILES = ["executor.md", "research.md", "drafter.md", "prober.md", "reviewer.md"]
-# The files that shape how a version does tasks; research.md shapes only how it researches.
+BUNDLE_FILES = [
+    "executor.md",
+    "research.md",
+    "analyst.md",
+    "challenger.md",
+    "drafter.md",
+    "prober.md",
+    "reviewer.md",
+]
+# The files that shape how a version does tasks; research.md, analyst.md and challenger.md shape
+# only how it studies itself, so a version that changes only those is a twin of its parent.
 TASK_FILES = ["executor.md", "drafter.md", "prober.md", "reviewer.md"]
 MAX_BUNDLE_FILE = 32 << 10
+KNOWLEDGE_CAP = 512 << 10
+SIGNATURES = ("present", "partial", "absent")
+OUTCOME_MESSAGE_CAP = 1000
+LATEST_ANALYSES = 5
+PROPOSAL_LINES = 20
 EXPERIMENT_SECTIONS = [
-    "Deficiency",
+    "Mechanism",
     "Hypothesis",
     "Change",
+    "Signature",
     "Prediction",
     "Falsifier",
     "Risks",
@@ -59,9 +84,56 @@ Your workspace holds:
 - policy/: the policy bundle of version {parent}. You may edit only these files: {files}. Each must
   stay under 32 KiB. The bundle as you leave it is your candidate.
 - archive/: evidence from earlier runs and research steps. Read it; do not change it.
+  archive/knowledge/ is what the campaign has learned so far and archive/insight/ holds the
+  analyses that produced it.
 
-Deliver ./EXPERIMENT.md with the sections {sections}. No network is available.
+Deliver ./EXPERIMENT.md with the sections {sections}. No network is available. Tools: python3, jq,
+grep, sed and awk are installed; rg is not.
 """
+
+ANALYST_PROTOCOL = """This is an analysis task: explain what the agent did and why its runs scored as they did.
+
+Your workspace holds:
+- archive/: the evidence, read-only. Start with archive/README.md.
+- knowledge/: what the campaign knows, as you inherited it. Edit it: UTF-8 text only, at most
+  512 KiB in total.
+
+{pending}
+Deliver ./ANALYSIS.md and leave ./knowledge as the campaign should keep it. No network is
+available. Tools: python3, jq, grep, sed and awk are installed; rg is not.
+"""
+
+CHALLENGER_PROTOCOL = """This is a challenge task: try to defeat an analysis of an agent's runs.
+
+Your workspace holds:
+- archive/: the evidence the analyst read, read-only. archive/knowledge/ is the knowledge before the
+  analysis.
+- ANALYSIS.md, verdict.json (when an experiment is pending) and knowledge/: the analyst's delivery.
+  You may amend knowledge/ (UTF-8 text only, at most 512 KiB in total) and verdict.json.
+
+{pending}
+Deliver ./CHALLENGE.md. No network is available. Tools: python3, jq, grep, sed and awk are
+installed; rg is not.
+"""
+
+PENDING = "Experiment {version} is pending: ./verdict.json must say whether its signature was present."
+NOT_PENDING = "No experiment is pending."
+
+LAYOUT = """Layout:
+- versions/<id>/: a version's bundle and EXPERIMENT.md, and verdict.json once an analysis has
+  settled its experiment.
+- runs/<run>/: one run per valid development task and per spent confirmation task. summary.json (the
+  result and a per-turn trajectory block), outcomes.json (every hidden item: passed, message),
+  failures.txt, trajectory.md (the executor's thread in order), events.jsonl (the same as records)
+  and final/ (the text files the executor left).
+- tasks/<task>/outcomes.md: the outcome matrix of one task across all the runs above.
+- attribution/: per task, how a version's behavior and outcomes differ from its parent's.
+- insight/<k>/: earlier analyses (ANALYSIS.md, CHALLENGE.md, and the verdict.json that settled an
+  experiment).
+- knowledge/: what the campaign knows (mechanisms, refuted beliefs, task dossiers, proposals).
+  Read-only here.
+Confirmation tasks that are not spent do not appear anywhere.
+Tools: python3, jq, grep, sed and awk are installed; rg is not."""
 
 
 def now_key(*parts) -> str:
@@ -393,6 +465,172 @@ class Host:
             )
         return (parent, rows) if rows else None
 
+    # ---- observation and analysis -------------------------------------------------------------
+
+    def observed(self) -> dict[str, dict]:
+        """The valid runs the archive may show, by run name: every development run and every
+        confirmation run of a spent task (a spent task never certifies again, so reading its runs
+        costs nothing). Confirmation tasks not yet spent are never in it."""
+        spent = set(self.used_confirmation_tasks())
+        runs = {}
+        for path in sorted((self.camp / "runs").glob("*/result.json")):
+            result = json.loads(path.read_text())
+            if result["validity"] == "valid" and (
+                result["purpose"] == "dev" or result["task"] in spent
+            ):
+                runs[path.parent.name] = result
+        return runs
+
+    def observe(self, result: dict) -> Path:
+        """Normalizes one valid run into observations/<run>/ once: what happened (trajectory) beside
+        what the hidden tests said (outcomes). Built aside and renamed, so a directory that exists
+        is complete; a run without a rollout has a null trajectory block and no trajectory files."""
+        run_dir = Path(result["run_dir"])
+        dest = self.camp / "observations" / run_dir.parent.name
+        if dest.exists():
+            return dest
+        partial = dest.with_name(dest.name + ".partial")
+        shutil.rmtree(partial, ignore_errors=True)
+        partial.mkdir(parents=True)
+        status = result.get("status")
+        stats = trajectory.write(
+            run_dir,
+            partial,
+            self.adapter.oracle_patterns(),
+            status.get("thread_id") if isinstance(status, dict) else None,
+        )
+        copied, omitted = trajectory.copy_final(
+            run_dir / "workspace", partial / "final"
+        )
+        (partial / "outcomes.json").write_text(
+            json.dumps(self.adapter.outcomes(run_dir), indent=2) + "\n"
+        )
+        (partial / "failures.txt").write_text(result.get("failures", ""))
+        summary = {k: v for k, v in result.items() if k not in ("label", "failures")}
+        summary["trajectory"] = stats
+        summary["final"] = {"copied": len(copied), "omitted": omitted}
+        (partial / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        partial.rename(dest)
+        return dest
+
+    def insights(self) -> list[dict]:
+        """Every analysis recorded so far, in order (qualified or failed)."""
+        return [event["body"] for event in self.events("insight")]
+
+    def insight(self, k: int) -> dict:
+        return self.insights()[k - 1]
+
+    def current_knowledge(self) -> Path | None:
+        """The latest qualified analysis's knowledge, else the campaign's seed, else none."""
+        for body in reversed(self.insights()):
+            if body["status"] == "qualified":
+                return self.camp / "insight" / str(body["k"]) / "knowledge"
+        seed = self.camp / "knowledge-seed"
+        return seed if seed.is_dir() else None
+
+    def pending_experiment(self) -> str | None:
+        """The newest candidate measured on every development task that no analysis has yet been
+        asked to settle: the experiment the next analysis must judge."""
+        asked = {body["experiment"] for body in self.insights()}
+        pending = None
+        for event in self.events("selection"):
+            body = event["body"]
+            vid = body["version"]
+            if (
+                body["role"] == "qualified"
+                and not body.get("method_only")
+                and vid not in asked
+                and len(self.dev_results(vid)) == len(self.terms["pools"]["dev"])
+            ):
+                pending = vid
+        return pending
+
+    def write_archive(self, archive: Path, parent: str) -> list[str]:
+        """The archive every view shares: versions, observed runs, per-task matrices, attribution,
+        completed analyses and the current knowledge. Returns its sources, the run names."""
+        runs = self.observed()
+        archive.mkdir(parents=True)
+        self.write_readme(archive, parent)
+        settled = {
+            body["experiment"]: body["k"]
+            for body in self.insights()
+            if body["status"] == "qualified" and body["verdict"]
+        }
+        for vid in self.versions():
+            vdir = archive / "versions" / vid[:12]
+            vdir.mkdir(parents=True)
+            shutil.copy(self.version_dir(vid) / "EXPERIMENT.md", vdir / "EXPERIMENT.md")
+            shutil.copytree(self.version_dir(vid) / "bundle", vdir / "bundle")
+            if vid in settled:
+                shutil.copy(
+                    self.camp / "insight" / str(settled[vid]) / "verdict.json", vdir
+                )
+        for name, result in runs.items():
+            shutil.copytree(self.observe(result), archive / "runs" / name)
+        self.write_outcomes(archive, runs)
+        self.write_attribution(archive)
+        for body in self.insights():
+            if body["status"] == "qualified":
+                kept = self.camp / "insight" / str(body["k"])
+                target = archive / "insight" / str(body["k"])
+                target.mkdir(parents=True)
+                for name in ("ANALYSIS.md", "CHALLENGE.md", "verdict.json"):
+                    if (kept / name).exists():
+                        shutil.copy(kept / name, target)
+        copy_knowledge(self.current_knowledge(), archive / "knowledge")
+        return list(runs)
+
+    def write_readme(self, archive: Path, parent: str) -> None:
+        pending = self.pending_experiment()
+        lines = [
+            "# Archive",
+            "",
+            f"Incumbent version: {self.incumbent()[:12]}. Research parent: {parent[:12]}.",
+        ]
+        if pending:
+            lines.append(f"Pending experiment: {pending[:12]}")
+        lines += [
+            "Pass rates come from hidden tests the agent never sees (beyond its reach); 1.0 is perfect.",
+            "",
+            "| version | parent | development mean | tasks |",
+            "|---|---|---|---|",
+        ]
+        for vid, manifest in self.versions().items():
+            results = self.dev_results(vid)
+            lines.append(
+                f"| {vid[:12]} | {(manifest['lineage']['parent'] or '-')[:12]} | "
+                f"{f'{mean(results.values()):.3f}' if results else '-'} | {len(results)} |"
+            )
+        (archive / "README.md").write_text("\n".join([*lines, "", LAYOUT]) + "\n")
+
+    def write_outcomes(self, archive: Path, runs: dict[str, dict]) -> None:
+        """tasks/<task>/outcomes.md over all the observed runs of each task. A run's parent is the
+        twin of its version's lineage parent, which is how the matrix draws lineage edges."""
+        versions = self.versions()
+        by_task: dict[str, list[dict]] = {}
+        for name, result in runs.items():
+            version = result["version"]
+            parent = versions[version]["lineage"]["parent"]
+            outcomes = json.loads(
+                (self.camp / "observations" / name / "outcomes.json").read_text()
+            )
+            by_task.setdefault(result["task"], []).append(
+                {
+                    "name": name,
+                    "version": version,
+                    "twin": self.twin(version),
+                    "parent": self.twin(parent) if parent else None,
+                    "purpose": result["purpose"],
+                    "outcomes": outcomes,
+                }
+            )
+        for task, group in by_task.items():
+            target = archive / "tasks" / task
+            target.mkdir(parents=True)
+            (target / "outcomes.md").write_text(
+                outcome_matrix.render(task, outcome_matrix.matrix(group))
+            )
+
     def write_attribution(self, archive: Path) -> None:
         noise = self.terms.get("noise_floor", NOISE_FLOOR)
         for vid in self.versions():
@@ -405,6 +643,165 @@ class Host:
             target.write_text(
                 attribution.render(vid, parent, rows, experiment, noise, NOISE_SOURCE)
             )
+
+    def stage_view(self, root: Path, view: str, parent: str, prompt: str, fill) -> None:
+        """Builds root/workspace once: the archive plus whatever `fill(partial)` adds, with the
+        agent's prompt beside it. It is built aside and renamed, so an existing workspace is a
+        finished one, and the exposure of its sources is recorded before any agent can read it
+        (and not twice when a crash falls between the record and the rename)."""
+        workspace = root / "workspace"
+        if workspace.exists():
+            return
+        partial = root / "workspace.partial"
+        shutil.rmtree(partial, ignore_errors=True)
+        sources = self.write_archive(partial / "archive", parent)
+        fill(partial)
+        (root / "prompt.md").write_text(prompt)
+        exposure = {"view": view, "parent": parent, "sources": sources}
+        if exposure not in [event["body"] for event in self.events("exposure")]:
+            self.record("exposure", exposure)
+        partial.rename(workspace)
+
+    def run_agent(
+        self, root: Path, instance: str, parent: str, instructions: str, deadline: int
+    ) -> Path:
+        """Runs a codex agent on the research image in root/workspace, no network and no
+        reference, with the parent's bundle file `instructions` as its standing instructions;
+        returns the workspace it leaves. A finished run (run.json) is never run again."""
+        run_dir = root / "run"
+        if not (run_dir / "run.json").exists():
+            shutil.rmtree(run_dir, ignore_errors=True)
+            common = [
+                "--arm",
+                "on",
+                "--instance",
+                instance,
+                "--run-dir",
+                str(run_dir),
+            ]
+            common += [
+                "--codex-bin",
+                self.terms["codex_bin"],
+                "--image",
+                self.terms["research_image"],
+            ]
+            prepare = common + [
+                "--prompt",
+                str(root / "prompt.md"),
+                "--policy",
+                str(self.version_dir(parent) / "bundle"),
+            ]
+            prepare += [
+                "--instructions",
+                instructions,
+                "--workspace-from",
+                str(root / "workspace"),
+                "--no-reference",
+            ]
+            subprocess.run([*self.runner, "prepare", *prepare], check=True)
+            run = common + ["--deadline-secs", str(deadline)]
+            subprocess.run([*self.runner, "run", *run], check=False)
+        return run_dir / "workspace"
+
+    def analyze(self, parent: str) -> int:
+        """The analysis that covers every valid run stored now: the latest when the set of runs has
+        not grown since, otherwise a new one. An analyst explains the outcomes and settles the
+        pending experiment; a challenger tries to defeat that; only a challenged delivery that
+        qualifies becomes the campaign's, else the failure is recorded, the knowledge stays and the
+        verdict is unknown. Each stage may retry once; finished runs are never run again."""
+        coverage = sorted(self.observed())
+        done = self.insights()
+        if done and done[-1]["coverage"] == coverage:
+            return done[-1]["k"]
+        k = len(done) + 1
+        root = self.camp / "insight" / str(k)
+        marker = root / "coverage.json"
+        if marker.exists() and json.loads(marker.read_text()) != coverage:
+            # Runs arrived after an interrupted attempt staged its views: start the analysis over.
+            shutil.rmtree(root)
+        root.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps(coverage))
+        pending = self.pending_experiment()
+        previous = self.current_knowledge()
+        note = PENDING.format(version=pending[:12]) if pending else NOT_PENDING
+        analysis, reason = self.insight_stage(
+            root,
+            "analyst",
+            f"analysis:{k}",
+            k,
+            parent,
+            ANALYST_PROTOCOL.format(pending=note),
+            pending,
+            lambda partial: copy_knowledge(previous, partial / "knowledge"),
+            "ANALYSIS.md",
+        )
+        challenge = None
+        if analysis is not None:
+            challenge, reason = self.insight_stage(
+                root,
+                "challenger",
+                f"challenge:{k}",
+                k,
+                parent,
+                CHALLENGER_PROTOCOL.format(pending=note),
+                pending,
+                lambda partial: hand_over(analysis, partial, pending),
+                "CHALLENGE.md",
+            )
+        body = {
+            "k": k,
+            "coverage": coverage,
+            "experiment": pending,
+            "verdict": "unknown",
+            "status": "failed",
+            "reason": reason,
+        }
+        if challenge is not None:
+            shutil.copy(analysis / "ANALYSIS.md", root)
+            shutil.copy(challenge / "CHALLENGE.md", root)
+            if pending:
+                shutil.copy(challenge / "verdict.json", root)
+            shutil.rmtree(root / "knowledge", ignore_errors=True)
+            copy_knowledge(challenge / "knowledge", root / "knowledge")
+            verdict = (
+                json.loads((root / "verdict.json").read_text())["signature"]
+                if pending
+                else None
+            )
+            body = {**body, "verdict": verdict, "status": "qualified"}
+            del body["reason"]
+        self.record("insight", body)
+        return k
+
+    def insight_stage(
+        self,
+        root: Path,
+        role: str,
+        view: str,
+        k: int,
+        parent: str,
+        prompt: str,
+        pending: str | None,
+        fill,
+        document: str,
+    ) -> tuple[Path | None, str]:
+        """One agent of an analysis, with one retry: the workspace of the first attempt whose
+        delivery qualifies, else the reason the last did not. Attempts are directories, so a
+        resumed analysis reads the finished ones and runs only what is missing."""
+        deadline = self.terms.get(
+            "analysis_deadline_secs", self.terms["research_deadline_secs"]
+        )
+        reason = ""
+        for attempt in (1, 2):
+            base = root / f"{role}-{attempt}"
+            self.stage_view(base, view, parent, prompt, fill)
+            delivery = self.run_agent(
+                base, f"{role}-{k}-{attempt}", parent, f"{role}.md", deadline
+            )
+            reason = delivery_problem(delivery, document, pending)
+            if not reason:
+                return delivery, ""
+        return None, f"{role}: {reason}"
 
     # ---- research -----------------------------------------------------------------------------
 
@@ -430,111 +827,40 @@ class Host:
         return max(means, key=means.get), "best_dev_mean"
 
     def stage_research(self, parent: str, step: int) -> Path:
-        """The research view: the parent's bundle (editable) and the archive (development evidence
-        and research history). Confirmation tasks never enter it."""
+        """The research view: the parent's bundle (editable) and the archive (valid development
+        runs, spent confirmation runs, the analyses and the knowledge). Confirmation tasks not yet
+        spent never enter it."""
         root = self.camp / "research" / f"step-{step}"
-        workspace = root / "workspace"
-        if workspace.exists():
-            return root
-        shutil.copytree(self.version_dir(parent) / "bundle", workspace / "policy")
-        archive = workspace / "archive"
-        archive.mkdir(parents=True)
-        sources = []
-        incumbent = self.incumbent()
-        lines = [
-            "# Archive",
-            "",
-            f"Incumbent version: {incumbent}. Research parent: {parent}.",
-            "Pass rates come from hidden tests the agent never sees (beyond its reach); 1.0 is perfect.",
-            "",
-            "| version | parent | development mean | tasks |",
-            "|---|---|---|---|",
-        ]
-        for vid, manifest in self.versions().items():
-            results = self.dev_results(vid)
-            lines.append(
-                f"| {vid[:12]} | {(manifest['lineage']['parent'] or '-')[:12]} | "
-                f"{mean(results.values()):.3f} | {len(results)} |"
-            )
-            vdir = archive / "versions" / vid[:12]
-            vdir.mkdir(parents=True)
-            shutil.copy(self.version_dir(vid) / "EXPERIMENT.md", vdir / "EXPERIMENT.md")
-            shutil.copytree(self.version_dir(vid) / "bundle", vdir / "bundle")
-        lines += [
-            "",
-            "archive/attribution/ explains, per task, how each version's behavior and hidden-test",
-            "outcomes differ from its parent's: read it before judging why a version progressed or regressed.",
-        ]
-        (archive / "README.md").write_text("\n".join(lines) + "\n")
-        self.write_attribution(archive)
-        for result_file in sorted((self.camp / "runs").glob("dev-*/result.json")):
-            result = json.loads(result_file.read_text())
-            run = archive / "runs" / result_file.parent.name
-            run.mkdir(parents=True)
-            (run / "summary.json").write_text(
-                json.dumps(
-                    {k: v for k, v in result.items() if k not in ("label", "failures")},
-                    indent=2,
-                )
-                + "\n"
-            )
-            (run / "failures.txt").write_text(result.get("failures", ""))
-            sources.append(result_file.parent.name)
-        self.record(
-            "exposure",
-            {"view": f"research:{step}", "parent": parent, "sources": sources},
-        )
         prompt = RESEARCH_PROTOCOL.format(
             parent=parent[:12],
             files=", ".join(self.terms["mutable"]),
             sections=", ".join(EXPERIMENT_SECTIONS),
         )
-        (root / "prompt.md").write_text(prompt)
+        self.stage_view(
+            root,
+            f"research:{step}",
+            parent,
+            prompt,
+            lambda partial: shutil.copytree(
+                self.version_dir(parent) / "bundle", partial / "policy"
+            ),
+        )
         return root
 
     def research(self, parent: str, step: int) -> Path:
         root = self.stage_research(parent, step)
-        run_dir = root / "run"
-        if not (run_dir / "run.json").exists():
-            shutil.rmtree(run_dir, ignore_errors=True)
-            common = [
-                "--arm",
-                "on",
-                "--instance",
-                f"research-{step}",
-                "--run-dir",
-                str(run_dir),
-            ]
-            common += [
-                "--codex-bin",
-                self.terms["codex_bin"],
-                "--image",
-                self.terms["research_image"],
-            ]
-            prepare = common + [
-                "--prompt",
-                str(root / "prompt.md"),
-                "--policy",
-                str(self.version_dir(parent) / "bundle"),
-            ]
-            prepare += [
-                "--instructions",
-                "research.md",
-                "--workspace-from",
-                str(root / "workspace"),
-                "--no-reference",
-            ]
-            subprocess.run([*self.runner, "prepare", *prepare], check=True)
-            run = common + [
-                "--deadline-secs",
-                str(self.terms["research_deadline_secs"]),
-            ]
-            subprocess.run([*self.runner, "run", *run], check=False)
-        return run_dir / "workspace"
+        return self.run_agent(
+            root,
+            f"research-{step}",
+            parent,
+            "research.md",
+            self.terms["research_deadline_secs"],
+        )
 
     def qualify(self, delivery: Path, parent: str) -> tuple[bool, str, bool]:
-        """Mechanical, complete criterion: an experiment record with every section, and a bundle
-        changed only within the campaign's mutable files. Returns (qualified, reason, changed)."""
+        """Mechanical, complete criterion: an experiment record with every section, a bundle
+        changed only within the campaign's mutable files, and task-shaping files that name no task
+        the campaign has exposed. Returns (qualified, reason, changed)."""
         experiment = delivery / "EXPERIMENT.md"
         if not experiment.exists() or not experiment.read_text().strip():
             return False, "no EXPERIMENT.md was delivered", False
@@ -578,11 +904,37 @@ class Host:
                 f"changed files the campaign does not allow: {', '.join(outside)}",
                 False,
             )
+        if leak := self.boundary(policy, changed):
+            return False, leak, False
         return (
             True,
             "qualified" if changed else "a null experiment: the bundle is unchanged",
             bool(changed),
         )
+
+    def exposed_tasks(self) -> list[str]:
+        """Tasks some view or selection has read: the development pool and the spent confirmation
+        tasks."""
+        return [*self.terms["pools"]["dev"], *self.used_confirmation_tasks()]
+
+    def boundary(self, policy: Path, changed: list[str]) -> str:
+        """Why a changed task-shaping file crosses the boundary, or an empty string. Dossiers carry
+        hidden-test detail for the research view only; the files that shape how a version does
+        tasks must stay task-agnostic, so none may name an exposed task, as a whole word in any
+        case. Confirmation on fresh tasks remains the certifier; this only keeps the leak out."""
+        tokens = sorted(
+            {
+                token
+                for task in self.exposed_tasks()
+                for token in self.adapter.task_tokens(task)
+            }
+        )
+        for name in (name for name in changed if name in TASK_FILES):
+            text = (policy / name).read_text()
+            for token in tokens:
+                if re.search(rf"(?<!\w){re.escape(token)}(?!\w)", text, re.IGNORECASE):
+                    return f"{name} names the exposed task token '{token}'"
+        return ""
 
     # ---- the step -----------------------------------------------------------------------------
 
@@ -629,8 +981,10 @@ class Host:
             },
             "delegate",
         )
-        # Research starts from evidence: the parent's development runs fill the archive it reads.
+        # Research starts from evidence: the parent's development runs fill the archive it reads,
+        # and an analysis of them (the first, or nothing new) comes before it.
         self.dev(parent)
+        self.analyze(parent)
         delivery = self.research(parent, step)
         experiment = (
             (delivery / "EXPERIMENT.md").read_text()
@@ -679,18 +1033,26 @@ class Host:
         self.record("selection", {"role": "qualified", "version": candidate})
         incumbent = self.incumbent()
         delta = paired_delta(self.dev(candidate), self.dev(incumbent))
+        # The measured runs settle the experiment: was the signature present, whatever the score.
+        verdict = self.insight(self.analyze(parent))["verdict"] or "unknown"
         gates = self.terms["gates"]
         if (
             delta < gates["dev_min_delta"]
+            or verdict != "present"
             or self.confirm_budget_left() < gates["confirm_tasks"]
         ):
-            return f"step {step}: candidate {candidate[:12]} stays in research (development delta {delta:+.3f})"
+            return (
+                f"step {step}: candidate {candidate[:12]} stays in research "
+                f"(development delta {delta:+.3f}; verdict: signature {verdict})"
+            )
         self.record(
             "selection",
             {"role": "put_forward", "version": candidate, "dev_delta": delta},
         )
-        return f"step {step}: candidate {candidate[:12]} put forward; " + self.confirm(
-            candidate, incumbent
+        return (
+            f"step {step}: candidate {candidate[:12]} put forward "
+            f"(development delta {delta:+.3f}; verdict: signature {verdict}); "
+            + self.confirm(candidate, incumbent)
         )
 
     def campaign_hash(self) -> str:
@@ -879,16 +1241,36 @@ class ProgramBench:
             "label": label,
         }
 
-    def items(self, run_dir: Path) -> dict[str, bool]:
-        """Hidden tests by name, passed iff their last record says so; skipped tests are omitted.
-        Keyed by name alone, so families group by the dotted name: in the campaigns read so far no
-        name occurs on two branches, and a branch prefix would only break the dotted structure."""
+    def outcomes(self, run_dir: Path) -> dict[str, dict]:
+        """Hidden tests by name: passed iff their last record says so, with the failure message
+        (bounded); skipped tests are omitted. Keyed by name alone, so families group by the dotted
+        name: in the campaigns read so far no name occurs on two branches, and a branch prefix
+        would only break the dotted structure."""
         records = last_records(run_dir / "eval")
         return {
-            name: record["status"] == "passed"
+            name: {
+                "passed": record["status"] == "passed",
+                "message": trajectory.clip(
+                    str((record.get("extra") or {}).get("message") or ""),
+                    OUTCOME_MESSAGE_CAP,
+                ),
+            }
             for (_, name), record in records.items()
             if record["status"] != "skipped"
         }
+
+    def items(self, run_dir: Path) -> dict[str, bool]:
+        return {
+            name: outcome["passed"] for name, outcome in self.outcomes(run_dir).items()
+        }
+
+    def task_tokens(self, task: str) -> set[str]:
+        """The lowercase words that identify a task named owner__repo.commit: its owner and its
+        repository, never the commit, and none shorter than three characters (too common to
+        mean the task)."""
+        owner, _, rest = task.partition("__")
+        repo = rest.rsplit(".", 1)[0]
+        return {token for token in (owner.lower(), repo.lower()) if len(token) >= 3}
 
     def oracle_patterns(self) -> list[str]:
         """The reference program invoked, not merely mentioned: `executable` in command position,
@@ -964,6 +1346,69 @@ def failure_excerpt(eval_dir: Path, limit: int = 40) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
+def knowledge_problem(root: Path) -> str:
+    """Why a knowledge directory is not acceptable, or an empty string: UTF-8 text files only, no
+    links, at most 512 KiB in total, so that it is distilled rather than dumped. A missing
+    directory is empty knowledge."""
+    total = 0
+    for path in sorted(root.rglob("*")) if root.is_dir() else []:
+        rel = path.relative_to(root)
+        if path.is_symlink():
+            return f"knowledge/{rel} is a link"
+        if path.is_file():
+            if not trajectory.utf8_text(path, KNOWLEDGE_CAP)[0]:
+                return f"knowledge/{rel} is not UTF-8 text"
+            total += path.stat().st_size
+    if total > KNOWLEDGE_CAP:
+        return f"knowledge holds {total} bytes, over 512 KiB"
+    return ""
+
+
+def verdict_problem(path: Path, pending: str) -> str:
+    """Why verdict.json does not settle the pending experiment, or an empty string."""
+    try:
+        verdict = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return "verdict.json is missing or not JSON"
+    if not isinstance(verdict, dict) or verdict.get("signature") not in SIGNATURES:
+        return "verdict.json has no signature of present, partial or absent"
+    if str(verdict.get("experiment"))[:12] != pending[:12]:
+        return f"verdict.json is not about the pending experiment {pending[:12]}"
+    return ""
+
+
+def delivery_problem(workspace: Path, document: str, pending: str | None) -> str:
+    """Why an analyst's or challenger's delivery does not qualify, or an empty string: its document
+    is not empty, its knowledge is acceptable, and with an experiment pending its verdict.json
+    settles that experiment."""
+    path = workspace / document
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or not path.read_text(errors="replace").strip()
+    ):
+        return f"no {document} was delivered"
+    if problem := knowledge_problem(workspace / "knowledge"):
+        return problem
+    return verdict_problem(workspace / "verdict.json", pending) if pending else ""
+
+
+def copy_knowledge(source: Path | None, dest: Path) -> None:
+    """A copy of a knowledge directory; an empty directory when there is none."""
+    if source is not None and source.is_dir():
+        shutil.copytree(source, dest)
+    else:
+        dest.mkdir(parents=True)
+
+
+def hand_over(analysis: Path, workspace: Path, pending: str | None) -> None:
+    """The analyst's delivery, placed in the challenger's workspace."""
+    shutil.copy(analysis / "ANALYSIS.md", workspace)
+    if pending:
+        shutil.copy(analysis / "verdict.json", workspace)
+    copy_knowledge(analysis / "knowledge", workspace / "knowledge")
+
+
 def mean(values) -> float:
     values = list(values)
     return sum(values) / len(values) if values else 0.0
@@ -978,6 +1423,8 @@ def cmd_init(args) -> None:
     camp: Path = args.camp
     if (camp / "campaign.json").exists():
         sys.exit(f"{camp} already holds a campaign")
+    if args.knowledge and (problem := knowledge_problem(args.knowledge)):
+        sys.exit(f"the seed knowledge is not acceptable: {problem}")
     pools = json.loads(args.pools.read_text())
     rng = random.Random(args.seed)
     dev = args.dev or rng.sample(sorted(pools["dev"]), args.dev_tasks)
@@ -1019,8 +1466,12 @@ def cmd_init(args) -> None:
         "parallel": args.parallel,
         "task_deadline_secs": args.task_deadline_secs,
         "research_deadline_secs": args.research_deadline_secs,
+        "analysis_deadline_secs": args.analysis_deadline_secs
+        or args.research_deadline_secs,
     }
     camp.mkdir(parents=True)
+    if args.knowledge:
+        copy_knowledge(args.knowledge, camp / "knowledge-seed")
     (camp / "campaign.json").write_text(json.dumps(terms, indent=2) + "\n")
     host = Host(camp)
     host.issue("campaign", terms, {"class": "campaign_report"}, "human")
@@ -1055,6 +1506,20 @@ def cmd_step(args) -> None:
         print(host.step(), flush=True)
 
 
+def cmd_analyze(args) -> None:
+    """Runs the analysis that is due, with the latest research parent (the incumbent before any
+    research)."""
+    host = Host(args.camp)
+    parents = [
+        e["body"]["version"]
+        for e in host.events("selection")
+        if e["body"]["role"] == "research_parent"
+    ]
+    k = host.analyze(parents[-1] if parents else host.incumbent())
+    body = host.insight(k)
+    print(f"analysis {k}: {body['status']}, verdict {body['verdict']}")
+
+
 def cmd_adopt(args) -> None:
     host = Host(args.camp)
     matches = [vid for vid in host.versions() if vid.startswith(args.version)]
@@ -1082,12 +1547,26 @@ def cmd_status(args) -> None:
                 else None,
             }
         )
+    knowledge = host.current_knowledge()
+    proposals = knowledge / "proposals.md" if knowledge else None
     print(
         json.dumps(
             {
                 "incumbent": incumbent[:12],
                 "versions": rows,
                 "confirm_tasks_left": host.confirm_budget_left(),
+                "analyses": [
+                    {
+                        "k": body["k"],
+                        "experiment": (body["experiment"] or "")[:12],
+                        "verdict": body["verdict"],
+                        "status": body["status"],
+                    }
+                    for body in host.insights()[-LATEST_ANALYSES:]
+                ],
+                "proposals": proposals.read_text().splitlines()[:PROPOSAL_LINES]
+                if proposals and proposals.exists()
+                else [],
             },
             indent=2,
         )
@@ -1130,18 +1609,34 @@ def main() -> None:
     init.add_argument("--parallel", type=int, default=4)
     init.add_argument("--task-deadline-secs", type=int, default=5 * 3600)
     init.add_argument("--research-deadline-secs", type=int, default=3600)
+    init.add_argument(
+        "--analysis-deadline-secs",
+        type=int,
+        help="the analyst's and the challenger's deadline (default: the research deadline)",
+    )
+    init.add_argument(
+        "--knowledge",
+        type=Path,
+        help="a directory of UTF-8 text, at most 512 KiB, that seeds the campaign's knowledge",
+    )
     step = sub.add_parser("step")
     step.add_argument("--camp", type=Path, required=True)
     step.add_argument("--count", type=int, default=1)
+    analyze = sub.add_parser("analyze")
+    analyze.add_argument("--camp", type=Path, required=True)
     adopt = sub.add_parser("adopt")
     adopt.add_argument("--camp", type=Path, required=True)
     adopt.add_argument("--version", required=True)
     status = sub.add_parser("status")
     status.add_argument("--camp", type=Path, required=True)
     args = parser.parse_args()
-    {"init": cmd_init, "step": cmd_step, "adopt": cmd_adopt, "status": cmd_status}[
-        args.command
-    ](args)
+    {
+        "init": cmd_init,
+        "step": cmd_step,
+        "analyze": cmd_analyze,
+        "adopt": cmd_adopt,
+        "status": cmd_status,
+    }[args.command](args)
 
 
 if __name__ == "__main__":
