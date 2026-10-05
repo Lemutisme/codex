@@ -152,3 +152,18 @@ development tasks. This is a budget decision for the principal.
 - Score each turn-end snapshot (the ledger holds them) to measure what the repair turn buys.
 - Fork-and-replay the repair turn from one snapshot with controlled notes.
 - Replicates of the parent, so that the outcome matrix carries a measured noise floor for each task.
+
+## 11. Validation (2026-10-05)
+
+- Unit tests: 80 (trajectory, outcomes, attribution, host with fake runners), including verdict gating,
+  knowledge carried between steps, challenger failure, the task-token boundary, resume after interruption, and
+  spent versus unspent confirmation runs.
+- Real smoke (`~/run-artifacts/procontract-rsi-m0-20261001/insight-smoke/`, set up by
+  `insight-smoke-setup.py`): campaign 1's versions re-registered, 15 of their runs imported read-only, the
+  seed knowledge, binary v5. One `analyze` ran a real analyst (10.7M tokens, 12 min) and a real challenger
+  (13.0M tokens, 16 min); the analysis qualified with verdict `partial` for 0402adfe0e7c. The analyst
+  traced each task's floor and flips to calls in the trajectories, found a mechanism the study had missed
+  (pls `--collapse` needs a `Cargo.lock` fixture, which only the parent created), and judged the family
+  inventory as engaged in language but never as an artifact. The challenger recomputed every number,
+  weakened the parent-versus-child contrast with a counterexample, and kept `partial`. Knowledge grew from
+  152K to 192K with a new mechanism (M16) and a reusable analysis script.
