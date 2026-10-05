@@ -1,5 +1,5 @@
-//! The lane's effects outside its own state — hidden workers, container checks and the repair
-//! turn — behind one seam, so the lane itself is testable without a model or Docker.
+//! The lane's effects outside its own state — hidden workers, reference observations, container
+//! checks and the repair turn — behind one seam, so the lane itself is testable without a model or Docker.
 
 use std::future::Future;
 use std::path::Path;
@@ -20,7 +20,9 @@ use codex_protocol::ThreadId;
 use crate::CheckEnvironment;
 use crate::CheckError;
 use crate::CheckReceipts;
+use crate::DifferentialCase;
 use crate::EvidencePolicy;
+use crate::Observation;
 use crate::WorkerError;
 use crate::WorkerSettings;
 use crate::checks;
@@ -41,18 +43,22 @@ pub(crate) trait Ports: Send + Sync {
     /// Runs one strict-JSON turn on a hidden worker and returns its final message.
     fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>>;
 
-    /// Runs the reference program once with `--help` and returns its bounded output.
-    fn probe_reference<'a>(
+    /// Runs `cases` on the reference only, twice each, over the base workspace.
+    fn observe<'a>(
         &'a self,
         env: &'a CheckEnvironment,
+        base: &'a Path,
         reference: &'a str,
-    ) -> PortFuture<'a, Result<String, CheckError>>;
+        cases: &'a [DifferentialCase],
+    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>>;
 
-    /// Runs the check pipeline over the materialized candidate.
+    /// Runs the check pipeline over the materialized candidate, with the base workspace under
+    /// every case.
     fn run_checks<'a>(
         &'a self,
         env: &'a CheckEnvironment,
         candidate: &'a Path,
+        base: &'a Path,
         policy: &'a EvidencePolicy,
     ) -> PortFuture<'a, Result<CheckReceipts, CheckError>>;
 
@@ -87,23 +93,24 @@ impl Ports for CodexPorts {
         })
     }
 
-    fn probe_reference<'a>(
+    fn observe<'a>(
         &'a self,
         env: &'a CheckEnvironment,
+        base: &'a Path,
         reference: &'a str,
-    ) -> PortFuture<'a, Result<String, CheckError>> {
-        Box::pin(
-            async move { checks::probe_reference(env, reference, &["--help".to_string()]).await },
-        )
+        cases: &'a [DifferentialCase],
+    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>> {
+        Box::pin(checks::observe(env, base, reference, cases))
     }
 
     fn run_checks<'a>(
         &'a self,
         env: &'a CheckEnvironment,
         candidate: &'a Path,
+        base: &'a Path,
         policy: &'a EvidencePolicy,
     ) -> PortFuture<'a, Result<CheckReceipts, CheckError>> {
-        Box::pin(checks::run(env, candidate, policy))
+        Box::pin(checks::run(env, candidate, base, policy))
     }
 
     fn worker_identity(&self) -> WorkerIdentity {

@@ -1,6 +1,8 @@
 //! Hidden, isolated, tool-less worker threads of the automatic Principal.
 
+pub(crate) mod cases;
 pub(crate) mod drafter;
+pub(crate) mod prober;
 pub(crate) mod reviewer;
 pub(crate) mod runtime;
 

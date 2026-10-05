@@ -33,6 +33,7 @@ fn terms() -> Terms {
             },
         ],
         out_of_scope: vec![],
+        process_constraints: vec![],
     }
 }
 
@@ -105,7 +106,7 @@ fn support_requires_coverage_of_every_requirement() {
     let mut value = review("support");
     value["coverage"] = json!([{"requirement_id": "R1", "evidence": "differential D1 passed"}]);
     assert_eq!(
-        parse(&message(value), &terms()).expect("verdict"),
+        parse(&message(value), &terms()).expect("verdict").verdict,
         ReviewVerdict::CannotJudge {
             missing: "no coverage for requirement R2".to_string()
         }
@@ -120,7 +121,7 @@ fn a_complete_support_is_accepted() {
         {"requirement_id": "R2", "evidence": "D2 passed"}
     ]);
     assert_eq!(
-        parse(&message(value), &terms()).expect("verdict"),
+        parse(&message(value), &terms()).expect("verdict").verdict,
         ReviewVerdict::Support {
             coverage: vec![
                 Coverage {
@@ -137,7 +138,7 @@ fn a_complete_support_is_accepted() {
 }
 
 #[test]
-fn a_terms_gap_overrides_support() {
+fn a_terms_gap_is_kept_beside_the_verdict() {
     let mut value = review("support");
     value["coverage"] = json!([
         {"requirement_id": "R1", "evidence": "e"},
@@ -145,14 +146,17 @@ fn a_terms_gap_overrides_support() {
     ]);
     value["terms_gap"] =
         json!([{"element": "error messages", "reason": "requested but not a requirement"}]);
+    let review = parse(&message(value), &terms()).expect("verdict");
+    assert!(
+        matches!(review.verdict, ReviewVerdict::Support { .. }),
+        "{review:?}"
+    );
     assert_eq!(
-        parse(&message(value), &terms()).expect("verdict"),
-        ReviewVerdict::TermsGap {
-            gaps: vec![TermsGap {
-                element: "error messages".to_string(),
-                reason: "requested but not a requirement".to_string()
-            }]
-        }
+        review.terms_gap,
+        vec![TermsGap {
+            element: "error messages".to_string(),
+            reason: "requested but not a requirement".to_string()
+        }]
     );
 }
 
@@ -172,7 +176,7 @@ fn a_defeat_needs_findings_on_known_requirements() {
     value["findings"] =
         json!([{"requirement_id": "R2", "location": "main.rs", "counterexample": "exit 1 vs 2"}]);
     assert_eq!(
-        parse(&message(value), &terms()).expect("verdict"),
+        parse(&message(value), &terms()).expect("verdict").verdict,
         ReviewVerdict::Defeat {
             findings: vec![Finding {
                 requirement_id: "R2".to_string(),
@@ -218,6 +222,7 @@ fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
             human_statement: None,
             non_substantive: true,
         }],
+        process_constraints: vec![],
     };
     let input = ReviewInput {
         terms: &terms,
@@ -232,6 +237,7 @@ fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
         intake_text: String::new(),
         requirements: vec![],
         out_of_scope: vec![],
+        process_constraints: vec![],
     };
     let fixed = super::prompt(&ReviewInput {
         terms: &empty_terms,
@@ -268,4 +274,25 @@ fn a_candidate_view_of_several_hundred_kilobytes_reaches_the_reviewer_intact() {
 fn the_policy_digest_covers_the_candidate_view_policy() {
     let without_view = crate::digest_of("reviewer_policy", &(super::INSTRUCTIONS, schema()));
     assert_ne!(super::policy_digest(), without_view);
+}
+
+#[test]
+fn the_prompt_lists_process_constraints_and_says_how_to_judge_them() {
+    let terms = Terms {
+        process_constraints: vec![crate::ProcessConstraint {
+            text: "Do not read the reference program.".to_string(),
+            source_quote: "Implement the tool.".to_string(),
+        }],
+        ..terms()
+    };
+    let text = prompt(&ReviewInput {
+        terms: &terms,
+        check_summary: "build: pass",
+        candidate_view: "",
+    });
+    assert!(
+        text.contains("<process_constraints>\nDo not read the reference program."),
+        "{text}"
+    );
+    assert!(text.contains("never report them as a terms gap"), "{text}");
 }

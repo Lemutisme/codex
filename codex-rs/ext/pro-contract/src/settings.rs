@@ -19,6 +19,31 @@ pub struct Settings {
     pub repair_attempts: u32,
     #[serde(default)]
     pub worker: WorkerSettings,
+    #[serde(default)]
+    pub evidence: EvidenceSettings,
+}
+
+/// The sealed-evidence rules copied into every evidence policy at Issue.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceSettings {
+    #[serde(default = "codex_pro_contract_store::default_sealed_threshold_permille")]
+    pub sealed_threshold_permille: u16,
+    #[serde(default = "codex_pro_contract_store::default_min_sealed_qualified")]
+    pub min_sealed_qualified: u32,
+    #[serde(default = "codex_pro_contract_store::default_min_success_permille")]
+    pub min_success_permille: u16,
+}
+
+impl Default for EvidenceSettings {
+    fn default() -> Self {
+        Self {
+            sealed_threshold_permille: codex_pro_contract_store::default_sealed_threshold_permille(
+            ),
+            min_sealed_qualified: codex_pro_contract_store::default_min_sealed_qualified(),
+            min_success_permille: codex_pro_contract_store::default_min_success_permille(),
+        }
+    }
 }
 
 /// The evaluation profile of spec §13: an isolated container executor environment and a

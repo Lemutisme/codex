@@ -1,18 +1,57 @@
-//! Pure verification decisions and the text the executor sees (brief and residual).
+//! Pure verification decisions and the text the executor and the reviewer see (brief, residual,
+//! receipt summary).
+
+use std::collections::BTreeSet;
+
+use serde::Serialize;
 
 use crate::CheckError;
 use crate::CheckReceipts;
 use crate::EvidenceClass;
 use crate::EvidencePolicy;
 use crate::StepOutcome;
+use crate::StepReceipt;
 use crate::Terms;
 use crate::WorkerError;
+use crate::checks::PUBLIC;
+use crate::checks::SEALED;
 use crate::workers::bounded;
 use crate::workers::bounded_head_tail;
+use crate::workers::reviewer::Review;
 use crate::workers::reviewer::ReviewVerdict;
 
 /// Cap on the brief and on a residual, about 512 tokens.
 pub(crate) const EXECUTOR_TEXT_CAP: usize = 2000;
+/// Failing sealed families named in a residual.
+const RESIDUAL_FAMILIES: usize = 12;
+
+/// Why no judgment could be formed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NotVerifiedClass {
+    /// The checks or the lane's own machinery failed.
+    Infrastructure,
+    /// Too few qualified sealed cases, or too few exercising success paths.
+    InsufficientEvidence,
+    /// The reviewer failed or could not judge.
+    ReviewerUnable,
+    /// The reviewer found the terms unfaithful to the request.
+    TermsGap,
+    /// The executor's turn ended without handing off a candidate.
+    NoHandoff,
+}
+
+impl NotVerifiedClass {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            NotVerifiedClass::Infrastructure => "infrastructure",
+            NotVerifiedClass::InsufficientEvidence => "insufficient_evidence",
+            NotVerifiedClass::ReviewerUnable => "reviewer_unable",
+            NotVerifiedClass::TermsGap => "terms_gap",
+            NotVerifiedClass::NoHandoff => "no_handoff",
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Verdict {
@@ -23,62 +62,231 @@ pub(crate) enum Verdict {
     },
     /// No judgment could be formed; nothing is shown to the executor.
     NotVerified {
+        class: NotVerifiedClass,
         reason: String,
     },
 }
 
-/// Combines check receipts and, when the checks passed, the review.
-pub(crate) fn decide(
-    checks: &Result<CheckReceipts, CheckError>,
-    review: Option<&Result<ReviewVerdict, WorkerError>>,
-    policy: &EvidencePolicy,
-) -> Verdict {
-    let not_verified = |reason: String| Verdict::NotVerified { reason };
-    let receipts = match checks {
-        Ok(receipts) => receipts,
-        Err(error) => return not_verified(format!("checks could not run: {error}")),
-    };
-    let failures: Vec<_> = receipts
+fn not_verified(class: NotVerifiedClass, reason: impl Into<String>) -> Verdict {
+    Verdict::NotVerified {
+        class,
+        reason: reason.into(),
+    }
+}
+
+/// The sealed partition's evidence in one verification.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub(crate) struct SealedTally {
+    pub qualified: u32,
+    pub passed: u32,
+    pub unqualified: u32,
+    /// Qualified cases on which the reference exited zero.
+    pub succeeded: u32,
+    pub failing_families: BTreeSet<String>,
+}
+
+impl SealedTally {
+    fn of(receipts: &CheckReceipts, policy: &EvidencePolicy) -> Self {
+        let mut tally = Self::default();
+        for step in sealed_steps(receipts) {
+            let id = step.step.trim_start_matches(SEALED).trim_start_matches(':');
+            match step.outcome {
+                StepOutcome::Unqualified => tally.unqualified += 1,
+                StepOutcome::Pass | StepOutcome::Fail => {
+                    tally.qualified += 1;
+                    if step.reference_exit == Some(0) {
+                        tally.succeeded += 1;
+                    }
+                    if step.outcome == StepOutcome::Pass {
+                        tally.passed += 1;
+                    } else {
+                        let family = policy
+                            .sealed
+                            .iter()
+                            .find(|case| case.id == id)
+                            .map(|case| case.family.clone())
+                            .filter(|family| !family.is_empty())
+                            .unwrap_or_else(|| "untagged".to_string());
+                        tally.failing_families.insert(family);
+                    }
+                }
+            }
+        }
+        tally
+    }
+
+    fn line(&self) -> String {
+        format!(
+            "{} of {} qualified sealed checks agree with the reference ({} unqualified)",
+            self.passed, self.qualified, self.unqualified
+        )
+    }
+}
+
+fn sealed_steps(receipts: &CheckReceipts) -> impl Iterator<Item = &StepReceipt> {
+    receipts
         .steps
         .iter()
-        .filter(|step| step.outcome == StepOutcome::Fail)
-        .collect();
-    if !failures.is_empty() {
-        let mut residual = String::from(
-            "Independent verification of your handoff did not pass. Fix these unmet requirements, then end your turn:\n",
-        );
-        for failure in failures {
-            let invocation = failure
-                .step
-                .strip_prefix("differential:")
-                .and_then(|id| policy.differential.iter().find(|case| case.id == id))
-                .map(|case| {
-                    let stdin = case
-                        .stdin
-                        .as_deref()
-                        .map(|stdin| format!(" with stdin {:?}", bounded(stdin, 200)))
-                        .unwrap_or_default();
-                    format!(" (program arguments {:?}{stdin}; stdout and exit status must match the reference)", case.args)
-                })
-                .unwrap_or_default();
-            residual.push_str(&format!(
-                "- {} failed{invocation}:\n{}\n",
-                failure.step,
-                bounded_head_tail(failure.detail.trim_end(), 600)
+        .filter(|step| step.step.starts_with(&format!("{SEALED}:")))
+}
+
+/// Whether the policy's sealed evidence applies: only differential evidence can be sealed.
+fn sealed_applies(policy: &EvidencePolicy) -> bool {
+    policy.reference_command.is_some() && policy.candidate_command.is_some()
+}
+
+/// Decides from the mechanical checks alone, or returns `None` when they pass and the review
+/// decides.
+pub(crate) fn mechanical_verdict(
+    checks: &Result<CheckReceipts, CheckError>,
+    policy: &EvidencePolicy,
+) -> Option<Verdict> {
+    let receipts = match checks {
+        Ok(receipts) => receipts,
+        Err(error) => {
+            return Some(not_verified(
+                NotVerifiedClass::Infrastructure,
+                format!("checks could not run: {error}"),
             ));
         }
-        return Verdict::Defeat {
-            residual: bounded(&residual, EXECUTOR_TEXT_CAP),
-        };
-    }
+    };
     if !receipts.complete {
-        return not_verified("the check pipeline did not report every step".to_string());
+        return Some(not_verified(
+            NotVerifiedClass::Infrastructure,
+            "the check pipeline did not report every step",
+        ));
     }
-    match review {
-        None => not_verified("no review was obtained".to_string()),
-        Some(Err(error)) => not_verified(format!("review failed: {error}")),
-        Some(Ok(ReviewVerdict::Support { .. })) => Verdict::Support,
-        Some(Ok(ReviewVerdict::Defeat { findings, residual })) => {
+    let failures: Vec<&StepReceipt> = receipts
+        .steps
+        .iter()
+        .filter(|step| step.outcome == StepOutcome::Fail && !step.step.starts_with(SEALED))
+        .collect();
+    let tally = SealedTally::of(receipts, policy);
+    let sealed_defeat =
+        sealed_applies(policy) && sufficient(&tally, policy) && below_threshold(&tally, policy);
+    if !failures.is_empty() || sealed_defeat {
+        return Some(Verdict::Defeat {
+            residual: residual(&failures, sealed_defeat.then_some(&tally), policy),
+        });
+    }
+    if sealed_applies(policy) && !sufficient(&tally, policy) {
+        return Some(not_verified(
+            NotVerifiedClass::InsufficientEvidence,
+            format!(
+                "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
+                tally.line(),
+                tally.succeeded,
+                policy.min_sealed_qualified,
+                policy.min_success_permille
+            ),
+        ));
+    }
+    None
+}
+
+fn sufficient(tally: &SealedTally, policy: &EvidencePolicy) -> bool {
+    tally.qualified >= policy.min_sealed_qualified
+        && u64::from(tally.succeeded) * 1000
+            >= u64::from(policy.min_success_permille) * u64::from(tally.qualified)
+}
+
+fn below_threshold(tally: &SealedTally, policy: &EvidencePolicy) -> bool {
+    u64::from(tally.passed) * 1000
+        < u64::from(policy.sealed_threshold_permille) * u64::from(tally.qualified)
+}
+
+/// The residual of a mechanical defeat: public failures in full, sealed failures only in
+/// aggregate.
+fn residual(
+    failures: &[&StepReceipt],
+    sealed: Option<&SealedTally>,
+    policy: &EvidencePolicy,
+) -> String {
+    let mut residual = String::from(
+        "Independent verification of your handoff did not pass. Fix these unmet requirements, then end your turn:\n",
+    );
+    for failure in failures {
+        let invocation = failure
+            .step
+            .strip_prefix(&format!("{PUBLIC}:"))
+            .and_then(|id| policy.differential.iter().find(|case| case.id == id))
+            .map(|case| {
+                let stdin = case
+                    .stdin
+                    .as_deref()
+                    .map(|stdin| format!(" with stdin {:?}", bounded(stdin, 200)))
+                    .unwrap_or_default();
+                let fixtures: Vec<&str> = case
+                    .files
+                    .iter()
+                    .map(|file| file.path.as_str())
+                    .chain(case.dirs.iter().map(String::as_str))
+                    .collect();
+                let fixtures = if fixtures.is_empty() {
+                    String::new()
+                } else {
+                    format!(" over fixtures {}", fixtures.join(", "))
+                };
+                format!(
+                    " (program arguments {:?}{stdin}{fixtures}, run in a copy of the workspace; behavior must match the reference)",
+                    case.args
+                )
+            })
+            .unwrap_or_default();
+        residual.push_str(&format!(
+            "- {} failed{invocation}:\n{}\n",
+            failure.step,
+            bounded_head_tail(failure.detail.trim_end(), 600)
+        ));
+    }
+    if let Some(tally) = sealed {
+        let families: Vec<&str> = tally
+            .failing_families
+            .iter()
+            .take(RESIDUAL_FAMILIES)
+            .map(String::as_str)
+            .collect();
+        residual.push_str(&format!(
+            "- {} of {} independent sealed checks did not match the reference, in these behavior families: {}. Their invocations are not disclosed; re-check the documented behavior in these areas.\n",
+            tally.qualified - tally.passed,
+            tally.qualified,
+            families.join(", ")
+        ));
+    }
+    bounded(&residual, EXECUTOR_TEXT_CAP)
+}
+
+/// Decides from the review once the mechanical checks pass.
+pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Verdict {
+    let review = match review {
+        None => {
+            return not_verified(NotVerifiedClass::ReviewerUnable, "no review was obtained");
+        }
+        Some(Err(error)) => {
+            return not_verified(
+                NotVerifiedClass::ReviewerUnable,
+                format!("review failed: {error}"),
+            );
+        }
+        Some(Ok(review)) => review,
+    };
+    if !review.terms_gap.is_empty() {
+        return not_verified(
+            NotVerifiedClass::TermsGap,
+            format!(
+                "termsGap: the contract may have missed {}",
+                review
+                    .terms_gap
+                    .iter()
+                    .map(|gap| gap.element.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
+        );
+    }
+    match &review.verdict {
+        ReviewVerdict::Support { .. } => Verdict::Support,
+        ReviewVerdict::Defeat { findings, residual } => {
             let mut text = String::from(
                 "Independent review of your handoff found unmet requirements. Fix them, then end your turn:\n",
             );
@@ -96,25 +304,55 @@ pub(crate) fn decide(
                 residual: bounded(&text, EXECUTOR_TEXT_CAP),
             }
         }
-        Some(Ok(ReviewVerdict::CannotJudge { missing })) => {
-            not_verified(format!("the reviewer could not judge: {missing}"))
-        }
-        Some(Ok(ReviewVerdict::TermsGap { gaps })) => not_verified(format!(
-            "termsGap: the contract may have missed {}",
-            gaps.iter()
-                .map(|gap| gap.element.as_str())
-                .collect::<Vec<_>>()
-                .join("; ")
-        )),
+        ReviewVerdict::CannotJudge { missing } => not_verified(
+            NotVerifiedClass::ReviewerUnable,
+            format!("the reviewer could not judge: {missing}"),
+        ),
     }
+}
+
+/// Combines the check receipts and, when they pass, the review.
+pub(crate) fn decide(
+    checks: &Result<CheckReceipts, CheckError>,
+    review: Option<&Result<Review, WorkerError>>,
+    policy: &EvidencePolicy,
+) -> Verdict {
+    mechanical_verdict(checks, policy).unwrap_or_else(|| review_verdict(review))
+}
+
+/// The receipts as the reviewer sees them: every non-sealed step, sealed steps only in aggregate.
+pub(crate) fn review_summary(receipts: &CheckReceipts, policy: &EvidencePolicy) -> String {
+    let mut text = format!("environment: {}\n", receipts.environment.join(" | "));
+    for step in &receipts.steps {
+        if step.step.starts_with(&format!("{SEALED}:")) {
+            continue;
+        }
+        text.push_str(&format!("{}: {:?}\n", step.step, step.outcome));
+        if !step.detail.is_empty() {
+            text.push_str(&bounded(&step.detail, 800));
+            text.push('\n');
+        }
+    }
+    if sealed_applies(policy) {
+        text.push_str(&format!(
+            "sealed: {}\n",
+            SealedTally::of(receipts, policy).line()
+        ));
+    }
+    text
+}
+
+/// The sealed evidence of a verification, for the experiment record.
+pub(crate) fn sealed_tally(receipts: &CheckReceipts, policy: &EvidencePolicy) -> SealedTally {
+    SealedTally::of(receipts, policy)
 }
 
 fn brief_header(contract_id: &str, revision: u32) -> String {
     format!("ProContract {contract_id} revision {revision}")
 }
 
-/// The executor's brief: the evidence class and the requirements, identified by contract and
-/// revision. How the handoff is checked comes first, so bounding cuts requirements, not that.
+/// The executor's brief: how the handoff is checked, the work constraints, then the requirements,
+/// identified by contract and revision. Bounding cuts requirements first.
 pub(crate) fn brief_text(
     contract_id: &str,
     revision: u32,
@@ -122,10 +360,17 @@ pub(crate) fn brief_text(
     policy: &EvidencePolicy,
 ) -> String {
     let mut text = format!(
-        "{}\nThis task is under a contract. When you end your turn, the workspace is handed off to an independent verifier.\n{}\nRequirements:\n",
+        "{}\nThis task is under a contract. When you end your turn, the workspace is handed off to an independent verifier.\n{}\n",
         brief_header(contract_id, revision),
         evidence_line(policy)
     );
+    if !terms.process_constraints.is_empty() {
+        text.push_str("Work constraints:\n");
+        for constraint in &terms.process_constraints {
+            text.push_str(&format!("- {}\n", constraint.text));
+        }
+    }
+    text.push_str("Requirements:\n");
     for requirement in &terms.requirements {
         text.push_str(&format!("{}: {}\n", requirement.id, requirement.text));
     }
@@ -146,9 +391,9 @@ fn evidence_line(policy: &EvidencePolicy) -> String {
             if policy.candidate_tests {
                 checks.push("your own tests must pass under `cargo test --offline`".to_string());
             }
-            if !policy.differential.is_empty() && policy.reference_command.is_some() {
+            if sealed_applies(policy) {
                 checks.push(
-                    "standard output and exit status are compared with the reference program on fixed invocations"
+                    "exit status, standard output, standard error and resulting files are compared with the reference program on fixed invocations run in a copy of the workspace, including a larger sealed set whose contents are never shown"
                         .to_string(),
                 );
             }

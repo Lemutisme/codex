@@ -9,6 +9,10 @@ name = "codex_pro_contract_extension"
 path = "src/lib.rs"
 doctest = false
 
+[[bin]]
+name = "pro-contract-check"
+path = "src/bin/pro_contract_check.rs"
+
 [lints]
 workspace = true
 

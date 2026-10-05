@@ -9,6 +9,7 @@ use sha2::Digest as _;
 
 use super::ports::WorkerIdentity;
 use crate::workers::drafter;
+use crate::workers::prober;
 use crate::workers::reviewer;
 
 /// SHA-256 of the running harness executable, computed once.
@@ -26,6 +27,7 @@ pub(crate) fn harness_sha256() -> Option<String> {
 pub(crate) fn identities(worker: &WorkerIdentity, check_pipeline: Option<Digest>) -> Identities {
     let mut policies = BTreeMap::from([
         ("drafter".to_string(), drafter::policy_digest()),
+        ("prober".to_string(), prober::policy_digest()),
         ("reviewer".to_string(), reviewer::policy_digest()),
     ]);
     if let Some(check_pipeline) = check_pipeline {

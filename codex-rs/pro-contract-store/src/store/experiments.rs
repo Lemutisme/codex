@@ -37,6 +37,8 @@ pub enum ExperimentKind {
     Assignment,
     Intake,
     Draft,
+    /// The prober's raw output and the reference observations it explored.
+    Probe,
     Issue,
     Verification,
     Capture,
@@ -112,6 +114,7 @@ fn validate(event: &ExperimentEvent) -> Result<(), LedgerError> {
         ExperimentKind::Assignment
         | ExperimentKind::Intake
         | ExperimentKind::Draft
+        | ExperimentKind::Probe
         | ExperimentKind::Issue
         | ExperimentKind::Verification
         | ExperimentKind::Capture

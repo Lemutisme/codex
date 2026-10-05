@@ -50,7 +50,7 @@ pub struct TermsGap {
     pub reason: String,
 }
 
-/// A validated review.
+/// The reviewer's judgment of the candidate against the terms.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ReviewVerdict {
@@ -64,10 +64,15 @@ pub enum ReviewVerdict {
     CannotJudge {
         missing: String,
     },
-    /// The terms may have missed, widened or weakened part of the human request.
-    TermsGap {
-        gaps: Vec<TermsGap>,
-    },
+}
+
+/// A validated review: the verdict, and separately whether the terms are faithful to the request.
+/// A gap makes the verdict unusable for settlement but the verdict is kept for measurement.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Review {
+    pub verdict: ReviewVerdict,
+    /// Where the terms may have missed, widened or weakened part of the human request.
+    pub terms_gap: Vec<TermsGap>,
 }
 
 const INSTRUCTIONS: &str = "You are the review worker of an automatic Principal. You judge whether a frozen \
@@ -82,7 +87,12 @@ and a residual: a short instruction to the author that names only the unmet requ
 - \"cannot_judge\" when the evidence is insufficient; say what is missing in missing.
 Separately, compare the human request with the requirements. In terms_gap, list every substantive element of the \
 request that no requirement covers, that a requirement widens, or that a requirement weakens; leave it empty when \
-the terms are faithful. Failed mechanical checks are listed in the check receipts and are already decisive.
+the terms are faithful. Elements listed as process constraints are covered: never report them as a terms gap.
+Process constraints govern how the author worked, which you cannot observe; judge them only through the candidate \
+(for example a copy of a forbidden program embedded in it, or a dependency on it at run time) and never answer \
+cannot_judge merely because the process is unobservable.
+The check receipts summarize the mechanical checks, including an aggregate of sealed checks whose cases you do not \
+see; they all passed before you were asked.
 If the candidate view says file contents were omitted and a requirement depends on them, answer cannot_judge and name the omitted files in missing.
 Fill fields that do not apply with empty arrays or empty strings. Respond with JSON only, matching the schema.";
 
@@ -120,10 +130,22 @@ pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
             )
         })
         .collect();
+    let process_constraints: String = input
+        .terms
+        .process_constraints
+        .iter()
+        .map(|constraint| {
+            format!(
+                "{} (quote: \"{}\")\n",
+                constraint.text, constraint.source_quote
+            )
+        })
+        .collect();
     format!(
-        "{INSTRUCTIONS}\n\n<human_request>\n{}\n</human_request>\n\n<requirements>\n{}</requirements>\n\n<out_of_scope>\n{}</out_of_scope>\n\n<check_receipts>\n{}\n</check_receipts>\n\n<candidate>\n{}\n</candidate>\n",
+        "{INSTRUCTIONS}\n\n<human_request>\n{}\n</human_request>\n\n<requirements>\n{}</requirements>\n\n<process_constraints>\n{}</process_constraints>\n\n<out_of_scope>\n{}</out_of_scope>\n\n<check_receipts>\n{}\n</check_receipts>\n\n<candidate>\n{}\n</candidate>\n",
         bounded(&input.terms.intake_text, PROMPT_EVIDENCE_CAP / 8),
         bounded(&requirements, PROMPT_EVIDENCE_CAP / 8),
+        bounded(&process_constraints, PROMPT_EVIDENCE_CAP / 16),
         bounded(&out_of_scope, PROMPT_EVIDENCE_CAP / 16),
         bounded(input.check_summary, PROMPT_EVIDENCE_CAP / 4),
         bounded(input.candidate_view, CANDIDATE_VIEW.cap),
@@ -156,14 +178,17 @@ pub(crate) fn schema() -> Value {
     }))
 }
 
-pub(crate) fn parse(message: &str, terms: &Terms) -> Result<ReviewVerdict, WorkerError> {
+pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError> {
     let raw: RawReview = serde_json::from_str(message.trim())
         .map_err(|error| WorkerError::Malformed(error.to_string()))?;
-    if !raw.terms_gap.is_empty() {
-        return Ok(ReviewVerdict::TermsGap {
-            gaps: raw.terms_gap,
-        });
-    }
+    let terms_gap = raw.terms_gap.clone();
+    Ok(Review {
+        verdict: verdict(raw, terms)?,
+        terms_gap,
+    })
+}
+
+fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> {
     let known = |id: &str| {
         terms
             .requirements

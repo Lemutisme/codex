@@ -1,15 +1,29 @@
+use std::os::unix::fs::PermissionsExt;
+
 use pretty_assertions::assert_eq;
 
+use super::Observation;
 use super::StepOutcome;
 use super::StepReceipt;
 use super::expected_steps;
+use super::parse_observations;
 use super::parse_output;
 use super::pipeline_script;
 use super::shell_quote;
+use super::write_case_inputs;
 use crate::CheckEnvironment;
 use crate::DifferentialCase;
 use crate::EvidenceClass;
 use crate::EvidencePolicy;
+use crate::FixtureFile;
+
+fn case(id: &str, args: &[&str]) -> DifferentialCase {
+    DifferentialCase {
+        id: id.to_string(),
+        args: args.iter().map(ToString::to_string).collect(),
+        ..Default::default()
+    }
+}
 
 fn policy() -> EvidencePolicy {
     EvidencePolicy {
@@ -18,18 +32,17 @@ fn policy() -> EvidencePolicy {
         candidate_command: Some("./executable".to_string()),
         candidate_tests: true,
         differential: vec![
+            case("D1", &["hello world", "it's"]),
             DifferentialCase {
-                id: "D1".to_string(),
-                args: vec!["hello world".to_string(), "it's".to_string()],
-                stdin: None,
-            },
-            DifferentialCase {
-                id: "D2".to_string(),
-                args: vec![],
                 stdin: Some("a,b\n1,2\n".to_string()),
+                ..case("D2", &[])
             },
         ],
         reference_command: Some("/workspace/executable".to_string()),
+        sealed: vec![case("S1", &["-s", "tree"])],
+        sealed_threshold_permille: 950,
+        min_sealed_qualified: 100,
+        min_success_permille: 500,
     }
 }
 
@@ -44,34 +57,49 @@ fn shell_quote_survives_spaces_and_single_quotes() {
 fn the_script_is_deterministic_and_quotes_every_argument() {
     let script = pipeline_script(&policy(), "/candidate", 300);
     assert_eq!(script, pipeline_script(&policy(), "/candidate", 300));
-    assert!(script.contains("'hello world' 'it'\\''s'"), "{script}");
+    assert!(
+        script.contains("run_case 'public:D1' /pc/cases/0 /tmp/pc-diff/0 'hello world' 'it'\\''s'"),
+        "{script}"
+    );
+    assert!(
+        script.contains("run_case 'sealed:S1' /pc/cases/2 /tmp/pc-diff/2 '-s' 'tree'"),
+        "{script}"
+    );
     // The mounted subject is only read; building happens in a private copy.
     assert!(
         script.contains("cp -R '/candidate'/. /tmp/pc-work/"),
         "{script}"
     );
-    assert!(script.contains("cd /tmp/pc-work "), "{script}");
+    assert!(
+        script.contains("CANDIDATE='/tmp/pc-work/executable'"),
+        "{script}"
+    );
+    assert!(
+        script.contains("REFERENCE='/workspace/executable'"),
+        "{script}"
+    );
     assert!(
         !script.contains("a,b"),
-        "stdin must be encoded, not inlined"
+        "stdin is a case input file, not part of the script"
     );
 }
 
 #[test]
-fn expected_steps_follow_the_policy_order() {
+fn expected_steps_follow_the_policy_order_public_before_sealed() {
     assert_eq!(
         expected_steps(&policy()),
         vec![
             "build".to_string(),
             "candidate_tests".to_string(),
-            "differential:D1".to_string(),
-            "differential:D2".to_string()
+            "public:D1".to_string(),
+            "public:D2".to_string(),
+            "sealed:S1".to_string(),
         ]
     );
 }
 
 #[test]
-fn without_a_reference_there_are_no_differential_steps() {
+fn without_a_reference_there_are_no_case_steps() {
     let policy = EvidencePolicy {
         reference_command: None,
         differential: vec![],
@@ -81,35 +109,37 @@ fn without_a_reference_there_are_no_differential_steps() {
         expected_steps(&policy),
         vec!["build".to_string(), "candidate_tests".to_string()]
     );
+    assert!(!pipeline_script(&policy, "/candidate", 300).contains("run_case"));
 }
 
 #[test]
-fn output_lines_become_receipts_with_their_logs() {
-    let stdout = "@@ENV rustc 1.92.0\n@@PC build pass\n@@LOG candidate_tests error[E0425]\n@@PC candidate_tests fail\n@@PC differential:D1 pass\n@@LOG differential:D2 -expected\n@@PC differential:D2 fail\nnoise\n";
+fn output_lines_become_receipts_with_channels_exits_and_logs() {
+    let stdout = "@@ENV rustc 1.92.0\n@@PC build pass\n@@LOG candidate_tests error[E0425]\n@@PC candidate_tests fail\n@@PC public:D1 pass rc,out,err,files 0\n@@LOG public:D2 differing channels: err\n@@PC public:D2 fail rc,err 2\n@@PC sealed:S1 unqualified - 1\nnoise\n";
     let (steps, environment, complete) = parse_output(stdout, &policy());
     assert_eq!(
         (steps, environment, complete),
         (
             vec![
+                StepReceipt::new("build", StepOutcome::Pass, ""),
+                StepReceipt::new("candidate_tests", StepOutcome::Fail, "error[E0425]\n"),
                 StepReceipt {
-                    step: "build".to_string(),
-                    outcome: StepOutcome::Pass,
-                    detail: String::new(),
+                    stable: vec![
+                        "rc".to_string(),
+                        "out".to_string(),
+                        "err".to_string(),
+                        "files".to_string()
+                    ],
+                    reference_exit: Some(0),
+                    ..StepReceipt::new("public:D1", StepOutcome::Pass, "")
                 },
                 StepReceipt {
-                    step: "candidate_tests".to_string(),
-                    outcome: StepOutcome::Fail,
-                    detail: "error[E0425]\n".to_string(),
+                    stable: vec!["rc".to_string(), "err".to_string()],
+                    reference_exit: Some(2),
+                    ..StepReceipt::new("public:D2", StepOutcome::Fail, "differing channels: err\n")
                 },
                 StepReceipt {
-                    step: "differential:D1".to_string(),
-                    outcome: StepOutcome::Pass,
-                    detail: String::new(),
-                },
-                StepReceipt {
-                    step: "differential:D2".to_string(),
-                    outcome: StepOutcome::Fail,
-                    detail: "-expected\n".to_string(),
+                    reference_exit: Some(1),
+                    ..StepReceipt::new("sealed:S1", StepOutcome::Unqualified, "")
                 },
             ],
             vec!["rustc 1.92.0".to_string()],
@@ -124,94 +154,301 @@ fn a_pipeline_that_stops_early_is_incomplete() {
     assert_eq!((steps.len(), complete), (1, false));
 }
 
-/// Runs only when `PRO_CONTRACT_TEST_IMAGE` names a local image with `bash`, `base64` and
-/// `timeout`; uses `/bin/echo` as the reference program.
+#[test]
+fn observations_collect_each_cases_streams() {
+    let stdout = "@@OUT help Usage: tool\n@@OUT help   -s summary\n@@ERR help note\n@@OBS help 0 stable\n@@OBS quiet 2 unstable\n";
+    assert_eq!(
+        parse_observations(stdout),
+        vec![
+            Observation {
+                id: "help".to_string(),
+                exit: Some(0),
+                stable: true,
+                stdout: "Usage: tool\n  -s summary\n".to_string(),
+                stderr: "note\n".to_string(),
+            },
+            Observation {
+                id: "quiet".to_string(),
+                exit: Some(2),
+                stable: false,
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+        ]
+    );
+}
+
+#[test]
+fn case_inputs_are_written_inside_their_directory() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let inputs = DifferentialCase {
+        stdin: Some("input".to_string()),
+        files: vec![FixtureFile {
+            path: "tree/a.txt".to_string(),
+            text: "ab".to_string(),
+            repeat: 3,
+        }],
+        dirs: vec!["tree/empty".to_string()],
+        env: [("NO_COLOR".to_string(), "1".to_string())].into(),
+        ..case("c", &[])
+    };
+    write_case_inputs(dir.path(), &inputs)?;
+    assert_eq!(std::fs::read_to_string(dir.path().join("stdin"))?, "input");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("env"))?,
+        "NO_COLOR=1\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("fixture/tree/a.txt"))?,
+        "ababab"
+    );
+    assert!(dir.path().join("fixture/tree/empty").is_dir());
+
+    let escaping = DifferentialCase {
+        dirs: vec!["../outside".to_string()],
+        ..case("e", &[])
+    };
+    assert!(write_case_inputs(&dir.path().join("e"), &escaping).is_err());
+    assert!(!dir.path().join("outside").exists());
+    Ok(())
+}
+
+fn test_env(image: String, timeout_secs: u64) -> CheckEnvironment {
+    CheckEnvironment {
+        docker: "docker".to_string(),
+        image,
+        user: "1000:1000".to_string(),
+        candidate_mount: "/candidate".to_string(),
+        timeout_secs,
+        build_command: None,
+        candidate_command: None,
+    }
+}
+
+fn write_executable(path: &std::path::Path, text: &str) -> std::io::Result<()> {
+    std::fs::write(path, text)?;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+}
+
+/// A reference program for the container tests, kept in the base workspace. `flaky` exits 0
+/// then 1 across calls in one container, so its exit status is unstable.
+const REFERENCE: &str = r#"#!/bin/sh
+case "$1" in
+  cat) cat "$2" ;;
+  err) echo "bad value" >&2; exit 3 ;;
+  time) date +%s%N ;;
+  flaky) if [ -f /tmp/flaky ]; then rm /tmp/flaky; exit 1; else touch /tmp/flaky; exit 0; fi ;;
+  write) echo hi > made.txt ;;
+  env) echo "$GREETING" ;;
+  slow) echo done ;;
+  *) echo "$@" ;;
+esac
+"#;
+
+/// The candidate agrees except on stderr for `err`, the written file for `write`, and hangs on
+/// `slow`.
+const CANDIDATE: &str = r#"#!/bin/sh
+case "$1" in
+  cat) cat "$2" ;;
+  err) echo "different" >&2; exit 3 ;;
+  time) echo 0 ;;
+  flaky) exit 0 ;;
+  write) echo ho > made.txt ;;
+  env) echo "$GREETING" ;;
+  slow) sleep 30 ;;
+  *) echo "$@" ;;
+esac
+"#;
+
+/// Runs only when `PRO_CONTRACT_TEST_IMAGE` names a local image with `bash`, coreutils, `diff`,
+/// `sha256sum` and `timeout`.
 #[tokio::test]
-async fn a_real_container_run_passes_and_fails_the_right_cases() {
+async fn a_real_container_run_judges_every_channel() {
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
     };
-    let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(
-        dir.path().join("compile.sh"),
-        "#!/bin/sh\nprintf '#!/bin/sh\\necho \"$@\"\\n' > executable\nchmod +x executable\n",
+    let dirs = tempfile::tempdir().expect("tempdir");
+    let base = dirs.path().join("base");
+    let candidate = dirs.path().join("candidate");
+    std::fs::create_dir_all(&base).expect("base");
+    std::fs::create_dir_all(&candidate).expect("candidate");
+    std::fs::write(base.join("README.md"), "# tool\n").expect("readme");
+    write_executable(&base.join("reference.sh"), REFERENCE).expect("reference");
+    write_executable(
+        &candidate.join("compile.sh"),
+        &format!("#!/bin/sh\ncat > executable <<'EOF'\n{CANDIDATE}EOF\nchmod +x executable\n"),
     )
     .expect("compile.sh");
     let policy = EvidencePolicy {
         class: EvidenceClass::ChecksAndReview,
-        // The official evaluator's build command; the host, not the container user, owns the files.
-        build_command: Some("chmod +x ./compile.sh && ./compile.sh".to_string()),
+        build_command: Some("./compile.sh".to_string()),
         candidate_command: Some("./executable".to_string()),
         candidate_tests: false,
-        differential: vec![
+        differential: vec![case("readme", &["cat", "README.md"]), case("err", &["err"])],
+        reference_command: Some("/pc-base/reference.sh".to_string()),
+        sealed: vec![
             DifferentialCase {
-                id: "same".to_string(),
-                args: vec!["hello".to_string()],
-                stdin: None,
+                files: vec![FixtureFile {
+                    path: "in/data.txt".to_string(),
+                    text: "xy".to_string(),
+                    repeat: 4,
+                }],
+                ..case("fixture", &["cat", "in/data.txt"])
             },
+            case("time", &["time"]),
+            case("flaky", &["flaky"]),
+            case("write", &["write"]),
             DifferentialCase {
-                id: "differs".to_string(),
-                args: vec!["--version".to_string()],
-                stdin: None,
+                env: [("GREETING".to_string(), "hello there".to_string())].into(),
+                ..case("env", &["env"])
             },
+            case("slow", &["slow"]),
         ],
-        reference_command: Some("/bin/echo".to_string()),
+        sealed_threshold_permille: 950,
+        min_sealed_qualified: 1,
+        min_success_permille: 0,
     };
-    let env = CheckEnvironment {
-        docker: "docker".to_string(),
-        image,
-        user: "1000:1000".to_string(),
-        candidate_mount: "/candidate".to_string(),
-        timeout_secs: 120,
-        build_command: None,
-        candidate_command: None,
-    };
-    let receipts = super::run(&env, dir.path(), &policy).await.expect("run");
-    let outcomes: Vec<(String, StepOutcome)> = receipts
+
+    let receipts = super::run(&test_env(image, 300), &candidate, &base, &policy)
+        .await
+        .expect("run");
+
+    let outcomes: Vec<(String, StepOutcome, Vec<String>)> = receipts
         .steps
         .iter()
-        .map(|step| (step.step.clone(), step.outcome))
+        .map(|step| (step.step.clone(), step.outcome, step.stable.clone()))
         .collect();
+    let all = |channels: &[&str]| channels.iter().map(ToString::to_string).collect::<Vec<_>>();
     assert_eq!(
         outcomes,
         vec![
-            ("build".to_string(), StepOutcome::Pass),
-            ("differential:same".to_string(), StepOutcome::Pass),
-            ("differential:differs".to_string(), StepOutcome::Fail),
+            ("build".to_string(), StepOutcome::Pass, vec![]),
+            (
+                "public:readme".to_string(),
+                StepOutcome::Pass,
+                all(&["rc", "out", "err", "files"])
+            ),
+            (
+                "public:err".to_string(),
+                StepOutcome::Fail,
+                all(&["rc", "out", "err", "files"])
+            ),
+            (
+                "sealed:fixture".to_string(),
+                StepOutcome::Pass,
+                all(&["rc", "out", "err", "files"])
+            ),
+            (
+                "sealed:time".to_string(),
+                StepOutcome::Pass,
+                all(&["rc", "err", "files"])
+            ),
+            ("sealed:flaky".to_string(), StepOutcome::Unqualified, vec![]),
+            (
+                "sealed:write".to_string(),
+                StepOutcome::Fail,
+                all(&["rc", "out", "err", "files"])
+            ),
+            (
+                "sealed:env".to_string(),
+                StepOutcome::Pass,
+                all(&["rc", "out", "err", "files"])
+            ),
+            (
+                "sealed:slow".to_string(),
+                StepOutcome::Fail,
+                all(&["rc", "out", "err", "files"])
+            ),
         ]
     );
     assert!(receipts.complete);
+    let err = &receipts.steps[2];
+    assert_eq!(err.reference_exit, Some(3));
+    assert!(
+        err.detail.contains("differing channels: err"),
+        "{}",
+        err.detail
+    );
+    assert!(err.detail.contains("different"), "{}", err.detail);
+    assert!(
+        receipts.steps[6]
+            .detail
+            .contains("differing channels: files"),
+        "{}",
+        receipts.steps[6].detail
+    );
 }
 
 #[tokio::test]
-async fn a_reference_probe_reports_bounded_output_and_exit_status() {
+async fn a_failed_build_fails_every_case_without_running_it() {
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
     };
-    let env = CheckEnvironment {
-        docker: "docker".to_string(),
-        image,
-        user: "1000:1000".to_string(),
-        candidate_mount: "/candidate".to_string(),
-        timeout_secs: 120,
-        build_command: None,
-        candidate_command: None,
+    let dirs = tempfile::tempdir().expect("tempdir");
+    let (base, candidate) = (dirs.path().join("base"), dirs.path().join("candidate"));
+    std::fs::create_dir_all(&base).expect("base");
+    std::fs::create_dir_all(&candidate).expect("candidate");
+    write_executable(&candidate.join("compile.sh"), "#!/bin/sh\nexit 1\n").expect("compile.sh");
+    let policy = EvidencePolicy {
+        candidate_tests: false,
+        reference_command: Some("/bin/echo".to_string()),
+        ..policy()
     };
 
-    let output = super::probe_reference(
-        &env,
-        "/bin/sh",
-        &[
-            "-c".to_string(),
-            "yes probe | head -c 20000; exit 3".to_string(),
-        ],
+    let receipts = super::run(&test_env(image, 120), &candidate, &base, &policy)
+        .await
+        .expect("run");
+
+    assert!(receipts.complete);
+    assert!(
+        receipts
+            .steps
+            .iter()
+            .all(|step| step.outcome == StepOutcome::Fail),
+        "{receipts:?}"
+    );
+}
+
+#[tokio::test]
+async fn observing_runs_the_reference_twice_over_the_base() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let base = tempfile::tempdir().expect("base");
+    std::fs::write(base.path().join("README.md"), "# tool\n").expect("readme");
+    write_executable(&base.path().join("reference.sh"), REFERENCE).expect("reference");
+    let cases = vec![
+        case("readme", &["cat", "README.md"]),
+        case("err", &["err"]),
+        case("time", &["time"]),
+    ];
+
+    let observations = super::observe(
+        &test_env(image, 120),
+        base.path(),
+        "/pc-base/reference.sh",
+        &cases,
     )
     .await
-    .expect("probe");
+    .expect("observe");
 
-    assert!(output.starts_with("probe\nprobe\n"), "{output}");
-    assert!(output.len() < 8100, "{} bytes", output.len());
-    assert!(output.trim_end().ends_with("[exit status 3]"), "{output}");
+    assert_eq!(
+        observations
+            .iter()
+            .map(|observation| (
+                observation.id.as_str(),
+                observation.exit,
+                observation.stable
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            ("readme", Some(0), true),
+            ("err", Some(3), true),
+            ("time", Some(0), false)
+        ]
+    );
+    assert_eq!(observations[0].stdout, "# tool\n");
+    assert_eq!(observations[1].stderr, "bad value\n");
 }
 
 #[tokio::test]
@@ -219,8 +456,11 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
     };
-    let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(dir.path().join("compile.sh"), "#!/bin/sh\nsleep 600\n").expect("compile.sh");
+    let dirs = tempfile::tempdir().expect("tempdir");
+    let (base, candidate) = (dirs.path().join("base"), dirs.path().join("candidate"));
+    std::fs::create_dir_all(&base).expect("base");
+    std::fs::create_dir_all(&candidate).expect("candidate");
+    std::fs::write(candidate.join("compile.sh"), "#!/bin/sh\nsleep 600\n").expect("compile.sh");
     let policy = EvidencePolicy {
         class: EvidenceClass::ChecksAndReview,
         build_command: Some("chmod +x ./compile.sh && ./compile.sh".to_string()),
@@ -228,19 +468,15 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
         candidate_tests: false,
         differential: vec![],
         reference_command: None,
+        sealed: vec![],
+        sealed_threshold_permille: 950,
+        min_sealed_qualified: 100,
+        min_success_permille: 500,
     };
-    let env = CheckEnvironment {
-        docker: "docker".to_string(),
-        image,
-        user: "1000:1000".to_string(),
-        candidate_mount: "/candidate".to_string(),
-        // Each step gets a sixth of the container budget: 10 s here.
-        timeout_secs: 60,
-        build_command: None,
-        candidate_command: None,
-    };
-
-    let receipts = super::run(&env, dir.path(), &policy).await.expect("run");
+    // Each step gets a sixth of the container budget: 10 s here.
+    let receipts = super::run(&test_env(image, 60), &candidate, &base, &policy)
+        .await
+        .expect("run");
 
     assert_eq!(receipts.steps.len(), 1, "{receipts:?}");
     assert_eq!(receipts.steps[0].outcome, StepOutcome::Fail);

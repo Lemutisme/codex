@@ -30,6 +30,7 @@ fn settings() -> Settings {
         }),
         repair_attempts: 1,
         worker: WorkerSettings::default(),
+        evidence: Default::default(),
     }
 }
 

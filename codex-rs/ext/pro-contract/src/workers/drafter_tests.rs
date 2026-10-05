@@ -10,6 +10,8 @@ use super::schema;
 use crate::DifferentialCase;
 use crate::EvidenceClass;
 use crate::EvidencePolicy;
+use crate::FixtureFile;
+use crate::ProcessConstraint;
 use crate::Requirement;
 use crate::Terms;
 use crate::WorkerError;
@@ -90,7 +92,19 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 "inferred": false
             }],
             "out_of_scope": [],
-            "differential_cases": [{"id": "D1", "args": ["--help"], "stdin": null}],
+            "process_constraints": [{
+                "text": "Never rename the workspace.",
+                "source_quote": "keep the exit codes identical"
+            }],
+            "differential_cases": [{
+                "id": "D1",
+                "family": "help",
+                "args": ["--help"],
+                "stdin": null,
+                "files": [{"path": "in.txt", "text": "x", "repeat": 2}],
+                "dirs": [],
+                "env": [{"name": "NO_COLOR", "value": "1"}]
+            }],
             "candidate_tests": true
         })),
         &input(),
@@ -108,8 +122,12 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                     inferred: false,
                 }],
                 out_of_scope: vec![],
+                process_constraints: vec![ProcessConstraint {
+                    text: "Never rename the workspace.".to_string(),
+                    source_quote: "Keep the exit codes identical".to_string(),
+                }],
             },
-            evidence_policy: EvidencePolicy {
+            evidence_policy: Box::new(EvidencePolicy {
                 class: EvidenceClass::ChecksAndReview,
                 build_command: Some("./compile.sh".to_string()),
                 candidate_command: Some("./executable".to_string()),
@@ -118,9 +136,21 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                     id: "D1".to_string(),
                     args: vec!["--help".to_string()],
                     stdin: None,
+                    files: vec![FixtureFile {
+                        path: "in.txt".to_string(),
+                        text: "x".to_string(),
+                        repeat: 2,
+                    }],
+                    dirs: vec![],
+                    env: [("NO_COLOR".to_string(), "1".to_string())].into(),
+                    family: "help".to_string(),
                 }],
                 reference_command: Some("/workspace/executable".to_string()),
-            },
+                sealed: vec![],
+                sealed_threshold_permille: 950,
+                min_sealed_qualified: 100,
+                min_success_permille: 500,
+            }),
         }
     );
 }
@@ -275,4 +305,32 @@ fn a_case_id_that_is_not_a_plain_token_is_rejected() {
         &input(),
     );
     assert!(matches!(result, Err(WorkerError::Malformed(_))));
+}
+
+#[test]
+fn a_process_constraint_must_quote_the_request() {
+    let result = parse(
+        &message(json!({
+            "decision": "contract",
+            "reason": "r",
+            "requirements": [{"id": "R1", "text": "t", "source_quote": "Keep the exit codes identical.", "inferred": false}],
+            "out_of_scope": [],
+            "process_constraints": [{"text": "Never look at the reference.", "source_quote": "never look"}],
+            "differential_cases": [],
+            "candidate_tests": false
+        })),
+        &input(),
+    );
+    assert!(matches!(result, Err(WorkerError::Malformed(_))));
+}
+
+#[test]
+fn the_instructions_route_process_constraints_away_from_out_of_scope() {
+    let prompt = prompt(&input());
+    assert!(prompt.contains("process_constraints"), "{prompt}");
+    assert!(prompt.contains("never belong in out_of_scope"), "{prompt}");
+    assert!(
+        prompt.contains("fresh copy of the base workspace"),
+        "{prompt}"
+    );
 }

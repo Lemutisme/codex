@@ -4,6 +4,7 @@ use pretty_assertions::assert_eq;
 
 use super::CheckEnvironment;
 use super::EvaluationProfile;
+use super::EvidenceSettings;
 use super::Settings;
 use super::SettingsError;
 use super::WorkerSettings;
@@ -72,7 +73,32 @@ fn an_evaluation_profile_loads_with_defaults() {
                 reasoning_effort: None,
                 deadline_secs: 900,
             },
+            evidence: EvidenceSettings {
+                sealed_threshold_permille: 950,
+                min_sealed_qualified: 100,
+                min_success_permille: 500,
+            },
         })
+    );
+}
+
+#[test]
+fn evidence_settings_are_read_and_default_field_by_field() {
+    let home = tempfile::tempdir().expect("tempdir");
+    write_settings(
+        home.path(),
+        r#"{"evaluation": null, "evidence": {"sealed_threshold_permille": 900}}"#,
+    );
+    assert_eq!(
+        Settings::load(home.path())
+            .expect("load")
+            .expect("settings")
+            .evidence,
+        EvidenceSettings {
+            sealed_threshold_permille: 900,
+            min_sealed_qualified: 100,
+            min_success_permille: 500,
+        }
     );
 }
 

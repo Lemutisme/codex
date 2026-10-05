@@ -8,18 +8,17 @@ use serde_json::json;
 use super::PROMPT_EVIDENCE_CAP;
 use super::WorkerError;
 use super::bounded;
+use super::cases;
 use super::strict_object;
-use crate::DifferentialCase;
 use crate::EvidenceClass;
 use crate::EvidencePolicy;
 use crate::OutOfScope;
+use crate::ProcessConstraint;
 use crate::Requirement;
 use crate::Terms;
 
-/// Most differential cases a draft may freeze.
+/// Most public differential cases a draft may freeze.
 const MAX_DIFFERENTIAL_CASES: usize = 40;
-/// Largest stdin a differential case may carry.
-const MAX_CASE_STDIN_BYTES: usize = 4096;
 
 /// Everything the drafter may see.
 pub(crate) struct DraftInput<'a> {
@@ -39,7 +38,7 @@ pub(crate) struct DraftInput<'a> {
 pub(crate) enum Draft {
     Contract {
         terms: Terms,
-        evidence_policy: EvidencePolicy,
+        evidence_policy: Box<EvidencePolicy>,
     },
     None {
         reason: String,
@@ -57,15 +56,25 @@ requirement you infer rather than read as inferred=true, and still quote the spa
 - Cover every substantive element of the request; do not drop an element because it is hard to check. List an \
 element in out_of_scope only when the human excluded it (quote that statement in human_statement) or when it is \
 non-substantive (non_substantive=true and human_statement=null).
+- process_constraints: constraints on how the work is done or what must not be touched (for example \
+\"do not read the reference program\" or \"do not delete X while working\"), each with its verbatim source_quote. \
+They bind the worker but are not requirements on the result and never belong in out_of_scope.
 - Never add goals the human did not ask for.
-- differential_cases: when a reference program is available, list invocations whose standard output and exit \
-status must be identical for the candidate and the reference. Only the invocation is frozen, never an expected \
-output. Exercise the documented interface broadly: help and version output, typical inputs, options, boundaries \
-and error cases. Each case gives args (the argument vector after the program name) and optional stdin text of at \
-most 4096 bytes. At most 40 cases. Leave the list empty when there is no reference program.
+- differential_cases: when a reference program is available, list invocations whose behavior must be identical \
+for the candidate and the reference. Only the invocation is frozen, never an expected output. Exercise the \
+documented interface broadly: help and version output, typical inputs on real files, options, boundaries and error \
+cases. At most 40 cases. Leave the list empty when there is no reference program.
 - candidate_tests: true when the candidate's own test suite must also pass.
 - The verifier also builds the candidate with the configured build command.
 Respond with JSON only, matching the schema.";
+
+/// The full instructions: the drafting rules, then the case rules the prober shares.
+fn instructions() -> String {
+    format!(
+        "{INSTRUCTIONS}\n\nDifferential cases: {}",
+        cases::CASE_RULES
+    )
+}
 
 pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
     let reference = match (input.reference_command, input.reference_observations) {
@@ -76,7 +85,8 @@ pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
         (None, _) => "<reference_program>none</reference_program>".to_string(),
     };
     format!(
-        "{INSTRUCTIONS}\n\n<human_request>\n{}\n</human_request>\n\n<base_workspace>\n{}\n</base_workspace>\n\n{reference}\n",
+        "{}\n\n<human_request>\n{}\n</human_request>\n\n<base_workspace>\n{}\n</base_workspace>\n\n{reference}\n",
+        instructions(),
         bounded(input.intake_text, PROMPT_EVIDENCE_CAP / 6),
         bounded(input.base_view, PROMPT_EVIDENCE_CAP / 2),
     )
@@ -84,7 +94,7 @@ pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
 
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest() -> codex_pro_contract::Digest {
-    crate::digest_of("drafter_policy", &(INSTRUCTIONS, schema()))
+    crate::digest_of("drafter_policy", &(instructions(), schema()))
 }
 
 pub(crate) fn schema() -> Value {
@@ -102,11 +112,11 @@ pub(crate) fn schema() -> Value {
             "human_statement": {"type": ["string", "null"]},
             "non_substantive": {"type": "boolean"},
         }))},
-        "differential_cases": {"type": "array", "items": strict_object(json!({
-            "id": {"type": "string"},
-            "args": {"type": "array", "items": {"type": "string"}},
-            "stdin": {"type": ["string", "null"]},
+        "process_constraints": {"type": "array", "items": strict_object(json!({
+            "text": {"type": "string"},
+            "source_quote": {"type": "string"},
         }))},
+        "differential_cases": {"type": "array", "items": cases::case_schema()},
         "candidate_tests": {"type": "boolean"},
     }))
 }
@@ -176,54 +186,39 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
             *statement = span;
         }
     }
-    if raw.differential_cases.len() > MAX_DIFFERENTIAL_CASES {
-        return malformed(format!(
-            "{} differential cases exceed the limit of {MAX_DIFFERENTIAL_CASES}",
-            raw.differential_cases.len()
-        ));
+    for constraint in &mut raw.process_constraints {
+        let Some(span) = resolve_span(input.intake_text, &constraint.source_quote) else {
+            return malformed(format!(
+                "process constraint {:?} quotes text that is not in the request",
+                constraint.text
+            ));
+        };
+        constraint.source_quote = span;
     }
     if input.reference_command.is_none() && !raw.differential_cases.is_empty() {
         return malformed("differential cases need a reference program".to_string());
     }
-    let mut case_ids = std::collections::BTreeSet::new();
-    for case in &raw.differential_cases {
-        let plain = !case.id.is_empty()
-            && case.id.len() <= 40
-            && case
-                .id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
-        if !plain {
-            return malformed(format!(
-                "differential case id {:?} is not a plain token",
-                case.id
-            ));
-        }
-        if !case_ids.insert(case.id.as_str()) {
-            return malformed(format!("duplicate differential case id {}", case.id));
-        }
-        if case
-            .stdin
-            .as_ref()
-            .is_some_and(|stdin| stdin.len() > MAX_CASE_STDIN_BYTES)
-        {
-            return malformed(format!("differential case {} stdin is too large", case.id));
-        }
-    }
+    let differential = cases::validate_cases(raw.differential_cases, MAX_DIFFERENTIAL_CASES)?;
     Ok(Draft::Contract {
         terms: Terms {
             intake_text: input.intake_text.to_string(),
             requirements: raw.requirements,
             out_of_scope: raw.out_of_scope,
+            process_constraints: raw.process_constraints,
         },
-        evidence_policy: EvidencePolicy {
+        evidence_policy: Box::new(EvidencePolicy {
             class: EvidenceClass::ChecksAndReview,
             build_command: input.build_command.map(str::to_string),
             candidate_command: input.candidate_command.map(str::to_string),
             candidate_tests: raw.candidate_tests,
-            differential: raw.differential_cases,
+            differential,
             reference_command: input.reference_command.map(str::to_string),
-        },
+            sealed: Vec::new(),
+            sealed_threshold_permille: codex_pro_contract_store::default_sealed_threshold_permille(
+            ),
+            min_sealed_qualified: codex_pro_contract_store::default_min_sealed_qualified(),
+            min_success_permille: codex_pro_contract_store::default_min_success_permille(),
+        }),
     })
 }
 
@@ -234,7 +229,9 @@ struct RawDraft {
     reason: String,
     requirements: Vec<Requirement>,
     out_of_scope: Vec<OutOfScope>,
-    differential_cases: Vec<DifferentialCase>,
+    #[serde(default)]
+    process_constraints: Vec<ProcessConstraint>,
+    differential_cases: Vec<cases::RawCase>,
     candidate_tests: bool,
 }
 

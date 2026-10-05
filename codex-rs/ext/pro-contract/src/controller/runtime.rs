@@ -1,8 +1,10 @@
-//! Per-thread automation lane: intake → draft → Issue → frozen candidate → checks and review →
-//! Support or Defeat → one repair. Every state change is written to the ledger's status record.
+//! Per-thread automation lane: intake → draft and probe → Issue → frozen candidate → checks and
+//! review → Support or Defeat → one repair. Every state change is written to the ledger's status
+//! record.
 
 use std::collections::HashSet;
 use std::future::Future;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::PoisonError;
@@ -25,6 +27,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
 
+use super::decision;
+use super::decision::NotVerifiedClass;
 use super::decision::Verdict;
 use super::decision::brief_text;
 use super::decision::decide;
@@ -36,16 +40,21 @@ use super::views::workspace_view;
 use crate::BlobStore;
 use crate::CapturePolicy;
 use crate::CheckReceipts;
+use crate::DifferentialCase;
 use crate::EvaluationProfile;
 use crate::EvidencePolicy;
 use crate::Ledger;
+use crate::Observation;
 use crate::Settings;
 use crate::Subject;
 use crate::Terms;
 use crate::capture;
 use crate::digest_of;
 use crate::materialize;
+use crate::workers::PROMPT_EVIDENCE_CAP;
+use crate::workers::cases;
 use crate::workers::drafter;
+use crate::workers::prober;
 use crate::workers::reviewer;
 use crate::workers::runtime::WorkerTurn;
 use codex_pro_contract_store::ExperimentEvent;
@@ -75,6 +84,10 @@ pub struct StatusRecord {
     /// No further automation will happen without new human input.
     pub resting: bool,
     pub repairs_used: u32,
+    /// Why the lane rests `not_verified` (`infrastructure`, `insufficient_evidence`,
+    /// `reviewer_unable`, `terms_gap` or `no_handoff`); empty otherwise.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub class: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,6 +105,18 @@ struct ActiveContract {
     terms: Terms,
     policy: EvidencePolicy,
     brief: String,
+    /// The materialized base workspace every case runs over.
+    base_dir: PathBuf,
+}
+
+/// Everything verification needs about one handoff.
+struct Handoff {
+    contract: Contract,
+    subject: Subject,
+    turn_id: String,
+    policy: EvidencePolicy,
+    terms: Terms,
+    base_dir: PathBuf,
 }
 
 /// The workspace frozen at the end of the executor's last turn.
@@ -182,6 +207,10 @@ impl ThreadRuntime {
     }
 
     pub(crate) async fn record_status(&self, phase: &str, detail: &str, resting: bool) {
+        self.write_status(phase, "", detail, resting).await;
+    }
+
+    async fn write_status(&self, phase: &str, class: &str, detail: &str, resting: bool) {
         let (repairs_used, contract_id) = {
             let state = self.state.lock().await;
             (
@@ -199,6 +228,7 @@ impl ThreadRuntime {
             detail: detail.to_string(),
             resting,
             repairs_used,
+            class: class.to_string(),
         };
         if let Err(error) = self
             .ledger
@@ -212,6 +242,25 @@ impl ThreadRuntime {
     async fn rest(&self, phase: &str, detail: &str) {
         self.state.lock().await.phase = Phase::Resting;
         self.record_status(phase, detail, /*resting*/ true).await;
+    }
+
+    /// Rests without a judgment, recording why.
+    async fn not_verified(&self, class: NotVerifiedClass, detail: &str) {
+        self.state.lock().await.phase = Phase::Resting;
+        self.write_status(
+            "not_verified",
+            class.as_str(),
+            detail,
+            /*resting*/ true,
+        )
+        .await;
+    }
+
+    /// Where this contract's materialized subjects live.
+    fn work_dir(&self) -> PathBuf {
+        self.dir
+            .join("work")
+            .join(self.contract_id().0.replace(['/', '.'], "_"))
     }
 
     async fn capture_workspace(&self) -> Result<Subject, String> {
@@ -296,36 +345,38 @@ impl ThreadRuntime {
     }
 
     async fn draft(self: Arc<Self>, text: String, base: Subject) {
-        let base_view = workspace_view(&base, &self.store, BASE_VIEW);
-        let reference_observations = match &self.profile.reference_command {
-            Some(reference) => {
-                match self
-                    .ports
-                    .probe_reference(&self.profile.check, reference)
-                    .await
-                {
-                    Ok(output) => Some(format!("$ {reference} --help\n{output}")),
-                    Err(error) => Some(format!("reference probe failed: {error}")),
-                }
-            }
+        let base_dir = self.work_dir().join("base");
+        if let Err(error) = self.materialize(&base, &base_dir).await {
+            self.rest(
+                "abstained",
+                &format!("base materialization failed: {error}"),
+            )
+            .await;
+            return;
+        }
+        let reference_help = match &self.profile.reference_command {
+            Some(reference) => Some(self.reference_help(reference, &base_dir).await),
             None => None,
         };
+        let base_view = workspace_view(&base, &self.store, BASE_VIEW);
         let input = drafter::DraftInput {
             intake_text: &text,
             base_view: &base_view,
-            reference_observations: reference_observations.as_deref(),
+            reference_observations: reference_help.as_deref(),
             reference_command: self.profile.reference_command.as_deref(),
             build_command: self.profile.check.build_command.as_deref(),
             candidate_command: self.profile.check.candidate_command.as_deref(),
         };
-        let message = match self
-            .run_worker(
+        // The prober is independent of the drafter: both start from the same request.
+        let (message, sealed) = tokio::join!(
+            self.run_worker(
                 drafter::prompt(&input),
                 drafter::schema(),
                 "pro_contract_draft",
-            )
-            .await
-        {
+            ),
+            self.probe(&text, &base, &base_dir, reference_help.as_deref()),
+        );
+        let message = match message {
             Ok(message) => message,
             Err(error) => {
                 self.rest("abstained", &format!("drafter failed: {error}"))
@@ -343,7 +394,17 @@ impl ThreadRuntime {
             Ok(drafter::Draft::Contract {
                 terms,
                 evidence_policy,
-            }) => self.issue(terms, evidence_policy).await,
+            }) => {
+                let evidence = self.settings.evidence;
+                let policy = EvidencePolicy {
+                    sealed,
+                    sealed_threshold_permille: evidence.sealed_threshold_permille,
+                    min_sealed_qualified: evidence.min_sealed_qualified,
+                    min_success_permille: evidence.min_success_permille,
+                    ..*evidence_policy
+                };
+                self.issue(terms, policy, base_dir).await
+            }
             Ok(drafter::Draft::None { reason }) => {
                 self.rest("abstained", &format!("drafter declined: {reason}"))
                     .await;
@@ -353,6 +414,114 @@ impl ThreadRuntime {
                     .await;
             }
         }
+    }
+
+    /// Writes `subject` into a fresh `dir`.
+    async fn materialize(&self, subject: &Subject, dir: &Path) -> Result<(), String> {
+        let _ = tokio::fs::remove_dir_all(dir).await;
+        let (subject, store, dir) = (subject.clone(), self.store.clone(), dir.to_path_buf());
+        tokio::task::spawn_blocking(move || {
+            std::fs::create_dir_all(&dir)
+                .map_err(|error| error.to_string())
+                .and_then(|()| {
+                    materialize(&subject, &store, &dir).map_err(|error| error.to_string())
+                })
+        })
+        .await
+        .map_err(|error| error.to_string())
+        .and_then(|result| result)
+    }
+
+    /// The reference's `--help`, observed over the base workspace, as worker-readable text.
+    async fn reference_help(&self, reference: &str, base_dir: &Path) -> String {
+        let help = vec![DifferentialCase {
+            id: "help".to_string(),
+            args: vec!["--help".to_string()],
+            ..Default::default()
+        }];
+        match self
+            .ports
+            .observe(&self.profile.check, base_dir, reference, &help)
+            .await
+        {
+            Ok(observations) => {
+                cases::render_observations(&help, &observations, PROMPT_EVIDENCE_CAP / 6)
+            }
+            Err(error) => format!("reference probe failed: {error}"),
+        }
+    }
+
+    /// The prober's sealed cases; none without a reference or when the prober fails. Either way
+    /// the attempt is recorded.
+    async fn probe(
+        &self,
+        text: &str,
+        base: &Subject,
+        base_dir: &Path,
+        reference_help: Option<&str>,
+    ) -> Vec<DifferentialCase> {
+        let Some(reference) = self.profile.reference_command.as_deref() else {
+            return Vec::new();
+        };
+        let base_view = workspace_view(base, &self.store, prober::BASE_VIEW);
+        let input = prober::ProbeInput {
+            intake_text: text,
+            base_view: &base_view,
+            reference_help: reference_help.unwrap_or_default(),
+        };
+        let outcome = self.run_probe(&input, base_dir, reference).await;
+        let thread_id = self.thread_id.to_string();
+        let body = match &outcome {
+            Ok((exploration, observations, probe)) => json!({
+                "thread_id": thread_id,
+                "exploration": exploration,
+                "observations": observations,
+                "coverage_plan": probe.coverage_plan,
+                "cases": probe.cases,
+            }),
+            Err(error) => json!({"thread_id": thread_id, "error": error}),
+        };
+        self.record_event(ExperimentKind::Probe, /*check_pipeline*/ None, body)
+            .await;
+        outcome.map(|(_, _, probe)| probe.cases).unwrap_or_default()
+    }
+
+    /// Explores the reference, then writes the sealed suite knowing how it behaves.
+    async fn run_probe(
+        &self,
+        input: &prober::ProbeInput<'_>,
+        base_dir: &Path,
+        reference: &str,
+    ) -> Result<(Vec<DifferentialCase>, Vec<Observation>, prober::Probe), String> {
+        let message = self
+            .run_worker(
+                prober::explore_prompt(input),
+                prober::explore_schema(),
+                "pro_contract_explore",
+            )
+            .await
+            .map_err(|error| format!("exploration failed: {error}"))?;
+        let exploration = prober::parse_exploration(&message)
+            .map_err(|error| format!("exploration rejected: {error}"))?;
+        // Without observations the prober still writes from the documentation.
+        let observations = self
+            .ports
+            .observe(&self.profile.check, base_dir, reference, &exploration)
+            .await
+            .unwrap_or_default();
+        let observed =
+            cases::render_observations(&exploration, &observations, prober::OBSERVATIONS_CAP);
+        let message = self
+            .run_worker(
+                prober::write_prompt(input, &observed),
+                prober::write_schema(),
+                "pro_contract_probe",
+            )
+            .await
+            .map_err(|error| format!("probe failed: {error}"))?;
+        let probe =
+            prober::parse_probe(&message).map_err(|error| format!("probe rejected: {error}"))?;
+        Ok((exploration, observations, probe))
     }
 
     async fn run_worker(
@@ -371,7 +540,7 @@ impl ThreadRuntime {
             .await
     }
 
-    async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy) {
+    async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy, base_dir: PathBuf) {
         let contract_id = self.contract_id();
         let bindings = Bindings {
             terms_hash: digest_of("terms", &terms),
@@ -419,6 +588,7 @@ impl ThreadRuntime {
                 terms,
                 policy,
                 brief,
+                base_dir,
             });
             state.phase = Phase::Working;
             state.last_idle
@@ -433,8 +603,8 @@ impl ThreadRuntime {
     }
 
     async fn executor_stopped(&self, cause: ThreadIdleCause) {
-        self.rest(
-            "not_verified",
+        self.not_verified(
+            NotVerifiedClass::NoHandoff,
             &format!("the executor turn ended without a handoff ({cause:?})"),
         )
         .await;
@@ -503,14 +673,15 @@ impl ThreadRuntime {
             match (state.frozen.as_ref(), state.contract.as_ref()) {
                 (Some(frozen), _) if state.proposed_turns.contains(&frozen.turn_id) => return,
                 (Some(frozen), Some(active)) => {
-                    let values = (
-                        active.contract.clone(),
-                        frozen.subject.clone(),
-                        frozen.turn_id.clone(),
-                        active.policy.clone(),
-                        active.terms.clone(),
-                    );
-                    state.proposed_turns.insert(values.2.clone());
+                    let values = Handoff {
+                        contract: active.contract.clone(),
+                        subject: frozen.subject.clone(),
+                        turn_id: frozen.turn_id.clone(),
+                        policy: active.policy.clone(),
+                        terms: active.terms.clone(),
+                        base_dir: active.base_dir.clone(),
+                    };
+                    state.proposed_turns.insert(values.turn_id.clone());
                     state.phase = Phase::Verifying;
                     Some(values)
                 }
@@ -518,11 +689,16 @@ impl ThreadRuntime {
                 (Some(_), None) => return,
             }
         };
-        let Some((contract, subject, turn_id, policy, terms)) = handoff else {
-            self.rest("not_verified", "no candidate was frozen at the handoff")
-                .await;
+        let Some(handoff) = handoff else {
+            self.not_verified(
+                NotVerifiedClass::NoHandoff,
+                "no candidate was frozen at the handoff",
+            )
+            .await;
             return;
         };
+        let contract = handoff.contract.clone();
+        let (subject, turn_id) = (handoff.subject.clone(), handoff.turn_id.clone());
         self.record_status("checking", "", /*resting*/ false).await;
         let proposed = match self
             .apply(
@@ -538,12 +714,19 @@ impl ThreadRuntime {
         {
             Ok(contract) => contract,
             Err(error) => {
-                self.rest("not_verified", &format!("propose failed: {error}"))
-                    .await;
+                self.not_verified(
+                    NotVerifiedClass::Infrastructure,
+                    &format!("propose failed: {error}"),
+                )
+                .await;
                 return;
             }
         };
-        self.verify(proposed, subject, turn_id, policy, terms).await;
+        self.verify(Handoff {
+            contract: proposed,
+            ..handoff
+        })
+        .await;
     }
 
     async fn apply(
@@ -573,75 +756,59 @@ impl ThreadRuntime {
         Ok(next)
     }
 
-    async fn verify(
-        self: Arc<Self>,
-        contract: Contract,
-        subject: Subject,
-        turn_id: String,
-        policy: EvidencePolicy,
-        terms: Terms,
-    ) {
+    async fn verify(self: Arc<Self>, handoff: Handoff) {
+        let Handoff {
+            contract,
+            subject,
+            turn_id,
+            policy,
+            terms,
+            base_dir,
+        } = handoff;
         let work = self
-            .dir
-            .join("work")
-            .join(contract.id.0.replace(['/', '.'], "_"))
+            .work_dir()
             .join(contract.generation.to_string())
             .join("candidate");
-        let _ = tokio::fs::remove_dir_all(&work).await;
-        let materialized = {
-            let (subject, store, work) = (subject.clone(), self.store.clone(), work.clone());
-            tokio::task::spawn_blocking(move || {
-                std::fs::create_dir_all(&work)
-                    .map_err(|error| error.to_string())
-                    .and_then(|()| {
-                        materialize(&subject, &store, &work).map_err(|error| error.to_string())
-                    })
-            })
-            .await
-            .map_err(|error| error.to_string())
-            .and_then(|result| result)
-        };
-        if let Err(error) = materialized {
-            self.rest("not_verified", &format!("materialization failed: {error}"))
-                .await;
+        if let Err(error) = self.materialize(&subject, &work).await {
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("materialization failed: {error}"),
+            )
+            .await;
             return;
         }
         let checks = self
             .ports
-            .run_checks(&self.profile.check, &work, &policy)
+            .run_checks(&self.profile.check, &work, &base_dir, &policy)
             .await;
-        let all_passed = checks.as_ref().is_ok_and(|receipts| {
-            receipts.complete
-                && receipts
-                    .steps
-                    .iter()
-                    .all(|step| step.outcome == crate::StepOutcome::Pass)
-        });
-        let review = if all_passed {
-            let receipts = checks.as_ref().ok();
-            let summary = receipts.map(render_receipts).unwrap_or_default();
-            let view = workspace_view(&subject, &self.store, reviewer::CANDIDATE_VIEW);
-            let input = reviewer::ReviewInput {
-                terms: &terms,
-                check_summary: &crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
-                candidate_view: &view,
-            };
-            let message = self
-                .run_worker(
-                    reviewer::prompt(&input),
-                    reviewer::schema(),
-                    "pro_contract_review",
-                )
-                .await;
-            Some(message.and_then(|message| reviewer::parse(&message, &terms)))
-        } else {
-            None
+        // The reviewer is asked only when the mechanical evidence leaves the decision to it.
+        let review = match (&checks, decision::mechanical_verdict(&checks, &policy)) {
+            (Ok(receipts), None) => {
+                let summary = decision::review_summary(receipts, &policy);
+                let view = workspace_view(&subject, &self.store, reviewer::CANDIDATE_VIEW);
+                let input = reviewer::ReviewInput {
+                    terms: &terms,
+                    check_summary: &crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
+                    candidate_view: &view,
+                };
+                let message = self
+                    .run_worker(
+                        reviewer::prompt(&input),
+                        reviewer::schema(),
+                        "pro_contract_review",
+                    )
+                    .await;
+                Some(message.and_then(|message| reviewer::parse(&message, &terms)))
+            }
+            _ => None,
         };
         let verdict = decide(&checks, review.as_ref(), &policy);
-        let (verdict_name, detail) = match &verdict {
-            Verdict::Support => ("support", ""),
-            Verdict::Defeat { residual } => ("defeat", residual.as_str()),
-            Verdict::NotVerified { reason } => ("not_verified", reason.as_str()),
+        let (verdict_name, class, detail) = match &verdict {
+            Verdict::Support => ("support", "", ""),
+            Verdict::Defeat { residual } => ("defeat", "", residual.as_str()),
+            Verdict::NotVerified { class, reason } => {
+                ("not_verified", class.as_str(), reason.as_str())
+            }
         };
         self.record_event(
             ExperimentKind::Verification,
@@ -654,8 +821,10 @@ impl ThreadRuntime {
                 "generation": contract.generation,
                 "subject_hash": subject.subject_hash,
                 "verdict": verdict_name,
+                "class": class,
                 "detail": detail,
                 "receipts": checks.as_ref().ok(),
+                "sealed": checks.as_ref().ok().map(|receipts| decision::sealed_tally(receipts, &policy)),
                 "check_error": checks.as_ref().err().map(ToString::to_string),
                 "review": review.as_ref().and_then(|review| review.as_ref().ok()),
             }),
@@ -666,7 +835,7 @@ impl ThreadRuntime {
             Verdict::Defeat { residual } => {
                 self.defeat(contract, &subject, residual, turn_id).await
             }
-            Verdict::NotVerified { reason } => self.rest("not_verified", &reason).await,
+            Verdict::NotVerified { class, reason } => self.not_verified(class, &reason).await,
         }
     }
 
@@ -675,10 +844,11 @@ impl ThreadRuntime {
         contract: Contract,
         subject: &Subject,
         receipts: Option<CheckReceipts>,
-        review: Option<Result<reviewer::ReviewVerdict, crate::WorkerError>>,
+        review: Option<Result<reviewer::Review, crate::WorkerError>>,
     ) {
         let Some(receipts) = receipts else {
-            self.rest("not_verified", "support without receipts").await;
+            self.not_verified(NotVerifiedClass::Infrastructure, "support without receipts")
+                .await;
             return;
         };
         let review = review.and_then(Result::ok);
@@ -724,8 +894,11 @@ impl ThreadRuntime {
                     .await
             }
             Err(error) => {
-                self.rest("not_verified", &format!("support failed: {error}"))
-                    .await
+                self.not_verified(
+                    NotVerifiedClass::Infrastructure,
+                    &format!("support failed: {error}"),
+                )
+                .await
             }
         }
     }
@@ -753,8 +926,11 @@ impl ThreadRuntime {
             )
             .await;
         if let Err(error) = defeated {
-            self.rest("not_verified", &format!("defeat failed: {error}"))
-                .await;
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("defeat failed: {error}"),
+            )
+            .await;
             return;
         }
         let allowance_left = self.state.lock().await.repairs_used < self.settings.repair_attempts;
@@ -782,18 +958,6 @@ impl ThreadRuntime {
             }
         }
     }
-}
-
-fn render_receipts(receipts: &CheckReceipts) -> String {
-    let mut text = format!("environment: {}\n", receipts.environment.join(" | "));
-    for step in &receipts.steps {
-        text.push_str(&format!("{}: {:?}\n", step.step, step.outcome));
-        if !step.detail.is_empty() {
-            text.push_str(&crate::workers::bounded(&step.detail, 800));
-            text.push('\n');
-        }
-    }
-    text
 }
 
 #[cfg(test)]

@@ -152,6 +152,7 @@ async fn record_abstention(ledger: &Ledger, thread_id: ThreadId, reason: &str) {
         detail: reason.to_string(),
         resting: true,
         repairs_used: 0,
+        class: String::new(),
     };
     if let Err(error) = ledger
         .put_record(runtime::STATUS_KIND, &thread_id.to_string(), &status)

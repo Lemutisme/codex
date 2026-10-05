@@ -24,9 +24,12 @@ use crate::BlobStore;
 use crate::CheckEnvironment;
 use crate::CheckError;
 use crate::CheckReceipts;
+use crate::DifferentialCase;
 use crate::EvaluationProfile;
 use crate::EvidencePolicy;
+use crate::EvidenceSettings;
 use crate::Ledger;
+use crate::Observation;
 use crate::Settings;
 use crate::StepOutcome;
 use crate::StepReceipt;
@@ -42,11 +45,19 @@ const CONTRACT_DRAFT: &str = r#"{"decision":"contract","reason":"","requirements
 const DECLINED_DRAFT: &str = r#"{"decision":"none","reason":"a question, not a task","requirements":[],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;
 const SUPPORT_REVIEW: &str = r#"{"verdict":"support","coverage":[{"requirement_id":"R1","evidence":"answer.txt"}],"findings":[],"terms_gap":[],"missing":"","residual":""}"#;
 const CANNOT_JUDGE_REVIEW: &str = r#"{"verdict":"cannot_judge","coverage":[],"findings":[],"terms_gap":[],"missing":"the output is not visible","residual":""}"#;
+const EXPLORATION: &str = r#"{"cases":[{"id":"e1","args":["--help"]}]}"#;
+const PROBE: &str = r#"{"coverage_plan":[{"family":"answer","surface":"answer.txt","description":"the answer"}],"cases":[{"id":"s1","family":"answer","args":["--sealed-secret","1"]},{"id":"s2","family":"answer","args":["--sealed-secret","2"]},{"id":"s3","family":"format","args":["--sealed-secret","3"]},{"id":"s4","family":"format","args":["--sealed-secret","4"]}]}"#;
 
 /// Scripted workers, checks and repair submission.
 struct FakePorts {
     draft: &'static str,
     draft_gate: Option<Arc<Notify>>,
+    /// The prober's second turn; `None` makes the prober fail.
+    probe: Option<&'static str>,
+    /// How many sealed cases pass in each check run; the rest fail.
+    sealed_passing: usize,
+    /// The sealed cases each check run received.
+    sealed_checked: Mutex<Vec<Vec<DifferentialCase>>>,
     reviews: Mutex<VecDeque<&'static str>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
@@ -62,6 +73,9 @@ impl FakePorts {
         Self {
             draft,
             draft_gate: None,
+            probe: Some(PROBE),
+            sealed_passing: usize::MAX,
+            sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
@@ -92,6 +106,11 @@ impl Ports for FakePorts {
                     }
                     Ok(self.draft.to_string())
                 }
+                "pro_contract_explore" => Ok(EXPLORATION.to_string()),
+                "pro_contract_probe" => self
+                    .probe
+                    .map(str::to_string)
+                    .ok_or_else(|| WorkerError::Failed("the prober failed".to_string())),
                 "pro_contract_review" => self
                     .reviews
                     .lock()
@@ -104,21 +123,48 @@ impl Ports for FakePorts {
         })
     }
 
-    fn probe_reference<'a>(
+    fn observe<'a>(
         &'a self,
         _env: &'a CheckEnvironment,
+        base: &'a Path,
         _reference: &'a str,
-    ) -> PortFuture<'a, Result<String, CheckError>> {
-        Box::pin(async { Ok("usage: reference".to_string()) })
+        cases: &'a [DifferentialCase],
+    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>> {
+        Box::pin(async move {
+            assert!(
+                base.join("answer.txt").exists(),
+                "observations run over the base"
+            );
+            Ok(cases
+                .iter()
+                .map(|case| Observation {
+                    id: case.id.clone(),
+                    exit: Some(0),
+                    stable: true,
+                    stdout: "usage: reference\n".to_string(),
+                    stderr: String::new(),
+                })
+                .collect())
+        })
     }
 
     fn run_checks<'a>(
         &'a self,
         _env: &'a CheckEnvironment,
         candidate: &'a Path,
-        _policy: &'a EvidencePolicy,
+        base: &'a Path,
+        policy: &'a EvidencePolicy,
     ) -> PortFuture<'a, Result<CheckReceipts, CheckError>> {
         Box::pin(async move {
+            assert_eq!(
+                std::fs::read_to_string(base.join("answer.txt")).unwrap_or_default(),
+                "not yet",
+                "every case runs over the base workspace as it was at intake"
+            );
+            self.sealed_checked
+                .lock()
+                .unwrap()
+                .push(policy.sealed.clone());
             let answer = std::fs::read_to_string(candidate.join("answer.txt")).unwrap_or_default();
             self.checked.lock().unwrap().push(answer);
             let outcome = self
@@ -128,15 +174,23 @@ impl Ports for FakePorts {
                 .pop_front()
                 .ok_or(CheckError::TimedOut)?;
             let detail = match outcome {
-                StepOutcome::Pass => String::new(),
                 StepOutcome::Fail => "answer.txt does not say done".to_string(),
+                StepOutcome::Pass | StepOutcome::Unqualified => String::new(),
             };
+            let mut steps = vec![StepReceipt::new("build", outcome, detail)];
+            steps.extend(policy.sealed.iter().enumerate().map(|(index, case)| {
+                let outcome = if index < self.sealed_passing {
+                    StepOutcome::Pass
+                } else {
+                    StepOutcome::Fail
+                };
+                StepReceipt {
+                    reference_exit: Some(0),
+                    ..StepReceipt::new(format!("sealed:{}", case.id), outcome, "")
+                }
+            }));
             Ok(CheckReceipts {
-                steps: vec![StepReceipt {
-                    step: "build".to_string(),
-                    outcome,
-                    detail,
-                }],
+                steps,
                 environment: vec!["fake toolchain".to_string()],
                 complete: true,
                 environment_digest: Digest::of(b"environment"),
@@ -177,6 +231,16 @@ struct Lane {
 }
 
 async fn lane(ports: FakePorts) -> Lane {
+    lane_with(ports, None).await
+}
+
+/// A lane whose profile has a reference program, so the prober runs and sealed evidence applies;
+/// support needs at least three of four sealed cases.
+async fn reference_lane(ports: FakePorts) -> Lane {
+    lane_with(ports, Some("/workspace/executable")).await
+}
+
+async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
     let dirs = tempfile::tempdir().expect("tempdir");
     let workspace = dirs.path().join("workspace");
     let dir = dirs.path().join("pro_contract");
@@ -200,14 +264,19 @@ async fn lane(ports: FakePorts) -> Lane {
             candidate_mount: "/candidate".to_string(),
             timeout_secs: 60,
             build_command: None,
-            candidate_command: None,
+            candidate_command: reference.map(|_| "./executable".to_string()),
         },
-        reference_command: None,
+        reference_command: reference.map(str::to_string),
     };
     let settings = Settings {
         evaluation: Some(profile.clone()),
         repair_attempts: 1,
         worker: WorkerSettings::default(),
+        evidence: EvidenceSettings {
+            sealed_threshold_permille: 750,
+            min_sealed_qualified: 4,
+            min_success_permille: 500,
+        },
     };
     let ports = Arc::new(ports);
     let thread_id = ThreadId::new();
@@ -405,6 +474,7 @@ async fn interrupted_turn_is_not_a_handoff() {
     let status = lane.wait_for("not_verified").await;
 
     assert!(status.resting);
+    assert_eq!(status.class, "no_handoff");
     assert!(lane.ports.checked.lock().unwrap().is_empty());
 }
 
@@ -509,4 +579,138 @@ async fn the_reviewer_model_is_part_of_the_certificates_evaluator() {
     }
 
     assert_ne!(digests[0], digests[1]);
+}
+
+fn kinds(events: &[codex_pro_contract_store::ExperimentRecord]) -> Vec<ExperimentKind> {
+    events.iter().map(|record| record.event.kind).collect()
+}
+
+#[tokio::test]
+async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
+    let lane = reference_lane(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+
+    lane.runtime.intake(INTAKE.to_string()).await;
+    lane.wait_for("working").await;
+    let brief = lane.runtime.brief().await.expect("brief").text;
+    assert!(
+        brief.contains("sealed set whose contents are never shown"),
+        "{brief}"
+    );
+    assert!(!brief.contains("--sealed-secret"), "{brief}");
+    lane.executor_turn("turn-1", "done").await;
+    lane.wait_for("supported").await;
+
+    let sealed = lane.ports.sealed_checked.lock().unwrap().clone();
+    assert_eq!(sealed.len(), 1);
+    assert_eq!(
+        sealed[0]
+            .iter()
+            .map(|case| case.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["s1", "s2", "s3", "s4"]
+    );
+    let events = lane.ledger.experiments().await.expect("events");
+    assert_eq!(
+        kinds(&events),
+        vec![
+            ExperimentKind::Intake,
+            ExperimentKind::Probe,
+            ExperimentKind::Draft,
+            ExperimentKind::Issue,
+            ExperimentKind::Verification
+        ]
+    );
+    let issue = &events[3].event.body;
+    assert_eq!(
+        issue["evidence_policy"]["sealed"].as_array().map(Vec::len),
+        Some(4)
+    );
+    assert_eq!(issue["evidence_policy"]["sealed_threshold_permille"], 750);
+    let verification = &events[4].event;
+    assert_eq!(verification.body["sealed"]["qualified"], 4);
+    assert!(verification.identities.policies.contains_key("prober"));
+    let probe = &events[1].event.body;
+    assert_eq!(probe["exploration"][0]["id"], "e1");
+    assert_eq!(probe["observations"][0]["stdout"], "usage: reference\n");
+}
+
+#[tokio::test]
+async fn a_failed_prober_still_issues_but_cannot_support() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    ports.probe = None;
+    let lane = reference_lane(ports).await;
+
+    lane.runtime.intake(INTAKE.to_string()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("turn-1", "done").await;
+    let status = lane.wait_for("not_verified").await;
+
+    assert_eq!(status.class, "insufficient_evidence");
+    assert!(status.detail.contains("0 of 0 qualified"), "{status:?}");
+    // The mechanical evidence decided; the reviewer was never asked.
+    assert_eq!(lane.ports.reviews.lock().unwrap().len(), 1);
+    let events = lane.ledger.experiments().await.expect("events");
+    let probe = events
+        .iter()
+        .find(|record| record.event.kind == ExperimentKind::Probe)
+        .expect("probe event");
+    assert!(
+        probe.event.body["error"]
+            .as_str()
+            .is_some_and(|error| error.contains("the prober failed")),
+        "{:?}",
+        probe.event.body
+    );
+}
+
+#[tokio::test]
+async fn a_low_sealed_pass_rate_defeats_with_an_aggregate_residual() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass, StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    ports.sealed_passing = 2;
+    let lane = reference_lane(ports).await;
+
+    lane.runtime.intake(INTAKE.to_string()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("turn-1", "almost").await;
+    lane.wait_for("repairing").await;
+    lane.executor_turn("turn-2", "still").await;
+    let status = lane.wait_for("did_not_pass").await;
+
+    let repairs = lane.ports.repairs.lock().unwrap().clone();
+    assert_eq!(repairs.len(), 1);
+    let residual = &repairs[0].0;
+    assert!(
+        residual.contains("2 of 4 independent sealed checks"),
+        "{residual}"
+    );
+    assert!(residual.contains("format"), "{residual}");
+    assert!(!residual.contains("--sealed-secret"), "{residual}");
+    assert!(status.resting);
+}
+
+#[tokio::test]
+async fn without_a_reference_the_prober_never_runs() {
+    let lane = lane(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+
+    lane.runtime.intake(INTAKE.to_string()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("turn-1", "done").await;
+    lane.wait_for("supported").await;
+
+    let events = lane.ledger.experiments().await.expect("events");
+    assert!(!kinds(&events).contains(&ExperimentKind::Probe));
 }
