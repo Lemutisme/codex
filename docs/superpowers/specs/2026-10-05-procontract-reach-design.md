@@ -256,3 +256,57 @@ explicit acceptance, rejection, or the implicit acceptance the essential spec de
 - **The kernel cannot verify reach.** It records the institution's assertion exactly, as it records environment digests.
   Getting views and exposure right is the institution's job, which is why the institution sits outside every version's
   write authority (R§7).
+
+## 11. The first end-to-end slice (implemented)
+
+**Commits:** `7fbc33d107` (kernel), `54e96c3162` (bundle), `48ddb785d0` (host).
+
+- **Kernel.** The coordinate carries `basis` and `reach`. A discharge without an explicit human act needs `Beyond`
+  support. The lane's own support is `Within`, and its status says it measures diligence.
+- **A version is a policy bundle run by one codex binary.** The bundle has five files:
+  - `executor.md`: the executor's developer instructions;
+  - `research.md`: the research method;
+  - `drafter.md`, `prober.md`, `reviewer.md`: the judgment workers' instructions.
+
+  Version 0 is the shipped `ext/pro-contract/policies`. Schemas and the case format are protocol and do not change. The
+  lane's identities carry the bundle digest, so the host can witness which version ran.
+- **The protection a version needs is set by what it can change.** A bundle is data loaded by a fixed binary. A
+  candidate therefore cannot touch any of these, which hold by construction:
+  - the host;
+  - the kernel;
+  - the builder;
+  - its own evaluation.
+
+  Process isolation (R§7, M1) becomes necessary when harness code becomes mutable. The same loop then gains a builder,
+  and nothing else changes.
+- **The host** (`scripts/procontract_rsi.py`) runs from its own checkout and holds the campaign:
+  - terms;
+  - ledger;
+  - versions;
+  - runs.
+
+  One step:
+  1. The host chooses a research parent: the newest qualified version, unless it regressed against its own parent on
+     development tasks; otherwise the best by development mean. This is exploration and carries no authority.
+  2. The parent runs an improvement task under its own `research.md`. The task's view is its bundle (editable) and the
+     development archive with the research history. Confirmation sources never enter that view.
+  3. The host qualifies the delivery mechanically. The criterion is complete, so support is `Beyond`, and the host
+     settles it under the campaign's convention.
+     - An unchanged bundle is a null experiment: the research is done and no version is made.
+  4. The host witnesses the candidate's bundle in a development run, then measures it on development tasks.
+  5. If the candidate earns it, the host spends fresh tasks from a sealed pool on paired confirmation against the
+     incumbent. Each task certifies once. The confirmation evidence supports adoption from beyond the candidate's reach.
+  6. Adoption is the principal's explicit act unless the campaign pre-authorizes it.
+- **The successor really succeeds.** A new incumbent serves the next tasks. Every research step runs its parent's own
+  `research.md`, so v1's method produces v2.
+- **Tested end to end without models:**
+  - the v0 → v1 → v2 chain under both adoption modes;
+  - a candidate that stays in research while the incumbent serves;
+  - a null experiment;
+  - a released, incomplete delivery;
+  - resumption after a crash;
+  - one retry of an invalid run, never scored zero.
+- **Acceptance on real runs** (the proposal's bar):
+  - a real v0 → v1 → v2 chain with independent incumbent selection;
+  - at least one candidate kept in research without being deployed;
+  - one recovery after a failure.
