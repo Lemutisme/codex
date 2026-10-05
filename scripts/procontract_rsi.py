@@ -554,6 +554,8 @@ class Host:
             },
             "delegate",
         )
+        # Research starts from evidence: the parent's development runs fill the archive it reads.
+        self.dev(parent)
         delivery = self.research(parent, step)
         experiment = (
             (delivery / "EXPERIMENT.md").read_text()

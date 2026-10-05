@@ -191,7 +191,13 @@ class SuccessionTest(unittest.TestCase):
             spent = h.used_confirmation_tasks()
             self.assertEqual(len(spent), 6)
             self.assertEqual(len(set(spent)), 6, "a confirmation task certifies once")
-            # The second research view never contained a confirmation task.
+            # Each research view held its parent's development runs and never a confirmation task.
+            first = [
+                e["body"]
+                for e in h.events("exposure")
+                if e["body"]["view"] == "research:1"
+            ]
+            self.assertEqual(len(first[0]["sources"]), len(DEV))
             exposure = [
                 e["body"]
                 for e in h.events("exposure")
