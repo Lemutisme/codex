@@ -22,9 +22,9 @@ explanation. Only a challenged delivery becomes the campaign's knowledge and ver
 One run is a learning signal (insight spec §12): the analyst assigns credit for each failing
 cluster by what the executor knew when (hindsight.json), and every measured experiment registers,
 before its runs, which hidden items now failed by every stored run it will rescue (prediction.json).
-Chance seldom rescues such an item, so one run settles the prediction, mechanically and from beyond
-the candidate's reach. A candidate is put forward only when its signature is present, its prediction
-held and its development delta clears the gate.
+Chance seldom rescues a family of such items, at a rate each task shows, so one run settles the
+prediction, mechanically and from beyond the candidate's reach. A candidate is put forward only when
+its signature is present, its prediction held and its development delta clears the gate.
 
 Reach in practice:
 - exploration (choosing a parent, putting a candidate forward) may use any information and needs no
@@ -71,8 +71,8 @@ SIGNATURES = ("present", "partial", "absent")
 # How the information stood for a failing cluster, and for one never sent, where it could come from.
 CLASSES = ("never_sent", "never_compared", "left_unfixed", "too_shallow")
 SOURCES = ("artifact", "convention", "prior", "unobservable")
-# Before any evidence, one chance rescue in ten floor items: conservative, so early predictions
-# need several rescues to hold.
+# Before any evidence, one chance rescue in ten floor families: conservative, so early predictions
+# need several rescues to hold. The same ten exposures weigh the pooled rate against a task's own.
 PRIOR_RESCUE = (1, 10)
 OUTCOME_MESSAGE_CAP = 1000
 LATEST_ANALYSES = 5
@@ -101,8 +101,8 @@ Your workspace holds:
 
 Deliver ./EXPERIMENT.md with the sections {sections}. When you change a file that shapes how tasks
 are done ({task_files}), also deliver ./prediction.json, {{"rescue": {{"<task>": ["<item id>", ...]}}}}:
-the hidden items your change will make pass, chosen among those every stored run failed (the floor in
-archive/tasks/<task>/outcomes.md). No network is available. Tools: python3, jq, grep, sed and awk are
+the hidden items of development tasks your change will make pass, chosen among those every stored run
+failed (the floor in archive/tasks/<task>/outcomes.md), from several test families. No network is available. Tools: python3, jq, grep, sed and awk are
 installed; rg is not.
 """
 
@@ -555,8 +555,8 @@ class Host:
         return seed if seed.is_dir() else None
 
     def pending_experiment(self) -> str | None:
-        """The newest candidate measured on every development task that no qualified analysis has
-        yet settled: the experiment the next analysis must judge."""
+        """The newest candidate measured on every development task, with its prediction settled, that
+        no qualified analysis has yet settled: the experiment the next analysis must judge."""
         asked = {
             body["experiment"]
             for body in self.insights()
@@ -571,6 +571,7 @@ class Host:
                 and not body.get("method_only")
                 and vid not in asked
                 and len(self.dev_results(vid)) == len(self.terms["pools"]["dev"])
+                and self.settlement(vid)
             ):
                 pending = vid
         return pending
@@ -634,13 +635,15 @@ class Host:
                 f"| {vid[:12]} | {(manifest['lineage']['parent'] or '-')[:12]} | "
                 f"{f'{mean(results.values()):.3f}' if results else '-'} | {len(results)} |"
             )
-        rate, rescued, exposed = self.chance()
+        chance = self.chance(self.task_runs())
+        per_task = ", ".join(f"{task} {t['rate']:.3f}" for task, t in sorted(chance["tasks"].items()))
         lines += [
             "",
-            f"Chance rescue rate of a floor item: {rate:.3f} ({rescued} of {exposed} floor items "
-            f"passed in a held-out run, smoothed by a prior of {PRIOR_RESCUE[0]} in "
-            f"{PRIOR_RESCUE[1]}). A prediction holds when chance alone would rarely rescue as many "
-            f"of its floor items as the candidate does (p <= {self.terms['gates']['prediction_alpha']}).",
+            f"Chance rescue rate of a floor family: {chance['rate']:.3f} pooled ({chance['rescued']} of "
+            f"{chance['exposed']} floor families passed in a held-out run, smoothed by a prior of "
+            f"{PRIOR_RESCUE[0]} in {PRIOR_RESCUE[1]}); per task {per_task or 'none yet'}. A prediction "
+            f"holds when chance alone would rarely rescue as many of its floor families as the candidate "
+            f"does (p <= {self.terms['gates']['prediction_alpha']}).",
         ]
         latest = self.latest_insight()
         if latest and (latest / "hindsight.json").exists():
@@ -668,16 +671,25 @@ class Host:
             )
         return by_task
 
-    def floor(self, task: str) -> set[str]:
-        """The items every stored run of `task` failed: no version has reached them, and chance
-        seldom does, so they are where one run can decide a prediction."""
-        return set(outcome_matrix.classify(self.task_runs().get(task, []))[1])
-
-    def chance(self) -> tuple[float, int, int]:
-        """The rate at which a floor item passes by chance, with its (rescued, exposed) counts:
-        held-out runs against the floor of the others, smoothed by PRIOR_RESCUE."""
-        rescued, exposed = outcome_matrix.chance_rescues(list(self.task_runs().values()))
-        return (rescued + PRIOR_RESCUE[0]) / (exposed + PRIOR_RESCUE[1]), rescued, exposed
+    def chance(self, runs: dict[str, list[dict]]) -> dict:
+        """The rate at which a floor family passes by chance, pooled and per task. Held-out runs
+        against the floor of the others give the counts; the pooled rate is smoothed by PRIOR_RESCUE
+        and each task's rate is its own counts weighed against the pooled rate, because tasks differ
+        in noise by an order of magnitude."""
+        counts = outcome_matrix.chance_rescues(runs)
+        rescued = sum(r for r, _ in counts.values())
+        exposed = sum(e for _, e in counts.values())
+        rate = (rescued + PRIOR_RESCUE[0]) / (exposed + PRIOR_RESCUE[1])
+        weight = PRIOR_RESCUE[1]
+        return {
+            "rate": rate,
+            "rescued": rescued,
+            "exposed": exposed,
+            "tasks": {
+                task: {"rescued": r, "exposed": e, "rate": (r + rate * weight) / (e + weight)}
+                for task, (r, e) in sorted(counts.items())
+            },
+        }
 
     def write_outcomes(self, archive: Path) -> None:
         """tasks/<task>/outcomes.md over all the observed runs of each task."""
@@ -793,10 +805,7 @@ class Host:
         pending = self.pending_experiment()
         previous = self.current_knowledge()
         note = PENDING.format(version=pending[:12]) if pending else NOT_PENDING
-        known = {
-            task: {item for run in runs for item in run["outcomes"]}
-            for task, runs in self.task_runs().items()
-        }
+        failing = {task: outcome_matrix.failed_items(runs) for task, runs in self.task_runs().items()}
         analysis, reason = self.insight_stage(
             root,
             "analyst",
@@ -805,7 +814,7 @@ class Host:
             parent,
             ANALYST_PROTOCOL.format(pending=note),
             pending,
-            known,
+            failing,
             lambda partial: copy_knowledge(previous, partial / "knowledge"),
             "ANALYSIS.md",
         )
@@ -819,7 +828,7 @@ class Host:
                 parent,
                 CHALLENGER_PROTOCOL.format(pending=note),
                 pending,
-                known,
+                failing,
                 lambda partial: hand_over(analysis, partial, pending),
                 "CHALLENGE.md",
             )
@@ -858,7 +867,7 @@ class Host:
         parent: str,
         prompt: str,
         pending: str | None,
-        known: dict[str, set[str]],
+        failing: dict[str, set[str]],
         fill,
         document: str,
     ) -> tuple[Path | None, str]:
@@ -875,7 +884,7 @@ class Host:
             delivery = self.run_agent(
                 base, f"{role}-{k}-{attempt}", parent, f"{role}.md", deadline
             )
-            reason = delivery_problem(delivery, document, pending, known)
+            reason = delivery_problem(delivery, document, pending, failing)
             if not reason:
                 return delivery, ""
         return None, f"{role}: {reason}"
@@ -996,8 +1005,9 @@ class Host:
 
     def prediction_problem(self, path: Path) -> str:
         """Why prediction.json cannot be settled by the candidate's runs, or an empty string. It
-        names, per development task, hidden items the change will make pass; at least one must be
-        on the floor, where chance is quiet, or no single run could decide it."""
+        names, per development task, hidden items the change will make pass. Only items on the floor
+        count, where chance is quiet, and a family of them is one chance event, so even rescuing every
+        one must be unlikely enough by chance alone for a single run to decide it."""
         if path.is_symlink():
             return "prediction.json is a link"
         try:
@@ -1008,7 +1018,6 @@ class Host:
         if not isinstance(rescue, dict) or not rescue:
             return "prediction.json names no items to rescue"
         runs = self.task_runs()
-        decisive = 0
         for task, items in rescue.items():
             if task not in self.terms["pools"]["dev"]:
                 return f"prediction.json names {task}, which is not a development task"
@@ -1017,42 +1026,65 @@ class Host:
                 isinstance(item, str) and item in known for item in items
             ):
                 return f"prediction.json names items no run of {task} has"
-            decisive += len(set(items) & self.floor(task))
-        if not decisive:
+        rates = self.rates(self.claims(rescue, runs), self.chance(runs))
+        if not rates:
             return "none of the predicted items is failed by every stored run, so no run can decide the prediction"
+        alpha = self.terms["gates"]["prediction_alpha"]
+        if (p := outcome_matrix.rescue_tail(rates, len(rates))) > alpha:
+            return (
+                f"the predicted floor items fall in {len(rates)} test families, and chance alone "
+                f"rescues them all with probability {p:.3f} > {alpha}: name floor items of more families"
+            )
         return ""
+
+    @staticmethod
+    def claims(rescue: dict, runs: dict[str, list[dict]]) -> dict[str, dict[str, list[str]]]:
+        """The floor items a prediction names, per task and test family; items off the floor are
+        dropped, for chance rescues them often."""
+        claims = {
+            task: outcome_matrix.by_family(
+                set(items) & set(outcome_matrix.floor(runs.get(task, [])))
+            )
+            for task, items in sorted(rescue.items())
+        }
+        return {task: families for task, families in claims.items() if families}
+
+    @staticmethod
+    def rates(claims: dict, chance: dict) -> list[float]:
+        """The chance of rescuing each claimed family: its task's rate, else the pooled one."""
+        return [
+            chance["tasks"].get(task, chance)["rate"] for task, families in claims.items() for _ in families
+        ]
 
     def predict(self, candidate: str, delivery: Path) -> str:
         """Registers the candidate's prediction as a contract before any of its runs exist: the
-        floor items it names and the chance rate are frozen in the terms, so the outcome cannot
+        floor families it names and the chance rates are frozen in the terms, so the outcome cannot
         shape the claim."""
         contract = f"prediction.{candidate[:16]}"
         shutil.copy(delivery / "prediction.json", self.version_dir(candidate))
         rescue = json.loads((delivery / "prediction.json").read_text())["rescue"]
-        rate, rescued, exposed = self.chance()
+        runs = self.task_runs()
         self.issue(
             contract,
             {
                 "experiment": candidate,
-                "rescue": {
-                    task: sorted(set(items) & self.floor(task))
-                    for task, items in sorted(rescue.items())
-                },
-                "chance": {"rate": rate, "rescued": rescued, "exposed": exposed},
+                "rescue": self.claims(rescue, runs),
+                "chance": self.chance(runs),
                 "alpha": self.terms["gates"]["prediction_alpha"],
             },
-            {"class": "rescue", "rule": "binomial tail of rescued floor items <= alpha"},
+            {"class": "rescue", "rule": "tail of rescued floor families <= alpha"},
             "delegate",
         )
         return contract
 
     def settle(self, candidate: str) -> dict:
         """Settles the candidate's prediction from its development runs, mechanically: the hidden
-        outcomes come from beyond its reach, and the rule was frozen before they existed. Counts the
-        frozen floor items its runs pass, against chance; discharges the prediction when chance
-        alone would rarely rescue as many, and defeats it otherwise."""
+        outcomes come from beyond its reach, and the rule was frozen before they existed. A frozen
+        family is rescued when its runs pass any of its items; the prediction holds when chance
+        alone would rarely rescue as many families, and is defeated otherwise. A task without a
+        valid run leaves its families unrescued and the settlement void: the claim is not held on
+        a subset that infrastructure chose."""
         contract = f"prediction.{candidate[:16]}"
-        settlement_file = self.version_dir(candidate) / "settlement.json"
         if settled := self.settlement(candidate):
             return settled
         terms = next(
@@ -1061,29 +1093,40 @@ class Host:
             if event["body"]["contract_id"] == contract
         )
         runs = self.dev_runs(candidate)
+        outcomes = {
+            run["name"]: run["outcomes"] for group in self.task_runs().values() for run in group
+        }
         tasks = {}
-        for task, items in terms["rescue"].items():
+        for task, families in terms["rescue"].items():
             if task in runs:
-                passed = self.adapter.outcomes(Path(runs[task]["run_dir"]))
+                passed = outcomes[Path(runs[task]["run_dir"]).parent.name]
                 tasks[task] = {
-                    "predicted": len(items),
-                    "rescued": sorted(i for i in items if passed.get(i, {}).get("passed")),
+                    "predicted": len(families),
+                    "rescued": sorted(
+                        name
+                        for name, items in families.items()
+                        if any(passed.get(item, {}).get("passed") for item in items)
+                    ),
                 }
-        n = sum(t["predicted"] for t in tasks.values())
+        void = sorted(set(terms["rescue"]) - set(tasks))
+        rates = self.rates(terms["rescue"], terms["chance"])
+        n = len(rates)
         k = sum(len(t["rescued"]) for t in tasks.values())
-        rate = terms["chance"]["rate"]
-        p = outcome_matrix.binomial_tail(n, k, rate)
+        p = outcome_matrix.rescue_tail(rates, k)
         settlement = {
             "experiment": candidate,
             "predicted": n,
             "rescued": k,
-            "expected_by_chance": round(n * rate, 3),
+            "expected_by_chance": round(sum(rates), 3),
             "p": p,
             "alpha": terms["alpha"],
-            "held": n > 0 and p <= terms["alpha"],
+            "held": not void and p <= terms["alpha"],
+            "void": void,
             "tasks": tasks,
         }
-        reading = f"{k} of {n} floor items rescued, {n * rate:.2f} expected by chance, p={p:.2g}"
+        reading = f"{k} of {n} floor families rescued, {sum(rates):.2f} expected by chance, p={p:.2g}"
+        if void:
+            reading = f"void, no valid run of {', '.join(void)}: {reading}"
         self.propose(
             contract, store.digest("runs", {task: runs[task]["run_dir"] for task in tasks})
         )
@@ -1092,7 +1135,9 @@ class Host:
             self.discharge(contract, self.presumed(), reading)
         else:
             self.release(contract, reading)
-        settlement_file.write_text(json.dumps(settlement, indent=2) + "\n")
+        (self.version_dir(candidate) / "settlement.json").write_text(
+            json.dumps(settlement, indent=2) + "\n"
+        )
         return settlement
 
     def settlement(self, vid: str) -> dict | None:
@@ -1141,6 +1186,8 @@ class Host:
             and (state := self.contract(f"improvement.{last['step']}")) is not None
             and state["standing"] == "outstanding"
         )
+        if not resuming and (candidate := self.unsettled()) is not None:
+            return self.measure_candidate(last["step"], candidate)
         if resuming:
             step, parent = last["step"], last["version"]
         else:
@@ -1198,15 +1245,20 @@ class Host:
         if not ok:
             self.release(improvement, reason)
             return f"step {step}: research by {parent[:12]} did not qualify: {reason}"
-        # The criterion is mechanical and complete, so the checks reach everything it asks.
+        # The criterion is mechanical and complete, so the checks reach everything it asks. The
+        # candidate and its prediction come before the discharge, so a host that stops in between
+        # resumes here, where nothing has run; after it, a candidate resumes by its prediction.
+        candidate = self.register(delivery / "policy", parent, parent, experiment) if changed else None
+        method_only = candidate is not None and self.twin(candidate) != candidate
+        if candidate and not method_only:
+            self.predict(candidate, delivery)
         self.support(
             improvement, {"qualification": reason}, {"delivery": subject}, "beyond"
         )
         self.discharge(improvement, self.presumed(), reason)
         if not changed:
             return f"step {step}: {reason}"
-        candidate = self.register(delivery / "policy", parent, parent, experiment)
-        if self.twin(candidate) != candidate:
+        if method_only:
             # Only the research method changed: its tasks are its ancestor's by construction, so
             # nothing is measured and nothing is put forward; it shows its worth in its successors.
             self.record(
@@ -1214,9 +1266,24 @@ class Host:
                 {"role": "qualified", "version": candidate, "method_only": True},
             )
             return f"step {step}: candidate {candidate[:12]} changes only the research method; it continues in research"
-        self.predict(candidate, delivery)
+        return self.measure_candidate(step, candidate)
+
+    def unsettled(self) -> str | None:
+        """A candidate whose prediction is registered and neither settled nor released: a host that
+        stopped while measuring it resumes there."""
+        for vid in self.versions():
+            state = self.contract(f"prediction.{vid[:16]}")
+            if state is not None and state["standing"] == "outstanding":
+                return vid
+        return None
+
+    def measure_candidate(self, step: int, candidate: str) -> str:
+        """Measures a candidate whose prediction is registered: its mechanism witness, its
+        development runs, then both settlements, and the decision to put it forward."""
+        parent = self.versions()[candidate]["lineage"]["parent"]
         witness = self.adapter.witness(self, candidate)
         if witness:
+            self.release(f"prediction.{candidate[:16]}", witness)
             self.record(
                 "selection",
                 {"role": "unqualified", "version": candidate, "reason": witness},
@@ -1233,7 +1300,8 @@ class Host:
         gates = self.terms["gates"]
         reading = (
             f"development delta {delta:+.3f}; signature {verdict}; prediction "
-            f"{settlement['rescued']} of {settlement['predicted']} rescued, p={settlement['p']:.2g}"
+            f"{settlement['rescued']} of {settlement['predicted']} families rescued, "
+            f"p={settlement['p']:.2g}{' (void)' if settlement['void'] else ''}"
         )
         if (
             delta < gates["dev_min_delta"]
@@ -1596,10 +1664,11 @@ def verdict_problem(path: Path, pending: str) -> str:
     return ""
 
 
-def hindsight_problem(path: Path, known: dict[str, set[str]]) -> str:
-    """Why hindsight.json is not a credit table over items the runs have, or an empty string. Each
-    cluster names a task, its failing items, how the information stood (CLASSES) and, for inputs
-    never sent, where they could have come from (SOURCES)."""
+def hindsight_problem(path: Path, failing: dict[str, set[str]]) -> str:
+    """Why hindsight.json is not a credit table over failing items, or an empty string. Each cluster
+    names a task, items some run of it failed (each in one cluster only, or the mass is counted
+    twice), how the information stood (CLASSES) and, for inputs never sent, where they could have
+    come from (SOURCES)."""
     if path.is_symlink():
         return "hindsight.json is a link"
     try:
@@ -1609,19 +1678,28 @@ def hindsight_problem(path: Path, known: dict[str, set[str]]) -> str:
     clusters = table.get("clusters") if isinstance(table, dict) else None
     if not isinstance(clusters, list):
         return "hindsight.json has no list of clusters"
+    seen: set[tuple[str, str]] = set()
     for n, cluster in enumerate(clusters, 1):
-        if not isinstance(cluster, dict) or cluster.get("task") not in known:
+        task = cluster.get("task") if isinstance(cluster, dict) else None
+        if not isinstance(task, str) or task not in failing:
             return f"hindsight cluster {n} names no observed task"
         items = cluster.get("items")
         if (
             not isinstance(items, list)
             or not items
-            or not all(isinstance(item, str) and item in known[cluster["task"]] for item in items)
+            or not all(isinstance(item, str) and item in failing[task] for item in items)
         ):
-            return f"hindsight cluster {n} names items no run of {cluster['task']} has"
+            return f"hindsight cluster {n} names items no run of {task} failed"
+        claimed = {(task, item) for item in items}
+        if len(claimed) < len(items) or claimed & seen:
+            return f"hindsight cluster {n} names an item another cluster has"
+        seen |= claimed
         if cluster.get("class") not in CLASSES:
             return f"hindsight cluster {n} has no class of {', '.join(CLASSES)}"
-        if cluster["class"] == "never_sent" and cluster.get("source") not in SOURCES:
+        source = cluster.get("source")
+        if source is not None and not isinstance(source, str):
+            return f"hindsight cluster {n} has a source that is not text"
+        if cluster["class"] == "never_sent" and source not in SOURCES:
             return f"hindsight cluster {n} was never sent but has no source of {', '.join(SOURCES)}"
     return ""
 
@@ -1644,7 +1722,7 @@ def failure_mass(table: dict) -> list[str]:
 
 
 def delivery_problem(
-    workspace: Path, document: str, pending: str | None, known: dict[str, set[str]]
+    workspace: Path, document: str, pending: str | None, failing: dict[str, set[str]]
 ) -> str:
     """Why an analyst's or challenger's delivery does not qualify, or an empty string: its document
     is not empty, its credit table and knowledge are acceptable, and with an experiment pending its
@@ -1656,7 +1734,7 @@ def delivery_problem(
         or not path.read_text(errors="replace").strip()
     ):
         return f"no {document} was delivered"
-    if problem := hindsight_problem(workspace / "hindsight.json", known):
+    if problem := hindsight_problem(workspace / "hindsight.json", failing):
         return problem
     if problem := knowledge_problem(workspace / "knowledge"):
         return problem

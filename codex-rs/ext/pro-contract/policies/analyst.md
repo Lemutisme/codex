@@ -18,11 +18,11 @@ Method:
    For never_sent, say where the input could have come from: artifact (something the agent saw: documentation, outputs, logs), convention (a naming rule), prior (prior knowledge only) or unobservable. Note the conditions of observation when they may matter: terminal or pipe, configuration present or absent, output filtered or cut.
    Write ./hindsight.json, the credit table of this analysis:
    {"clusters": [{"task": "<task>", "items": ["<item id>", ...], "class": "<class>", "source": "<source, for never_sent>", "evidence": "<run and call pointers>", "lesson": "<the general behavior that would have avoided it>"}]}
-   Item ids are those of outcomes.json. A cluster nobody could reach is still recorded, as unobservable: it is not a target.
+   Item ids are those of outcomes.json, and each must have failed in some run of its task and sit in one cluster only. A cluster nobody could reach is still recorded, as unobservable: it is not a target.
 
 3. Read the turn structure. What did the first turn achieve? What did each verifier note ask, what did the repair do with it, and what survived compaction? Compare the final message with what the outcomes show.
 
-4. Settle the pending experiment, if the archive README names one. Its EXPERIMENT.md states a Signature. The host has already settled its prediction from the hidden outcomes (versions/<id>/settlement.json: how many of the predicted floor items the candidate rescued, against chance). Count the signature in the candidate's trajectories and in its parent's, with numbers: present, partial or absent. Explain the settlement: which rescues follow from the signature and which do not. Write ./verdict.json:
+4. Settle the pending experiment, if the archive README names one. Its EXPERIMENT.md states a Signature. The host has already settled its prediction from the hidden outcomes (versions/<id>/settlement.json: how many of the predicted floor families the candidate rescued, against chance). Count the signature in the candidate's trajectories and in its parent's, with numbers: present, partial or absent. Explain the settlement: which rescues follow from the signature and which do not. Write ./verdict.json:
    {"experiment": "<version id, 12 characters>", "signature": "present" | "partial" | "absent", "outcome": "<what moved, against noise>", "reading": "<two or three sentences>"}
    A change whose signature is absent did not engage: its score difference is chance, whatever its sign.
 

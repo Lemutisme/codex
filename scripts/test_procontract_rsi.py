@@ -22,11 +22,13 @@ SEALED = [f"sel__t{index}.000000{index}" for index in range(8)]
 
 class FakeTasks:
     """A task family whose hidden pass rate rewards `better` lines in executor.md and punishes
-    `worse` ones; every run is valid unless the task is listed in `invalid_once`."""
+    `worse` ones; every run is valid unless the task is listed in `invalid_once` (its next attempt
+    only) or in `invalid_better` (every run of a bundle with a `better` line)."""
 
     def __init__(self):
         self.runs = []
         self.invalid_once = set()
+        self.invalid_better = set()
 
     def environment(self):
         return {"family": "fake"}
@@ -44,6 +46,8 @@ class FakeTasks:
                 "reason": "the executor turn failed",
             }
         executor = (bundle / "executor.md").read_text()
+        if task in self.invalid_better and "better" in executor:
+            return {"validity": "invalid", "pass_rate": None, "reason": "the executor turn failed"}
         self.write_evidence(run_dir, executor.count("better"))
         rate = 0.5 + 0.1 * executor.count("better") - 0.1 * executor.count("worse")
         return {
@@ -62,10 +66,10 @@ class FakeTasks:
 
     @staticmethod
     def write_evidence(run_dir, wins):
-        """Hidden tests m.A.t0..t2 where the first `wins` pass, and one executor rollout whose
+        """Hidden tests m.A0.t, m.A1.t, m.A2.t (one family each) where the first `wins` pass, and one executor rollout whose
         reference calls and file writes grow with `wins`."""
         results = [
-            {"name": f"m.A.t{i}", "status": "passed" if i < wins else "failure"}
+            {"name": f"m.A{i}.t", "status": "passed" if i < wins else "failure"}
             for i in range(3)
         ]
         eval_file = run_dir / "eval" / "attempt-1" / "task" / "task.eval.json"
@@ -560,7 +564,7 @@ class SuccessionTest(unittest.TestCase):
             outcome = h.step()
 
             [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
-            self.assertIn("prediction 3 of 3 rescued", outcome)
+            self.assertIn("prediction 3 of 3 families rescued", outcome)
             prediction = h.contract(f"prediction.{v1[:16]}")
             self.assertEqual(prediction["standing"], "discharged")
             self.assertEqual(prediction["support"]["coordinate"]["reach"], "beyond")
@@ -585,7 +589,7 @@ class SuccessionTest(unittest.TestCase):
 
             [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
             self.assertIn("stays in research", outcome)
-            self.assertIn("prediction 0 of 3 rescued", outcome)
+            self.assertIn("prediction 0 of 3 families rescued", outcome)
             self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
             self.assertFalse(h.settlement(v1)["held"])
             self.assertEqual(h.used_confirmation_tasks(), [])
@@ -600,21 +604,114 @@ class SuccessionTest(unittest.TestCase):
             self.assertIn("did not qualify: no prediction.json", outcome)
             self.assertEqual(len(h.versions()), 1)
 
-    def test_only_floor_items_of_development_tasks_make_a_prediction_decisive(self):
+    def test_only_floor_items_of_development_tasks_can_be_predicted(self):
         with tempfile.TemporaryDirectory() as tmp:
             h = host(campaign(tmp, adoption="presumed"), FakeTasks())
-            h.step()  # v1 now passes m.A.t0 on every development task
+            h.step()  # v1 now passes m.A0.t on every development task
             path = Path(tmp, "prediction.json")
 
             def problem(rescue):
                 path.write_text(json.dumps({"rescue": rescue}))
                 return h.prediction_problem(path)
 
-            self.assertIn("none of the predicted items", problem({DEV[0]: ["m.A.t0"]}))
-            self.assertEqual(problem({DEV[0]: ["m.A.t0", "m.A.t1"]}), "")
-            self.assertIn("not a development task", problem({SEALED[0]: ["m.A.t1"]}))
-            self.assertIn("items no run", problem({DEV[0]: ["m.A.t9"]}))
+            self.assertIn("none of the predicted items", problem({DEV[0]: ["m.A0.t"]}))
+            self.assertIn("not a development task", problem({SEALED[0]: ["m.A1.t"]}))
+            self.assertIn("items no run", problem({DEV[0]: ["m.A9.t"]}))
             self.assertIn("names no items", problem({}))
+
+    def test_chance_is_per_task_and_a_family_is_one_event(self):
+        def run(prefix, passed=()):
+            return {
+                "name": prefix,
+                "outcomes": {
+                    f"{prefix}{i}.x.{j}": {"passed": i in passed, "message": ""}
+                    for i in range(6)
+                    for j in (1, 2, 3)
+                },
+            }
+
+        # A quiet task never passes a floor item; a noisy one passes half its floor in one run.
+        runs = {
+            DEV[0]: [run("q"), run("q"), run("q")],
+            DEV[1]: [run("n"), run("n"), run("n"), run("n", {0, 1, 2})],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+            path = Path(tmp, "prediction.json")
+
+            def problem(task, prefix, families, items=(1, 2, 3)):
+                rescue = {task: [f"{prefix}{i}.x.{j}" for i in families for j in items]}
+                path.write_text(json.dumps({"rescue": rescue}))
+                with mock.patch.object(h, "task_runs", return_value=runs):
+                    return h.prediction_problem(path)
+
+            with mock.patch.object(h, "task_runs", return_value=runs):
+                chance = h.chance(runs)
+                claims = h.claims({DEV[1]: ["n0.x.1", "n3.x.1", "n3.x.2"]}, runs)
+            self.assertEqual((chance["rescued"], chance["exposed"]), (3, 33))
+            self.assertLess(chance["tasks"][DEV[0]]["rate"], 0.04)
+            self.assertGreater(chance["tasks"][DEV[1]]["rate"], 0.15)
+            # Items that some run passed are off the floor and dropped, and a family groups its items.
+            self.assertEqual(claims, {DEV[1]: {"n3.x": ["n3.x.1", "n3.x.2"]}})
+            # The minimum is the rates' own: two quiet families can decide, two noisy ones cannot,
+            # and nine items of one family are one event however many there are.
+            self.assertEqual(problem(DEV[0], "q", [0, 1]), "")
+            self.assertIn("1 test families", problem(DEV[0], "q", [0]))
+            self.assertIn("2 test families", problem(DEV[1], "n", [3, 4]))
+            self.assertEqual(problem(DEV[1], "n", [3, 4, 5]), "")
+            self.assertIn("1 test families", problem(DEV[1], "n", [3]))
+            self.assertIn("none of the predicted items", problem(DEV[1], "n", [0, 1]))
+
+    def test_a_task_without_a_valid_run_voids_the_settlement_and_holds_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            tasks.invalid_better = {DEV[1]}
+            h = host(campaign(tmp), tasks)
+
+            outcome = h.step()
+
+            [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
+            settled = h.settlement(v1)
+            self.assertEqual(settled["void"], [DEV[1]])
+            self.assertFalse(settled["held"])
+            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertIn("(void)", outcome)
+            self.assertIn("stays in research", outcome)
+
+    def test_a_witness_failure_releases_the_prediction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            tasks.witness = lambda host, vid: "its first development run was not valid"
+            h = host(campaign(tmp), tasks)
+
+            outcome = h.step()
+
+            [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
+            self.assertIn("failed its mechanism witness", outcome)
+            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertIsNone(h.unsettled())
+            self.assertIsNone(h.settlement(v1))
+
+    def test_a_host_that_stops_before_settling_resumes_the_candidate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = campaign(tmp)
+            h = host(camp, FakeTasks())
+            with mock.patch.object(h, "settle", side_effect=RuntimeError("host died")):
+                with self.assertRaises(RuntimeError):
+                    h.step()
+            [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
+            self.assertEqual(h.contract("improvement.1")["standing"], "discharged")
+            self.assertEqual(h.unsettled(), v1)
+            self.assertIsNone(h.pending_experiment())
+
+            resumed = host(camp, FakeTasks())
+            outcome = resumed.step()
+
+            self.assertIn(f"candidate {v1[:12]} put forward", outcome)
+            self.assertTrue(resumed.settlement(v1)["held"])
+            self.assertEqual(resumed.contract(f"prediction.{v1[:16]}")["standing"], "discharged")
+            self.assertEqual(len([e for e in resumed.events("selection") if e["body"]["role"] == "research_parent"]), 1)
+            self.assertIsNone(resumed.unsettled())
 
     def test_an_analysis_whose_credit_table_names_unknown_items_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -636,7 +733,7 @@ class SuccessionTest(unittest.TestCase):
             h.step()
             archive = h.camp / "research" / "step-2" / "workspace" / "archive"
             readme = (archive / "README.md").read_text()
-            self.assertIn("Chance rescue rate of a floor item", readme)
+            self.assertIn("Chance rescue rate of a floor family", readme)
             self.assertIn("| never_sent | convention |", readme)
             settled = json.loads((archive / "versions" / v1[:12] / "settlement.json").read_text())
             self.assertTrue(settled["held"])
@@ -807,7 +904,7 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual(summary["trajectory"]["compactions"], 0)
             self.assertEqual(
                 json.loads((run / "outcomes.json").read_text()),
-                {f"m.A.t{i}": {"passed": False, "message": ""} for i in range(3)},
+                {f"m.A{i}.t": {"passed": False, "message": ""} for i in range(3)},
             )
             self.assertEqual((run / "failures.txt").read_text(), "t1: assert\n")
             self.assertTrue((run / "trajectory.md").exists())
@@ -899,6 +996,42 @@ class ProgramBenchTest(unittest.TestCase):
             tokens("esubaalew__run.1234567"), {"esubaalew", "esubaalew__run"}
         )
         self.assertEqual(tokens("pls-rs__pls.4e1ae50"), {"pls-rs", "pls-rs__pls"})
+
+
+class HindsightTest(unittest.TestCase):
+    FAILING = {"t": {"a.x.1", "a.x.2", "b.y.1"}}
+
+    def problem(self, clusters):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "hindsight.json")
+            path.write_text(json.dumps({"clusters": clusters}))
+            return rsi.hindsight_problem(path, self.FAILING)
+
+    def cluster(self, **fields):
+        return {"task": "t", "items": ["a.x.1"], "class": "left_unfixed", **fields}
+
+    def test_a_credit_table_over_failing_items_is_accepted(self):
+        sent = self.cluster(items=["a.x.2"], **{"class": "never_sent", "source": "artifact"})
+        self.assertEqual(self.problem([self.cluster(), sent, self.cluster(items=["b.y.1"], source=None)]), "")
+
+    def test_malformed_fields_are_reasons_not_crashes(self):
+        self.assertIn("no observed task", self.problem([self.cluster(task=["t"])]))
+        self.assertIn("no observed task", self.problem(["t"]))
+        self.assertIn("no observed task", self.problem([self.cluster(task="u")]))
+        self.assertIn("names items", self.problem([self.cluster(items=[["a.x.1"]])]))
+        self.assertIn("no class", self.problem([self.cluster(**{"class": ["never_sent"]})]))
+        self.assertIn("not text", self.problem([self.cluster(source=["artifact"])]))
+        self.assertIn("not text", self.problem([self.cluster(source={"from": "artifact"})]))
+        self.assertIn("no source", self.problem([self.cluster(**{"class": "never_sent"})]))
+
+    def test_an_item_is_failing_and_in_one_cluster_only(self):
+        self.assertIn("names items", self.problem([self.cluster(items=["c.z.1"])]))
+        self.assertIn("another cluster", self.problem([self.cluster(), self.cluster()]))
+        self.assertIn("another cluster", self.problem([self.cluster(items=["a.x.1", "a.x.1"])]))
+
+    def test_the_failure_mass_sums_by_class_and_source(self):
+        table = {"clusters": [self.cluster(items=["a.x.1", "a.x.2"]), self.cluster(items=["b.y.1"])]}
+        self.assertIn("| left_unfixed | - | 3 | 1 |", rsi.failure_mass(table))
 
 
 class KnowledgeTest(unittest.TestCase):

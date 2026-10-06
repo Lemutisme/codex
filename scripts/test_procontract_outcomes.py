@@ -70,23 +70,40 @@ class MatrixTest(unittest.TestCase):
 
 
 class ChanceTest(unittest.TestCase):
-    def test_each_run_is_held_out_against_the_floor_of_the_others(self):
+    def test_each_run_is_held_out_against_the_floor_of_the_others_by_family(self):
         task = [
             run("r1", "t0", {"a.x.1"}),
             run("r2", "t0", {"a.x.1", "a.x.2"}),
             run("r3", "t1", {"a.x.1"}, missing=("c",)),
         ]
         alone = [run("s1", "t0", set())]
-        # Held out against the floor of the others: r1 meets 3 items and passes none; r2 meets 4
-        # and passes a.x.2; r3 meets 3 (it lacks c) and passes none. A lone run exposes nothing.
-        self.assertEqual(po.chance_rescues([task, alone]), (1, 10))
-        self.assertEqual(po.chance_rescues([]), (0, 0))
+        # Held out against the floor of the others: r1 meets families a.y and b.z and passes
+        # neither; r2 meets a.x, a.y and b.z and passes a.x.2; r3 lacks c, so it meets a.y and b.z
+        # and passes neither. A lone run exposes nothing, and counts are kept per task.
+        self.assertEqual(po.chance_rescues({"t": task, "u": alone}), {"t": (1, 7), "u": (0, 0)})
+        self.assertEqual(po.chance_rescues({}), {})
 
-    def test_binomial_tail(self):
-        self.assertAlmostEqual(po.binomial_tail(3, 3, 0.1), 0.001)
-        self.assertAlmostEqual(po.binomial_tail(2, 1, 0.5), 0.75)
-        self.assertAlmostEqual(po.binomial_tail(5, 0, 0.3), 1.0)
-        self.assertAlmostEqual(po.binomial_tail(0, 0, 0.3), 1.0)
+    def test_a_lump_of_one_family_is_one_rescue(self):
+        runs = [run("r1", "t0", set()), run("r2", "t0", {"b.z.1", "b.z.2"})]
+        # r2 passes both items of b.z against r1's floor: one family of four, not two of five items.
+        self.assertEqual(po.chance_rescues({"t": runs}), {"t": (1, 7)})
+
+    def test_floor_and_failing_items(self):
+        runs = [run("r1", "t0", {"a.x.1"}), run("r2", "t0", {"a.x.2"}, missing=("c",))]
+        self.assertEqual(po.floor(runs), ["a.y.1", "b.z.1", "b.z.2"])
+        self.assertEqual(po.failed_items(runs), set(ALL))
+        self.assertEqual(po.failed_items([run("r", "t0", set(ALL))]), set())
+        self.assertEqual(po.by_family(["b.z.2", "a.x.1", "b.z.1", "c"]),
+                         {"a.x": ["a.x.1"], "b.z": ["b.z.1", "b.z.2"], "c": ["c"]})
+
+    def test_rescue_tail_over_unequal_chances(self):
+        self.assertAlmostEqual(po.rescue_tail([0.1] * 3, 3), 0.001)
+        self.assertAlmostEqual(po.rescue_tail([0.5, 0.5], 1), 0.75)
+        self.assertAlmostEqual(po.rescue_tail([0.3] * 5, 0), 1.0)
+        self.assertAlmostEqual(po.rescue_tail([], 0), 1.0)
+        # A noisy task's family makes a rescue likelier than a quiet one's does.
+        self.assertAlmostEqual(po.rescue_tail([0.01, 0.2], 2), 0.002)
+        self.assertAlmostEqual(po.rescue_tail([0.01, 0.2], 1), 1 - 0.99 * 0.8)
 
 
 class RenderTest(unittest.TestCase):

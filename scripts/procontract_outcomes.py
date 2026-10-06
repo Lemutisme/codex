@@ -8,8 +8,6 @@ the task's own noise; flips along a lineage edge mean something only when read a
 
 Pure and family-agnostic: runs arrive as per-item outcomes, the host decides which runs to pass."""
 
-import math
-
 from procontract_attribution import TOP_FAMILIES, family, flips
 
 MAX_ROWS = 25
@@ -141,25 +139,56 @@ def matrix(runs: list[dict]) -> dict:
     }
 
 
-def chance_rescues(groups: list[list[dict]]) -> tuple[int, int]:
-    """How often a floor item passes by chance, as (rescued, exposed) counts: within each task,
-    every run is held out in turn against the floor of the others. Policy changes between those
-    runs count as chance here, so the rate errs high, which keeps a prediction honest."""
-    rescued = exposed = 0
-    for runs in groups:
+def floor(runs: list[dict]) -> list[str]:
+    """The items every run has and every run failed."""
+    return classify(runs)[1]
+
+
+def failed_items(runs: list[dict]) -> set[str]:
+    """The items some run failed."""
+    return {item for run in runs for item, outcome in run["outcomes"].items() if not outcome["passed"]}
+
+
+def by_family(items) -> dict[str, list[str]]:
+    """Items grouped by test family. Noise moves in lumps, so a family is one chance event: the unit
+    chance is counted in and a prediction is settled in."""
+    groups: dict[str, list[str]] = {}
+    for item in sorted(items):
+        groups.setdefault(family(item), []).append(item)
+    return groups
+
+
+def chance_rescues(groups: dict[str, list[dict]]) -> dict[str, tuple[int, int]]:
+    """How often a floor family is rescued by chance, per task, as (rescued, exposed) counts: every
+    run is held out in turn against the floor of the others, and a family counts as rescued when the
+    held-out run passes any of its floor items. Policy changes between those runs count as chance
+    here, so the rate errs high, which keeps a prediction honest."""
+    counts = {}
+    for task, runs in groups.items():
+        rescued = exposed = 0
         for i, held in enumerate(runs):
             others = runs[:i] + runs[i + 1 :]
             if not others:
                 continue
-            floor = [item for item in classify(others)[1] if item in held["outcomes"]]
-            exposed += len(floor)
-            rescued += sum(bool(held["outcomes"][item]["passed"]) for item in floor)
-    return rescued, exposed
+            units = by_family(item for item in floor(others) if item in held["outcomes"])
+            exposed += len(units)
+            rescued += sum(
+                any(held["outcomes"][item]["passed"] for item in members) for members in units.values()
+            )
+        counts[task] = (rescued, exposed)
+    return counts
 
 
-def binomial_tail(n: int, k: int, p: float) -> float:
-    """P(X >= k) for X ~ Binomial(n, p): how likely chance alone rescues k of n floor items."""
-    return sum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(k, n + 1))
+def rescue_tail(rates: list[float], k: int) -> float:
+    """P(at least k of the independent events happen), each with its own chance: how likely chance
+    alone rescues k of the predicted families."""
+    dist = [1.0]
+    for p in rates:
+        dist = [
+            (dist[i] * (1 - p) if i < len(dist) else 0.0) + (dist[i - 1] * p if i else 0.0)
+            for i in range(len(dist) + 1)
+        ]
+    return sum(dist[k:])
 
 
 def capped(rows: list[str], noun: str) -> list[str]:

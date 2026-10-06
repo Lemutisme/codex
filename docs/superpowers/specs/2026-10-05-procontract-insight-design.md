@@ -187,23 +187,35 @@ scalar, a baseline needs a group, and nothing says why. One run carries more tha
 Mechanics:
 
 - The analyst delivers `hindsight.json` (clusters: task, items, class, source, evidence, lesson).
-  The challenger checks and may amend it. The archive README sums the latest table by class: where
+  Every item must have failed in some run of its task and sit in one cluster only; a source, when
+  given, is text. The challenger checks and may amend it. The archive README sums the latest table by class: where
   the failure mass sits and how much of it any behavior can reach.
-- A candidate that changes a task-shaping file must deliver `prediction.json`
-  (`{"rescue": {task: [item ids]}}`). At least one item must be on the floor of a development
-  task, or no single run could decide it.
-- The host registers the prediction as a contract (`prediction.<id>`) before any of the
-  candidate's runs. The terms freeze the floor items and the chance rate.
-- After the development runs, the host settles the prediction mechanically. With n frozen floor
-  items, k of them passed, and chance rate p0, the prediction holds when P(Binomial(n, p0) ≥ k)
-  ≤ `prediction_alpha` (default 0.01). It is then discharged, with support from beyond the
-  candidate's reach. Otherwise the candidate is defeated and the contract released.
-  `versions/<id>/settlement.json` records the result.
-- p0 holds each run of a task out in turn against the floor of the others. Policy-driven flips
-  count as chance there, so p0 errs high. It is smoothed by a prior of one rescue in ten. On
-  campaign 1's runs p0 = 0.099 (161 of 1625). So a 25-item prediction holds at 7 rescues, and a
-  10-item one at 5. As runs accumulate, the floor purifies and p0 falls (a fourth run's floor gave
-  3 of 414).
+- A candidate that changes a task-shaping file (executor.md, drafter.md, prober.md, reviewer.md) must
+  deliver `prediction.json` (`{"rescue": {task: [item ids]}}`) over development tasks. Only items
+  on the floor count; the rest are dropped. Items of one test family move together, so a family is
+  one chance event: the unit chance is measured in and the prediction is settled in. Even rescuing
+  every named family must be unlikely by chance alone (the product of the families' rates at most
+  `prediction_alpha`), or no single run could decide it; with a few quiet families that takes two or
+  three, with a noisy task more. Qualification rejects a prediction below that minimum.
+- The host registers the prediction as a contract (`prediction.<id>`) before any of the candidate's
+  runs, mechanism witness included, and releases it if the witness fails. The terms freeze the floor
+  families and the chance rates. Both the prediction and its measurement resume after a host stops:
+  a candidate whose prediction is outstanding is measured before a new step starts.
+- After the development runs, the host settles the prediction mechanically, from the normalized
+  observations. A frozen family is rescued when its task's run passes any of its items. With n
+  frozen families, k rescued, and chance rate p_i for each (its task's), the prediction holds when
+  P(at least k of n independent events with chances p_i) <= `prediction_alpha` (default 0.01). It is
+  then discharged, with support from beyond the candidate's reach. Otherwise the candidate is
+  defeated and the contract released. A frozen task without a valid run voids the settlement
+  (recorded, never held), so a claim is never judged on a subset that infrastructure chose.
+  `versions/<id>/settlement.json` records the result, and an analysis treats an experiment as
+  pending only after it is settled.
+- Chance holds each run of a task out in turn against the floor of the others and counts, per
+  family with floor items, whether the held-out run passes any. Policy-driven flips count as chance
+  there, so the rate errs high. Tasks differ in noise by an order of magnitude, so each task's rate
+  is its own counts weighed against the pooled rate (the pool smoothed by a prior of one rescue in
+  ten); the same ten pseudo-exposures weigh them. As runs accumulate, the floor purifies and the
+  rates fall. The README shows the pooled and per-task rates.
 - Put forward = signature present (challenged, within reach, so it can veto) ∧ prediction held
   (beyond reach) ∧ development delta ≥ `dev_min_delta` (no broad harm) ∧ confirmation budget.
 
