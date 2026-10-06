@@ -1264,6 +1264,17 @@ class ItemsTest(unittest.TestCase):
         self.assertEqual(self.items("[1]", "t.eval.json"), {})
 
 
+class WitnessTest(unittest.TestCase):
+    def test_non_ascii_executor_instructions_are_found_as_the_rollout_writes_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rollout = Path(tmp, "codex-home", "sessions", "rollout-x.jsonl")
+            rollout.parent.mkdir(parents=True)
+            text = "Probe each mode – terminal and pipe – before you implement."
+            rollout.write_text(json.dumps({"content": text}, ensure_ascii=False) + "\n")
+            self.assertTrue(rsi.executor_delivered(text, Path(tmp)))
+            self.assertFalse(rsi.executor_delivered("Something else entirely.", Path(tmp)))
+
+
 class OraclePatternTest(unittest.TestCase):
     def count(self, command):
         patterns = [re.compile(p) for p in rsi.ProgramBench({}).oracle_patterns()]
