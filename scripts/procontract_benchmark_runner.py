@@ -78,6 +78,9 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         EXECUTOR_MEMORY,
         "--memory-swap",
         EXECUTOR_MEMORY,
+        # Bytecode caches would land in deliverables (a knowledge tool run in place, for one).
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
         "--user",
         AGENT_USER,
         "-v",
@@ -613,11 +616,15 @@ def run(args: argparse.Namespace) -> None:
             if now - started > args.deadline_secs:
                 summary["deadline_hit"] = True
                 if turns.active and turns.turn_id:
-                    server.request(
-                        "turn/interrupt",
-                        {"threadId": thread_id, "turnId": turns.turn_id},
-                        handle,
-                    )
+                    try:
+                        server.request(
+                            "turn/interrupt",
+                            {"threadId": thread_id, "turnId": turns.turn_id},
+                            handle,
+                        )
+                    except TimeoutError:
+                        # The run is over either way; its status and cost are still worth recording.
+                        summary["interrupt_unanswered"] = True
                 break
         summary.update(
             status=read_status(ledger, thread_id),
@@ -630,8 +637,21 @@ def run(args: argparse.Namespace) -> None:
     finally:
         summary["elapsed_secs"] = round(time.monotonic() - started)
         server.close()
+        readable(run_dir / "workspace", json.loads((run_dir / "manifest.json").read_text())["image"])
         (run_dir / "run.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))
+
+
+def readable(workspace: Path, image: str) -> None:
+    """Leaves the workspace readable by the host: the agent's user inside the container may write
+    files only it can read (an atomic replace through a temporary file is 0600), and the host must
+    read every delivery, package and copy."""
+    subprocess.run(
+        ["docker", "run", "--rm", "--network", "none", "--user", "0:0", "-v", f"{workspace}:/w",
+         "--entrypoint", "chmod", image, "-R", "a+rX", "/w"],
+        check=False,
+        capture_output=True,
+    )
 
 
 def main() -> None:

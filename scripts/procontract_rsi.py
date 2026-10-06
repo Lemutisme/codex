@@ -86,6 +86,8 @@ SOURCES = ("artifact", "convention", "prior", "unobservable")
 # Before any evidence, one chance rescue in ten floor families: conservative, so early predictions
 # need several rescues to hold. The same ten exposures weigh the pooled rate against a task's own.
 PRIOR_RESCUE = (1, 10)
+# A bytecode cache left by running a knowledge tool in place: never knowledge, never kept.
+CACHE = "__pycache__"
 OUTCOME_MESSAGE_CAP = 1000
 LATEST_ANALYSES = 5
 PROPOSAL_LINES = 20
@@ -1824,6 +1826,8 @@ def knowledge_problem(root: Path) -> str:
     total = 0
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
+        if CACHE in rel.parts:
+            continue
         if path.is_symlink():
             return f"knowledge/{rel} is a link"
         if path.is_dir():
@@ -1949,7 +1953,7 @@ def copy_knowledge(source: Path | None, dest: Path) -> None:
     """A copy of a knowledge directory; an empty directory when there is none (a campaign with
     neither seed nor analysis yet)."""
     if source is not None and source.is_dir():
-        shutil.copytree(source, dest)
+        shutil.copytree(source, dest, ignore=shutil.ignore_patterns(CACHE))
     else:
         dest.mkdir(parents=True)
 

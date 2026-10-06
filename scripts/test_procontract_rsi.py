@@ -1202,6 +1202,17 @@ class KnowledgeTest(unittest.TestCase):
             os.mkfifo(ws / "knowledge" / "pipe")
             self.assertIn("not a regular file", rsi.knowledge_problem(ws / "knowledge"))
 
+    def test_a_bytecode_cache_left_by_a_knowledge_tool_is_neither_checked_nor_kept(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "knowledge")
+            (root / "tools" / "__pycache__").mkdir(parents=True)
+            (root / "tools" / "t.py").write_text("print(1)\n")
+            (root / "tools" / "__pycache__" / "t.cpython-310.pyc").write_bytes(b"\x00\xff")
+            self.assertEqual(rsi.knowledge_problem(root), "")
+            rsi.copy_knowledge(root, Path(tmp, "copy"))
+            self.assertTrue(Path(tmp, "copy", "tools", "t.py").exists())
+            self.assertFalse(Path(tmp, "copy", "tools", "__pycache__").exists())
+
     def test_a_linked_verdict_or_document_does_not_qualify_a_delivery(self):
         with tempfile.TemporaryDirectory() as tmp:
             ws = Path(tmp, "ws")
