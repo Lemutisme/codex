@@ -1657,6 +1657,7 @@ class ProgramBench:
             "evaluator_epoch": store.digest("epoch", self.evaluator()),
             **outcome,
         }
+        compact(run_dir)
         rate = (outcome.get("outcome") or {}).get("pass_rate")
         return {
             "validity": outcome["validity"],
@@ -1759,6 +1760,15 @@ class ProgramBench:
             if not any(needle in path.read_text(errors="replace") for path in rollouts):
                 return "the executor did not receive the candidate's executor.md"
         return ""
+
+
+def compact(run_dir: Path) -> None:
+    """Compresses a labelled run's bulky logs: the app-server's protocol log and codex's log
+    database, which no analysis reads (trajectories come from the session rollouts). Lossless, so a
+    debugging session can still read them; it keeps a long stream within the disk."""
+    for path in [run_dir / "app-server.jsonl", *(run_dir / "codex-home").glob("logs_*.sqlite*")]:
+        if path.is_file():
+            subprocess.run(["gzip", "-f", str(path)], check=False)
 
 
 def last_records(eval_dir: Path) -> dict[tuple[str, str], dict]:
