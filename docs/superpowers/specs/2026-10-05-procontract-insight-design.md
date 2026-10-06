@@ -167,3 +167,62 @@ development tasks. This is a budget decision for the principal.
   inventory as engaged in language but never as an artifact. The challenger recomputed every number,
   weakened the parent-versus-child contrast with a counterexample, and kept `partial`. Knowledge grew from
   152K to 192K with a new mechanism (M16) and a reusable analysis script.
+
+## 12. One run is a learning signal (implemented 2026-10-06)
+
+RSI is test-time learning without parameter updates: the policy is the frozen model plus the context
+(bundle, knowledge), and an update is an edit. Ordinary RL needs many rollouts because each yields one
+scalar, a baseline needs a group, and nothing says why. One run carries more than that:
+
+- **The outcome is a vector, and its noise is uneven.** Items every stored run failed (the floor)
+  seldom pass by chance. Run-to-run noise lives in the sensitive set and moves in lumps.
+- **The trajectory holds the agent's information over time.** For each failing cluster, the
+  analyst asks whether the agent ever had the information that would have avoided it:
+  `never_sent` (from an artifact, a convention, prior knowledge only, or unobservable),
+  `never_compared`, `left_unfixed` or `too_shallow`. This assigns credit within one run, with no
+  second run. It is the run's own counterfactual: hindsight relabelled by what the agent knew.
+- **A prediction stated before the run turns its outcome into a signal.** The residual between a
+  claim and evidence from beyond the claimant's reach is the signal. The claim is the baseline.
+
+Mechanics:
+
+- The analyst delivers `hindsight.json` (clusters: task, items, class, source, evidence, lesson).
+  The challenger checks and may amend it. The archive README sums the latest table by class: where
+  the failure mass sits and how much of it any behavior can reach.
+- A candidate that changes a task-shaping file must deliver `prediction.json`
+  (`{"rescue": {task: [item ids]}}`). At least one item must be on the floor of a development
+  task, or no single run could decide it.
+- The host registers the prediction as a contract (`prediction.<id>`) before any of the
+  candidate's runs. The terms freeze the floor items and the chance rate.
+- After the development runs, the host settles the prediction mechanically. With n frozen floor
+  items, k of them passed, and chance rate p0, the prediction holds when P(Binomial(n, p0) ≥ k)
+  ≤ `prediction_alpha` (default 0.01). It is then discharged, with support from beyond the
+  candidate's reach. Otherwise the candidate is defeated and the contract released.
+  `versions/<id>/settlement.json` records the result.
+- p0 holds each run of a task out in turn against the floor of the others. Policy-driven flips
+  count as chance there, so p0 errs high. It is smoothed by a prior of one rescue in ten. On
+  campaign 1's runs p0 = 0.099 (161 of 1625). So a 25-item prediction holds at 7 rescues, and a
+  10-item one at 5. As runs accumulate, the floor purifies and p0 falls (a fourth run's floor gave
+  3 of 414).
+- Put forward = signature present (challenged, within reach, so it can veto) ∧ prediction held
+  (beyond reach) ∧ development delta ≥ `dev_min_delta` (no broad harm) ∧ confirmation budget.
+
+The same law holds at every timescale. Within a call, the signal is the environment's answer to an
+expectation. Within a task, it is the oracle and the verifier's note. Across runs of a task, it is
+the hidden outcome. Across tasks, it is fresh confirmation. For the learner, it is its successors.
+At each level only evidence from beyond that level's reach certifies. Within-reach agreement is
+self-reward: it ranks and vetoes, and taken as reward it invites hacking (one executor hard-coded the
+verifier's path). This is where RSI differs from TTRL, whose pseudo-reward is majority agreement.
+
+## 13. Proposed, not implemented: claims at handoff
+
+In deployment there are no hidden tests, and the principal's settlement (accept, correct, follow
+up) is sparse. A sparse signal can teach only if the handoff states claims with their reach: what
+was checked, against what evidence, and what was not reached. Then a correction lands on a claim.
+No handoff in about 87 runs disclosed a gap. The study shows prose does not elicit this, so the
+harness must own the structure: the executor's handoff carries claims, and settlement attaches to
+them. This changes ProContract's handoff protocol and needs its own design.
+
+A further hypothesis, untested: a belief slot that survives compaction may let the executor keep
+what it learned within a task (the repair-note fix of §8 is one instance). Its signature would be
+fewer re-explorations after compaction.

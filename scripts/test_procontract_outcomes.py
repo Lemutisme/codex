@@ -69,6 +69,26 @@ class MatrixTest(unittest.TestCase):
         self.assertIn("# Outcomes: t", po.render("t", m))
 
 
+class ChanceTest(unittest.TestCase):
+    def test_each_run_is_held_out_against_the_floor_of_the_others(self):
+        task = [
+            run("r1", "t0", {"a.x.1"}),
+            run("r2", "t0", {"a.x.1", "a.x.2"}),
+            run("r3", "t1", {"a.x.1"}, missing=("c",)),
+        ]
+        alone = [run("s1", "t0", set())]
+        # Held out against the floor of the others: r1 meets 3 items and passes none; r2 meets 4
+        # and passes a.x.2; r3 meets 3 (it lacks c) and passes none. A lone run exposes nothing.
+        self.assertEqual(po.chance_rescues([task, alone]), (1, 10))
+        self.assertEqual(po.chance_rescues([]), (0, 0))
+
+    def test_binomial_tail(self):
+        self.assertAlmostEqual(po.binomial_tail(3, 3, 0.1), 0.001)
+        self.assertAlmostEqual(po.binomial_tail(2, 1, 0.5), 0.75)
+        self.assertAlmostEqual(po.binomial_tail(5, 0, 0.3), 1.0)
+        self.assertAlmostEqual(po.binomial_tail(0, 0, 0.3), 1.0)
+
+
 class RenderTest(unittest.TestCase):
     def test_contents(self):
         runs = [

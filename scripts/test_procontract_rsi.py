@@ -380,7 +380,7 @@ class SuccessionTest(unittest.TestCase):
             )
             self.assertEqual(
                 sorted(p.name for p in (view / "insight" / "1").iterdir()),
-                ["ANALYSIS.md", "CHALLENGE.md"],
+                ["ANALYSIS.md", "CHALLENGE.md", "hindsight.json"],
             )
             self.assertNotIn("Pending experiment", (view / "README.md").read_text())
             # The second analysis settles the candidate, which the analyst's view names.
@@ -552,6 +552,95 @@ class SuccessionTest(unittest.TestCase):
             self.assertIn("candidate", outcome)
             self.assertEqual(len(h.versions()), 2)
             self.assertEqual(h.contract("improvement.1")["standing"], "discharged")
+
+    def test_a_prediction_is_registered_before_the_candidate_runs_and_held_by_its_rescues(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp), FakeTasks())
+
+            outcome = h.step()
+
+            [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
+            self.assertIn("prediction 3 of 3 rescued", outcome)
+            prediction = h.contract(f"prediction.{v1[:16]}")
+            self.assertEqual(prediction["standing"], "discharged")
+            self.assertEqual(prediction["support"]["coordinate"]["reach"], "beyond")
+            # The claim precedes its evidence: issued before the candidate's first run.
+            kinds = [
+                (e["kind"], e["body"].get("contract_id"), e["body"].get("version"))
+                for e in h.events()
+            ]
+            issued = kinds.index(("issue", f"prediction.{v1[:16]}", None))
+            first_run = next(i for i, (k, _, v) in enumerate(kinds) if k == "execution" and v == v1)
+            self.assertLess(issued, first_run)
+            settled = h.settlement(v1)
+            self.assertTrue(settled["held"])
+            self.assertEqual(settled["expected_by_chance"], 0.3)
+
+    def test_a_candidate_whose_prediction_misses_stays_in_research(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_RESEARCH_MODE"] = "miss"
+            h = host(campaign(tmp), FakeTasks())
+
+            outcome = h.step()
+
+            [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
+            self.assertIn("stays in research", outcome)
+            self.assertIn("prediction 0 of 3 rescued", outcome)
+            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertFalse(h.settlement(v1)["held"])
+            self.assertEqual(h.used_confirmation_tasks(), [])
+
+    def test_a_measured_candidate_without_a_prediction_does_not_qualify(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_RESEARCH_MODE"] = "unpredicted"
+            h = host(campaign(tmp), FakeTasks())
+
+            outcome = h.step()
+
+            self.assertIn("did not qualify: no prediction.json", outcome)
+            self.assertEqual(len(h.versions()), 1)
+
+    def test_only_floor_items_of_development_tasks_make_a_prediction_decisive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp, adoption="presumed"), FakeTasks())
+            h.step()  # v1 now passes m.A.t0 on every development task
+            path = Path(tmp, "prediction.json")
+
+            def problem(rescue):
+                path.write_text(json.dumps({"rescue": rescue}))
+                return h.prediction_problem(path)
+
+            self.assertIn("none of the predicted items", problem({DEV[0]: ["m.A.t0"]}))
+            self.assertEqual(problem({DEV[0]: ["m.A.t0", "m.A.t1"]}), "")
+            self.assertIn("not a development task", problem({SEALED[0]: ["m.A.t1"]}))
+            self.assertIn("items no run", problem({DEV[0]: ["m.A.t9"]}))
+            self.assertIn("names no items", problem({}))
+
+    def test_an_analysis_whose_credit_table_names_unknown_items_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["FAKE_HINDSIGHT"] = "bad"
+            try:
+                h = host(campaign(tmp), FakeTasks())
+                h.dev(h.incumbent())
+                k = h.analyze(h.incumbent())
+            finally:
+                del os.environ["FAKE_HINDSIGHT"]
+            self.assertEqual(h.insight(k)["status"], "failed")
+            self.assertIn("hindsight cluster 1 names items", h.insight(k)["reason"])
+
+    def test_later_views_show_the_chance_rate_the_failure_mass_and_the_settlement(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(campaign(tmp, adoption="presumed"), FakeTasks())
+            h.step()
+            v1 = h.incumbent()
+            h.step()
+            archive = h.camp / "research" / "step-2" / "workspace" / "archive"
+            readme = (archive / "README.md").read_text()
+            self.assertIn("Chance rescue rate of a floor item", readme)
+            self.assertIn("| never_sent | convention |", readme)
+            settled = json.loads((archive / "versions" / v1[:12] / "settlement.json").read_text())
+            self.assertTrue(settled["held"])
+            self.assertTrue((archive / "versions" / v1[:12] / "prediction.json").exists())
 
     def test_a_failed_analysis_is_tried_again_for_the_same_experiment(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -838,19 +927,20 @@ class KnowledgeTest(unittest.TestCase):
             ws = Path(tmp, "ws")
             (ws / "knowledge").mkdir(parents=True)
             (ws / "CHALLENGE.md").write_text("The challenge.\n")
+            (ws / "hindsight.json").write_text(json.dumps({"clusters": []}))
             real = Path(tmp, "real.json")
             real.write_text(json.dumps({"experiment": "abc", "signature": "present"}))
             (ws / "verdict.json").symlink_to(real)
             self.assertEqual(
-                rsi.delivery_problem(ws, "CHALLENGE.md", "abc"),
+                rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}),
                 "verdict.json is a link",
             )
             (ws / "verdict.json").unlink()
             shutil.copy(real, ws / "verdict.json")
-            self.assertEqual(rsi.delivery_problem(ws, "CHALLENGE.md", "abc"), "")
+            self.assertEqual(rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}), "")
             shutil.rmtree(ws / "knowledge")
             self.assertEqual(
-                rsi.delivery_problem(ws, "CHALLENGE.md", "abc"), "knowledge/ is missing"
+                rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}), "knowledge/ is missing"
             )
 
 

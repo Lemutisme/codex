@@ -17,8 +17,14 @@ versions, and keeps every claim in the kernel through the store CLI.
 
 Observation and analysis (insight spec): every valid run is normalized into observations/ once; an
 analyst run explains outcomes from trajectories and a challenger run tries to defeat the
-explanation. Only a challenged delivery becomes the campaign's knowledge and verdict, and a candidate
-is put forward only when the verdict says its signature is present.
+explanation. Only a challenged delivery becomes the campaign's knowledge and verdict.
+
+One run is a learning signal (insight spec §12): the analyst assigns credit for each failing
+cluster by what the executor knew when (hindsight.json), and every measured experiment registers,
+before its runs, which hidden items now failed by every stored run it will rescue (prediction.json).
+Chance seldom rescues such an item, so one run settles the prediction, mechanically and from beyond
+the candidate's reach. A candidate is put forward only when its signature is present, its prediction
+held and its development delta clears the gate.
 
 Reach in practice:
 - exploration (choosing a parent, putting a candidate forward) may use any information and needs no
@@ -62,6 +68,12 @@ TASK_FILES = ["executor.md", "drafter.md", "prober.md", "reviewer.md"]
 MAX_BUNDLE_FILE = 32 << 10
 KNOWLEDGE_CAP = 512 << 10
 SIGNATURES = ("present", "partial", "absent")
+# How the information stood for a failing cluster, and for one never sent, where it could come from.
+CLASSES = ("never_sent", "never_compared", "left_unfixed", "too_shallow")
+SOURCES = ("artifact", "convention", "prior", "unobservable")
+# Before any evidence, one chance rescue in ten floor items: conservative, so early predictions
+# need several rescues to hold.
+PRIOR_RESCUE = (1, 10)
 OUTCOME_MESSAGE_CAP = 1000
 LATEST_ANALYSES = 5
 PROPOSAL_LINES = 20
@@ -87,8 +99,11 @@ Your workspace holds:
   archive/knowledge/ is what the campaign has learned so far and archive/insight/ holds the
   analyses that produced it.
 
-Deliver ./EXPERIMENT.md with the sections {sections}. No network is available. Tools: python3, jq,
-grep, sed and awk are installed; rg is not.
+Deliver ./EXPERIMENT.md with the sections {sections}. When you change a file that shapes how tasks
+are done ({task_files}), also deliver ./prediction.json, {{"rescue": {{"<task>": ["<item id>", ...]}}}}:
+the hidden items your change will make pass, chosen among those every stored run failed (the floor in
+archive/tasks/<task>/outcomes.md). No network is available. Tools: python3, jq, grep, sed and awk are
+installed; rg is not.
 """
 
 ANALYST_PROTOCOL = """This is an analysis task: explain what the agent did and why its runs scored as they did.
@@ -99,8 +114,8 @@ Your workspace holds:
   512 KiB in total.
 
 {pending}
-Deliver ./ANALYSIS.md and leave ./knowledge as the campaign should keep it. No network is
-available. Tools: python3, jq, grep, sed and awk are installed; rg is not.
+Deliver ./ANALYSIS.md and ./hindsight.json, and leave ./knowledge as the campaign should keep it. No
+network is available. Tools: python3, jq, grep, sed and awk are installed; rg is not.
 """
 
 CHALLENGER_PROTOCOL = """This is a challenge task: try to defeat an analysis of an agent's runs.
@@ -108,28 +123,33 @@ CHALLENGER_PROTOCOL = """This is a challenge task: try to defeat an analysis of 
 Your workspace holds:
 - archive/: the evidence the analyst read, read-only. archive/knowledge/ is the knowledge before the
   analysis.
-- ANALYSIS.md, verdict.json (when an experiment is pending) and knowledge/: the analyst's delivery.
-  You may amend knowledge/ (UTF-8 text only, at most 512 KiB in total) and verdict.json.
+- ANALYSIS.md, hindsight.json, verdict.json (when an experiment is pending) and knowledge/: the
+  analyst's delivery. You may amend knowledge/ (UTF-8 text only, at most 512 KiB in total),
+  hindsight.json and verdict.json.
 
 {pending}
 Deliver ./CHALLENGE.md. No network is available. Tools: python3, jq, grep, sed and awk are
 installed; rg is not.
 """
 
-PENDING = "Experiment {version} is pending: ./verdict.json must say whether its signature was present."
+PENDING = (
+    "Experiment {version} is pending: ./verdict.json must say whether its signature was present. The "
+    "host has settled its prediction from the hidden outcomes (archive/versions/{version}/settlement.json)."
+)
 NOT_PENDING = "No experiment is pending."
 
 LAYOUT = """Layout:
-- versions/<id>/: a version's bundle and EXPERIMENT.md, and verdict.json once an analysis has
-  settled its experiment.
+- versions/<id>/: a version's bundle and EXPERIMENT.md; its prediction.json and the host's
+  settlement.json of it (rescued items against chance, from the hidden outcomes); and verdict.json
+  once an analysis has counted its signature.
 - runs/<run>/: one run per valid development task and per spent confirmation task. summary.json (the
   result and a per-turn trajectory block), outcomes.json (every hidden item: passed, message),
   failures.txt, trajectory.md (the executor's thread in order), events.jsonl (the same as records)
   and final/ (the text files the executor left).
 - tasks/<task>/outcomes.md: the outcome matrix of one task across all the runs above.
 - attribution/: per task, how a version's behavior and outcomes differ from its parent's.
-- insight/<k>/: earlier analyses (ANALYSIS.md, CHALLENGE.md, and the verdict.json that settled an
-  experiment).
+- insight/<k>/: earlier analyses (ANALYSIS.md, CHALLENGE.md, hindsight.json, and the verdict.json
+  that counted an experiment's signature).
 - knowledge/: what the campaign knows (mechanisms, refuted beliefs, task dossiers, proposals).
   Read-only here.
 Confirmation tasks that are not spent do not appear anywhere.
@@ -520,11 +540,17 @@ class Host:
     def insight(self, k: int) -> dict:
         return self.insights()[k - 1]
 
-    def current_knowledge(self) -> Path | None:
-        """The latest qualified analysis's knowledge, else the campaign's seed, else none."""
+    def latest_insight(self) -> Path | None:
+        """The directory of the latest qualified analysis, if any."""
         for body in reversed(self.insights()):
             if body["status"] == "qualified":
-                return self.camp / "insight" / str(body["k"]) / "knowledge"
+                return self.camp / "insight" / str(body["k"])
+        return None
+
+    def current_knowledge(self) -> Path | None:
+        """The latest qualified analysis's knowledge, else the campaign's seed, else none."""
+        if latest := self.latest_insight():
+            return latest / "knowledge"
         seed = self.camp / "knowledge-seed"
         return seed if seed.is_dir() else None
 
@@ -565,20 +591,23 @@ class Host:
             vdir.mkdir(parents=True)
             shutil.copy(self.version_dir(vid) / "EXPERIMENT.md", vdir / "EXPERIMENT.md")
             shutil.copytree(self.version_dir(vid) / "bundle", vdir / "bundle")
+            for name in ("prediction.json", "settlement.json"):
+                if (self.version_dir(vid) / name).exists():
+                    shutil.copy(self.version_dir(vid) / name, vdir)
             if vid in settled:
                 shutil.copy(
                     self.camp / "insight" / str(settled[vid]) / "verdict.json", vdir
                 )
         for name, result in runs.items():
             shutil.copytree(self.observe(name, result), archive / "runs" / name)
-        self.write_outcomes(archive, runs)
+        self.write_outcomes(archive)
         self.write_attribution(archive)
         for body in self.insights():
             if body["status"] == "qualified":
                 kept = self.camp / "insight" / str(body["k"])
                 target = archive / "insight" / str(body["k"])
                 target.mkdir(parents=True)
-                for name in ("ANALYSIS.md", "CHALLENGE.md", "verdict.json"):
+                for name in ("ANALYSIS.md", "CHALLENGE.md", "hindsight.json", "verdict.json"):
                     if (kept / name).exists():
                         shutil.copy(kept / name, target)
         copy_knowledge(self.current_knowledge(), archive / "knowledge")
@@ -605,19 +634,28 @@ class Host:
                 f"| {vid[:12]} | {(manifest['lineage']['parent'] or '-')[:12]} | "
                 f"{f'{mean(results.values()):.3f}' if results else '-'} | {len(results)} |"
             )
+        rate, rescued, exposed = self.chance()
+        lines += [
+            "",
+            f"Chance rescue rate of a floor item: {rate:.3f} ({rescued} of {exposed} floor items "
+            f"passed in a held-out run, smoothed by a prior of {PRIOR_RESCUE[0]} in "
+            f"{PRIOR_RESCUE[1]}). A prediction holds when chance alone would rarely rescue as many "
+            f"of its floor items as the candidate does (p <= {self.terms['gates']['prediction_alpha']}).",
+        ]
+        latest = self.latest_insight()
+        if latest and (latest / "hindsight.json").exists():
+            lines += ["", *failure_mass(json.loads((latest / "hindsight.json").read_text()))]
         (archive / "README.md").write_text("\n".join([*lines, "", LAYOUT]) + "\n")
 
-    def write_outcomes(self, archive: Path, runs: dict[str, dict]) -> None:
-        """tasks/<task>/outcomes.md over all the observed runs of each task. A run's parent is the
-        twin of its version's lineage parent, which is how the matrix draws lineage edges."""
+    def task_runs(self) -> dict[str, list[dict]]:
+        """Every observed run by task, as the outcome matrix reads them. A run's parent is the twin
+        of its version's lineage parent, which is how the matrix draws lineage edges."""
         versions = self.versions()
         by_task: dict[str, list[dict]] = {}
-        for name, result in runs.items():
+        for name, result in self.observed().items():
             version = result["version"]
             parent = versions[version]["lineage"]["parent"]
-            outcomes = json.loads(
-                (self.camp / "observations" / name / "outcomes.json").read_text()
-            )
+            outcomes = json.loads((self.observe(name, result) / "outcomes.json").read_text())
             by_task.setdefault(result["task"], []).append(
                 {
                     "name": name,
@@ -628,7 +666,22 @@ class Host:
                     "outcomes": outcomes,
                 }
             )
-        for task, group in by_task.items():
+        return by_task
+
+    def floor(self, task: str) -> set[str]:
+        """The items every stored run of `task` failed: no version has reached them, and chance
+        seldom does, so they are where one run can decide a prediction."""
+        return set(outcome_matrix.classify(self.task_runs().get(task, []))[1])
+
+    def chance(self) -> tuple[float, int, int]:
+        """The rate at which a floor item passes by chance, with its (rescued, exposed) counts:
+        held-out runs against the floor of the others, smoothed by PRIOR_RESCUE."""
+        rescued, exposed = outcome_matrix.chance_rescues(list(self.task_runs().values()))
+        return (rescued + PRIOR_RESCUE[0]) / (exposed + PRIOR_RESCUE[1]), rescued, exposed
+
+    def write_outcomes(self, archive: Path) -> None:
+        """tasks/<task>/outcomes.md over all the observed runs of each task."""
+        for task, group in self.task_runs().items():
             target = archive / "tasks" / task
             target.mkdir(parents=True)
             (target / "outcomes.md").write_text(
@@ -740,6 +793,10 @@ class Host:
         pending = self.pending_experiment()
         previous = self.current_knowledge()
         note = PENDING.format(version=pending[:12]) if pending else NOT_PENDING
+        known = {
+            task: {item for run in runs for item in run["outcomes"]}
+            for task, runs in self.task_runs().items()
+        }
         analysis, reason = self.insight_stage(
             root,
             "analyst",
@@ -748,6 +805,7 @@ class Host:
             parent,
             ANALYST_PROTOCOL.format(pending=note),
             pending,
+            known,
             lambda partial: copy_knowledge(previous, partial / "knowledge"),
             "ANALYSIS.md",
         )
@@ -761,6 +819,7 @@ class Host:
                 parent,
                 CHALLENGER_PROTOCOL.format(pending=note),
                 pending,
+                known,
                 lambda partial: hand_over(analysis, partial, pending),
                 "CHALLENGE.md",
             )
@@ -775,6 +834,7 @@ class Host:
         if challenge is not None:
             shutil.copy(analysis / "ANALYSIS.md", root)
             shutil.copy(challenge / "CHALLENGE.md", root)
+            shutil.copy(challenge / "hindsight.json", root)
             if pending:
                 shutil.copy(challenge / "verdict.json", root)
             shutil.rmtree(root / "knowledge", ignore_errors=True)
@@ -798,6 +858,7 @@ class Host:
         parent: str,
         prompt: str,
         pending: str | None,
+        known: dict[str, set[str]],
         fill,
         document: str,
     ) -> tuple[Path | None, str]:
@@ -814,7 +875,7 @@ class Host:
             delivery = self.run_agent(
                 base, f"{role}-{k}-{attempt}", parent, f"{role}.md", deadline
             )
-            reason = delivery_problem(delivery, document, pending)
+            reason = delivery_problem(delivery, document, pending, known)
             if not reason:
                 return delivery, ""
         return None, f"{role}: {reason}"
@@ -851,6 +912,7 @@ class Host:
             parent=parent[:12],
             files=", ".join(self.terms["mutable"]),
             sections=", ".join(EXPERIMENT_SECTIONS),
+            task_files=", ".join(TASK_FILES),
         )
         self.stage_view(
             root,
@@ -922,11 +984,121 @@ class Host:
             )
         if leak := self.boundary(policy, changed):
             return False, leak, False
+        if any(name in TASK_FILES for name in changed) and (
+            problem := self.prediction_problem(delivery / "prediction.json")
+        ):
+            return False, problem, False
         return (
             True,
             "qualified" if changed else "a null experiment: the bundle is unchanged",
             bool(changed),
         )
+
+    def prediction_problem(self, path: Path) -> str:
+        """Why prediction.json cannot be settled by the candidate's runs, or an empty string. It
+        names, per development task, hidden items the change will make pass; at least one must be
+        on the floor, where chance is quiet, or no single run could decide it."""
+        if path.is_symlink():
+            return "prediction.json is a link"
+        try:
+            prediction = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return "no prediction.json was delivered, or it is not JSON"
+        rescue = prediction.get("rescue") if isinstance(prediction, dict) else None
+        if not isinstance(rescue, dict) or not rescue:
+            return "prediction.json names no items to rescue"
+        runs = self.task_runs()
+        decisive = 0
+        for task, items in rescue.items():
+            if task not in self.terms["pools"]["dev"]:
+                return f"prediction.json names {task}, which is not a development task"
+            known = {item for run in runs.get(task, []) for item in run["outcomes"]}
+            if not isinstance(items, list) or not all(
+                isinstance(item, str) and item in known for item in items
+            ):
+                return f"prediction.json names items no run of {task} has"
+            decisive += len(set(items) & self.floor(task))
+        if not decisive:
+            return "none of the predicted items is failed by every stored run, so no run can decide the prediction"
+        return ""
+
+    def predict(self, candidate: str, delivery: Path) -> str:
+        """Registers the candidate's prediction as a contract before any of its runs exist: the
+        floor items it names and the chance rate are frozen in the terms, so the outcome cannot
+        shape the claim."""
+        contract = f"prediction.{candidate[:16]}"
+        shutil.copy(delivery / "prediction.json", self.version_dir(candidate))
+        rescue = json.loads((delivery / "prediction.json").read_text())["rescue"]
+        rate, rescued, exposed = self.chance()
+        self.issue(
+            contract,
+            {
+                "experiment": candidate,
+                "rescue": {
+                    task: sorted(set(items) & self.floor(task))
+                    for task, items in sorted(rescue.items())
+                },
+                "chance": {"rate": rate, "rescued": rescued, "exposed": exposed},
+                "alpha": self.terms["gates"]["prediction_alpha"],
+            },
+            {"class": "rescue", "rule": "binomial tail of rescued floor items <= alpha"},
+            "delegate",
+        )
+        return contract
+
+    def settle(self, candidate: str) -> dict:
+        """Settles the candidate's prediction from its development runs, mechanically: the hidden
+        outcomes come from beyond its reach, and the rule was frozen before they existed. Counts the
+        frozen floor items its runs pass, against chance; discharges the prediction when chance
+        alone would rarely rescue as many, and defeats it otherwise."""
+        contract = f"prediction.{candidate[:16]}"
+        settlement_file = self.version_dir(candidate) / "settlement.json"
+        if settled := self.settlement(candidate):
+            return settled
+        terms = next(
+            event["body"]["terms"]
+            for event in self.events("issue")
+            if event["body"]["contract_id"] == contract
+        )
+        runs = self.dev_runs(candidate)
+        tasks = {}
+        for task, items in terms["rescue"].items():
+            if task in runs:
+                passed = self.adapter.outcomes(Path(runs[task]["run_dir"]))
+                tasks[task] = {
+                    "predicted": len(items),
+                    "rescued": sorted(i for i in items if passed.get(i, {}).get("passed")),
+                }
+        n = sum(t["predicted"] for t in tasks.values())
+        k = sum(len(t["rescued"]) for t in tasks.values())
+        rate = terms["chance"]["rate"]
+        p = outcome_matrix.binomial_tail(n, k, rate)
+        settlement = {
+            "experiment": candidate,
+            "predicted": n,
+            "rescued": k,
+            "expected_by_chance": round(n * rate, 3),
+            "p": p,
+            "alpha": terms["alpha"],
+            "held": n > 0 and p <= terms["alpha"],
+            "tasks": tasks,
+        }
+        reading = f"{k} of {n} floor items rescued, {n * rate:.2f} expected by chance, p={p:.2g}"
+        self.propose(
+            contract, store.digest("runs", {task: runs[task]["run_dir"] for task in tasks})
+        )
+        if settlement["held"]:
+            self.support(contract, settlement, {"runs": sorted(tasks)}, "beyond")
+            self.discharge(contract, self.presumed(), reading)
+        else:
+            self.release(contract, reading)
+        settlement_file.write_text(json.dumps(settlement, indent=2) + "\n")
+        return settlement
+
+    def settlement(self, vid: str) -> dict | None:
+        """The host's settlement of a version's prediction, once it exists."""
+        path = self.version_dir(vid) / "settlement.json"
+        return json.loads(path.read_text()) if path.exists() else None
 
     def exposed_tasks(self) -> list[str]:
         """Tasks some view or selection has read: the development pool and the spent confirmation
@@ -1042,6 +1214,7 @@ class Host:
                 {"role": "qualified", "version": candidate, "method_only": True},
             )
             return f"step {step}: candidate {candidate[:12]} changes only the research method; it continues in research"
+        self.predict(candidate, delivery)
         witness = self.adapter.witness(self, candidate)
         if witness:
             self.record(
@@ -1052,26 +1225,29 @@ class Host:
         self.record("selection", {"role": "qualified", "version": candidate})
         incumbent = self.incumbent()
         delta = paired_delta(self.dev(candidate), self.dev(incumbent))
-        # The measured runs settle the experiment: was the signature present, whatever the score.
+        # The measured runs settle the experiment twice: the host settles its prediction from the
+        # hidden outcomes, and a challenged analysis counts its signature in the trajectories.
+        settlement = self.settle(candidate)
         self.analyze(parent)
         verdict = self.settled_verdict(candidate)
         gates = self.terms["gates"]
+        reading = (
+            f"development delta {delta:+.3f}; signature {verdict}; prediction "
+            f"{settlement['rescued']} of {settlement['predicted']} rescued, p={settlement['p']:.2g}"
+        )
         if (
             delta < gates["dev_min_delta"]
             or verdict != "present"
+            or not settlement["held"]
             or self.confirm_budget_left() < gates["confirm_tasks"]
         ):
-            return (
-                f"step {step}: candidate {candidate[:12]} stays in research "
-                f"(development delta {delta:+.3f}; verdict: signature {verdict})"
-            )
+            return f"step {step}: candidate {candidate[:12]} stays in research ({reading})"
         self.record(
             "selection",
             {"role": "put_forward", "version": candidate, "dev_delta": delta},
         )
         return (
-            f"step {step}: candidate {candidate[:12]} put forward "
-            f"(development delta {delta:+.3f}; verdict: signature {verdict}); "
+            f"step {step}: candidate {candidate[:12]} put forward ({reading}); "
             + self.confirm(candidate, incumbent)
         )
 
@@ -1420,10 +1596,59 @@ def verdict_problem(path: Path, pending: str) -> str:
     return ""
 
 
-def delivery_problem(workspace: Path, document: str, pending: str | None) -> str:
+def hindsight_problem(path: Path, known: dict[str, set[str]]) -> str:
+    """Why hindsight.json is not a credit table over items the runs have, or an empty string. Each
+    cluster names a task, its failing items, how the information stood (CLASSES) and, for inputs
+    never sent, where they could have come from (SOURCES)."""
+    if path.is_symlink():
+        return "hindsight.json is a link"
+    try:
+        table = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return "hindsight.json is missing or not JSON"
+    clusters = table.get("clusters") if isinstance(table, dict) else None
+    if not isinstance(clusters, list):
+        return "hindsight.json has no list of clusters"
+    for n, cluster in enumerate(clusters, 1):
+        if not isinstance(cluster, dict) or cluster.get("task") not in known:
+            return f"hindsight cluster {n} names no observed task"
+        items = cluster.get("items")
+        if (
+            not isinstance(items, list)
+            or not items
+            or not all(isinstance(item, str) and item in known[cluster["task"]] for item in items)
+        ):
+            return f"hindsight cluster {n} names items no run of {cluster['task']} has"
+        if cluster.get("class") not in CLASSES:
+            return f"hindsight cluster {n} has no class of {', '.join(CLASSES)}"
+        if cluster["class"] == "never_sent" and cluster.get("source") not in SOURCES:
+            return f"hindsight cluster {n} was never sent but has no source of {', '.join(SOURCES)}"
+    return ""
+
+
+def failure_mass(table: dict) -> list[str]:
+    """README lines: the latest credit table summed by how the information stood."""
+    mass: dict[tuple[str, str], tuple[int, set[str]]] = {}
+    for cluster in table["clusters"]:
+        key = (cluster["class"], cluster.get("source") or "-")
+        items, tasks = mass.get(key, (0, set()))
+        mass[key] = (items + len(cluster["items"]), tasks | {cluster["task"]})
+    rows = sorted(mass.items(), key=lambda row: -row[1][0])
+    return [
+        "Where the failure mass sits (latest analysis, failing items by how the information stood):",
+        "",
+        "| class | source | items | tasks |",
+        "|---|---|---|---|",
+        *(f"| {c} | {s} | {n} | {len(t)} |" for (c, s), (n, t) in rows),
+    ]
+
+
+def delivery_problem(
+    workspace: Path, document: str, pending: str | None, known: dict[str, set[str]]
+) -> str:
     """Why an analyst's or challenger's delivery does not qualify, or an empty string: its document
-    is not empty, its knowledge is acceptable, and with an experiment pending its verdict.json
-    settles that experiment."""
+    is not empty, its credit table and knowledge are acceptable, and with an experiment pending its
+    verdict.json settles that experiment."""
     path = workspace / document
     if (
         path.is_symlink()
@@ -1431,6 +1656,8 @@ def delivery_problem(workspace: Path, document: str, pending: str | None) -> str
         or not path.read_text(errors="replace").strip()
     ):
         return f"no {document} was delivered"
+    if problem := hindsight_problem(workspace / "hindsight.json", known):
+        return problem
     if problem := knowledge_problem(workspace / "knowledge"):
         return problem
     return verdict_problem(workspace / "verdict.json", pending) if pending else ""
@@ -1448,6 +1675,7 @@ def copy_knowledge(source: Path | None, dest: Path) -> None:
 def hand_over(analysis: Path, workspace: Path, pending: str | None) -> None:
     """The analyst's delivery, placed in the challenger's workspace."""
     shutil.copy(analysis / "ANALYSIS.md", workspace)
+    shutil.copy(analysis / "hindsight.json", workspace)
     if pending:
         shutil.copy(analysis / "verdict.json", workspace)
     copy_knowledge(analysis / "knowledge", workspace / "knowledge")
@@ -1504,6 +1732,7 @@ def cmd_init(args) -> None:
             "confirm_tasks": args.confirm_tasks,
             "confirm_min_delta": args.confirm_min_delta,
             "confirm_min_wins": args.confirm_min_wins,
+            "prediction_alpha": args.prediction_alpha,
         },
         "mutable": args.mutable,
         "adoption": args.adoption,
@@ -1589,6 +1818,9 @@ def cmd_status(args) -> None:
                 "dev_mean": round(mean(results.values()), 3)
                 if (results := host.dev_results(vid))
                 else None,
+                "prediction": {k: settled[k] for k in ("rescued", "predicted", "p", "held")}
+                if (settled := host.settlement(vid))
+                else None,
             }
         )
     knowledge = host.current_knowledge()
@@ -1643,6 +1875,12 @@ def main() -> None:
     init.add_argument("--confirm-tasks", type=int, default=4)
     init.add_argument("--research-steps", type=int, default=2)
     init.add_argument("--dev-min-delta", type=float, default=0.0)
+    init.add_argument(
+        "--prediction-alpha",
+        type=float,
+        default=0.01,
+        help="how unlikely by chance a candidate's floor rescues must be for its prediction to hold",
+    )
     init.add_argument("--parent-tolerance", type=float, default=0.05)
     init.add_argument("--confirm-min-delta", type=float, default=0.0)
     init.add_argument("--confirm-min-wins", type=int, default=3)

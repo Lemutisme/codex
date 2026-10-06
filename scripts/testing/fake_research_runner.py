@@ -4,7 +4,13 @@
 research.md: edits the bundle as FAKE_RESEARCH_MODE says: `better` adds a line the fake adapter
 rewards, `worse` one it punishes, `method` changes only research.md, `leak` writes a development
 task's name into executor.md, `delete` deletes prober.md, `null` changes nothing, `incomplete`
-delivers an experiment without its sections, `crash` fails to prepare.
+delivers an experiment without its sections, `crash` fails to prepare. A change to executor.md comes
+with prediction.json naming each task's first floor item (which `better` rescues); `miss` is
+`better` predicting the last floor item instead, and `unpredicted` is `better` without a
+prediction.
+
+analyst.md also writes hindsight.json: one never_sent cluster of each task's floor, or with
+FAKE_HINDSIGHT=bad a cluster naming an item no run has.
 
 analyst.md: writes ANALYSIS.md, appends a line to knowledge/mechanisms.md and, when the archive
 README names a pending experiment, a verdict.json whose signature is FAKE_SIGNATURE (default
@@ -35,10 +41,28 @@ SECTIONS = [
 LEAK = "widget"
 
 
+def floors(archive: Path) -> dict[str, list[str]]:
+    """Per development task, the items every run in the archive failed, in order."""
+    found = {}
+    tasks = {path.name.split("-", 2)[2] for path in archive.glob("runs/dev-*")}
+    for task in sorted(tasks):
+        runs = [
+            json.loads(path.read_text())
+            for path in sorted(archive.glob(f"runs/*-{task}/outcomes.json"))
+        ]
+        common = set.intersection(*(set(run) for run in runs))
+        found[task] = sorted(i for i in common if not any(run[i]["passed"] for run in runs))
+    return found
+
+
 def research(workspace: Path, mode: str) -> None:
     executor = workspace / "policy" / "executor.md"
-    if mode in ("better", "worse"):
-        executor.write_text(executor.read_text() + f"{mode}\n")
+    if mode in ("better", "worse", "miss", "unpredicted"):
+        executor.write_text(executor.read_text() + f"{'worse' if mode == 'worse' else 'better'}\n")
+    if mode in ("better", "worse", "miss", "leak", "delete"):
+        pick = -1 if mode == "miss" else 0
+        rescue = {task: items[pick:][:1] for task, items in floors(workspace / "archive").items()}
+        (workspace / "prediction.json").write_text(json.dumps({"rescue": rescue}))
     if mode == "leak":
         executor.write_text(executor.read_text() + f"Behave as {LEAK} does.\n")
     if mode == "delete":
@@ -56,6 +80,14 @@ def analyst(workspace: Path) -> None:
     if os.environ.get("FAKE_ANALYSIS") == "fail":
         return
     (workspace / "ANALYSIS.md").write_text("The analysis.\n")
+    clusters = [
+        {"task": task, "items": items, "class": "never_sent", "source": "convention"}
+        for task, items in floors(workspace / "archive").items()
+        if items
+    ]
+    if os.environ.get("FAKE_HINDSIGHT") == "bad":
+        clusters[0]["items"] = ["no.such.item"]
+    (workspace / "hindsight.json").write_text(json.dumps({"clusters": clusters}))
     knowledge = workspace / "knowledge"
     knowledge.mkdir(exist_ok=True)
     with (knowledge / "mechanisms.md").open("a") as handle:

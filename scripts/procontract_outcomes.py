@@ -8,6 +8,8 @@ the task's own noise; flips along a lineage edge mean something only when read a
 
 Pure and family-agnostic: runs arrive as per-item outcomes, the host decides which runs to pass."""
 
+import math
+
 from procontract_attribution import TOP_FAMILIES, family, flips
 
 MAX_ROWS = 25
@@ -137,6 +139,27 @@ def matrix(runs: list[dict]) -> dict:
         "replicates": replicate_rows(runs),
         "edges": edge_rows(runs),
     }
+
+
+def chance_rescues(groups: list[list[dict]]) -> tuple[int, int]:
+    """How often a floor item passes by chance, as (rescued, exposed) counts: within each task,
+    every run is held out in turn against the floor of the others. Policy changes between those
+    runs count as chance here, so the rate errs high, which keeps a prediction honest."""
+    rescued = exposed = 0
+    for runs in groups:
+        for i, held in enumerate(runs):
+            others = runs[:i] + runs[i + 1 :]
+            if not others:
+                continue
+            floor = [item for item in classify(others)[1] if item in held["outcomes"]]
+            exposed += len(floor)
+            rescued += sum(bool(held["outcomes"][item]["passed"]) for item in floor)
+    return rescued, exposed
+
+
+def binomial_tail(n: int, k: int, p: float) -> float:
+    """P(X >= k) for X ~ Binomial(n, p): how likely chance alone rescues k of n floor items."""
+    return sum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(k, n + 1))
 
 
 def capped(rows: list[str], noun: str) -> list[str]:
