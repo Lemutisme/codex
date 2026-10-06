@@ -98,6 +98,8 @@ pub enum Feature {
     ApiKeyModelDiscovery,
     /// Forward explicit programs with builtin OpenAI API keys.
     ApiKeyCyberAccessPrograms,
+    /// Enable Daybreak controls and automatic access-program selection in CLI clients.
+    CliDaybreak,
     /// Deprecated no-op; use `tui.fullscreen_transcript` instead.
     TranscriptV2,
     // Stable.
@@ -156,7 +158,7 @@ pub enum Feature {
     TerminalVisualizationInstructions,
     /// Stream structured progress while apply_patch input is being generated.
     ApplyPatchStreamingEvents,
-    /// Preserve existing line endings when apply_patch updates files.
+    /// Removed compatibility flag. Patches always preserve existing line endings.
     ApplyPatchPreserveLineEndings,
     /// Allow exec tools to request additional permissions while staying sandboxed.
     ExecPermissionApprovals,
@@ -1259,7 +1261,7 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::ApplyPatchPreserveLineEndings,
         key: "apply_patch_preserve_line_endings",
-        stage: Stage::UnderDevelopment,
+        stage: Stage::Removed,
         default_enabled: false,
     },
     FeatureSpec {
@@ -1339,6 +1341,12 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "api_key_model_discovery",
         stage: Stage::Stable,
         default_enabled: true,
+    },
+    FeatureSpec {
+        id: Feature::CliDaybreak,
+        key: "cli_daybreak",
+        stage: Stage::UnderDevelopment,
+        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::ApiKeyCyberAccessPrograms,

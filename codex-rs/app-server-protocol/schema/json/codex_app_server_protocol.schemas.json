@@ -8192,6 +8192,20 @@
         },
         "type": "object"
       },
+      "BrowserUseExtensionRequirements": {
+        "properties": {
+          "requestHeaders": {
+            "items": {
+              "$ref": "#/definitions/v2/RequestHeader"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "BrowserUseOriginPolicy": {
         "properties": {
           "access": {
@@ -8342,6 +8356,16 @@
             "type": [
               "boolean",
               "null"
+            ]
+          },
+          "extension": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/BrowserUseExtensionRequirements"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "origins": {
@@ -10981,6 +11005,21 @@
           "threadId"
         ],
         "title": "EnvironmentConnectionNotification",
+        "type": "object"
+      },
+      "EnvironmentSkillsParams": {
+        "properties": {
+          "required": {
+            "description": "Exact catalog names that must be available from this environment.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "ErrorNotification": {
@@ -18504,6 +18543,21 @@
           "status"
         ],
         "title": "RemoteControlStatusChangedNotification",
+        "type": "object"
+      },
+      "RequestHeader": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
         "type": "object"
       },
       "RequestId": {
