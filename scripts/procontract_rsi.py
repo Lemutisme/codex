@@ -675,7 +675,7 @@ class Host:
             lines += [
                 "",
                 f"Stream: {len(done)} of {self.batch_count()} batches run "
-                f"({sum(len(batch['tasks']) for batch in done)} of {len(self.terms['stream']['order'])} "
+                f"({sum(len(batch['tasks']) for batch in done)} of {len(self.order())} "
                 "tasks). Each task is run once, by the policy current when its batch began, and never "
                 "again; the next batch runs on tasks no run has seen. Runs of the last "
                 f"{self.terms['stream']['recent']} batches carry their trajectories and final "
@@ -1379,9 +1379,20 @@ class Host:
         assignment of those tasks to that policy)."""
         return [e["body"] for e in self.events("assignment") if "batch" in e["body"]]
 
+    def order(self) -> list[str]:
+        """The stream's instances in their committed order, less those a correction excluded (an
+        instance found not to be part of the benchmark). Removing an element from a random
+        permutation leaves a random permutation of the rest."""
+        excluded = {
+            event["body"]["exclude"]
+            for event in self.events("correction")
+            if "exclude" in event["body"]
+        }
+        return [task for task in self.terms["stream"]["order"] if task not in excluded]
+
     def batch_count(self) -> int:
         size = self.terms["stream"]["batch"]
-        return -(-len(self.terms["stream"]["order"]) // size)
+        return -(-len(self.order()) // size)
 
     def recent_runs(self) -> set[str] | None:
         """In a stream, the runs of the last few batches: the ones a view shows in full. Everything
@@ -1419,7 +1430,7 @@ class Host:
         if b > self.batch_count():
             return "the stream is complete"
         size = self.terms["stream"]["batch"]
-        tasks = self.terms["stream"]["order"][(b - 1) * size : b * size]
+        tasks = self.order()[(b - 1) * size : b * size]
         policy = self.stream_policy()
         self.measure_all([(policy, task) for task in tasks], "stream")
         self.record("assignment", {"batch": b, "version": policy, "tasks": tasks})
@@ -2078,8 +2089,18 @@ def cmd_baseline(args) -> None:
     host = Host(args.camp)
     root = host.incumbent()
     with ThreadPoolExecutor(args.parallel) as pool:
-        list(pool.map(lambda task: host.measure(root, task, "baseline"), host.terms["stream"]["order"]))
-    print(f"baseline of {root[:12]}: {len(host.terms['stream']['order'])} instances measured")
+        list(pool.map(lambda task: host.measure(root, task, "baseline"), host.order()))
+    print(f"baseline of {root[:12]}: {len(host.order())} instances measured")
+
+
+def cmd_exclude(args) -> None:
+    """Records, append-only, that an instance of a stream is not part of the benchmark; the order
+    itself stays as committed."""
+    host = Host(args.camp)
+    if args.task not in host.terms["stream"]["order"]:
+        sys.exit(f"{args.task} is not in the stream's order")
+    host.record("correction", {"exclude": args.task, "reason": args.reason})
+    print(f"{args.task} excluded: {len(host.order())} instances remain")
 
 
 def cmd_report(args) -> None:
@@ -2279,6 +2300,10 @@ def main() -> None:
     baseline = sub.add_parser("baseline")
     baseline.add_argument("--camp", type=Path, required=True)
     baseline.add_argument("--parallel", type=int, default=8)
+    exclude = sub.add_parser("exclude")
+    exclude.add_argument("--camp", type=Path, required=True)
+    exclude.add_argument("--task", required=True)
+    exclude.add_argument("--reason", required=True)
     report = sub.add_parser("report")
     report.add_argument("--camp", type=Path, required=True)
     report.add_argument("--baseline", type=Path, required=True)
@@ -2291,6 +2316,7 @@ def main() -> None:
         "status": cmd_status,
         "stream": cmd_stream,
         "baseline": cmd_baseline,
+        "exclude": cmd_exclude,
         "report": cmd_report,
     }[args.command](args)
 

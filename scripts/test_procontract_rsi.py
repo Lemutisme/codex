@@ -1052,6 +1052,24 @@ class StreamTest(unittest.TestCase):
             self.assertEqual(h.insights()[-1]["coverage"], sorted(h.observed()))
             self.assertEqual(len(h.observed()), len(STREAM))
 
+    def test_an_excluded_instance_is_skipped_and_the_rest_keep_their_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            h = host(stream_campaign(tmp), tasks)
+            order = h.terms["stream"]["order"]
+            argv = ["rsi", "exclude", "--camp", str(h.camp), "--task", order[1], "--reason", "a fixture"]
+            with mock.patch.object(sys, "argv", argv), mock.patch.object(rsi, "Host", lambda camp: h):
+                with mock.patch("sys.stdout"):
+                    rsi.main()
+
+            for _ in range(3):
+                h.stream_step()
+
+            self.assertEqual(h.order(), [t for t in order if t != order[1]])
+            self.assertEqual(h.batch_count(), 2)
+            self.assertNotIn(order[1], [task for _, task in tasks.runs])
+            self.assertEqual(h.terms["stream"]["order"], order, "the committed order is unchanged")
+
     def test_the_report_pairs_the_stream_with_a_baseline_it_never_saw(self):
         with tempfile.TemporaryDirectory() as tmp:
             stream = host(stream_campaign(tmp), FakeTasks())
