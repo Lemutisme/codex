@@ -2099,7 +2099,12 @@ def cmd_exclude(args) -> None:
     host = Host(args.camp)
     if args.task not in host.terms["stream"]["order"]:
         sys.exit(f"{args.task} is not in the stream's order")
-    host.record("correction", {"exclude": args.task, "reason": args.reason})
+    # A correction to the instance set the evaluator defines, so it carries the evaluator's epoch.
+    host.record(
+        "correction",
+        {"exclude": args.task, "reason": args.reason},
+        epoch=store.digest("epoch", host.adapter.evaluator()),
+    )
     print(f"{args.task} excluded: {len(host.order())} instances remain")
 
 
