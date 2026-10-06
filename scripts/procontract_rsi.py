@@ -1585,12 +1585,20 @@ class ProgramBench:
         if expected not in seen:
             return "the lane did not run the candidate's worker instructions"
         executor = (bundle / "executor.md").read_text().strip()
-        if executor:
-            rollouts = list((run_dir / "codex-home" / "sessions").rglob("*.jsonl"))
-            needle = json.dumps(executor[:200])[1:-1]
-            if not any(needle in path.read_text(errors="replace") for path in rollouts):
-                return "the executor did not receive the candidate's executor.md"
+        if executor and not executor_delivered(executor, run_dir):
+            return "the executor did not receive the candidate's executor.md"
         return ""
+
+
+def executor_delivered(executor: str, run_dir: Path) -> bool:
+    """Whether a run's rollouts carry the head of the executor instructions. Rollouts keep non-ASCII
+    text as UTF-8, so the needle must not escape it: an en dash once made a delivered executor.md
+    look undelivered."""
+    needle = json.dumps(executor[:200], ensure_ascii=False)[1:-1]
+    return any(
+        needle in path.read_text(errors="replace")
+        for path in (run_dir / "codex-home" / "sessions").rglob("*.jsonl")
+    )
 
 
 def last_records(eval_dir: Path) -> dict[tuple[str, str], dict]:
