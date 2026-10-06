@@ -63,6 +63,9 @@ wire_api = "responses"
 """
 
 
+EXECUTOR_MEMORY = "32g"
+
+
 def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
     args = [
         "run",
@@ -70,6 +73,11 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         "--rm",
         "--network",
         "none",
+        # One runaway probe once took 235 GiB of a shared machine; the cap confines it to its own run.
+        "--memory",
+        EXECUTOR_MEMORY,
+        "--memory-swap",
+        EXECUTOR_MEMORY,
         "--user",
         AGENT_USER,
         "-v",
