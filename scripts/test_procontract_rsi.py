@@ -946,6 +946,135 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual([t for _, t in tasks.runs].count(DEV[0]), 2)
 
 
+STREAM = [f"own{i}__tool{i}.000000{i}" for i in range(5)]
+
+
+def stream_campaign(tmp, name="stream", batch=2, recent=1) -> Path:
+    camp = Path(tmp, name)
+    instances = Path(tmp, "instances.txt")
+    instances.write_text("\n".join(STREAM) + "\n")
+    codex = Path(tmp, "codex")
+    codex.write_text("binary")
+    prompt = Path(tmp, "prompt.txt")
+    prompt.write_text("Implement the program.")
+    argv = [
+        "rsi", "init", "--camp", str(camp), "--instances", str(instances),
+        "--batch", str(batch), "--recent-batches", str(recent),
+        "--codex-bin", str(codex), "--task-prompt", str(prompt),
+        "--research-image", "img", "--programbench", tmp, "--hf-revision", "rev",
+    ]
+    with mock.patch.object(sys, "argv", argv), mock.patch("sys.stdout"):
+        rsi.main()
+    return camp
+
+
+class StreamTest(unittest.TestCase):
+    def setUp(self):
+        self.env = mock.patch.dict(os.environ, {"FAKE_RESEARCH_MODE": "better"})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_a_stream_runs_each_instance_once_in_a_committed_order_with_the_policy_of_its_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            h = host(stream_campaign(tmp), tasks)
+            order = h.terms["stream"]["order"]
+            self.assertEqual(sorted(order), sorted(STREAM))
+            self.assertEqual(h.terms["pools"], {"dev": [], "confirm": []})
+            v0 = h.incumbent()
+
+            first = h.stream_step()
+            second = h.stream_step()
+
+            batches = h.batches()
+            self.assertEqual([b["tasks"] for b in batches], [order[:2], order[2:4]])
+            self.assertEqual(batches[0]["version"], v0)
+            v1 = batches[1]["version"]
+            self.assertNotEqual(v1, v0)
+            self.assertIn(f"batch 2 runs with {v1[:12]}", first)
+            self.assertEqual(h.versions()[v1]["lineage"]["parent"], v0)
+            # Each instance ran exactly once, by the policy of its batch.
+            ran = [(vid, task) for vid, task in tasks.runs]
+            self.assertEqual(len(ran), len(set(task for _, task in ran)))
+            self.assertIn("batch 3 runs with", second)
+            # The change that set batch 2's policy was judged by the analysis after it.
+            judged = [b for b in h.insights() if b["experiment"] == v1]
+            self.assertEqual(judged[0]["verdict"], "present")
+            self.assertEqual(h.incumbent(), v0, "a stream explores; it adopts nothing")
+
+    def test_a_view_shows_only_runs_already_made_and_older_ones_as_summaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(stream_campaign(tmp), FakeTasks())
+            order = h.terms["stream"]["order"]
+            h.stream_step()
+            h.stream_step()
+
+            archive = h.camp / "research" / "step-2" / "workspace" / "archive"
+            shown = {p.name.split("-", 2)[2] for p in (archive / "runs").iterdir()}
+            self.assertEqual(shown, set(order[:4]), "no task of a later batch")
+            readme = (archive / "README.md").read_text()
+            self.assertIn("Stream: 2 of 3 batches run", readme)
+            self.assertNotIn("Chance rescue rate", readme)
+            old = next((archive / "runs").glob(f"*-{order[0]}"))
+            new = next((archive / "runs").glob(f"*-{order[2]}"))
+            self.assertTrue((old / "summary.json").exists())
+            self.assertFalse((old / "trajectory.md").exists(), "older runs are summaries")
+            self.assertTrue((new / "trajectory.md").exists())
+            prompt = (h.camp / "research" / "step-2" / "prompt.md").read_text()
+            self.assertIn("no run has seen", prompt)
+            self.assertNotIn("prediction.json", prompt)
+
+    def test_an_interrupted_batch_is_learned_from_before_the_next_one_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = FakeTasks()
+            h = host(stream_campaign(tmp), tasks)
+            os.environ["FAKE_RESEARCH_MODE"] = "crash"
+            with self.assertRaises(rsi.subprocess.CalledProcessError):
+                h.stream_step()
+            self.assertEqual(len(h.batches()), 1)
+            os.environ["FAKE_RESEARCH_MODE"] = "better"
+
+            outcome = h.stream_step()
+
+            self.assertIn("batch 1", outcome)
+            self.assertEqual(len(h.batches()), 1, "learning resumed; no new batch ran")
+            self.assertEqual(len(tasks.runs), 2)
+
+    def test_the_last_batch_is_analysed_and_the_stream_completes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            h = host(stream_campaign(tmp), FakeTasks())
+            outcomes = [h.stream_step() for _ in range(4)]
+
+            self.assertIn("the stream is complete", outcomes[2])
+            self.assertEqual(outcomes[3], "the stream is complete")
+            self.assertEqual(h.insights()[-1]["coverage"], sorted(h.observed()))
+            self.assertEqual(len(h.observed()), len(STREAM))
+
+    def test_the_report_pairs_the_stream_with_a_baseline_it_never_saw(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stream = host(stream_campaign(tmp), FakeTasks())
+            base = host(stream_campaign(tmp, name="baseline"), FakeTasks())
+            self.assertEqual(base.incumbent(), stream.incumbent())
+            with mock.patch.object(sys, "argv", ["rsi", "baseline", "--camp", str(base.camp)]):
+                with mock.patch.object(rsi, "Host", lambda camp: base), mock.patch("sys.stdout"):
+                    rsi.main()
+            for _ in range(3):
+                stream.stream_step()
+
+            report = rsi.stream_report(stream, base)
+
+            self.assertEqual(report["pairs"], len(STREAM))
+            # Batch 1 is the root against the root: the comparison's own noise, here none.
+            self.assertEqual(report["batches"][0]["mean_delta"], 0.0)
+            self.assertGreater(report["batches"][1]["mean_delta"], 0.0)
+            self.assertGreater(report["mean_delta"], 0.0)
+            # The stream never observed a baseline run.
+            self.assertFalse(any(r["purpose"] == "baseline" for r in stream.observed().values()))
+            self.assertTrue(all(r["purpose"] == "stream" for r in stream.observed().values()))
+
+
 class ProgramBenchTest(unittest.TestCase):
     def test_outcomes_keep_the_message_and_omit_skipped_tests(self):
         with tempfile.TemporaryDirectory() as tmp:

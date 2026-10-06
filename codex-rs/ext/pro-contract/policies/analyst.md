@@ -22,7 +22,7 @@ Method:
 
 3. Read the turn structure. What did the first turn achieve? What did each verifier note ask, what did the repair do with it, and what survived compaction? Compare the final message with what the outcomes show.
 
-4. Settle the pending experiment, if the archive README names one. Its EXPERIMENT.md states a Signature. The host has already settled its prediction from the hidden outcomes (versions/<id>/settlement.json: how many of the predicted floor families the candidate rescued, against chance). Count the signature in the candidate's trajectories and in its parent's, with numbers: present, partial or absent. Explain the settlement: which rescues follow from the signature and which do not. Write ./verdict.json:
+4. Settle the pending experiment, if the archive README names one. Its EXPERIMENT.md states a Signature. Count the signature in the candidate's trajectories and in its parent's, with numbers: present, partial or absent. Where tasks are measured again, the host has already settled its prediction from the hidden outcomes (versions/<id>/settlement.json: how many of the predicted floor families the candidate rescued, against chance); explain which rescues follow from the signature and which do not. In a stream, the candidate set the policy of the latest batch, on tasks no run had seen: compare that batch with the earlier ones by the classes of the credit table, knowing that tasks differ in difficulty. Write ./verdict.json:
    {"experiment": "<version id, 12 characters>", "signature": "present" | "partial" | "absent", "outcome": "<what moved, against noise>", "reading": "<two or three sentences>"}
    A change whose signature is absent did not engage: its score difference is chance, whatever its sign.
 

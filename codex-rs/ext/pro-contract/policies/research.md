@@ -18,14 +18,16 @@ Work like a careful experimenter.
 
 4. Make the smallest change that tests the hypothesis. Prefer rewriting or deleting text to adding it, and change one mechanism at a time. Every sentence of executor.md is read on every task. The task-shaping files (executor.md, drafter.md, prober.md, reviewer.md) must stay task-agnostic: never name a task, program or test. Qualification rejects names of tasks the campaign has evaluated.
 
-5. Remember what evidence can show. The agent's own checks measure diligence. Only the hidden outcomes certify, and one run decides only where chance is quiet: items every stored run failed seldom pass by chance (archive/README.md gives the rate). So when you change executor.md, drafter.md, prober.md or reviewer.md, name in ./prediction.json the floor items of development tasks your change will rescue: {"rescue": {"<task>": ["<item id>", ...]}}. Only items every stored run failed count, and items of one test family (the id without its last dotted part) move together, so a family is one event. Chance alone must be unlikely to rescue every named family (the README gives the rate per task), so name items of several families: with one or two families a prediction cannot hold. The host registers the prediction before any run and settles it from the hidden outcomes. A version is put forward only when its prediction holds, the next analysis counts its signature in the trajectories, and its development score clears the gate.
+5. Remember what evidence can show. The agent's own checks measure diligence. Only the hidden outcomes certify.
+   In a stream (archive/README.md says so), every task is run once, the next batch runs on tasks no run has seen, and your delivery becomes its policy at once: predict by the classes of the credit table that will shrink in the next batch's failures and by the Signature the next analysis will count there. The comparison with runs you never see judges the stream as a whole.
+   Where tasks are measured again, one run decides only where chance is quiet: items every stored run failed seldom pass by chance (archive/README.md gives the rate). So when you change executor.md, drafter.md, prober.md or reviewer.md, name in ./prediction.json the floor items of development tasks your change will rescue: {"rescue": {"<task>": ["<item id>", ...]}}. Only items every stored run failed count, and items of one test family (the id without its last dotted part) move together, so a family is one event. Chance alone must be unlikely to rescue every named family (the README gives the rate per task), so name items of several families: with one or two families a prediction cannot hold. The host registers the prediction before any run and settles it from the hidden outcomes. A version is put forward only when its prediction holds, the next analysis counts its signature in the trajectories, and its development score clears the gate.
 
 6. Write ./EXPERIMENT.md with these sections:
    - Mechanism: the knowledge entry and archive pointers it rests on.
    - Hypothesis.
    - Change: what you edited and why.
    - Signature: the behavior the change must produce, stated so it can be counted in a trajectory.
-   - Prediction: which items move and why, matching prediction.json, and what else should move, in which direction, compared with the task's noise.
+   - Prediction: which items move and why, matching prediction.json (in a stream: which classes of failure shrink in the next batch), and what else should move, in which direction, compared with the noise.
    - Falsifier.
    - Risks.
 

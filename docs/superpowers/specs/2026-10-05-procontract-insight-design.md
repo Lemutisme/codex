@@ -238,3 +238,34 @@ them. This changes ProContract's handoff protocol and needs its own design.
 A further hypothesis, untested: a belief slot that survives compaction may let the executor keep
 what it learned within a task (the repair-note fix of §8 is one instance). Its signature would be
 fewer re-explorations after compaction.
+
+## 14. The stream: test-time learning on the evaluation set (implemented 2026-10-06)
+
+A campaign measures versions again and again on a few development tasks. A stream is the test-time
+setting itself: every instance of the benchmark is run once, by the policy current when its batch
+begins, and nothing is run twice.
+
+- **Order and batches.** `init --instances FILE --batch B` fixes a random order before anything runs.
+  Batch b runs its B instances with the current policy. Then the host learns from it: an analysis
+  of every run so far (which also counts the signature of the change that set batch b's policy),
+  a challenge, and research. A qualified delivery becomes the policy of batch b+1 at once.
+  Choosing a policy is exploration and needs no authority. The next batch measures it, out of
+  sample.
+- **Feedback after delivery.** A run's hidden outcome enters the learner's views only after that run
+  is finished, the way a principal's verdict arrives after a handoff. So every score is out of
+  sample for the policy that earned it. Nothing about an instance is known before its single
+  rollout.
+- **No item predictions.** No later run sees the same task, so an experiment predicts by class: which
+  classes of the credit table will shrink in the next batch's failures, and the signature the next
+  analysis will count there. `prediction.json` is not asked for.
+- **Views.** The last `--recent-batches` batches are shown in full: trajectories and final
+  workspaces. Older runs keep summary, outcomes and failures. What was learned from them lives in
+  `knowledge/`, still capped at 512 KiB, which forces mechanisms over dossiers when tasks never
+  repeat. Batches are recorded as `assignment` events: these tasks, to this policy.
+- **Certification.** A separate baseline campaign, initialized with the same arguments (so the same
+  root and order), runs the root once on every instance. No view of the stream ever reads it.
+  `report` pairs stream and baseline by instance, so task difficulty cancels. It gives the mean
+  delta with a bootstrap interval, wins and losses, and the delta per batch. Batch 1 runs the root
+  in both, so its pairs measure the comparison's own noise.
+- **Seed.** The stream starts from empty knowledge. The campaign-1 seed holds hidden-test detail of
+  instances that the stream will meet later, and that would break the out-of-sample property.

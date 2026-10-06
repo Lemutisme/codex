@@ -7,7 +7,12 @@ product may succeed the version that does the work (reach spec §5). This host s
 runs from its own checkout, holds the campaign ledger, chooses research parents, runs and measures
 versions, and keeps every claim in the kernel through the store CLI.
 
-  init     start a campaign: pools, budgets, gates; register v0 and adopt it as the first incumbent
+  init     start a campaign: pools, budgets, gates; register v0 and adopt it as the first incumbent;
+           with --instances, a stream instead: every instance once, in a committed random order
+  stream   the next batch of a stream: run it with the current policy, then analyse, challenge and
+           research, and the delivery becomes the policy of the batch after
+  baseline run the root version once on every instance of a stream campaign, never shown to learning
+  report   a stream against its baseline, paired by instance
   step     one research step: parent → analysis of what the runs show → research run → delivery →
            qualification → development evaluation → analysis that settles the experiment → (when
            it earns it) paired confirmation against the incumbent
@@ -33,6 +38,12 @@ Reach in practice:
   research view and no earlier selection has read, run fresh for candidate and incumbent;
 - a source read by a selection never certifies it again (exposure only accumulates).
 
+A stream is test-time learning on the evaluation set itself (insight spec §14): each instance is run
+once, by the policy current when its batch starts, and its hidden outcome is read only after that run,
+as feedback after delivery. So every score is out of sample for the policy that earned it, and the
+stream needs no confirmation: a separate baseline campaign runs the root version on the same
+instances, and the comparison, paired by instance, certifies the learning from beyond its reach.
+
 Every phase is resumable: runs are cached by directory, kernel commands are idempotent by key."""
 
 import argparse
@@ -42,6 +53,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -99,12 +111,18 @@ Your workspace holds:
   archive/knowledge/ is what the campaign has learned so far and archive/insight/ holds the
   analyses that produced it.
 
-Deliver ./EXPERIMENT.md with the sections {sections}. When you change a file that shapes how tasks
-are done ({task_files}), also deliver ./prediction.json, {{"rescue": {{"<task>": ["<item id>", ...]}}}}:
-the hidden items of development tasks your change will make pass, chosen among those every stored run
-failed (the floor in archive/tasks/<task>/outcomes.md), from several test families. No network is available. Tools: python3, jq, grep, sed and awk are
-installed; rg is not.
+Deliver ./EXPERIMENT.md with the sections {sections}. {prediction} No network is available. Tools:
+python3, jq, grep, sed and awk are installed; rg is not.
 """
+
+PREDICT_ITEMS = """When you change a file that shapes how tasks are done ({task_files}), also deliver
+./prediction.json, {{"rescue": {{"<task>": ["<item id>", ...]}}}}: the hidden items of development tasks
+your change will make pass, chosen among those every stored run failed (the floor in
+archive/tasks/<task>/outcomes.md), from several test families."""
+
+PREDICT_CLASSES = """The next batch runs on tasks no run has seen, so no item can be named: state the
+Prediction as the classes of the credit table (insight/*/hindsight.json) that will shrink in the next
+batch's failures, and the Signature the next analysis will count there."""
 
 ANALYST_PROTOCOL = """This is an analysis task: explain what the agent did and why its runs scored as they did.
 
@@ -137,6 +155,10 @@ PENDING = (
     "host has settled its prediction from the hidden outcomes (archive/versions/{version}/settlement.json)."
 )
 NOT_PENDING = "No experiment is pending."
+PENDING_STREAM = (
+    "Experiment {version} is pending: it set the policy of the latest batch, whose tasks no earlier run "
+    "had seen. ./verdict.json must say whether its signature was present in that batch's trajectories."
+)
 
 LAYOUT = """Layout:
 - versions/<id>/: a version's bundle and EXPERIMENT.md; its prediction.json and the host's
@@ -488,15 +510,16 @@ class Host:
     # ---- observation and analysis -------------------------------------------------------------
 
     def observed(self) -> dict[str, dict]:
-        """The valid runs the archive may show, by run name: every development run and every
-        confirmation run of a spent task (a spent task never certifies again, so reading its runs
-        costs nothing). Confirmation tasks not yet spent are never in it."""
+        """The valid runs the archive may show, by run name: every development run, every run of a
+        stream (each read only after it ran), and every confirmation run of a spent task (a spent
+        task never certifies again, so reading its runs costs nothing). Confirmation tasks not yet
+        spent and baseline runs are never in it."""
         spent = set(self.used_confirmation_tasks())
         runs = {}
         for path in sorted((self.camp / "runs").glob("*/result.json")):
             result = json.loads(path.read_text())
             if result["validity"] == "valid" and (
-                result["purpose"] == "dev" or result["task"] in spent
+                result["purpose"] in ("dev", "stream") or result["task"] in spent
             ):
                 runs[path.parent.name] = result
         return runs
@@ -562,6 +585,11 @@ class Host:
             for body in self.insights()
             if body["status"] == "qualified"
         }
+        if self.stream:
+            # The policy of the latest batch, when it changed how tasks are done since the batch before.
+            policies = [batch["version"] for batch in self.batches()]
+            changed = len(policies) > 1 and self.twin(policies[-1]) != self.twin(policies[-2])
+            return policies[-1] if changed and policies[-1] not in asked else None
         pending = None
         for event in self.events("selection"):
             body = event["body"]
@@ -599,8 +627,15 @@ class Host:
                 shutil.copy(
                     self.camp / "insight" / str(settled[vid]) / "verdict.json", vdir
                 )
+        recent = self.recent_runs()
         for name, result in runs.items():
-            shutil.copytree(self.observe(name, result), archive / "runs" / name)
+            source = self.observe(name, result)
+            if recent is None or name in recent:
+                shutil.copytree(source, archive / "runs" / name)
+            else:
+                (archive / "runs" / name).mkdir(parents=True)
+                for kept in ("summary.json", "outcomes.json", "failures.txt"):
+                    shutil.copy(source / kept, archive / "runs" / name)
         self.write_outcomes(archive)
         self.write_attribution(archive)
         for body in self.insights():
@@ -635,6 +670,23 @@ class Host:
                 f"| {vid[:12]} | {(manifest['lineage']['parent'] or '-')[:12]} | "
                 f"{f'{mean(results.values()):.3f}' if results else '-'} | {len(results)} |"
             )
+        if self.stream:
+            done = self.batches()
+            lines += [
+                "",
+                f"Stream: {len(done)} of {self.batch_count()} batches run "
+                f"({sum(len(batch['tasks']) for batch in done)} of {len(self.terms['stream']['order'])} "
+                "tasks). Each task is run once, by the policy current when its batch began, and never "
+                "again; the next batch runs on tasks no run has seen. Runs of the last "
+                f"{self.terms['stream']['recent']} batches carry their trajectories and final "
+                "workspaces; older runs keep their summary, outcomes and failures, and what was learned "
+                "from them lives in knowledge/.",
+            ]
+            latest = self.latest_insight()
+            if latest and (latest / "hindsight.json").exists():
+                lines += ["", *failure_mass(json.loads((latest / "hindsight.json").read_text()))]
+            (archive / "README.md").write_text("\n".join([*lines, "", LAYOUT]) + "\n")
+            return
         chance = self.chance(self.task_runs())
         per_task = ", ".join(f"{task} {t['rate']:.3f}" for task, t in sorted(chance["tasks"].items()))
         lines += [
@@ -804,7 +856,11 @@ class Host:
         marker.write_text(json.dumps(coverage))
         pending = self.pending_experiment()
         previous = self.current_knowledge()
-        note = PENDING.format(version=pending[:12]) if pending else NOT_PENDING
+        note = (
+            (PENDING_STREAM if self.stream else PENDING).format(version=pending[:12])
+            if pending
+            else NOT_PENDING
+        )
         failing = {task: outcome_matrix.failed_items(runs) for task, runs in self.task_runs().items()}
         analysis, reason = self.insight_stage(
             root,
@@ -921,7 +977,9 @@ class Host:
             parent=parent[:12],
             files=", ".join(self.terms["mutable"]),
             sections=", ".join(EXPERIMENT_SECTIONS),
-            task_files=", ".join(TASK_FILES),
+            prediction=PREDICT_CLASSES
+            if self.stream
+            else PREDICT_ITEMS.format(task_files=", ".join(TASK_FILES)),
         )
         self.stage_view(
             root,
@@ -993,7 +1051,7 @@ class Host:
             )
         if leak := self.boundary(policy, changed):
             return False, leak, False
-        if any(name in TASK_FILES for name in changed) and (
+        if not self.stream and any(name in TASK_FILES for name in changed) and (
             problem := self.prediction_problem(delivery / "prediction.json")
         ):
             return False, problem, False
@@ -1146,9 +1204,10 @@ class Host:
         return json.loads(path.read_text()) if path.exists() else None
 
     def exposed_tasks(self) -> list[str]:
-        """Tasks some view or selection has read: the development pool and the spent confirmation
-        tasks."""
-        return [*self.terms["pools"]["dev"], *self.used_confirmation_tasks()]
+        """Tasks some view or selection has read: the development pool, the spent confirmation tasks
+        and the tasks a stream has run."""
+        streamed = [task for batch in self.batches() for task in batch["tasks"]]
+        return [*self.terms["pools"]["dev"], *self.used_confirmation_tasks(), *streamed]
 
     def boundary(self, policy: Path, changed: list[str]) -> str:
         """Why a changed task-shaping file crosses the boundary, or an empty string. Dossiers carry
@@ -1230,17 +1289,7 @@ class Host:
             else ""
         )
         ok, reason, changed = self.qualify(delivery, parent)
-        subject = store.digest(
-            "delivery",
-            {
-                "experiment": experiment,
-                "bundle": {
-                    name: (delivery / "policy" / name).read_text(errors="replace")
-                    for name in BUNDLE_FILES
-                    if (delivery / "policy" / name).exists()
-                },
-            },
-        )
+        subject = delivery_subject(delivery, experiment)
         self.propose(improvement, subject)
         if not ok:
             self.release(improvement, reason)
@@ -1318,6 +1367,110 @@ class Host:
             f"step {step}: candidate {candidate[:12]} put forward ({reading}); "
             + self.confirm(candidate, incumbent)
         )
+
+    # ---- the stream ---------------------------------------------------------------------------
+
+    @property
+    def stream(self) -> bool:
+        return "stream" in self.terms
+
+    def batches(self) -> list[dict]:
+        """The batches a stream has run, in order: their number, policy and tasks (recorded as the
+        assignment of those tasks to that policy)."""
+        return [e["body"] for e in self.events("assignment") if "batch" in e["body"]]
+
+    def batch_count(self) -> int:
+        size = self.terms["stream"]["batch"]
+        return -(-len(self.terms["stream"]["order"]) // size)
+
+    def recent_runs(self) -> set[str] | None:
+        """In a stream, the runs of the last few batches: the ones a view shows in full. Everything
+        in a campaign is recent."""
+        if not self.stream:
+            return None
+        recent = self.batches()[-self.terms["stream"]["recent"] :]
+        return {f"stream-{b['version'][:12]}-{task}" for b in recent for task in b["tasks"]}
+
+    def stream_policy(self) -> str:
+        """The policy the next batch runs with: the latest qualified delivery, else the root."""
+        policies = [
+            event["body"]["version"]
+            for event in self.events("selection")
+            if event["body"]["role"] == "stream_policy"
+        ]
+        return policies[-1] if policies else self.incumbent()
+
+    def learned(self, b: int) -> bool:
+        """Whether a stream has finished learning from batch b: its research was settled, or, after
+        the last batch, an analysis covers every run."""
+        if b == self.batch_count():
+            done = self.insights()
+            return bool(done) and done[-1]["coverage"] == sorted(self.observed())
+        state = self.contract(f"improvement.{b}")
+        return state is not None and state["standing"] != "outstanding"
+
+    def stream_step(self) -> str:
+        """The next unit of a stream: learning from the latest batch when that is unfinished, else the
+        next batch, run with the current policy on tasks no run has seen, then learning from it."""
+        done = self.batches()
+        if done and not self.learned(len(done)):
+            return self.learn(len(done))
+        b = len(done) + 1
+        if b > self.batch_count():
+            return "the stream is complete"
+        size = self.terms["stream"]["batch"]
+        tasks = self.terms["stream"]["order"][(b - 1) * size : b * size]
+        policy = self.stream_policy()
+        self.measure_all([(policy, task) for task in tasks], "stream")
+        self.record("assignment", {"batch": b, "version": policy, "tasks": tasks})
+        return self.learn(b)
+
+    def learn(self, b: int) -> str:
+        """What a stream learns from batch b: an analysis of the runs so far, which also counts the
+        signature of the change that set this batch's policy, then research whose qualified delivery
+        sets the next batch's policy. Choosing a policy is exploration and needs no authority: the
+        next batch measures it out of sample, and the baseline comparison certifies the stream."""
+        policy = self.batches()[b - 1]["version"]
+        mean_rate = mean(
+            r["pass_rate"]
+            for r in self.observed().values()
+            if r["version"] == policy and r["task"] in self.batches()[b - 1]["tasks"]
+        )
+        if b == self.batch_count():
+            k = self.analyze(policy)
+            return f"batch {b} (policy {policy[:12]}, mean {mean_rate:.3f}): the stream is complete; analysis {k} {self.insight(k)['status']}"
+        improvement = f"improvement.{b}"
+        self.issue(
+            improvement,
+            {"campaign": self.campaign_hash(), "parent": policy, "protocol": RESEARCH_PROTOCOL},
+            {
+                "class": "qualification",
+                "sections": EXPERIMENT_SECTIONS,
+                "mutable": self.terms["mutable"],
+            },
+            "delegate",
+        )
+        self.analyze(policy)
+        delivery = self.research(policy, b)
+        experiment = (
+            (delivery / "EXPERIMENT.md").read_text()
+            if (delivery / "EXPERIMENT.md").exists()
+            else ""
+        )
+        ok, reason, changed = self.qualify(delivery, policy)
+        subject = delivery_subject(delivery, experiment)
+        self.propose(improvement, subject)
+        head = f"batch {b} (policy {policy[:12]}, mean {mean_rate:.3f})"
+        if not ok:
+            self.release(improvement, reason)
+            return f"{head}: research did not qualify ({reason}); the policy stays"
+        candidate = self.register(delivery / "policy", policy, policy, experiment) if changed else None
+        self.support(improvement, {"qualification": reason}, {"delivery": subject}, "beyond")
+        self.discharge(improvement, self.presumed(), reason)
+        if candidate is None:
+            return f"{head}: {reason}; the policy stays"
+        self.record("selection", {"role": "stream_policy", "version": candidate, "batch": b + 1})
+        return f"{head}: batch {b + 1} runs with {candidate[:12]}"
 
     def settled_verdict(self, candidate: str) -> str:
         """What the challenged analysis of this very candidate says of its signature, else unknown.
@@ -1439,6 +1592,7 @@ class ProgramBench:
     def run_and_label(self, host: Host, bundle: Path, task: str, run_dir: Path) -> dict:
         import procontract_evaluation as evaluation
 
+        self.await_images(task)
         common = ["--arm", "on", "--instance", task, "--run-dir", str(run_dir)]
         common += ["--codex-bin", self.terms["codex_bin"]]
         prepare = common + [
@@ -1512,6 +1666,20 @@ class ProgramBench:
             "failures": failure_excerpt(run_dir / "eval"),
             "label": label,
         }
+
+    @staticmethod
+    def await_images(task: str, poll_secs: int = 60) -> None:
+        """Waits until both images a run needs are local: the cleanroom the executor works in and the
+        task image the evaluator runs. A run started without them would end invalid, and a stream
+        never runs an instance twice; the operator's pull fills them in, in the stream's order."""
+        base = f"programbench/{task.replace('__', '_1776_')}"
+        while any(
+            subprocess.run(
+                ["docker", "image", "inspect", f"{base}:{tag}"], capture_output=True
+            ).returncode
+            for tag in ("task_cleanroom", "task")
+        ):
+            time.sleep(poll_secs)
 
     def outcomes(self, run_dir: Path) -> dict[str, dict]:
         """Hidden tests by name: passed iff their last record says so, with the failure message
@@ -1664,6 +1832,21 @@ def verdict_problem(path: Path, pending: str) -> str:
     return ""
 
 
+def delivery_subject(delivery: Path, experiment: str) -> str:
+    """The content a research delivery is judged on: its experiment record and its bundle."""
+    return store.digest(
+        "delivery",
+        {
+            "experiment": experiment,
+            "bundle": {
+                name: (delivery / "policy" / name).read_text(errors="replace")
+                for name in BUNDLE_FILES
+                if (delivery / "policy" / name).exists()
+            },
+        },
+    )
+
+
 def hindsight_problem(path: Path, failing: dict[str, set[str]]) -> str:
     """Why hindsight.json is not a credit table over failing items, or an empty string. Each cluster
     names a task, items some run of it failed (each in one cluster only, or the mass is counted
@@ -1775,12 +1958,25 @@ def cmd_init(args) -> None:
         sys.exit(f"{camp} already holds a campaign")
     if args.knowledge and (problem := knowledge_problem(args.knowledge)):
         sys.exit(f"the seed knowledge is not acceptable: {problem}")
-    pools = json.loads(args.pools.read_text())
     rng = random.Random(args.seed)
-    dev = args.dev or rng.sample(sorted(pools["dev"]), args.dev_tasks)
-    # Confirmation draws on a sealed pool no research view or selection has read.
-    sealed = json.loads(args.sealed.read_text())[args.sealed_pool]
-    confirm = rng.sample(sorted(sealed), min(args.confirm_pool, len(sealed)))
+    stream = None
+    if args.instances:
+        # A stream runs every instance once, in an order fixed now, before anything has run.
+        instances = sorted(set(args.instances.read_text().split()))
+        stream = {
+            "order": rng.sample(instances, len(instances)),
+            "batch": args.batch,
+            "recent": args.recent_batches,
+        }
+        dev, confirm = [], []
+    elif args.pools is None or args.sealed is None:
+        sys.exit("a campaign needs --pools and --sealed (or --instances for a stream)")
+    else:
+        pools = json.loads(args.pools.read_text())
+        dev = args.dev or rng.sample(sorted(pools["dev"]), args.dev_tasks)
+        # Confirmation draws on a sealed pool no research view or selection has read.
+        sealed = json.loads(args.sealed.read_text())[args.sealed_pool]
+        confirm = rng.sample(sorted(sealed), min(args.confirm_pool, len(sealed)))
     codex = Path(args.codex_bin).resolve()
     terms = {
         "schema": 1,
@@ -1820,6 +2016,8 @@ def cmd_init(args) -> None:
         "analysis_deadline_secs": args.analysis_deadline_secs
         or args.research_deadline_secs,
     }
+    if stream:
+        terms["stream"] = stream
     camp.mkdir(parents=True)
     if args.knowledge:
         copy_knowledge(args.knowledge, camp / "knowledge-seed")
@@ -1855,6 +2053,70 @@ def cmd_step(args) -> None:
     host = Host(args.camp)
     for _ in range(args.count):
         print(host.step(), flush=True)
+
+
+def cmd_stream(args) -> None:
+    host = Host(args.camp)
+    for _ in range(args.count):
+        print(host.stream_step(), flush=True)
+
+
+def cmd_baseline(args) -> None:
+    """The root version once on every instance of a stream campaign. It runs in a campaign of its
+    own, initialized like the stream's (so its root is the same version), and no view of the stream
+    ever reads it."""
+    host = Host(args.camp)
+    root = host.incumbent()
+    with ThreadPoolExecutor(args.parallel) as pool:
+        list(pool.map(lambda task: host.measure(root, task, "baseline"), host.terms["stream"]["order"]))
+    print(f"baseline of {root[:12]}: {len(host.terms['stream']['order'])} instances measured")
+
+
+def cmd_report(args) -> None:
+    report = stream_report(Host(args.camp), Host(args.baseline))
+    (args.camp / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps({k: v for k, v in report.items() if k != "batches"}, indent=2))
+    for batch in report["batches"]:
+        print(json.dumps(batch))
+
+
+def stream_report(stream: Host, baseline: Host) -> dict:
+    """The stream against its baseline, paired by instance: each task was run once by the stream's
+    policy of the time and once by the root, so the task's difficulty cancels. Batch 1 runs the root
+    in both, so its pairs measure the comparison's own noise."""
+
+    def results(host: Host, purpose: str) -> dict[str, float]:
+        out = {}
+        for path in sorted((host.camp / "runs").glob(f"{purpose}-*/result.json")):
+            result = json.loads(path.read_text())
+            if result["validity"] == "valid":
+                out[result["task"]] = result["pass_rate"]
+        return out
+
+    ran, root = results(stream, "stream"), results(baseline, "baseline")
+    paired = [task for batch in stream.batches() for task in batch["tasks"] if task in ran and task in root]
+    deltas = [ran[task] - root[task] for task in paired]
+    rng = random.Random(0)
+    boot = sorted(mean(rng.choices(deltas, k=len(deltas))) for _ in range(2000)) if deltas else [0.0]
+    return {
+        "pairs": len(paired),
+        "stream_mean": round(mean(ran[task] for task in paired), 4),
+        "baseline_mean": round(mean(root[task] for task in paired), 4),
+        "mean_delta": round(mean(deltas), 4),
+        "ci95": [round(boot[int(0.025 * len(boot))], 4), round(boot[int(0.975 * len(boot)) - 1], 4)],
+        "wins": sum(d > 0 for d in deltas),
+        "losses": sum(d < 0 for d in deltas),
+        "ties": sum(d == 0 for d in deltas),
+        "batches": [
+            {
+                "batch": batch["batch"],
+                "policy": batch["version"][:12],
+                "pairs": len(ds := [ran[t] - root[t] for t in batch["tasks"] if t in ran and t in root]),
+                "mean_delta": round(mean(ds), 4) if ds else None,
+            }
+            for batch in stream.batches()
+        ],
+    }
 
 
 def cmd_analyze(args) -> None:
@@ -1934,7 +2196,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     init = sub.add_parser("init")
     init.add_argument("--camp", type=Path, required=True)
-    init.add_argument("--pools", type=Path, required=True)
+    init.add_argument("--pools", type=Path)
     init.add_argument("--codex-bin", required=True)
     init.add_argument("--task-prompt", type=Path, required=True)
     init.add_argument("--research-image", required=True)
@@ -1944,7 +2206,19 @@ def main() -> None:
     init.add_argument("--dev", nargs="+")
     init.add_argument("--dev-tasks", type=int, default=3)
     init.add_argument(
-        "--sealed", type=Path, required=True, help="the operator's sealed pool lists"
+        "--sealed", type=Path, help="the operator's sealed pool lists"
+    )
+    init.add_argument(
+        "--instances",
+        type=Path,
+        help="a file of instance ids: start a stream over them instead of a campaign",
+    )
+    init.add_argument("--batch", type=int, default=16, help="instances per batch of a stream")
+    init.add_argument(
+        "--recent-batches",
+        type=int,
+        default=2,
+        help="batches whose runs a stream's views show in full",
     )
     init.add_argument(
         "--sealed-pool", default="select", help="the sealed pool confirmation draws on"
@@ -1989,6 +2263,15 @@ def main() -> None:
     adopt.add_argument("--version", required=True)
     status = sub.add_parser("status")
     status.add_argument("--camp", type=Path, required=True)
+    stream = sub.add_parser("stream")
+    stream.add_argument("--camp", type=Path, required=True)
+    stream.add_argument("--count", type=int, default=1)
+    baseline = sub.add_parser("baseline")
+    baseline.add_argument("--camp", type=Path, required=True)
+    baseline.add_argument("--parallel", type=int, default=8)
+    report = sub.add_parser("report")
+    report.add_argument("--camp", type=Path, required=True)
+    report.add_argument("--baseline", type=Path, required=True)
     args = parser.parse_args()
     {
         "init": cmd_init,
@@ -1996,6 +2279,9 @@ def main() -> None:
         "analyze": cmd_analyze,
         "adopt": cmd_adopt,
         "status": cmd_status,
+        "stream": cmd_stream,
+        "baseline": cmd_baseline,
+        "report": cmd_report,
     }[args.command](args)
 
 
