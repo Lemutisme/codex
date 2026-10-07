@@ -59,6 +59,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import procontract_attribution as attribution
+import procontract_comparison as comparison
 import procontract_outcomes as outcome_matrix
 import procontract_release as release
 import procontract_store as store
@@ -2189,6 +2190,9 @@ def stream_report(stream: Host, baseline: Host) -> dict:
     policy of the time and once by the root, so the task's difficulty cancels. Batch 1 runs the root
     in both, so its pairs measure the comparison's own noise."""
 
+    comparison.validate_comparison(stream, baseline)
+    coverage = comparison.coverage(stream, baseline)
+
     def results(host: Host, purpose: str) -> dict[str, float]:
         out = {}
         for path in sorted((host.camp / "runs").glob(f"{purpose}-*/result.json")):
@@ -2202,7 +2206,7 @@ def stream_report(stream: Host, baseline: Host) -> dict:
         task
         for batch in stream.batches()
         for task in batch["tasks"]
-        if task in ran and task in root
+        if task in stream.order() and task in ran and task in root
     ]
     deltas = [ran[task] - root[task] for task in paired]
     rng = random.Random(0)
@@ -2212,6 +2216,7 @@ def stream_report(stream: Host, baseline: Host) -> dict:
         else [0.0]
     )
     return {
+        **coverage,
         "pairs": len(paired),
         "stream_mean": round(mean(ran[task] for task in paired), 4),
         "baseline_mean": round(mean(root[task] for task in paired), 4),
@@ -2228,11 +2233,7 @@ def stream_report(stream: Host, baseline: Host) -> dict:
                 "batch": batch["batch"],
                 "policy": batch["version"][:12],
                 "pairs": len(
-                    ds := [
-                        ran[t] - root[t]
-                        for t in batch["tasks"]
-                        if t in ran and t in root
-                    ]
+                    ds := [ran[t] - root[t] for t in batch["tasks"] if t in paired]
                 ),
                 "mean_delta": round(mean(ds), 4) if ds else None,
             }

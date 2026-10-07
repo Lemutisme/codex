@@ -11,6 +11,14 @@ If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="http
 
 ## Quickstart
 
+### ProContract RSI
+
+This fork supports an online learning stream with independently confirmed version
+adoption. Experimental policies can explore; only an authorized ProContract
+settlement updates the incumbent. See the [workflow, setup and validation
+guide](scripts/PROCONTRACT_RSI.md) for the pinned-runtime policy-level implementation
+and its security boundaries.
+
 ### Installing and running Codex CLI
 
 Run the following on Mac or Linux to install Codex CLI:
