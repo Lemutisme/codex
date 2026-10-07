@@ -147,6 +147,20 @@ impl Ledger {
         &self,
         event: &ExperimentEvent,
     ) -> Result<ExperimentRecord, LedgerError> {
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(storage)?;
+        let record = Self::append_experiment_in_transaction(&mut tx, event).await?;
+        tx.commit().await.map_err(storage)?;
+        Ok(record)
+    }
+
+    pub(super) async fn append_experiment_in_transaction(
+        connection: &mut sqlx::SqliteConnection,
+        event: &ExperimentEvent,
+    ) -> Result<ExperimentRecord, LedgerError> {
         validate(event)?;
         let event = ExperimentEvent {
             body: canonical(&event.body),
@@ -158,15 +172,10 @@ impl Ledger {
             .ok()
             .and_then(|kind| kind.as_str().map(str::to_string))
             .unwrap_or_default();
-        let mut tx = self
-            .pool
-            .begin_with("BEGIN IMMEDIATE")
-            .await
-            .map_err(storage)?;
         let prev_hash = sqlx::query_scalar::<_, String>(
             "SELECT hash FROM experiment_events ORDER BY seq DESC LIMIT 1",
         )
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut *connection)
         .await
         .map_err(storage)?
         .map(|hex| parse_digest(&hex))
@@ -180,11 +189,10 @@ impl Ledger {
         .bind(&encoded)
         .bind(prev_hash.to_string())
         .bind(hash.to_string())
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await
         .map_err(storage)?
         .last_insert_rowid();
-        tx.commit().await.map_err(storage)?;
         Ok(ExperimentRecord {
             seq,
             event,

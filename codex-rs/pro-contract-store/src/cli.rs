@@ -11,6 +11,7 @@ use codex_state::SqliteConfig;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::Serialize;
 
+use crate::AdoptionRequest;
 use crate::BlobStore;
 use crate::CapturePolicy;
 use crate::ExperimentEvent;
@@ -141,6 +142,13 @@ pub async fn apply_command(store: &Path, key: &str, command_json: &str) -> CliRe
     let command: AuthenticatedCommand = serde_json::from_str(command_json)?;
     let (ledger, _) = open(store).await?;
     Ok(ledger.apply(&command, key).await?)
+}
+
+/// Atomically discharges an adoption and selects its subject as incumbent under a sequence fence.
+pub async fn adopt_command(store: &Path, key: &str, request_json: &str) -> CliResult<Contract> {
+    let request: AdoptionRequest = serde_json::from_str(request_json)?;
+    let (ledger, _) = open(store).await?;
+    Ok(ledger.adopt(&request, key).await?)
 }
 
 /// The current state of a contract, if it exists.

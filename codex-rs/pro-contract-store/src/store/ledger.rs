@@ -57,6 +57,11 @@ pub enum LedgerError {
     Rejected(Rejection),
     #[error("idempotency key reused with a different command")]
     IdempotencyConflict,
+    #[error("incumbent changed: expected selection {expected:?}, found {actual:?}")]
+    IncumbentChanged {
+        expected: Option<i64>,
+        actual: Option<i64>,
+    },
     #[error("ledger record is corrupt: {0}")]
     Corrupt(String),
     #[error("experiment event is invalid: {0}")]
@@ -115,10 +120,26 @@ impl Ledger {
             .begin_with("BEGIN IMMEDIATE")
             .await
             .map_err(storage)?;
+        if let Some(committed) =
+            Self::committed_result(&mut tx, idempotency_key, &command_hash).await?
+        {
+            return Ok(committed);
+        }
+        let next =
+            Self::apply_in_transaction(&mut tx, command, idempotency_key, &command_hash).await?;
+        tx.commit().await.map_err(storage)?;
+        Ok(next)
+    }
+
+    pub(super) async fn committed_result(
+        connection: &mut sqlx::SqliteConnection,
+        idempotency_key: &str,
+        command_hash: &str,
+    ) -> Result<Option<Contract>, LedgerError> {
         let committed =
             sqlx::query("SELECT command_hash, result_json FROM idempotency WHERE key = ?")
                 .bind(idempotency_key)
-                .fetch_optional(&mut *tx)
+                .fetch_optional(&mut *connection)
                 .await
                 .map_err(storage)?;
         if let Some(row) = committed {
@@ -127,12 +148,21 @@ impl Ledger {
                 return Err(LedgerError::IdempotencyConflict);
             }
             let json: String = row.try_get("result_json").map_err(storage)?;
-            return decode(&json);
+            return decode(&json).map(Some);
         }
+        Ok(None)
+    }
+
+    pub(super) async fn apply_in_transaction(
+        connection: &mut sqlx::SqliteConnection,
+        command: &AuthenticatedCommand,
+        idempotency_key: &str,
+        command_hash: &str,
+    ) -> Result<Contract, LedgerError> {
         let current: Option<Contract> =
             sqlx::query_scalar::<_, String>("SELECT state_json FROM contracts WHERE id = ?")
                 .bind(&command.contract_id.0)
-                .fetch_optional(&mut *tx)
+                .fetch_optional(&mut *connection)
                 .await
                 .map_err(storage)?
                 .map(|json| decode(&json))
@@ -140,7 +170,7 @@ impl Ledger {
         let next = transition(current.as_ref(), command).map_err(LedgerError::Rejected)?;
         let prev_hash =
             sqlx::query_scalar::<_, String>("SELECT hash FROM events ORDER BY seq DESC LIMIT 1")
-                .fetch_optional(&mut *tx)
+                .fetch_optional(&mut *connection)
                 .await
                 .map_err(storage)?
                 .map(|hex| parse_digest(&hex))
@@ -159,7 +189,7 @@ impl Ledger {
         .bind(state_hash.to_string())
         .bind(prev_hash.to_string())
         .bind(hash.to_string())
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await
         .map_err(storage)?;
         sqlx::query(
@@ -169,17 +199,16 @@ impl Ledger {
         .bind(&next.id.0)
         .bind(next.version as i64)
         .bind(&state_json)
-        .execute(&mut *tx)
+        .execute(&mut *connection)
         .await
         .map_err(storage)?;
         sqlx::query("INSERT INTO idempotency (key, command_hash, result_json) VALUES (?, ?, ?)")
             .bind(idempotency_key)
-            .bind(&command_hash)
+            .bind(command_hash)
             .bind(&state_json)
-            .execute(&mut *tx)
+            .execute(&mut *connection)
             .await
             .map_err(storage)?;
-        tx.commit().await.map_err(storage)?;
         Ok(next)
     }
 

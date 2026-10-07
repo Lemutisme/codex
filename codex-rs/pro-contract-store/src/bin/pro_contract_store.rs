@@ -55,6 +55,13 @@ enum Command {
         #[arg(long)]
         key: String,
     },
+    /// Atomically discharge and select an incumbent using a fenced adoption request from stdin.
+    Adopt {
+        #[arg(long)]
+        store: PathBuf,
+        #[arg(long)]
+        key: String,
+    },
     /// Print a contract's current state as JSON (`null` when it does not exist).
     Contract {
         #[arg(long)]
@@ -102,6 +109,12 @@ async fn main() -> cli::CliResult<()> {
             let mut command = String::new();
             std::io::stdin().read_to_string(&mut command)?;
             let contract = cli::apply_command(&store, &key, &command).await?;
+            println!("{}", serde_json::to_string(&contract)?);
+        }
+        Command::Adopt { store, key } => {
+            let mut request = String::new();
+            std::io::stdin().read_to_string(&mut request)?;
+            let contract = cli::adopt_command(&store, &key, &request).await?;
             println!("{}", serde_json::to_string(&contract)?);
         }
         Command::Contract { store, id } => {

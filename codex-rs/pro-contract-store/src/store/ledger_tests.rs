@@ -20,6 +20,9 @@ use super::Ledger;
 use super::LedgerError;
 use super::SubjectBinding;
 
+#[path = "adoption_tests.rs"]
+mod adoption;
+
 async fn open(dir: &std::path::Path) -> Ledger {
     let sqlite = SqliteConfig::new_for_testing(
         AbsolutePathBuf::from_absolute_path(dir).expect("absolute tempdir"),

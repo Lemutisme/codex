@@ -88,3 +88,21 @@ def contract(store: Path, contract_id: str) -> dict | None:
 def digest(domain: str, value) -> str:
     """The store's own domain-separated digest of a JSON value."""
     return _run(["digest", "--domain", domain], stdin=json.dumps(value)).strip()
+
+
+def adopt(
+    store: Path,
+    key: str,
+    command: dict,
+    expected_incumbent_seq: int | None,
+    identities: dict,
+) -> dict:
+    """Atomically settle an adoption and publish its incumbent, fenced by the old selection."""
+    request = {
+        "command": command,
+        "expected_incumbent_seq": expected_incumbent_seq,
+        "identities": identities,
+    }
+    return json.loads(
+        _run(["adopt", "--store", str(store), "--key", key], stdin=json.dumps(request))
+    )

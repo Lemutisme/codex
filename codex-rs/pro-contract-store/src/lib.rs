@@ -18,6 +18,7 @@ pub use capture::load_subject;
 pub use capture::materialize;
 pub use capture::persist_manifest;
 pub use hashing::digest_of;
+pub use store::adoption::AdoptionRequest;
 pub use store::blobs::BlobStore;
 pub use store::experiments::ExperimentEvent;
 pub use store::experiments::ExperimentKind;
