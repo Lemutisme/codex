@@ -590,7 +590,9 @@ class Host:
         if self.stream:
             # The policy of the latest batch, when it changed how tasks are done since the batch before.
             policies = [batch["version"] for batch in self.batches()]
-            changed = len(policies) > 1 and self.twin(policies[-1]) != self.twin(policies[-2])
+            changed = len(policies) > 1 and self.twin(policies[-1]) != self.twin(
+                policies[-2]
+            )
             return policies[-1] if changed and policies[-1] not in asked else None
         pending = None
         for event in self.events("selection"):
@@ -645,7 +647,12 @@ class Host:
                 kept = self.camp / "insight" / str(body["k"])
                 target = archive / "insight" / str(body["k"])
                 target.mkdir(parents=True)
-                for name in ("ANALYSIS.md", "CHALLENGE.md", "hindsight.json", "verdict.json"):
+                for name in (
+                    "ANALYSIS.md",
+                    "CHALLENGE.md",
+                    "hindsight.json",
+                    "verdict.json",
+                ):
                     if (kept / name).exists():
                         shutil.copy(kept / name, target)
         copy_knowledge(self.current_knowledge(), archive / "knowledge")
@@ -686,11 +693,16 @@ class Host:
             ]
             latest = self.latest_insight()
             if latest and (latest / "hindsight.json").exists():
-                lines += ["", *failure_mass(json.loads((latest / "hindsight.json").read_text()))]
+                lines += [
+                    "",
+                    *failure_mass(json.loads((latest / "hindsight.json").read_text())),
+                ]
             (archive / "README.md").write_text("\n".join([*lines, "", LAYOUT]) + "\n")
             return
         chance = self.chance(self.task_runs())
-        per_task = ", ".join(f"{task} {t['rate']:.3f}" for task, t in sorted(chance["tasks"].items()))
+        per_task = ", ".join(
+            f"{task} {t['rate']:.3f}" for task, t in sorted(chance["tasks"].items())
+        )
         lines += [
             "",
             f"Chance rescue rate of a floor family: {chance['rate']:.3f} pooled ({chance['rescued']} of "
@@ -701,7 +713,10 @@ class Host:
         ]
         latest = self.latest_insight()
         if latest and (latest / "hindsight.json").exists():
-            lines += ["", *failure_mass(json.loads((latest / "hindsight.json").read_text()))]
+            lines += [
+                "",
+                *failure_mass(json.loads((latest / "hindsight.json").read_text())),
+            ]
         (archive / "README.md").write_text("\n".join([*lines, "", LAYOUT]) + "\n")
 
     def task_runs(self) -> dict[str, list[dict]]:
@@ -712,7 +727,9 @@ class Host:
         for name, result in self.observed().items():
             version = result["version"]
             parent = versions[version]["lineage"]["parent"]
-            outcomes = json.loads((self.observe(name, result) / "outcomes.json").read_text())
+            outcomes = json.loads(
+                (self.observe(name, result) / "outcomes.json").read_text()
+            )
             by_task.setdefault(result["task"], []).append(
                 {
                     "name": name,
@@ -740,7 +757,11 @@ class Host:
             "rescued": rescued,
             "exposed": exposed,
             "tasks": {
-                task: {"rescued": r, "exposed": e, "rate": (r + rate * weight) / (e + weight)}
+                task: {
+                    "rescued": r,
+                    "exposed": e,
+                    "rate": (r + rate * weight) / (e + weight),
+                }
                 for task, (r, e) in sorted(counts.items())
             },
         }
@@ -863,7 +884,10 @@ class Host:
             if pending
             else NOT_PENDING
         )
-        failing = {task: outcome_matrix.failed_items(runs) for task, runs in self.task_runs().items()}
+        failing = {
+            task: outcome_matrix.failed_items(runs)
+            for task, runs in self.task_runs().items()
+        }
         analysis, reason = self.insight_stage(
             root,
             "analyst",
@@ -1053,8 +1077,10 @@ class Host:
             )
         if leak := self.boundary(policy, changed):
             return False, leak, False
-        if not self.stream and any(name in TASK_FILES for name in changed) and (
-            problem := self.prediction_problem(delivery / "prediction.json")
+        if (
+            not self.stream
+            and any(name in TASK_FILES for name in changed)
+            and (problem := self.prediction_problem(delivery / "prediction.json"))
         ):
             return False, problem, False
         return (
@@ -1098,7 +1124,9 @@ class Host:
         return ""
 
     @staticmethod
-    def claims(rescue: dict, runs: dict[str, list[dict]]) -> dict[str, dict[str, list[str]]]:
+    def claims(
+        rescue: dict, runs: dict[str, list[dict]]
+    ) -> dict[str, dict[str, list[str]]]:
         """The floor items a prediction names, per task and test family; items off the floor are
         dropped, for chance rescues them often."""
         claims = {
@@ -1113,7 +1141,9 @@ class Host:
     def rates(claims: dict, chance: dict) -> list[float]:
         """The chance of rescuing each claimed family: its task's rate, else the pooled one."""
         return [
-            chance["tasks"].get(task, chance)["rate"] for task, families in claims.items() for _ in families
+            chance["tasks"].get(task, chance)["rate"]
+            for task, families in claims.items()
+            for _ in families
         ]
 
     def predict(self, candidate: str, delivery: Path) -> str:
@@ -1154,7 +1184,9 @@ class Host:
         )
         runs = self.dev_runs(candidate)
         outcomes = {
-            run["name"]: run["outcomes"] for group in self.task_runs().values() for run in group
+            run["name"]: run["outcomes"]
+            for group in self.task_runs().values()
+            for run in group
         }
         tasks = {}
         for task, families in terms["rescue"].items():
@@ -1188,7 +1220,8 @@ class Host:
         if void:
             reading = f"void, no valid run of {', '.join(void)}: {reading}"
         self.propose(
-            contract, store.digest("runs", {task: runs[task]["run_dir"] for task in tasks})
+            contract,
+            store.digest("runs", {task: runs[task]["run_dir"] for task in tasks}),
         )
         if settlement["held"]:
             self.support(contract, settlement, {"runs": sorted(tasks)}, "beyond")
@@ -1299,7 +1332,11 @@ class Host:
         # The criterion is mechanical and complete, so the checks reach everything it asks. The
         # candidate and its prediction come before the discharge, so a host that stops in between
         # resumes here, where nothing has run; after it, a candidate resumes by its prediction.
-        candidate = self.register(delivery / "policy", parent, parent, experiment) if changed else None
+        candidate = (
+            self.register(delivery / "policy", parent, parent, experiment)
+            if changed
+            else None
+        )
         method_only = candidate is not None and self.twin(candidate) != candidate
         if candidate and not method_only:
             self.predict(candidate, delivery)
@@ -1360,7 +1397,9 @@ class Host:
             or not settlement["held"]
             or self.confirm_budget_left() < gates["confirm_tasks"]
         ):
-            return f"step {step}: candidate {candidate[:12]} stays in research ({reading})"
+            return (
+                f"step {step}: candidate {candidate[:12]} stays in research ({reading})"
+            )
         self.record(
             "selection",
             {"role": "put_forward", "version": candidate, "dev_delta": delta},
@@ -1402,7 +1441,9 @@ class Host:
         if not self.stream:
             return None
         recent = self.batches()[-self.terms["stream"]["recent"] :]
-        return {f"stream-{b['version'][:12]}-{task}" for b in recent for task in b["tasks"]}
+        return {
+            f"stream-{b['version'][:12]}-{task}" for b in recent for task in b["tasks"]
+        }
 
     def stream_policy(self) -> str:
         """The policy the next batch runs with: the latest qualified delivery, else the root."""
@@ -1455,7 +1496,11 @@ class Host:
         improvement = f"improvement.{b}"
         self.issue(
             improvement,
-            {"campaign": self.campaign_hash(), "parent": policy, "protocol": RESEARCH_PROTOCOL},
+            {
+                "campaign": self.campaign_hash(),
+                "parent": policy,
+                "protocol": RESEARCH_PROTOCOL,
+            },
             {
                 "class": "qualification",
                 "sections": EXPERIMENT_SECTIONS,
@@ -1477,12 +1522,20 @@ class Host:
         if not ok:
             self.release(improvement, reason)
             return f"{head}: research did not qualify ({reason}); the policy stays"
-        candidate = self.register(delivery / "policy", policy, policy, experiment) if changed else None
-        self.support(improvement, {"qualification": reason}, {"delivery": subject}, "beyond")
+        candidate = (
+            self.register(delivery / "policy", policy, policy, experiment)
+            if changed
+            else None
+        )
+        self.support(
+            improvement, {"qualification": reason}, {"delivery": subject}, "beyond"
+        )
         self.discharge(improvement, self.presumed(), reason)
         if candidate is None:
             return f"{head}: {reason}; the policy stays"
-        self.record("selection", {"role": "stream_policy", "version": candidate, "batch": b + 1})
+        self.record(
+            "selection", {"role": "stream_policy", "version": candidate, "batch": b + 1}
+        )
         return f"{head}: batch {b + 1} runs with {candidate[:12]}"
 
     def settled_verdict(self, candidate: str) -> str:
@@ -1776,7 +1829,10 @@ def compact(run_dir: Path) -> None:
     """Compresses a labelled run's bulky logs: the app-server's protocol log and codex's log
     database, which no analysis reads (trajectories come from the session rollouts). Lossless, so a
     debugging session can still read them; it keeps a long stream within the disk."""
-    for path in [run_dir / "app-server.jsonl", *(run_dir / "codex-home").glob("logs_*.sqlite*")]:
+    for path in [
+        run_dir / "app-server.jsonl",
+        *(run_dir / "codex-home").glob("logs_*.sqlite*"),
+    ]:
         if path.is_file():
             subprocess.run(["gzip", "-f", str(path)], check=False)
 
@@ -1903,7 +1959,9 @@ def hindsight_problem(path: Path, failing: dict[str, set[str]]) -> str:
         if (
             not isinstance(items, list)
             or not items
-            or not all(isinstance(item, str) and item in failing[task] for item in items)
+            or not all(
+                isinstance(item, str) and item in failing[task] for item in items
+            )
         ):
             return f"hindsight cluster {n} names items no run of {task} failed"
         claimed = {(task, item) for item in items}
@@ -2142,16 +2200,28 @@ def stream_report(stream: Host, baseline: Host) -> dict:
         return out
 
     ran, root = results(stream, "stream"), results(baseline, "baseline")
-    paired = [task for batch in stream.batches() for task in batch["tasks"] if task in ran and task in root]
+    paired = [
+        task
+        for batch in stream.batches()
+        for task in batch["tasks"]
+        if task in ran and task in root
+    ]
     deltas = [ran[task] - root[task] for task in paired]
     rng = random.Random(0)
-    boot = sorted(mean(rng.choices(deltas, k=len(deltas))) for _ in range(2000)) if deltas else [0.0]
+    boot = (
+        sorted(mean(rng.choices(deltas, k=len(deltas))) for _ in range(2000))
+        if deltas
+        else [0.0]
+    )
     return {
         "pairs": len(paired),
         "stream_mean": round(mean(ran[task] for task in paired), 4),
         "baseline_mean": round(mean(root[task] for task in paired), 4),
         "mean_delta": round(mean(deltas), 4),
-        "ci95": [round(boot[int(0.025 * len(boot))], 4), round(boot[int(0.975 * len(boot)) - 1], 4)],
+        "ci95": [
+            round(boot[int(0.025 * len(boot))], 4),
+            round(boot[int(0.975 * len(boot)) - 1], 4),
+        ],
         "wins": sum(d > 0 for d in deltas),
         "losses": sum(d < 0 for d in deltas),
         "ties": sum(d == 0 for d in deltas),
@@ -2159,7 +2229,13 @@ def stream_report(stream: Host, baseline: Host) -> dict:
             {
                 "batch": batch["batch"],
                 "policy": batch["version"][:12],
-                "pairs": len(ds := [ran[t] - root[t] for t in batch["tasks"] if t in ran and t in root]),
+                "pairs": len(
+                    ds := [
+                        ran[t] - root[t]
+                        for t in batch["tasks"]
+                        if t in ran and t in root
+                    ]
+                ),
                 "mean_delta": round(mean(ds), 4) if ds else None,
             }
             for batch in stream.batches()
@@ -2206,7 +2282,9 @@ def cmd_status(args) -> None:
                 "dev_mean": round(mean(results.values()), 3)
                 if (results := host.dev_results(vid))
                 else None,
-                "prediction": {k: settled[k] for k in ("rescued", "predicted", "p", "held")}
+                "prediction": {
+                    k: settled[k] for k in ("rescued", "predicted", "p", "held")
+                }
                 if (settled := host.settlement(vid))
                 else None,
             }
@@ -2253,15 +2331,15 @@ def main() -> None:
     init.add_argument("--seed", type=int, default=20261006)
     init.add_argument("--dev", nargs="+")
     init.add_argument("--dev-tasks", type=int, default=3)
-    init.add_argument(
-        "--sealed", type=Path, help="the operator's sealed pool lists"
-    )
+    init.add_argument("--sealed", type=Path, help="the operator's sealed pool lists")
     init.add_argument(
         "--instances",
         type=Path,
         help="a file of instance ids: start a stream over them instead of a campaign",
     )
-    init.add_argument("--batch", type=int, default=16, help="instances per batch of a stream")
+    init.add_argument(
+        "--batch", type=int, default=16, help="instances per batch of a stream"
+    )
     init.add_argument(
         "--recent-batches",
         type=int,
