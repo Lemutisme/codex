@@ -60,6 +60,7 @@ from pathlib import Path
 import procontract_attribution as attribution
 import procontract_outcomes as outcome_matrix
 import procontract_store as store
+import procontract_succession as succession
 import procontract_trajectory as trajectory
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -410,20 +411,30 @@ class Host:
         """Runs a version on one task and labels the result; cached by run directory."""
         run_dir = self.camp / "runs" / f"{purpose}-{vid[:12]}-{task}"
         result_file = run_dir / "result.json"
-        # Only valid measurements are kept: an invalid run is infrastructure, never a result, so a
-        # later invocation measures again.
-        if (
-            result_file.exists()
-            and json.loads(result_file.read_text())["validity"] == "valid"
-        ):
-            return json.loads(result_file.read_text())
+        # Invalid attempts consume their allowance too. Restarting never resets that budget.
+        if result_file.exists():
+            return succession.record_run(self, json.loads(result_file.read_text()))
         result = None
+        run_dir.mkdir(parents=True, exist_ok=True)
         for attempt in (1, 2):
             attempt_dir = run_dir / f"attempt-{attempt}"
-            shutil.rmtree(attempt_dir, ignore_errors=True)
-            result = self.adapter.run_and_label(
-                self, self.version_dir(vid) / "bundle", task, attempt_dir
-            )
+            receipt = run_dir / f"attempt-{attempt}.json"
+            if receipt.exists():
+                result = json.loads(receipt.read_text())
+            else:
+                succession.receipt(
+                    receipt,
+                    {
+                        "validity": "invalid",
+                        "pass_rate": None,
+                        "reason": "attempt interrupted before a terminal receipt",
+                        "cost_unknown": True,
+                    },
+                )
+                result = self.adapter.run_and_label(
+                    self, self.version_dir(vid) / "bundle", task, attempt_dir
+                )
+                succession.receipt(receipt, result)
             if result["validity"] == "valid":
                 break
         result = {
@@ -434,13 +445,8 @@ class Host:
             **result,
         }
         run_dir.mkdir(parents=True, exist_ok=True)
-        result_file.write_text(json.dumps(result, indent=2) + "\n")
-        self.record("execution", {k: v for k, v in result.items() if k != "label"})
-        if result.get("label"):
-            self.record(
-                "label", result["label"], epoch=result["label"]["evaluator_epoch"]
-            )
-        return result
+        succession.receipt(result_file, result)
+        return succession.record_run(self, result)
 
     def measure_all(
         self, pairs: list[tuple[str, str]], purpose: str
@@ -1550,97 +1556,28 @@ class Host:
         return store.digest("campaign", self.terms)
 
     def used_confirmation_tasks(self) -> list[str]:
-        return [
+        exposed = [
             task
             for event in self.events("exposure")
             if event["body"]["view"].startswith("confirmation:")
             for task in event["body"]["sources"]
         ]
+        reserved = [
+            task
+            for event in self.events("assignment")
+            if "confirmation" in event["body"]
+            for task in event["body"]["tasks"]
+        ]
+        return list(dict.fromkeys([*reserved, *exposed]))
 
     def confirm_budget_left(self) -> int:
         return len(self.terms["pools"]["confirm"]) - len(self.used_confirmation_tasks())
 
     def confirm(self, candidate: str, incumbent: str) -> str:
-        """Paired confirmation on fresh tasks: support from beyond the candidate's reach."""
-        adoption = f"adoption.{candidate[:16]}"
-        used = set(self.used_confirmation_tasks())
-        fresh = [task for task in self.terms["pools"]["confirm"] if task not in used]
-        tasks = fresh[: self.terms["gates"]["confirm_tasks"]]
-        gate = {
-            k: self.terms["gates"][k]
-            for k in ("confirm_tasks", "confirm_min_delta", "confirm_min_wins")
-        }
-        self.issue(
-            adoption,
-            {
-                "campaign": self.campaign_hash(),
-                "candidate": candidate,
-                "expected_incumbent": incumbent,
-                "gate": gate,
-            },
-            {
-                "class": "paired_confirmation",
-                "tasks": store.digest("pool", tasks),
-                "gate": gate,
-            },
-            "delegate",
-        )
-        self.propose(adoption, candidate)
-        # Spent before it is read: these tasks never certify anything again.
-        self.record("exposure", {"view": f"confirmation:{candidate}", "sources": tasks})
-        results = self.measure_all(
-            [(v, t) for t in tasks for v in (candidate, incumbent)], "confirm"
-        )
-        pairs = {
-            t: (
-                results[(candidate, t)]["pass_rate"],
-                results[(incumbent, t)]["pass_rate"],
-            )
-            for t in tasks
-            if results[(candidate, t)]["validity"] == "valid"
-            and results[(incumbent, t)]["validity"] == "valid"
-        }
-        deltas = [c - i for c, i in pairs.values()]
-        evidence = {
-            "pairs": pairs,
-            "mean_delta": mean(deltas),
-            "wins": sum(d > 0 for d in deltas),
-            "gate": gate,
-        }
-        passed = (
-            len(pairs) == len(tasks)
-            and evidence["mean_delta"] >= gate["confirm_min_delta"]
-            and evidence["wins"] >= gate["confirm_min_wins"]
-        )
-        if not passed:
-            self.release(
-                adoption,
-                f"confirmation gate failed: {json.dumps(evidence, sort_keys=True)}",
-            )
-            return f"confirmation failed (mean delta {evidence['mean_delta']:+.3f}, {evidence['wins']}/{len(tasks)} wins)"
-        self.support(
-            adoption,
-            evidence,
-            {"tasks": tasks, "evaluator": self.adapter.evaluator()},
-            "beyond",
-        )
-        if self.terms["adoption"] == "presumed":
-            self.adopt(candidate, presumed=True)
-            return f"confirmed and adopted under the campaign's convention (mean delta {evidence['mean_delta']:+.3f})"
-        return f"confirmed (mean delta {evidence['mean_delta']:+.3f}); awaiting the principal's adoption"
+        return succession.confirm(self, candidate, incumbent)
 
     def adopt(self, candidate: str, presumed: bool = False) -> str:
-        adoption = f"adoption.{candidate[:16]}"
-        state = self.contract(adoption)
-        if not state or not state["support"]:
-            raise RuntimeError(f"{candidate[:12]} has no supported adoption")
-        decision = self.presumed() if presumed else {"type": "explicit"}
-        self.discharge(adoption, decision, f"adopt {candidate}")
-        self.record(
-            "selection",
-            {"role": "incumbent", "version": candidate, "adoption": adoption},
-        )
-        return f"{candidate[:12]} is the incumbent"
+        return succession.adopt(self, candidate, presumed)
 
 
 class ProgramBench:
