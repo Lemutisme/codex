@@ -39,7 +39,9 @@ SUBMISSION_EXCLUDED = ["./executable", "./target"]
 STATUS_POLL_SECS = 5.0
 
 
-def config_toml(developer_instructions: str = "") -> str:
+def config_toml(
+    developer_instructions: str = "", *, model: str = MODEL, effort: str = EFFORT
+) -> str:
     """The executor's configuration; a version's standing instructions become its developer
     instructions."""
     instructions = (
@@ -47,8 +49,8 @@ def config_toml(developer_instructions: str = "") -> str:
         if developer_instructions.strip()
         else ""
     )
-    return f"""model = "{MODEL}"
-model_reasoning_effort = "{EFFORT}"
+    return f"""model = {json.dumps(model)}
+model_reasoning_effort = {json.dumps(effort)}
 model_provider = "openai-custom"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
@@ -106,7 +108,13 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
 
 
 def settings(
-    workspace: Path, image: str, reference: bool = True, policy: Path | None = None
+    workspace: Path,
+    image: str,
+    reference: bool = True,
+    policy: Path | None = None,
+    *,
+    model: str = MODEL,
+    effort: str = EFFORT,
 ) -> dict:
     """The evaluation grant. Without a reference the lane has nothing to build or compare and
     decides from review alone; a policy bundle replaces the built-in worker instructions."""
@@ -128,7 +136,7 @@ def settings(
             "reference_command": f"{CONTAINER_WORKSPACE}/executable",
         },
         "repair_attempts": 1,
-        "worker": {"model": MODEL, "reasoning_effort": EFFORT, "deadline_secs": 2400},
+        "worker": {"model": model, "reasoning_effort": effort, "deadline_secs": 2400},
     }
     if not reference:
         result["evaluation"]["reference_command"] = None
@@ -147,14 +155,23 @@ def write_codex_home(
     reference: bool = True,
     policy: Path | None = None,
     developer_instructions: str = "",
+    *,
+    model: str = MODEL,
+    effort: str = EFFORT,
 ) -> None:
     (home / "pro_contract").mkdir(parents=True, exist_ok=True)
-    (home / "config.toml").write_text(config_toml(developer_instructions))
+    (home / "config.toml").write_text(
+        config_toml(developer_instructions, model=model, effort=effort)
+    )
     (home / "environments.toml").write_text(
         environments_toml(workspace, codex_bin, image)
     )
     (home / "pro_contract" / "settings.json").write_text(
-        json.dumps(settings(workspace, image, reference, policy), indent=2) + "\n"
+        json.dumps(
+            settings(workspace, image, reference, policy, model=model, effort=effort),
+            indent=2,
+        )
+        + "\n"
     )
 
 
@@ -474,6 +491,8 @@ def prepare(args: argparse.Namespace) -> None:
         reference=not args.no_reference,
         policy=policy,
         developer_instructions=instructions,
+        model=args.model,
+        effort=args.effort,
     )
     prompt = args.prompt.read_bytes()
     (run_dir / "prompt.txt").write_bytes(prompt)
@@ -484,6 +503,8 @@ def prepare(args: argparse.Namespace) -> None:
         "codex_bin": str(args.codex_bin.resolve()),
         "codex_sha256": hashlib.sha256(args.codex_bin.read_bytes()).hexdigest(),
         "prompt_sha256": hashlib.sha256(prompt).hexdigest(),
+        "model": args.model,
+        "effort": args.effort,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
@@ -504,6 +525,10 @@ def current_key(environ: dict) -> str | None:
 
 def run(args: argparse.Namespace) -> None:
     run_dir: Path = args.run_dir
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    # Prepare pins the executor and every worker together; run-time flags cannot relabel them.
+    model = manifest.get("model", MODEL)
+    effort = manifest.get("effort", EFFORT)
     home = run_dir / "codex-home"
     if key := current_key(os.environ):
         os.environ["OPENAI_API_KEY"] = key
@@ -532,7 +557,12 @@ def run(args: argparse.Namespace) -> None:
         else:
             turns.observe(message)
 
-    summary: dict = {"arm": args.arm, "deadline_secs": args.deadline_secs}
+    summary: dict = {
+        "arm": args.arm,
+        "deadline_secs": args.deadline_secs,
+        "model": model,
+        "effort": effort,
+    }
     try:
         server.request(
             "initialize",
@@ -550,8 +580,8 @@ def run(args: argparse.Namespace) -> None:
         thread = server.request(
             "thread/start",
             {
-                "model": MODEL,
-                "config": {"model_reasoning_effort": EFFORT},
+                "model": model,
+                "config": {"model_reasoning_effort": effort},
                 "sandbox": "danger-full-access",
                 "approvalPolicy": "never",
                 "cwd": CONTAINER_WORKSPACE,
@@ -637,7 +667,7 @@ def run(args: argparse.Namespace) -> None:
     finally:
         summary["elapsed_secs"] = round(time.monotonic() - started)
         server.close()
-        readable(run_dir / "workspace", json.loads((run_dir / "manifest.json").read_text())["image"])
+        readable(run_dir / "workspace", manifest["image"])
         (run_dir / "run.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))
 
@@ -647,8 +677,23 @@ def readable(workspace: Path, image: str) -> None:
     files only it can read (an atomic replace through a temporary file is 0600), and the host must
     read every delivery, package and copy."""
     subprocess.run(
-        ["docker", "run", "--rm", "--network", "none", "--user", "0:0", "-v", f"{workspace}:/w",
-         "--entrypoint", "chmod", image, "-R", "a+rX", "/w"],
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--user",
+            "0:0",
+            "-v",
+            f"{workspace}:/w",
+            "--entrypoint",
+            "chmod",
+            image,
+            "-R",
+            "a+rX",
+            "/w",
+        ],
         check=False,
         capture_output=True,
     )
@@ -664,6 +709,10 @@ def main() -> None:
     parser.add_argument("--instance", required=True)
     parser.add_argument("--image")
     parser.add_argument("--codex-bin", type=Path, default=DEFAULT_CODEX)
+    parser.add_argument("--model", default=MODEL, help="model pinned by prepare")
+    parser.add_argument(
+        "--effort", default=EFFORT, help="reasoning effort pinned by prepare"
+    )
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
     parser.add_argument(

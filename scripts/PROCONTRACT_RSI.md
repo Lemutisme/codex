@@ -46,6 +46,7 @@ lineage. Keep both the runtime and evaluator inputs pinned throughout a run.
 ```sh
 python3 scripts/procontract_rsi.py init \
   --camp /path/to/campaign --codex-bin /path/to/pinned/codex \
+  --model gpt-5.6-luna --effort max \
   --task-prompt /path/to/task-prompt.txt --research-image YOUR_RESEARCH_IMAGE \
   --programbench /path/to/ProgramBench --hf-revision PINNED_REVISION \
   --instances /path/to/stream.txt --batch 16 --release-every 2 \
@@ -55,6 +56,9 @@ python3 scripts/procontract_rsi.py init \
 python3 scripts/procontract_rsi.py stream --camp /path/to/campaign --count 1
 python3 scripts/procontract_rsi.py status --camp /path/to/campaign
 ```
+
+Model and effort apply to execution, analysis, challenge and research. Use a fresh
+campaign to compare another model; do not relabel a running campaign.
 
 Repeat `stream` to advance. `--adoption explicit` instead requires the operator
 to run `adopt --camp ... --version ...` after confirmation. `--release-every 0`

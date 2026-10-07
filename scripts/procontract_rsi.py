@@ -839,6 +839,10 @@ class Host:
             common += [
                 "--codex-bin",
                 self.terms["codex_bin"],
+                "--model",
+                self.terms["model"],
+                "--effort",
+                self.terms["effort"],
                 "--image",
                 self.terms["research_image"],
             ]
@@ -1625,7 +1629,14 @@ class ProgramBench:
 
         self.await_images(task)
         common = ["--arm", "on", "--instance", task, "--run-dir", str(run_dir)]
-        common += ["--codex-bin", self.terms["codex_bin"]]
+        common += [
+            "--codex-bin",
+            self.terms["codex_bin"],
+            "--model",
+            self.terms["model"],
+            "--effort",
+            self.terms["effort"],
+        ]
         prepare = common + [
             "--prompt",
             self.terms["task_prompt"],
@@ -2066,8 +2077,8 @@ def cmd_init(args) -> None:
     terms = {
         "schema": 1,
         "seed": args.seed,
-        "model": "gpt-5.6-luna",
-        "effort": "max",
+        "model": args.model,
+        "effort": args.effort,
         "codex_bin": str(codex),
         "codex_sha256": subprocess.run(
             ["sha256sum", str(codex)], capture_output=True, text=True, check=True
@@ -2324,6 +2335,8 @@ def main() -> None:
     init.add_argument("--camp", type=Path, required=True)
     init.add_argument("--pools", type=Path)
     init.add_argument("--codex-bin", required=True)
+    init.add_argument("--model", default="gpt-5.6-luna")
+    init.add_argument("--effort", default="max")
     init.add_argument("--task-prompt", type=Path, required=True)
     init.add_argument("--research-image", required=True)
     init.add_argument("--programbench", type=Path, default=Path.home() / "ProgramBench")
