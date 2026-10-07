@@ -47,6 +47,7 @@ instances, and the comparison, paired by instance, certifies the learning from b
 Every phase is resumable: runs are cached by directory, kernel commands are idempotent by key."""
 
 import argparse
+import hashlib
 import json
 import random
 import re
@@ -59,6 +60,7 @@ from pathlib import Path
 
 import procontract_attribution as attribution
 import procontract_outcomes as outcome_matrix
+import procontract_release as release
 import procontract_store as store
 import procontract_succession as succession
 import procontract_trajectory as trajectory
@@ -1465,25 +1467,39 @@ class Host:
         the last batch, an analysis covers every run."""
         if b == self.batch_count():
             done = self.insights()
-            return bool(done) and done[-1]["coverage"] == sorted(self.observed())
+            runs = {
+                name
+                for name, run in self.observed().items()
+                if run["purpose"] == "stream"
+            }
+            return (
+                bool(done)
+                and done[-1]["status"] == "qualified"
+                and runs <= set(done[-1]["coverage"])
+            )
         state = self.contract(f"improvement.{b}")
         return state is not None and state["standing"] != "outstanding"
 
     def stream_step(self) -> str:
         """The next unit of a stream: learning from the latest batch when that is unfinished, else the
         next batch, run with the current policy on tasks no run has seen, then learning from it."""
+        if outcome := release.advance(self):
+            return outcome
         done = self.batches()
         if done and not self.learned(len(done)):
-            return self.learn(len(done))
+            outcome = self.learn(len(done))
+            return outcome + (
+                f"; {result}" if (result := release.advance(self)) else ""
+            )
         b = len(done) + 1
         if b > self.batch_count():
             return "the stream is complete"
         size = self.terms["stream"]["batch"]
         tasks = self.order()[(b - 1) * size : b * size]
         policy = self.stream_policy()
-        self.measure_all([(policy, task) for task in tasks], "stream")
         self.record("assignment", {"batch": b, "version": policy, "tasks": tasks})
-        return self.learn(b)
+        outcome = self.learn(b)
+        return outcome + (f"; {result}" if (result := release.advance(self)) else "")
 
     def learn(self, b: int) -> str:
         """What a stream learns from batch b: an analysis of the runs so far, which also counts the
@@ -1491,6 +1507,9 @@ class Host:
         sets the next batch's policy. Choosing a policy is exploration and needs no authority: the
         next batch measures it out of sample, and the baseline comparison certifies the stream."""
         policy = self.batches()[b - 1]["version"]
+        self.measure_all(
+            [(policy, task) for task in self.batches()[b - 1]["tasks"]], "stream"
+        )
         mean_rate = mean(
             r["pass_rate"]
             for r in self.observed().values()
@@ -1498,7 +1517,13 @@ class Host:
         )
         if b == self.batch_count():
             k = self.analyze(policy)
-            return f"batch {b} (policy {policy[:12]}, mean {mean_rate:.3f}): the stream is complete; analysis {k} {self.insight(k)['status']}"
+            status = self.insight(k)["status"]
+            outcome = (
+                "the stream is complete"
+                if status == "qualified"
+                else "analysis failed; no update"
+            )
+            return f"batch {b} (policy {policy[:12]}, mean {mean_rate:.3f}): {outcome}; analysis {k} {status}"
         improvement = f"improvement.{b}"
         self.issue(
             improvement,
@@ -1514,7 +1539,9 @@ class Host:
             },
             "delegate",
         )
-        self.analyze(policy)
+        k = self.analyze(policy)
+        if self.insight(k)["status"] != "qualified":
+            return f"batch {b}: analysis failed; knowledge and policy stay unchanged"
         delivery = self.research(policy, b)
         experiment = (
             (delivery / "EXPERIMENT.md").read_text()
@@ -1986,6 +2013,21 @@ def cmd_init(args) -> None:
         sys.exit(f"{camp} already holds a campaign")
     if args.knowledge and (problem := knowledge_problem(args.knowledge)):
         sys.exit(f"the seed knowledge is not acceptable: {problem}")
+    if args.instances and args.knowledge:
+        sys.exit(
+            "a stream starts with empty knowledge; earlier hidden feedback may expose future tasks"
+        )
+    if (
+        args.batch < 1
+        or args.recent_batches < 1
+        or args.release_every < 0
+        or args.parallel < 1
+    ):
+        sys.exit(
+            "batch, recent-batches and parallel must be positive; release-every cannot be negative"
+        )
+    if args.confirm_tasks < 1 or not 1 <= args.confirm_min_wins <= args.confirm_tasks:
+        sys.exit("confirmation needs positive task and win counts, with wins <= tasks")
     rng = random.Random(args.seed)
     stream = None
     if args.instances:
@@ -1995,8 +2037,22 @@ def cmd_init(args) -> None:
             "order": rng.sample(instances, len(instances)),
             "batch": args.batch,
             "recent": args.recent_batches,
+            "release_every": args.release_every,
         }
         dev, confirm = [], []
+        if args.release_every:
+            if args.sealed is None:
+                sys.exit(
+                    "stream releases need --sealed with an independent confirmation reserve"
+                )
+            sealed = json.loads(args.sealed.read_text())[args.sealed_pool]
+            if set(instances) & set(sealed):
+                sys.exit("stream and confirmation tasks must be disjoint")
+            confirm = rng.sample(
+                sorted(set(sealed)), min(args.confirm_pool, len(set(sealed)))
+            )
+            if len(confirm) < args.confirm_tasks:
+                sys.exit("the confirmation reserve cannot cover one release")
     elif args.pools is None or args.sealed is None:
         sys.exit("a campaign needs --pools and --sealed (or --instances for a stream)")
     else:
@@ -2016,6 +2072,7 @@ def cmd_init(args) -> None:
             ["sha256sum", str(codex)], capture_output=True, text=True, check=True
         ).stdout.split()[0],
         "task_prompt": str(args.task_prompt.resolve()),
+        "task_prompt_sha256": hashlib.sha256(args.task_prompt.read_bytes()).hexdigest(),
         "research_image": args.research_image,
         "programbench": str(args.programbench),
         "programbench_head": subprocess.run(
@@ -2046,7 +2103,7 @@ def cmd_init(args) -> None:
     }
     if stream:
         terms["stream"] = stream
-    camp.mkdir(parents=True)
+    camp.mkdir(parents=True, exist_ok=True)
     if args.knowledge:
         copy_knowledge(args.knowledge, camp / "knowledge-seed")
     (camp / "campaign.json").write_text(json.dumps(terms, indent=2) + "\n")
@@ -2094,7 +2151,11 @@ def cmd_baseline(args) -> None:
     own, initialized like the stream's (so its root is the same version), and no view of the stream
     ever reads it."""
     host = Host(args.camp)
-    root = host.incumbent()
+    root = next(
+        vid
+        for vid, manifest in host.versions().items()
+        if manifest["lineage"]["parent"] is None
+    )
     with ThreadPoolExecutor(args.parallel) as pool:
         list(pool.map(lambda task: host.measure(root, task, "baseline"), host.order()))
     print(f"baseline of {root[:12]}: {len(host.order())} instances measured")
@@ -2232,6 +2293,7 @@ def cmd_status(args) -> None:
         json.dumps(
             {
                 "incumbent": incumbent[:12],
+                "exploration_head": host.stream_policy()[:12] if host.stream else None,
                 "versions": rows,
                 "confirm_tasks_left": host.confirm_budget_left(),
                 "analyses": [
@@ -2276,6 +2338,12 @@ def main() -> None:
     )
     init.add_argument(
         "--batch", type=int, default=16, help="instances per batch of a stream"
+    )
+    init.add_argument(
+        "--release-every",
+        type=int,
+        default=0,
+        help="confirm a tested stream policy every N batches; 0 disables releases",
     )
     init.add_argument(
         "--recent-batches",
@@ -2340,7 +2408,7 @@ def main() -> None:
     report.add_argument("--camp", type=Path, required=True)
     report.add_argument("--baseline", type=Path, required=True)
     args = parser.parse_args()
-    {
+    command = {
         "init": cmd_init,
         "step": cmd_step,
         "analyze": cmd_analyze,
@@ -2350,7 +2418,12 @@ def main() -> None:
         "baseline": cmd_baseline,
         "exclude": cmd_exclude,
         "report": cmd_report,
-    }[args.command](args)
+    }[args.command]
+    if args.command in {"status", "report"}:
+        command(args)
+    else:
+        with succession.writer(args.camp):
+            command(args)
 
 
 if __name__ == "__main__":
