@@ -55,6 +55,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -397,17 +398,91 @@ class Host:
             }
         vid = store.digest("version", manifest)
         target = self.version_dir(vid)
+        registration = next(
+            (
+                event["body"]
+                for event in reversed(self.events("version"))
+                if event["body"]["id"] == vid
+            ),
+            None,
+        )
+        recorded = registration["manifest"] if registration is not None else None
+        if recorded is not None and recorded != manifest:
+            raise RuntimeError(f"version {vid} has a different recorded manifest")
+        if target.is_symlink() or (recorded is not None and not target.is_dir()):
+            raise RuntimeError(
+                f"version {vid} is incomplete or differs from its source"
+            )
         if not target.exists():
-            (target / "bundle").mkdir(parents=True)
-            for name, text in files.items():
-                (target / "bundle" / name).write_bytes(text.encode("utf-8"))
-            if program is not None:
-                (target / "bundle" / harness_program.PROGRAM_FILE).write_bytes(
-                    program.source
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(
+                prefix=f".{vid}.", dir=target.parent
+            ) as pending:
+                staged = Path(pending)
+                (staged / "bundle").mkdir()
+                for name, text in files.items():
+                    (staged / "bundle" / name).write_bytes(text.encode("utf-8"))
+                if program is not None:
+                    (staged / "bundle" / harness_program.PROGRAM_FILE).write_bytes(
+                        program.source
+                    )
+                (staged / "EXPERIMENT.md").write_bytes(experiment.encode("utf-8"))
+                (staged / "manifest.json").write_text(
+                    json.dumps(manifest, indent=2) + "\n"
                 )
-            (target / "EXPERIMENT.md").write_bytes(experiment.encode("utf-8"))
-            (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-            self.record("version", {"id": vid, "manifest": manifest})
+                staged.rename(target)
+        try:
+            raw = harness_program.read_regular(
+                target / "manifest.json", MAX_BUNDLE_FILE
+            )
+            if (
+                raw is None
+                or json.loads(raw) != manifest
+                or bundle_texts(target / "bundle") != files
+            ):
+                raise ValueError("manifest or role files differ")
+            expected_files = set(BUNDLE_FILES) | (
+                {harness_program.PROGRAM_FILE} if program else set()
+            )
+            if {path.name for path in (target / "bundle").iterdir()} != expected_files:
+                raise ValueError("bundle contains unregistered files")
+            published = harness_program.load(target / "bundle")
+            if (published.digest if published else None) != (
+                program.digest if program else None
+            ):
+                raise ValueError("harness program differs")
+            document = harness_program.read_regular(
+                target / "EXPERIMENT.md", MAX_BUNDLE_FILE
+            )
+            if document is None:
+                raise ValueError("experiment record is missing")
+            document.decode("utf-8")
+            experiment_sha256 = hashlib.sha256(document).hexdigest()
+            if registration is None and document != experiment.encode("utf-8"):
+                raise ValueError(
+                    "unregistered experiment differs from the supplied snapshot"
+                )
+            if (
+                registration is not None
+                and "experiment_sha256" in registration
+                and registration["experiment_sha256"] != experiment_sha256
+            ):
+                raise ValueError("registered experiment record differs")
+        except (OSError, ValueError) as error:
+            raise RuntimeError(
+                f"version {vid} is incomplete or differs from its source: {error}"
+            ) from error
+        if recorded is None:
+            # Publication and ledger append may be separated by a crash. Validated bytes are
+            # reusable, but the version is not registered until its immutable event exists.
+            self.record(
+                "version",
+                {
+                    "id": vid,
+                    "manifest": manifest,
+                    "experiment_sha256": experiment_sha256,
+                },
+            )
         return vid
 
     def versions(self) -> dict[str, dict]:
