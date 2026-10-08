@@ -47,6 +47,20 @@ class ComparisonTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "roots differ"):
                 comparison.validate_comparison(self.stream, self.baseline)
 
+    def test_research_question_and_exposure_scope_are_part_of_comparison_identity(self):
+        for name, default, changed in (
+            ("proposal_kind", "all", "methods"),
+            ("confirmation_exposure_scope", "strict", "prospective_lineage"),
+        ):
+            with self.subTest(name=name):
+                self.stream.terms.pop(name, None)
+                self.baseline.terms[name] = default
+                comparison.validate_comparison(self.stream, self.baseline)
+                self.baseline.terms[name] = changed
+                with self.assertRaisesRegex(ValueError, name):
+                    comparison.validate_comparison(self.stream, self.baseline)
+                self.baseline.terms[name] = default
+
     def test_stream_mode_normalizes_legacy_explore_but_not_guarded(self):
         self.baseline.terms["stream"]["mode"] = "explore"
         comparison.validate_comparison(self.stream, self.baseline)

@@ -9,6 +9,12 @@ def validate_comparison(stream, baseline) -> None:
     """Reject comparisons that change the committed experiment or its fixed control."""
     if task_attempt_limit(stream.terms) != task_attempt_limit(baseline.terms):
         raise ValueError("comparison identity differs: task_attempts")
+    for name, default in (
+        ("proposal_kind", "all"),
+        ("confirmation_exposure_scope", "strict"),
+    ):
+        if stream.terms.get(name, default) != baseline.terms.get(name, default):
+            raise ValueError(f"comparison identity differs: {name}")
     if stream.terms["stream"].get("mode", "explore") != baseline.terms["stream"].get(
         "mode", "explore"
     ):

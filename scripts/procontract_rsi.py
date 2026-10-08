@@ -65,6 +65,7 @@ import procontract_comparison as comparison
 import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
 import procontract_outcomes as outcome_matrix
+import procontract_proposal_scope as proposal_scope
 import procontract_release as release
 import procontract_store as store
 import procontract_study as study
@@ -1428,7 +1429,7 @@ class Host:
         root = self.camp / "research" / f"step-{step}"
         prompt = RESEARCH_PROTOCOL.format(
             parent=parent[:12],
-            files=", ".join(self.terms["mutable"]),
+            files=", ".join(proposal_scope.editable(self.terms)),
             sections=", ".join(EXPERIMENT_SECTIONS),
             prediction=PREDICT_CLASSES
             if self.stream
@@ -1460,10 +1461,17 @@ class Host:
         path = self.camp / "research" / f"step-{step}" / "runner-failed.json"
         return json.loads(path.read_text())["reason"] if path.exists() else None
 
-    def qualify(self, delivery: Path, parent: str) -> tuple[bool, str, bool]:
+    def qualify(
+        self, delivery: Path, parent: str, *, allowed_files: list[str] | None = None
+    ) -> tuple[bool, str, bool]:
         """Mechanical, complete criterion: an experiment record with every section, a bundle
         changed only within the campaign's mutable files, and task-shaping files that name no task
         the campaign has exposed. Returns (qualified, reason, changed)."""
+        if allowed_files is not None and not set(allowed_files) <= set(
+            self.terms["mutable"]
+        ):
+            raise ValueError("proposal scope cannot expand campaign mutation authority")
+        authorized = self.terms["mutable"] if allowed_files is None else allowed_files
         try:
             text = experiment_text(delivery)
         except ValueError as error:
@@ -1513,7 +1521,7 @@ class Host:
                 new, before = files.get(name, ""), before_files.get(name, "")
             if new != before:
                 changed.append(name)
-        outside = [name for name in changed if name not in self.terms["mutable"]]
+        outside = [name for name in changed if name not in authorized]
         if outside:
             return (
                 False,
@@ -1754,7 +1762,7 @@ class Host:
             {
                 "class": "qualification",
                 "sections": EXPERIMENT_SECTIONS,
-                "mutable": self.terms["mutable"],
+                "mutable": proposal_scope.editable(self.terms),
             },
             "delegate",
         )
@@ -1770,7 +1778,9 @@ class Host:
             experiment = experiment_text(delivery)
         except ValueError:
             experiment = ""  # Qualification records the rejection; never read through a bad path.
-        ok, reason, changed = self.qualify(delivery, parent)
+        ok, reason, changed = self.qualify(
+            delivery, parent, allowed_files=proposal_scope.editable(self.terms)
+        )
         subject = delivery_subject(delivery, experiment)
         self.propose(improvement, subject)
         if not ok:
@@ -1979,7 +1989,7 @@ class Host:
             {
                 "class": "qualification",
                 "sections": EXPERIMENT_SECTIONS,
-                "mutable": self.terms["mutable"],
+                "mutable": proposal_scope.editable(self.terms),
             },
             "delegate",
         )
@@ -1994,7 +2004,9 @@ class Host:
             experiment = experiment_text(delivery)
         except ValueError:
             experiment = ""
-        ok, reason, changed = self.qualify(delivery, policy)
+        ok, reason, changed = self.qualify(
+            delivery, policy, allowed_files=proposal_scope.editable(self.terms)
+        )
         subject = delivery_subject(delivery, experiment)
         self.propose(improvement, subject)
         head = f"batch {b} (policy {policy[:12]}, mean {mean_rate:.3f})"
@@ -2649,6 +2661,8 @@ def cmd_init(args) -> None:
             "prediction_alpha": args.prediction_alpha,
         },
         "mutable": args.mutable,
+        "proposal_kind": args.proposal_kind,
+        "confirmation_exposure_scope": args.confirmation_exposure_scope,
         "adoption": args.adoption,
         "parallel": args.parallel,
         "task_deadline_secs": args.task_deadline_secs,
@@ -2658,6 +2672,7 @@ def cmd_init(args) -> None:
     }
     if stream:
         terms["stream"] = stream
+    proposal_scope.editable(terms)
     if args.canonical_registry is not None:
         import procontract_canonical as canonical
 
@@ -2841,7 +2856,10 @@ def cmd_status(args) -> None:
     incumbent = host.incumbent()
     roles = {}
     for event in host.events("selection"):
-        roles.setdefault(event["body"]["version"], []).append(event["body"]["role"])
+        body = event["body"]
+        version = body.get("version", body.get("confirmation"))
+        if isinstance(version, str):
+            roles.setdefault(version, []).append(body["role"])
     rows = []
     for vid, manifest in host.versions().items():
         rows.append(
@@ -2866,6 +2884,10 @@ def cmd_status(args) -> None:
         json.dumps(
             {
                 "incumbent": incumbent[:12],
+                "proposal_kind": host.terms.get("proposal_kind", "all"),
+                "confirmation_exposure_scope": host.terms.get(
+                    "confirmation_exposure_scope", "strict"
+                ),
                 "exploration_head": host.stream_policy()[:12] if host.stream else None,
                 "versions": rows,
                 "confirm_tasks_left": host.confirm_budget_left(),
@@ -2941,6 +2963,16 @@ def main() -> None:
         default="paired-descendants",
     )
     init.add_argument("--canonical-registry", type=Path)
+    init.add_argument(
+        "--confirmation-exposure-scope",
+        choices=("strict", "prospective_lineage"),
+        default="strict",
+    )
+    init.add_argument(
+        "--proposal-kind",
+        choices=("all", "methods", "execution", "harness"),
+        default="all",
+    )
     init.add_argument("--canonical-registry-sha256")
     init.add_argument("--canonical-pins-sha256")
     init.add_argument("--study-task-launches", type=int)

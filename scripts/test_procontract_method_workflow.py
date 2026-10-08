@@ -4,12 +4,15 @@ The toy evaluator rewards literal executor changes, not method markers. These te
 isolation, authority and recursion wiring; they do not establish model or RSI capability gains.
 """
 
+import contextlib
+import io
 import json
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import procontract_rsi as rsi
@@ -147,6 +150,13 @@ class MethodWorkflowTest(unittest.TestCase):
             (host.camp / "research" / "step-3" / "run" / "run.json").read_text()
         )
         self.assertEqual((research["method_stage"], research["produced_stage"]), (1, 2))
+        status = io.StringIO()
+        with contextlib.redirect_stdout(status):
+            rsi.cmd_status(SimpleNamespace(camp=host.camp))
+        view = json.loads(status.getvalue())
+        self.assertEqual(view["incumbent"], candidate[:12])
+        adopted = next(row for row in view["versions"] if row["incumbent"])
+        self.assertIn("method_confirmation_evidence", adopted["roles"])
         report = research["method_feedback"][0]
         self.assertEqual(
             (
