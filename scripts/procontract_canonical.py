@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Frozen, experiment-only ProgramBench adapter. No model calls in CLI commands.
+"""Registry-pinned canonical ProgramBench adapter. No model calls in CLI commands.
 
 `freeze` pins evaluator/source fixtures/images/wheels/cached test blobs.
 `preflight` verifies the pins. `null` evaluates an exit-1 sentinel, without Codex.
@@ -18,40 +18,75 @@ import sys
 import time
 from pathlib import Path
 
-SETUP = Path(__file__).resolve().parent
-SCRIPTS = Path(
-    os.environ.get(
-        "PROCONTRACT_FROZEN_SCRIPTS",
-        "/home/duozhou/codex-worktrees/procontract-rsi-integrated-20261007/scripts",
-    )
-)
-PROGRAMBENCH = Path("/home/duozhou/ProgramBench-native-advisory")
-PB_HEAD = "cdbe48cb88aad752ed099b4a4429ef9476c54c65"
-HF_REVISION = "de0ddfb637590c7ecb54fa0b5301f6dc7dfbcee5"
-CACHE = Path("/home/duozhou/run-artifacts/programbench-native-advisory-3-20261006")
-WHEELHOUSE = CACHE / "evaluator-wheelhouse"
-BLOBS = CACHE / "campaign/evaluation-blobs"
-PINS_FILE = SETUP / "canonical-pins.json"
-PB_PYTHON = PROGRAMBENCH / ".venv/bin/python"
-TASKS = {
-    "antonmedv__fx.86d0d34": {
-        "total": 2044,
-        "image": "sha256:3b3452e01006c3db9bd5681931519577ac229c7edfb77fa7c545a74a8faa8cf4",
-    },
-    "cheat__cheat.b8098dc": {
-        "total": 297,
-        "image": "sha256:bf2704bccabd5f13d0070921fd3904d095694b1af5ce7567b213c1efd11e30ba",
-    },
-    "hush-shell__hush.560c33a": {
-        "total": 1201,
-        "image": "sha256:e31041a5c2c1aad78e60b8a85b7a95099c94fa1ec963bc8412c3094b17a6142d",
-    },
-}
+import procontract_canonical_registry as registries
+import procontract_evaluation as packaging
+import procontract_rsi as rsi
 
-sys.path.insert(0, str(SCRIPTS))
-import procontract_evaluation as packaging  # noqa: E402 (frozen checkout, not an installed package)
-import procontract_rsi as rsi  # noqa: E402 (frozen checkout, not an installed package)
-import procontract_store as store  # noqa: E402 (frozen checkout, not an installed package)
+SCRIPTS = Path(__file__).resolve().parent
+_REGISTRY = None
+
+
+def configure(path: Path, expected_sha256: str):
+    """Bind this process once to an explicitly trusted, frozen registry."""
+    global _REGISTRY, PROGRAMBENCH, PB_HEAD, HF_REVISION, PB_PYTHON
+    global TASKS, WHEELHOUSE, BLOBS, BLOB_MANIFEST, PINS_FILE
+    loaded = registries.load(path, expected_sha256)
+    if _REGISTRY is not None and (_REGISTRY.path, _REGISTRY.digest) != (
+        loaded.path,
+        loaded.digest,
+    ):
+        raise RuntimeError("a canonical process cannot switch registries")
+    _REGISTRY = loaded
+    PROGRAMBENCH, PB_HEAD = loaded.programbench, loaded.programbench_head
+    HF_REVISION, PB_PYTHON = loaded.hf_revision, loaded.python
+    TASKS, WHEELHOUSE, BLOBS = loaded.tasks, loaded.wheelhouse, loaded.blob_root
+    BLOB_MANIFEST, PINS_FILE = loaded.blob_manifest, loaded.pins_file
+    return loaded
+
+
+def registry():
+    if _REGISTRY is None:
+        raise RuntimeError("configure the frozen canonical registry first")
+    _REGISTRY.verify_source()
+    return _REGISTRY
+
+
+def checked_pins():
+    frozen = registry()
+    pins = json.loads(PINS_FILE.read_text())
+    if (pins.get("registry_sha256"), pins.get("adapter_sha256")) != (
+        frozen.digest,
+        sha256(Path(__file__).resolve()),
+    ):
+        raise RuntimeError("canonical pins do not bind this registry and adapter")
+    return pins
+
+
+def validate_identity(terms):
+    """Static identity gate for campaign entry, cache reads and adoption; no Docker."""
+    identity = terms["canonical"]
+    frozen = configure(Path(identity["registry_path"]), identity["registry_sha256"])
+    frozen.validate_campaign(terms)
+    if (sha256(PINS_FILE), sha256(Path(__file__).resolve())) != (
+        identity["pins_sha256"],
+        identity["adapter_sha256"],
+    ):
+        raise RuntimeError("frozen canonical pins or adapter identity changed")
+    checked_pins()
+
+
+def worker_command(command, *args):
+    frozen = registry()
+    return [
+        str(PB_PYTHON),
+        str(Path(__file__).resolve()),
+        command,
+        "--registry",
+        str(frozen.path),
+        "--registry-sha256",
+        frozen.digest,
+        *map(str, args),
+    ]
 
 
 def sha256(path):
@@ -96,10 +131,11 @@ def fixture(task):
 
 
 def image_tag(task):
-    return f"programbench/{task.replace('__', '_1776_')}:task_cleanroom_v6"
+    return TASKS[task]["image_tag"]
 
 
 def pin_state():
+    frozen = registry()
     tasks_dir, _, active, ignored, _ = pb_imports()
     head = subprocess.check_output(
         ["git", "-C", str(PROGRAMBENCH), "rev-parse", "HEAD"], text=True
@@ -143,7 +179,7 @@ def pin_state():
             stdout=subprocess.DEVNULL,
         )
         images[task] = {"tag": image_tag(task), "id": actual}
-    cached = json.loads((CACHE / "campaign/evaluation-inputs.json").read_text())
+    cached = json.loads(BLOB_MANIFEST.read_text())
     if cached["commit"] != HF_REVISION or Path(cached["blob_root"]) != BLOBS:
         raise RuntimeError("Cached fixture revision/root drift")
     blobs = {
@@ -164,6 +200,8 @@ def pin_state():
         raise RuntimeError("No offline evaluator wheels")
     return {
         "schema": 1,
+        "registry_sha256": frozen.digest,
+        "adapter_sha256": sha256(Path(__file__).resolve()),
         "programbench": str(PROGRAMBENCH),
         "programbench_head": head,
         "uv_lock_sha256": sha256(PROGRAMBENCH / "uv.lock"),
@@ -185,7 +223,7 @@ def pin_state():
 
 
 def preflight():
-    expected = json.loads(PINS_FILE.read_text())
+    expected = checked_pins()
     current = pin_state()
     if current != expected:
         changed = sorted(
@@ -258,7 +296,6 @@ def evaluator_env():
         "DOCKER_HOST",
         "DOCKER_CONTEXT",
         "XDG_RUNTIME_DIR",
-        "PROCONTRACT_FROZEN_SCRIPTS",
     )
     env = {key: os.environ[key] for key in keep if key in os.environ}
     env.update(
@@ -307,8 +344,38 @@ def evaluate_one(task, archive, eval_json):
     )
 
 
+def validate_receipt(task, archive, directory):
+    """Read-only evidence binding, shared by evaluation resume and Host cache reads."""
+    digest = sha256(archive)
+    if sha256(directory / "submission.tar.gz") != digest:
+        raise RuntimeError("Frozen evaluator subject changed across attempts")
+    paths = {
+        "raw_eval_sha256": directory / f"{task}.eval.json",
+        "score_sha256": directory / "canonical-score.json",
+        "feedback_sha256": directory / "canonical-feedback.json",
+    }
+    expected = {
+        "submission_sha256": digest,
+        "image": TASKS[task]["image"],
+        "pins_sha256": sha256(PINS_FILE),
+        "registry_sha256": registry().digest,
+        "adapter_sha256": sha256(Path(__file__).resolve()),
+        **{key: sha256(path) if path.exists() else None for key, path in paths.items()},
+    }
+    bound = json.loads((directory / "evaluation-receipt.json").read_text())
+    if (
+        not isinstance(bound, dict)
+        or not expected.keys() <= bound.keys()
+        or any(bound[key] != value for key, value in expected.items())
+    ):
+        raise RuntimeError(
+            "unbound or changed canonical evaluation receipt; reconcile without rerunning"
+        )
+
+
 def evaluate_archive(task, archive, work):
     """Two maximum evaluator attempts; source package immutable, no inference reruns."""
+    checked_pins()
     archive, work = Path(archive), Path(work)
     digest = sha256(archive)
     for attempt in (1, 2):
@@ -323,17 +390,15 @@ def evaluate_archive(task, archive, work):
         score_file = directory / "canonical-score.json"
         receipt = directory / "evaluation-receipt.json"
         if not receipt.exists():
-            command = [
-                str(PB_PYTHON),
-                str(Path(__file__).resolve()),
+            command = worker_command(
                 "evaluate-one",
                 "--task",
                 task,
                 "--archive",
-                str(frozen),
+                frozen,
                 "--eval-json",
-                str(eval_json),
-            ]
+                eval_json,
+            )
             started = time.monotonic()
             with (directory / "eval.log").open("w") as log:
                 process = subprocess.run(
@@ -353,8 +418,18 @@ def evaluate_archive(task, archive, work):
                     "submission_sha256": digest,
                     "image": TASKS[task]["image"],
                     "pins_sha256": sha256(PINS_FILE),
+                    "registry_sha256": registry().digest,
+                    "adapter_sha256": sha256(Path(__file__).resolve()),
+                    "raw_eval_sha256": sha256(eval_json)
+                    if eval_json.exists()
+                    else None,
+                    "score_sha256": sha256(score_file) if score_file.exists() else None,
+                    "feedback_sha256": sha256(directory / "canonical-feedback.json")
+                    if (directory / "canonical-feedback.json").exists()
+                    else None,
                 },
             )
+        validate_receipt(task, archive, directory)
         outcome = (
             json.loads(score_file.read_text())
             if score_file.exists()
@@ -380,17 +455,9 @@ def evaluate_archive(task, archive, work):
 
 
 def canonical_score_subprocess(task, eval_json, output):
-    command = [
-        str(PB_PYTHON),
-        str(Path(__file__).resolve()),
-        "score",
-        "--task",
-        task,
-        "--eval-json",
-        str(eval_json),
-        "--output",
-        str(output),
-    ]
+    command = worker_command(
+        "score", "--task", task, "--eval-json", eval_json, "--output", output
+    )
     subprocess.run(
         command,
         cwd=PROGRAMBENCH,
@@ -404,8 +471,14 @@ def canonical_score_subprocess(task, eval_json, output):
 class CanonicalProgramBench(rsi.ProgramBench):
     """Same ProContract harness, with image pinning and official canonical labels."""
 
+    def __init__(self, terms):
+        validate_identity(terms)
+        super().__init__(terms)
+
     def evaluator(self):
+        validate_identity(self.terms)
         return {
+            "registry_sha256": registry().digest,
             "programbench": PB_HEAD,
             "hf_revision": HF_REVISION,
             "metric": "official_fixed_eligible_tests_last_outcome",
@@ -413,16 +486,33 @@ class CanonicalProgramBench(rsi.ProgramBench):
         }
 
     def environment(self):
+        validate_identity(self.terms)
         return {
             **super().environment(),
             "cleanrooms": {task: spec["image"] for task, spec in TASKS.items()},
         }
 
+    def _label(self, task, outcome):
+        return {
+            "task": task,
+            "evaluator_epoch": packaging.epoch(self.evaluator()),
+            "validity": "valid",
+            "reason": "",
+            "attempts": outcome["attempts"],
+            "outcome": {
+                "pass_rate": outcome["pass_rate"],
+                "passed": outcome["resolved"],
+                "counted": outcome["total"],
+            },
+            "canonical": outcome,
+        }
+
     def run_and_label(self, host, bundle, task, run_dir):
+        validate_identity(self.terms)
         if task not in TASKS:
-            raise RuntimeError(f"Task outside frozen three-program evaluation: {task}")
+            raise RuntimeError(f"Task outside frozen canonical registry: {task}")
         subprocess.run(
-            [str(PB_PYTHON), str(Path(__file__).resolve()), "preflight"],
+            worker_command("preflight"),
             cwd=PROGRAMBENCH,
             env=evaluator_env(),
             check=True,
@@ -515,26 +605,13 @@ class CanonicalProgramBench(rsi.ProgramBench):
                 failures.append(
                     f"{name.rsplit('.', 1)[-1]}: {record['message'].splitlines()[0][:200] if record['message'] else 'nonpassed'}"
                 )
-        label = {
-            "task": task,
-            "evaluator_epoch": store.digest("epoch", self.evaluator()),
-            "validity": "valid",
-            "reason": "",
-            "attempts": outcome["attempts"],
-            "outcome": {
-                "pass_rate": outcome["pass_rate"],
-                "passed": outcome["resolved"],
-                "counted": outcome["total"],
-            },
-            "canonical": outcome,
-        }
         return {
             "validity": "valid",
             "pass_rate": outcome["pass_rate"],
             "status": summary.get("status"),
             "cost": summary.get("cost"),
             "failures": "\n".join(failures),
-            "label": label,
+            "label": self._label(task, outcome),
         }
 
     def outcomes(self, run_dir):
@@ -547,11 +624,21 @@ def main():
         "command",
         choices=["freeze", "preflight", "score", "evaluate-one", "evaluate", "null"],
     )
-    parser.add_argument("--task", choices=TASKS)
+    parser.add_argument("--registry", type=Path, required=True)
+    parser.add_argument("--registry-sha256", required=True)
+    parser.add_argument("--task")
     parser.add_argument("--eval-json", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    configure(args.registry, args.registry_sha256)
+    if args.task is not None and args.task not in TASKS:
+        parser.error("task is outside the frozen registry")
+    if (
+        args.command in ("score", "evaluate-one", "evaluate", "null")
+        and args.task is None
+    ):
+        parser.error("this command requires --task")
     if args.command == "freeze":
         if PINS_FILE.exists():
             result = preflight()
