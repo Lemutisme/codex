@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -464,7 +465,16 @@ def prepare(args: argparse.Namespace) -> None:
     workspace = run_dir / "workspace"
     workspace.mkdir(parents=True)
     if args.workspace_from is None:
-        ensure_images(args.instance)
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", args.image):
+            # A registry-bound cleanroom is already local. Never fetch unrelated mutable
+            # legacy tags or fall back to one if the pinned image is unavailable.
+            subprocess.run(
+                ["docker", "image", "inspect", args.image],
+                check=True,
+                stdout=subprocess.DEVNULL,
+            )
+        else:
+            ensure_images(args.instance)
         source = []
         copy = (
             "cp -a /workspace/. /out/ && chown -R 1000:1000 /out "
