@@ -59,6 +59,7 @@ class MethodEpisodeTest(unittest.TestCase):
             candidate, self.target, self.target, "CANDIDATE_EXPERIMENT_PRIVATE"
         )
         self.preparations = []
+        self.prompts = []
         self.launches = []
         self.mode = "changed"
         original = rsi.subprocess.run
@@ -84,6 +85,7 @@ class MethodEpisodeTest(unittest.TestCase):
             producer = Path(options["--policy"]).parent.name
             source = Path(options["--workspace-from"])
             self.preparations.append((role, producer, files(source)))
+            self.prompts.append((role, Path(options["--prompt"]).read_text()))
             run.mkdir(parents=True)
             shutil.copytree(source, run / "workspace")
             shutil.copytree(options["--policy"], run / "policy")
@@ -215,6 +217,13 @@ class MethodEpisodeTest(unittest.TestCase):
             ],
         )
         self.assertEqual(self.preparations[0][2], self.preparations[3][2])
+        for role, prompt in self.prompts:
+            if role != "research.md":
+                self.assertIn(
+                    '"source" must be exactly one of: artifact, convention, prior, unobservable',
+                    prompt,
+                )
+                self.assertNotIn("second and final authorized attempt", prompt)
         research_inputs = [
             value for role, _, value in self.preparations if role == "research.md"
         ]

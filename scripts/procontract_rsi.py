@@ -64,6 +64,12 @@ import procontract_attribution as attribution
 import procontract_comparison as comparison
 import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
+import procontract_insight_protocol as insight_protocol
+from procontract_insight_protocol import ANALYST_PROTOCOL
+from procontract_insight_protocol import CHALLENGER_PROTOCOL
+from procontract_insight_protocol import CLASSES
+from procontract_insight_protocol import SIGNATURES
+from procontract_insight_protocol import SOURCES
 import procontract_outcomes as outcome_matrix
 import procontract_proposal_scope as proposal_scope
 import procontract_release as release
@@ -90,10 +96,6 @@ BUNDLE_FILES = [
 TASK_FILES = ["executor.md", "drafter.md", "prober.md", "reviewer.md"]
 MAX_BUNDLE_FILE = 32 << 10
 KNOWLEDGE_CAP = 512 << 10
-SIGNATURES = ("present", "partial", "absent")
-# How the information stood for a failing cluster, and for one never sent, where it could come from.
-CLASSES = ("never_sent", "never_compared", "left_unfixed", "too_shallow")
-SOURCES = ("artifact", "convention", "prior", "unobservable")
 # Before any evidence, one chance rescue in ten floor families: conservative, so early predictions
 # need several rescues to hold. The same ten exposures weigh the pooled rate against a task's own.
 PRIOR_RESCUE = (1, 10)
@@ -144,31 +146,6 @@ PREDICT_CLASSES = """The next batch runs on tasks no run has seen, so no item ca
 Prediction as the classes of the credit table (insight/*/hindsight.json) that will shrink in the next
 batch's failures, and the Signature the next analysis will count there."""
 
-ANALYST_PROTOCOL = """This is an analysis task: explain what the agent did and why its runs scored as they did.
-
-Your workspace holds:
-- archive/: the evidence, read-only. Start with archive/README.md.
-- knowledge/: what the campaign knows, as you inherited it. Edit it: UTF-8 text only, at most
-  512 KiB in total.
-
-{pending}
-Deliver ./ANALYSIS.md and ./hindsight.json, and leave ./knowledge as the campaign should keep it. No
-network is available. Tools: python3, jq, grep, sed and awk are installed; rg is not.
-"""
-
-CHALLENGER_PROTOCOL = """This is a challenge task: try to defeat an analysis of an agent's runs.
-
-Your workspace holds:
-- archive/: the evidence the analyst read, read-only. archive/knowledge/ is the knowledge before the
-  analysis.
-- ANALYSIS.md, hindsight.json, verdict.json (when an experiment is pending) and knowledge/: the
-  analyst's delivery. You may amend knowledge/ (UTF-8 text only, at most 512 KiB in total),
-  hindsight.json and verdict.json.
-
-{pending}
-Deliver ./CHALLENGE.md. No network is available. Tools: python3, jq, grep, sed and awk are
-installed; rg is not.
-"""
 
 PENDING = (
     "Experiment {version} is pending: ./verdict.json must say whether its signature was present. The "
@@ -1273,7 +1250,13 @@ class Host:
             "evidence": store.digest("analysis_evidence", observed),
             "protocol": store.digest(
                 "analysis_protocol",
-                [ANALYST_PROTOCOL, CHALLENGER_PROTOCOL, PENDING, PENDING_STREAM],
+                [
+                    ANALYST_PROTOCOL,
+                    CHALLENGER_PROTOCOL,
+                    PENDING,
+                    PENDING_STREAM,
+                    insight_protocol.RETRY_PROTOCOL,
+                ],
             ),
         }
         done = self.insights()
@@ -1385,7 +1368,12 @@ class Host:
         reason = ""
         for attempt in (1, 2):
             base = root / f"{role}-{attempt}"
-            self.stage_view(base, view, parent, prompt, fill)
+            attempt_prompt = (
+                insight_protocol.retry_prompt(prompt, reason)
+                if attempt == 2
+                else prompt
+            )
+            self.stage_view(base, view, parent, attempt_prompt, fill)
             delivery = self.run_agent(
                 base, f"{role}-{k}-{attempt}", parent, f"{role}.md", deadline
             )
