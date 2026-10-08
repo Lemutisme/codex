@@ -486,6 +486,7 @@ class Host:
 
     def measure(self, vid: str, task: str, purpose: str) -> dict:
         """Runs a version on one task and labels the result; cached by run directory."""
+        limit = succession.task_attempt_limit(self.terms)
         self.validate_harness(vid)
         run_dir = self.camp / "runs" / f"{purpose}-{vid[:12]}-{task}"
         result_file = run_dir / "result.json"
@@ -501,7 +502,7 @@ class Host:
             return succession.record_run(self, result)
         result = None
         run_dir.mkdir(parents=True, exist_ok=True)
-        for attempt in (1, 2):
+        for attempt in range(1, limit + 1):
             attempt_dir = run_dir / f"attempt-{attempt}"
             receipt = run_dir / f"attempt-{attempt}.json"
             if receipt.exists():
@@ -2441,7 +2442,10 @@ def cmd_init(args) -> None:
         or "unknown",
         "hf_revision": args.hf_revision,
         "pools": {"dev": dev, "confirm": confirm},
-        "budgets": {"research_steps": args.research_steps},
+        "budgets": {
+            "research_steps": args.research_steps,
+            "task_attempts": args.task_attempts,
+        },
         "gates": {
             "dev_min_delta": args.dev_min_delta,
             "parent_regression_tolerance": args.parent_tolerance,
@@ -2716,6 +2720,7 @@ def main() -> None:
     init.add_argument("--confirm-pool", type=int, default=8)
     init.add_argument("--confirm-tasks", type=int, default=4)
     init.add_argument("--research-steps", type=int, default=2)
+    init.add_argument("--task-attempts", type=int, choices=(1, 2), default=1)
     init.add_argument("--dev-min-delta", type=float, default=0.0)
     init.add_argument(
         "--prediction-alpha",

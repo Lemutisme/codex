@@ -140,6 +140,8 @@ def campaign(tmp, **overrides) -> Path:
         "2",
         "--research-steps",
         "4",
+        "--task-attempts",
+        "2",
     ]
     for flag, value in overrides.items():
         argv += [f"--{flag.replace('_', '-')}", str(value)]

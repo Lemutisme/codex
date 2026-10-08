@@ -2,9 +2,13 @@
 
 import json
 
+from procontract_succession import task_attempt_limit
+
 
 def validate_comparison(stream, baseline) -> None:
     """Reject comparisons that change the committed experiment or its fixed control."""
+    if task_attempt_limit(stream.terms) != task_attempt_limit(baseline.terms):
+        raise ValueError("comparison identity differs: task_attempts")
     for field in (
         "codex_sha256",
         "model",

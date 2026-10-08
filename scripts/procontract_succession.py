@@ -12,6 +12,17 @@ import statistics
 import procontract_store as store
 
 
+def task_attempt_limit(terms: dict) -> int:
+    """Legacy campaigns keep two attempts; a new explicit allowance is authoritative."""
+    budgets = terms.get("budgets", {})
+    if not isinstance(budgets, dict):
+        raise ValueError("campaign budgets must be an object")
+    limit = budgets.get("task_attempts", 2)
+    if type(limit) is not int or limit not in (1, 2):
+        raise ValueError("task_attempts must be 1 or 2")
+    return limit
+
+
 def receipt(path, value):
     """Publish a whole receipt; a failed write must never become a completion marker."""
     pending = path.with_suffix(".tmp")
