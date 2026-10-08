@@ -86,6 +86,79 @@ class RegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "repository"):
             loaded.validate_campaign(terms)
 
+    def test_default_strict_scope_refuses_historical_operator_repository_overlap(self):
+        self.document["operator_exposed_tasks"] = ["different__project.1111111"]
+        loaded = registry.load(self.path, self.write())
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(self.terms())
+        terms = self.terms()
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        with self.assertRaisesRegex(ValueError, "confirmation_exposure_scope"):
+            loaded.validate_campaign(terms)
+
+    def test_prospective_operator_history_requires_matching_campaign_scope(self):
+        historical = "different__project.1111111"
+        self.document.update(
+            exposure_scope="prospective_lineage", operator_exposed_tasks=[historical]
+        )
+        loaded = registry.load(self.path, self.write())
+        for scope in (None, "strict", "unknown"):
+            with self.subTest(scope=scope):
+                terms = self.terms()
+                if scope is not None:
+                    terms["confirmation_exposure_scope"] = scope
+                with self.assertRaisesRegex(ValueError, "confirmation_exposure_scope"):
+                    loaded.validate_campaign(terms)
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        loaded.validate_campaign(terms)
+        self.assertEqual(loaded.operator_exposed_tasks, (historical,))
+        self.document["operator_exposed_tasks"].append(self.task)
+        self.write()
+        self.assertEqual(loaded.operator_exposed_tasks, (historical,))
+        with self.assertRaisesRegex(ValueError, "identity"):
+            loaded.verify_source()
+
+    def test_prospective_scope_never_allows_model_or_development_exposure(self):
+        self.document.update(
+            exposure_scope="prospective_lineage",
+            operator_exposed_tasks=["different__project.1111111"],
+        )
+        terms = self.terms()
+        terms["confirmation_exposure_scope"] = "prospective_lineage"
+        self.document["exposed_tasks"] = ["different__project.2222222"]
+        loaded = registry.load(self.path, self.write())
+        with self.assertRaisesRegex(ValueError, "repository"):
+            loaded.validate_campaign(terms)
+        del self.document["exposed_tasks"]
+        related = "different__project.3333333"
+        self.document["tasks"][related] = self.document["tasks"][self.fresh]
+        loaded = registry.load(self.path, self.write())
+        for group in ("stream", "dev"):
+            with self.subTest(group=group):
+                terms = self.terms()
+                terms["confirmation_exposure_scope"] = "prospective_lineage"
+                if group == "stream":
+                    terms["stream"]["order"].append(related)
+                else:
+                    terms["pools"]["dev"].append(related)
+                with self.assertRaisesRegex(ValueError, "repository"):
+                    loaded.validate_campaign(terms)
+
+    def test_exposure_declarations_require_bounded_unique_task_ids(self):
+        for value in ("task", ["invalid"], [self.task, self.task], [False]):
+            with self.subTest(value=value):
+                self.document["operator_exposed_tasks"] = value
+                with self.assertRaisesRegex(ValueError, "operator-exposure"):
+                    registry.load(self.path, self.write())
+        self.document.update(
+            exposure_scope="prospective_lineage", operator_exposed_tasks=[]
+        )
+        with self.assertRaisesRegex(ValueError, "disclosed operator exposure"):
+            registry.load(self.path, self.write())
+        self.document["exposure_scope"] = "unseen"
+        with self.assertRaisesRegex(ValueError, "exposure scope"):
+            registry.load(self.path, self.write())
+
     def test_unpinned_images_counts_paths_and_unknown_fields_are_rejected(self):
         for key, value in (
             ("image", "latest"),

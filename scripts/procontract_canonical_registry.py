@@ -71,12 +71,16 @@ class Registry:
     blob_manifest: Path
     pins_file: Path
     exposed_tasks: tuple[str, ...]
+    exposure_scope: str
+    operator_exposed_tasks: tuple[str, ...]
 
     def verify_source(self):
         _source(self.path, self.digest)
 
     def validate_campaign(self, terms):
         """Check source identity and known group overlap, not unknown training exposure."""
+        if terms.get("confirmation_exposure_scope", "strict") != self.exposure_scope:
+            raise ValueError("canonical campaign differs: confirmation_exposure_scope")
         for name, expected in (
             ("programbench", str(self.programbench)),
             ("programbench_head", self.programbench_head),
@@ -102,6 +106,9 @@ class Registry:
             if len(tasks) != len(set(tasks)):
                 raise ValueError("campaign task pools contain duplicates")
         development = set(groups[0]) | set(groups[1]) | set(self.exposed_tasks)
+        # Prospective holdouts relax only disclosed operator history, never lineage exposure.
+        if self.exposure_scope == "strict":
+            development.update(self.operator_exposed_tasks)
         # Commits of the same owner/repository stay together, including known historical IDs.
         seen_groups = {task.rsplit(".", 1)[0].casefold() for task in development}
         confirm_groups = {task.rsplit(".", 1)[0].casefold() for task in groups[2]}
@@ -121,7 +128,9 @@ def load(path: Path, expected_sha256: str) -> Registry:
     if (
         not isinstance(data, dict)
         or not REQUIRED <= data.keys()
-        or data.keys() - REQUIRED - {"python", "exposed_tasks"}
+        or data.keys()
+        - REQUIRED
+        - {"python", "exposed_tasks", "exposure_scope", "operator_exposed_tasks"}
         or type(data["schema"]) is not int
         or data["schema"] != 1
     ):
@@ -165,14 +174,26 @@ def load(path: Path, expected_sha256: str) -> Registry:
             or re.fullmatch(r"[0-9a-f]{40}", data[name]) is None
         ):
             raise ValueError(f"{name} must be a pinned revision")
+    exposure_scope = data.get("exposure_scope", "strict")
+    if exposure_scope not in ("strict", "prospective_lineage"):
+        raise ValueError("invalid exposure scope")
     exposed = data.get("exposed_tasks", [])
-    if (
-        not isinstance(exposed, list)
-        or len(exposed) > 10000
-        or any(not isinstance(t, str) or TASK_ID.fullmatch(t) is None for t in exposed)
-        or len(exposed) != len(set(exposed))
+    operator_exposed = data.get("operator_exposed_tasks", [])
+    for name, tasks in (
+        ("known-exposure", exposed),
+        ("operator-exposure", operator_exposed),
     ):
-        raise ValueError("invalid known-exposure task list")
+        if (
+            not isinstance(tasks, list)
+            or len(tasks) > 10000
+            or any(
+                not isinstance(t, str) or TASK_ID.fullmatch(t) is None for t in tasks
+            )
+            or len(tasks) != len(set(tasks))
+        ):
+            raise ValueError(f"invalid {name} task list")
+    if exposure_scope == "prospective_lineage" and not operator_exposed:
+        raise ValueError("prospective lineage requires disclosed operator exposure")
     programbench = _path(data["programbench"])
     return Registry(
         path=path,
@@ -187,4 +208,6 @@ def load(path: Path, expected_sha256: str) -> Registry:
         blob_manifest=_path(data["blob_manifest"]),
         pins_file=_path(data["pins_file"]),
         exposed_tasks=tuple(exposed),
+        exposure_scope=exposure_scope,
+        operator_exposed_tasks=tuple(operator_exposed),
     )
