@@ -4,11 +4,21 @@ Steering asks the active executor to finish naturally. It neither interrupts a t
 changes what counts as a handoff, a verified artifact or an evaluation result.
 """
 
+import math
+
+from procontract_harness_program import INTERPRETER, Program
+
 
 class DeliveryBudget:
     """Send at most one bounded notice, including when its acknowledgement is lost."""
 
-    def __init__(self, *, deadline_secs: int, reserve_secs: int = 0):
+    def __init__(
+        self,
+        *,
+        deadline_secs: int,
+        reserve_secs: int = 0,
+        program: Program | None = None,
+    ):
         if deadline_secs <= 0 or not 0 <= reserve_secs < deadline_secs:
             raise ValueError(
                 "delivery reserve must be nonnegative and below the deadline"
@@ -16,6 +26,18 @@ class DeliveryBudget:
         self.deadline_secs = deadline_secs
         self.reserve_secs = reserve_secs
         self._attempt: dict | None = None
+        self.program = program
+        self.activation = (
+            {
+                "sha256": program.digest,
+                "interpreter": INTERPRETER,
+                "evaluations": 0,
+                "last_input": None,
+                "last_decision": None,
+            }
+            if program is not None
+            else None
+        )
 
     def maybe_steer(
         self, server, turns, status, handle, *, elapsed_secs: float
@@ -30,7 +52,7 @@ class DeliveryBudget:
         if (
             not self.reserve_secs
             or self._attempt is not None
-            or not 0 < remaining <= self.reserve_secs
+            or remaining <= 0
             or not turns.active
             or not turns.thread_id
             or not turns.turn_id
@@ -40,6 +62,23 @@ class DeliveryBudget:
             not isinstance(status, dict)
             or status.get("phase") not in ("idle", "drafting", "working", "repairing")
         ):
+            return
+        if self.program is not None:
+            facts = {
+                "deadline_secs": self.deadline_secs,
+                "remaining_secs": max(0, math.ceil(remaining)),
+                "turns_completed": turns.completed,
+                "repairs_used": (status or {}).get("repairs_used", 0),
+            }
+            decision = self.program.evaluate(facts)
+            self.activation.update(
+                evaluations=self.activation["evaluations"] + 1,
+                last_input=facts,
+                last_decision=decision,
+            )
+            if not decision:
+                return
+        if remaining > self.reserve_secs:
             return
         turn_id = turns.turn_id
         notice = (

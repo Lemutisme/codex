@@ -27,7 +27,7 @@ class DeliveryRunnerTest(unittest.TestCase):
                     runner.run(args)
                 server.assert_not_called()
 
-    def drive(self, *, reserve=3600, end="completed", reject=False):
+    def drive(self, *, reserve=3600, end="completed", reject=False, program=None):
         clock = [0.0]
         server = mock.Mock()
         working = {"phase": "working", "resting": False}
@@ -71,11 +71,16 @@ class DeliveryRunnerTest(unittest.TestCase):
         server.messages.get.side_effect = message
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "manifest.json").write_text(
-                json.dumps(
-                    {"image": "pinned", "model": "gpt-5.6-luna", "effort": "max"}
-                )
-            )
+            manifest = {"image": "pinned", "model": "gpt-5.6-luna", "effort": "max"}
+            if program is not None:
+                (root / "policy").mkdir()
+                (root / "policy" / "harness.json").write_text(json.dumps(program))
+                loaded = runner.harness_program.load(root / "policy")
+                manifest["harness_program"] = {
+                    "sha256": loaded.digest,
+                    "interpreter": runner.harness_program.INTERPRETER,
+                }
+            (root / "manifest.json").write_text(json.dumps(manifest))
             (root / "prompt.txt").write_text("ordinary task")
             args = argparse.Namespace(
                 run_dir=root,

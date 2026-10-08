@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from procontract_delivery_budget import DeliveryBudget
+import procontract_harness_program as harness_program
 
 MODEL = "gpt-5.6-luna"
 EFFORT = "max"
@@ -485,6 +486,7 @@ def prepare(args: argparse.Namespace) -> None:
         shutil.copytree(args.policy, policy)
         chosen = policy / args.instructions
         instructions = chosen.read_text() if chosen.exists() else ""
+    program = harness_program.load(policy)
     write_codex_home(
         run_dir / "codex-home",
         workspace,
@@ -507,7 +509,13 @@ def prepare(args: argparse.Namespace) -> None:
         "prompt_sha256": hashlib.sha256(prompt).hexdigest(),
         "model": args.model,
         "effort": args.effort,
+        "instructions": getattr(args, "instructions", "executor.md"),
     }
+    if program is not None:
+        manifest["harness_program"] = {
+            "sha256": program.digest,
+            "interpreter": harness_program.INTERPRETER,
+        }
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 
@@ -528,11 +536,28 @@ def current_key(environ: dict) -> str | None:
 def run(args: argparse.Namespace) -> None:
     run_dir: Path = args.run_dir
     manifest = json.loads((run_dir / "manifest.json").read_text())
+    program = harness_program.load(run_dir / "policy")
+    identity = (
+        {"sha256": program.digest, "interpreter": harness_program.INTERPRETER}
+        if program is not None
+        else None
+    )
+    if identity != manifest.get("harness_program"):
+        raise ValueError("frozen harness program differs from its prepared identity")
+    reserve = getattr(args, "delivery_reserve_secs", 0)
+    if program is not None:
+        if reserve:
+            raise ValueError(
+                "a versioned harness program cannot be overridden by a CLI reserve"
+            )
+        # A candidate can request convergence, not change the Host's authority window.
+        reserve = min(3600, args.deadline_secs // 4)
     budget = DeliveryBudget(
         deadline_secs=args.deadline_secs,
-        reserve_secs=getattr(args, "delivery_reserve_secs", 0),
+        reserve_secs=reserve,
+        program=program,
     )
-    if args.stop_after_issue and getattr(args, "delivery_reserve_secs", 0):
+    if args.stop_after_issue and (reserve or program is not None):
         raise ValueError(
             "delivery convergence cannot be combined with stop-after-issue"
         )
@@ -681,8 +706,18 @@ def run(args: argparse.Namespace) -> None:
             turn_errors=turns.errors,
             cost=rollout_costs(home),
         )
+    except BaseException as error:
+        # Partial output is not a successful execution, even if some files were written.
+        summary.update(
+            runner_error=type(error).__name__,
+            server_exited_early=True,
+            cost_unknown=True,
+        )
+        raise
     finally:
         summary["delivery_budget"] = budget.summary()
+        if budget.activation is not None:
+            summary["harness_program"] = budget.activation
         summary["elapsed_secs"] = round(time.monotonic() - started)
         server.close()
         readable(run_dir / "workspace", manifest["image"])
