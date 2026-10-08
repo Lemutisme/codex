@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "state": "prepared_not_started",
+  "stage": "A1_budget_notice_diagnostic",
+  "base_commit": "53b4b010811f1727d93b7b21347e8f81cfa14638",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "max",
+  "task_deadline_seconds": 18000,
+  "delivery_reserve_seconds": 3600,
+  "task_episode_cap": 3,
+  "new_paid_task_attempts_per_task": 1,
+  "online_policy_updates": false,
+  "learning_role_runs": 0,
+  "runtime_self_modification": false,
+  "confirmation_or_promotion": false,
+  "comparison": "Prior Luna runs are historical diagnostic references, not prospective paired controls.",
+  "policy_selection": "Reuse the exact policy that previously ran each task; do not learn between tasks.",
+  "delivery_selection": "Final workspace, unchanged from baseline; no checkpoint fallback in A1.",
+  "runtime_binary_sha256": "83cede24c1845a82b188b6fa645c7311e651f7f8fb89c93adb7e21a60ad4a459",
+  "canonical_pins_sha256": "76e3ffcf52dd170c548394289f85d616d111bc02c40276943f64cd863d060eac",
+  "task_prompt_sha256": "502f07f8d94119f95ed426d54b423ee90452350c4f7972f9a407dbd34f5588ee",
+  "tasks": [
+    {
+      "task": "antonmedv__fx.86d0d34",
+      "policy": "1481262ab3c7bba98245a207e65a835f40cb9bc2d7e00e3017ccfa5d2dad3002",
+      "policy_directory": "/home/duozhou/run-artifacts/procontract-rsi-three-20261007/luna/versions/1481262ab3c7bba98245a207e65a835f40cb9bc2d7e00e3017ccfa5d2dad3002/bundle"
+    },
+    {
+      "task": "cheat__cheat.b8098dc",
+      "policy": "4ead7948a0cb37b697ad3872ab17a615c19d5d110d167379c93817c5e4d042f4",
+      "policy_directory": "/home/duozhou/run-artifacts/procontract-rsi-three-20261007/luna/versions/4ead7948a0cb37b697ad3872ab17a615c19d5d110d167379c93817c5e4d042f4/bundle"
+    },
+    {
+      "task": "hush-shell__hush.560c33a",
+      "policy": "aa31fafe82d2e4696beb28ac6ecfe292ac63742f6cc485cc88ce1236e613efaa",
+      "policy_directory": "/home/duozhou/run-artifacts/procontract-rsi-three-20261007/luna/versions/aa31fafe82d2e4696beb28ac6ecfe292ac63742f6cc485cc88ce1236e613efaa/bundle"
+    }
+  ],
+  "primary_observations": [
+    "natural_handoff_before_deadline",
+    "native_terminal_status",
+    "steering_acknowledgement",
+    "deadline_tail_seconds",
+    "all_run_costs"
+  ],
+  "external_score": "Same frozen canonical eligible-case denominator, skipped nonpassed, invalid never zero.",
+  "not_implemented": [
+    "source_checkpoint_selection",
+    "canonical_driver_flag_forwarding",
+    "pinned_v6_live_protocol_smoke",
+    "method_trial_isolation",
+    "candidate_runtime_isolation"
+  ],
+  "launch_blockers": [
+    "Docker API access denied in current session",
+    "Driver forwarding and pinned runtime smoke must pass before launch"
+  ],
+  "commit_blocker": "Target worktree and Git metadata are read-only.",
+  "source_changes_sha256": {
+    "scripts/procontract_benchmark_runner.py": "72d171d403099110567ad14ff4c3b0f3e7387395edc4e900a40e1e85891d40e0",
+    "scripts/procontract_delivery_budget.py": "6bc60c81a74d0fcaee12d8b90a28a77be4dfe48b1db4c15671c7cd0f42709579",
+    "scripts/test_procontract_delivery_budget.py": "ef026877b7a9ce624b9fc52a66829fd539208c3b74c3dcb46fa1cfaae10e1837",
+    "scripts/test_procontract_delivery_runner.py": "82a9360ecd9677a39a3a44f43ecdaddec1a8f661d41367025afad4ac0e25ba29"
+  }
+}

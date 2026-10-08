@@ -22,6 +22,8 @@ import threading
 import time
 from pathlib import Path
 
+from procontract_delivery_budget import DeliveryBudget
+
 MODEL = "gpt-5.6-luna"
 EFFORT = "max"
 ENVIRONMENT_ID = "cleanroom"
@@ -403,9 +405,9 @@ class AppServer:
         request_id = self._next_id
         self._send({"id": request_id, "method": method, "params": params})
         deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
+        while (remaining := deadline - time.monotonic()) > 0:
             try:
-                message = self.messages.get(timeout=1)
+                message = self.messages.get(timeout=min(1.0, remaining))
             except queue.Empty:
                 continue
             if message.get("id") == request_id and "method" not in message:
@@ -526,6 +528,14 @@ def current_key(environ: dict) -> str | None:
 def run(args: argparse.Namespace) -> None:
     run_dir: Path = args.run_dir
     manifest = json.loads((run_dir / "manifest.json").read_text())
+    budget = DeliveryBudget(
+        deadline_secs=args.deadline_secs,
+        reserve_secs=getattr(args, "delivery_reserve_secs", 0),
+    )
+    if args.stop_after_issue and getattr(args, "delivery_reserve_secs", 0):
+        raise ValueError(
+            "delivery convergence cannot be combined with stop-after-issue"
+        )
     # Prepare pins the executor and every worker together; run-time flags cannot relabel them.
     model = manifest.get("model", MODEL)
     effort = manifest.get("effort", EFFORT)
@@ -656,6 +666,13 @@ def run(args: argparse.Namespace) -> None:
                         # The run is over either way; its status and cost are still worth recording.
                         summary["interrupt_unanswered"] = True
                 break
+            budget.maybe_steer(
+                server,
+                turns,
+                status,
+                handle,
+                elapsed_secs=time.monotonic() - started,
+            )
         summary.update(
             status=read_status(ledger, thread_id),
             turns_completed=turns.completed,
@@ -665,6 +682,7 @@ def run(args: argparse.Namespace) -> None:
             cost=rollout_costs(home),
         )
     finally:
+        summary["delivery_budget"] = budget.summary()
         summary["elapsed_secs"] = round(time.monotonic() - started)
         server.close()
         readable(run_dir / "workspace", manifest["image"])
@@ -715,6 +733,12 @@ def main() -> None:
     )
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
+    parser.add_argument(
+        "--delivery-reserve-secs",
+        type=int,
+        default=0,
+        help="opt-in run-time convergence window within the deadline; no extra time",
+    )
     parser.add_argument(
         "--policy",
         type=Path,
