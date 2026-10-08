@@ -40,9 +40,9 @@ Reach in practice:
 
 A stream is test-time learning on the evaluation set itself (insight spec §14): each instance is run
 once, by the policy current when its batch starts, and its hidden outcome is read only after that run,
-as feedback after delivery. So every score is out of sample for the policy that earned it, and the
-stream needs no confirmation: a separate baseline campaign runs the root version on the same
-instances, and the comparison, paired by instance, certifies the learning from beyond its reach.
+as feedback after delivery. This ordering does not establish the absence of historical exposure;
+stream scores are descriptive: a separate baseline campaign runs the root version on the same
+instances, and the paired comparison is not causal certification of learning.
 
 Every phase is resumable: runs are cached by directory, kernel commands are idempotent by key."""
 
@@ -60,6 +60,7 @@ from pathlib import Path
 
 import procontract_attribution as attribution
 import procontract_comparison as comparison
+import procontract_harness_program as harness_program
 import procontract_outcomes as outcome_matrix
 import procontract_release as release
 import procontract_store as store
@@ -117,8 +118,15 @@ Your workspace holds:
   archive/knowledge/ is what the campaign has learned so far and archive/insight/ holds the
   analyses that produced it.
 
-Deliver ./EXPERIMENT.md with the sections {sections}. {prediction} No network is available. Tools:
+Deliver ./EXPERIMENT.md (at most 32 KiB) with the sections {sections}. {prediction} No network is available. Tools:
 python3, jq, grep, sed and awk are installed; rg is not.
+
+If authorized in the editable files above, policy/harness.json is a pure convergence program
+used by both task and research runs. Format: {{"schema":1,"when":predicate}}. Predicates are
+{{"remaining_fraction_lte":[numerator,denominator]}}, {{"completed_turns_lte":integer}},
+{{"repairs_used_gte":integer}}, {{"always":boolean}}, {{"all":[predicates]}},
+{{"any":[predicates]}}, or {{"not":predicate}}. Keep it small and finite; no imports, external I/O or
+budget changes are allowed. A true result requests bounded handoff guidance, not acceptance.
 """
 
 PREDICT_ITEMS = """When you change a file that shapes how tasks are done ({task_files}), also deliver
@@ -368,10 +376,8 @@ class Host:
     def register(
         self, bundle: Path, parent: str | None, proposed_by: str, experiment: str
     ) -> str:
-        files = {
-            name: (bundle / name).read_text() if (bundle / name).exists() else ""
-            for name in BUNDLE_FILES
-        }
+        supplied = bundle_texts(bundle)
+        files = {name: supplied.get(name, "") for name in BUNDLE_FILES}
         manifest = {
             "schema": 1,
             "binary": self.terms["codex_sha256"],
@@ -381,12 +387,22 @@ class Host:
             },
             "lineage": {"parent": parent, "proposed_by": proposed_by},
         }
+        program = harness_program.load(bundle)
+        if program is not None:
+            manifest["harness"] = {
+                "interpreter": harness_program.INTERPRETER,
+                "sha256": program.digest,
+            }
         vid = store.digest("version", manifest)
         target = self.version_dir(vid)
         if not target.exists():
             (target / "bundle").mkdir(parents=True)
             for name, text in files.items():
                 (target / "bundle" / name).write_text(text)
+            if program is not None:
+                (target / "bundle" / harness_program.PROGRAM_FILE).write_bytes(
+                    program.source
+                )
             (target / "EXPERIMENT.md").write_text(experiment)
             (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
             self.record("version", {"id": vid, "manifest": manifest})
@@ -409,6 +425,7 @@ class Host:
         raise RuntimeError("the campaign has no incumbent")
 
     # ---- runs ---------------------------------------------------------------------------------
+
 
     def measure(self, vid: str, task: str, purpose: str) -> dict:
         """Runs a version on one task and labels the result; cached by run directory."""
@@ -462,9 +479,13 @@ class Host:
         """The earliest ancestor that does tasks exactly as `vid` does. Task behavior is measured
         once per twin: a change to the research method alone changes no task result."""
         versions = self.versions()
-        while (parent := versions[vid]["lineage"]["parent"]) is not None and all(
-            versions[vid]["bundle"][name] == versions[parent]["bundle"][name]
-            for name in TASK_FILES
+        while (
+            (parent := versions[vid]["lineage"]["parent"]) is not None
+            and versions[vid].get("harness") == versions[parent].get("harness")
+            and all(
+                versions[vid]["bundle"][name] == versions[parent]["bundle"][name]
+                for name in TASK_FILES
+            )
         ):
             vid = parent
         return vid
@@ -1041,14 +1062,17 @@ class Host:
             self.terms["research_deadline_secs"],
         )
 
+
     def qualify(self, delivery: Path, parent: str) -> tuple[bool, str, bool]:
         """Mechanical, complete criterion: an experiment record with every section, a bundle
         changed only within the campaign's mutable files, and task-shaping files that name no task
         the campaign has exposed. Returns (qualified, reason, changed)."""
-        experiment = delivery / "EXPERIMENT.md"
-        if not experiment.exists() or not experiment.read_text().strip():
+        try:
+            text = experiment_text(delivery)
+        except ValueError as error:
+            return False, f"invalid EXPERIMENT.md: {error}", False
+        if not text.strip():
             return False, "no EXPERIMENT.md was delivered", False
-        text = experiment.read_text()
         missing = [
             section
             for section in EXPERIMENT_SECTIONS
@@ -1057,8 +1081,16 @@ class Host:
         if missing:
             return False, f"EXPERIMENT.md lacks {', '.join(missing)}", False
         policy = delivery / "policy"
+        try:
+            files = bundle_texts(policy)
+        except ValueError as error:
+            return False, f"invalid policy bundle: {error}", False
         extra = (
-            sorted(p.name for p in policy.iterdir() if p.name not in BUNDLE_FILES)
+            sorted(
+                p.name
+                for p in policy.iterdir()
+                if p.name not in [*BUNDLE_FILES, harness_program.PROGRAM_FILE]
+            )
             if policy.is_dir()
             else ["(missing policy/)"]
         )
@@ -1068,18 +1100,21 @@ class Host:
                 f"the bundle gained files outside the protocol: {', '.join(extra)}",
                 False,
             )
+        try:
+            program = harness_program.load(policy)
+        except ValueError as error:
+            return False, f"invalid harness program: {error}", False
         parent_bundle = self.version_dir(parent) / "bundle"
+        before_files = bundle_texts(parent_bundle)
+        before_program = harness_program.load(parent_bundle)
         changed = []
-        for name in BUNDLE_FILES:
-            path = policy / name
-            new = path.read_bytes() if path.exists() else b""
-            if len(new) > MAX_BUNDLE_FILE:
-                return False, f"{name} exceeds 32 KiB", False
-            try:
-                new.decode("utf-8")
-            except UnicodeDecodeError:
-                return False, f"{name} is not UTF-8", False
-            if new != (parent_bundle / name).read_bytes():
+        for name in [*BUNDLE_FILES, harness_program.PROGRAM_FILE]:
+            if name == harness_program.PROGRAM_FILE:
+                new = program.source if program is not None else b""
+                before = before_program.source if before_program is not None else b""
+            else:
+                new, before = files.get(name, ""), before_files.get(name, "")
+            if new != before:
                 changed.append(name)
         outside = [name for name in changed if name not in self.terms["mutable"]]
         if outside:
@@ -1088,11 +1123,13 @@ class Host:
                 f"changed files the campaign does not allow: {', '.join(outside)}",
                 False,
             )
-        if leak := self.boundary(policy, changed):
+        if leak := self.boundary(files, changed):
             return False, leak, False
         if (
             not self.stream
-            and any(name in TASK_FILES for name in changed)
+            and any(
+                name in [*TASK_FILES, harness_program.PROGRAM_FILE] for name in changed
+            )
             and (problem := self.prediction_problem(delivery / "prediction.json"))
         ):
             return False, problem, False
@@ -1257,7 +1294,7 @@ class Host:
         streamed = [task for batch in self.batches() for task in batch["tasks"]]
         return [*self.terms["pools"]["dev"], *self.used_confirmation_tasks(), *streamed]
 
-    def boundary(self, policy: Path, changed: list[str]) -> str:
+    def boundary(self, files: dict[str, str], changed: list[str]) -> str:
         """Why a changed task-shaping file crosses the boundary, or an empty string. Dossiers carry
         hidden-test detail for the research view only; the files that shape how a version does
         tasks must stay task-agnostic, so none may name an exposed task, as a whole word in any
@@ -1270,10 +1307,8 @@ class Host:
             }
         )
         # A deleted file names nothing.
-        for name in (
-            name for name in changed if name in TASK_FILES and (policy / name).exists()
-        ):
-            text = (policy / name).read_text()
+        for name in (name for name in changed if name in TASK_FILES and name in files):
+            text = files[name]
             for token in tokens:
                 if re.search(rf"(?<!\w){re.escape(token)}(?!\w)", text, re.IGNORECASE):
                     return f"{name} names the exposed task token '{token}'"
@@ -1899,15 +1934,24 @@ def verdict_problem(path: Path, pending: str) -> str:
 
 def delivery_subject(delivery: Path, experiment: str) -> str:
     """The content a research delivery is judged on: its experiment record and its bundle."""
+    bundle = delivery / "policy"
+    try:
+        files = bundle_texts(bundle)
+    except ValueError as error:
+        files = {"invalid_bundle": str(error)}
+    try:
+        program = harness_program.load(bundle)
+    except ValueError as error:
+        # Qualification rejected it; do not follow a rejected link or open a special file.
+        files[harness_program.PROGRAM_FILE] = {"invalid": str(error)}
+    else:
+        if program is not None:
+            files[harness_program.PROGRAM_FILE] = program.source.decode("utf-8")
     return store.digest(
         "delivery",
         {
             "experiment": experiment,
-            "bundle": {
-                name: (delivery / "policy" / name).read_text(errors="replace")
-                for name in BUNDLE_FILES
-                if (delivery / "policy" / name).exists()
-            },
+            "bundle": files,
         },
     )
 
@@ -1998,6 +2042,31 @@ def copy_knowledge(source: Path | None, dest: Path) -> None:
         shutil.copytree(source, dest, ignore=shutil.ignore_patterns(CACHE))
     else:
         dest.mkdir(parents=True)
+
+
+
+
+def bundle_texts(bundle: Path) -> dict[str, str]:
+    """Read only bounded regular role files; a candidate cannot redirect Host reads."""
+    if bundle.is_symlink() or not bundle.is_dir():
+        raise ValueError("policy must be a directory, not a link")
+    texts = {}
+    for name in BUNDLE_FILES:
+        raw = harness_program.read_regular(bundle / name, MAX_BUNDLE_FILE)
+        if raw is not None:
+            try:
+                texts[name] = raw.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise ValueError(f"{name} is not UTF-8") from error
+    return texts
+
+
+def experiment_text(delivery: Path) -> str:
+    """The bounded, non-linked experiment record, or an empty string when absent."""
+    raw = harness_program.read_regular(delivery / "EXPERIMENT.md", MAX_BUNDLE_FILE)
+    return raw.decode("utf-8") if raw is not None else ""
+
+
 
 
 def hand_over(analysis: Path, workspace: Path, pending: str | None) -> None:
@@ -2381,7 +2450,9 @@ def main() -> None:
     init.add_argument("--parent-tolerance", type=float, default=0.05)
     init.add_argument("--confirm-min-delta", type=float, default=0.0)
     init.add_argument("--confirm-min-wins", type=int, default=3)
-    init.add_argument("--mutable", nargs="+", default=BUNDLE_FILES)
+    init.add_argument(
+        "--mutable", nargs="+", default=[*BUNDLE_FILES, harness_program.PROGRAM_FILE]
+    )
     init.add_argument(
         "--adoption", choices=["explicit", "presumed"], default="explicit"
     )
