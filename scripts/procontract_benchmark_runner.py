@@ -188,7 +188,22 @@ def harness_ready(codex_bin: Path) -> str | None:
 
 def app_server_command(codex_bin: Path, arm: str) -> list[str]:
     toggle = "--enable" if arm == "on" else "--disable"
-    return [str(codex_bin), "--disable", "hooks", toggle, "pro_contract", "app-server"]
+    # This evaluation profile pins one model/effort for all roles. Ordinary
+    # collaboration exposes overrides; internal ProContract workers stay pinned.
+    return [
+        str(codex_bin),
+        "--disable",
+        "hooks",
+        "--disable",
+        "multi_agent",
+        "--disable",
+        "multi_agent_v2",
+        "-c",
+        "agents.enabled=false",
+        toggle,
+        "pro_contract",
+        "app-server",
+    ]
 
 
 def server_env(run_dir: Path, base: dict) -> dict:
