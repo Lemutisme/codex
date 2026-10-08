@@ -61,6 +61,7 @@ from pathlib import Path
 
 import procontract_attribution as attribution
 import procontract_comparison as comparison
+import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
 import procontract_outcomes as outcome_matrix
 import procontract_release as release
@@ -690,6 +691,8 @@ class Host:
             if body["status"] == "qualified"
         }
         if self.stream:
+            if self.terms["stream"].get("mode", "explore") == "guarded":
+                return guarded_stream.pending_experiment(self, asked)
             # The policy of the latest batch, when it changed how tasks are done since the batch before.
             policies = [batch["version"] for batch in self.batches()]
             changed = len(policies) > 1 and self.twin(policies[-1]) != self.twin(
@@ -1754,6 +1757,8 @@ class Host:
     def learned(self, b: int) -> bool:
         """Whether a stream has finished learning from batch b: its research was settled, or, after
         the last batch, an analysis covers every run."""
+        if self.terms.get("stream", {}).get("mode", "explore") == "guarded":
+            return guarded_stream.learned(self, b)
         if b == self.batch_count():
             done = self.insights()
             runs = {
@@ -1772,6 +1777,8 @@ class Host:
     def stream_step(self) -> str:
         """The next unit of a stream: learning from the latest batch when that is unfinished, else the
         next batch, run with the current policy on tasks no run has seen, then learning from it."""
+        if self.terms.get("stream", {}).get("mode", "explore") == "guarded":
+            return guarded_stream.step(self)
         if outcome := release.advance(self):
             return outcome
         done = self.batches()
@@ -2375,6 +2382,15 @@ def cmd_init(args) -> None:
         sys.exit(
             "a stream starts with empty knowledge; earlier hidden feedback may expose future tasks"
         )
+    if args.stream_mode == "guarded" and (
+        not args.instances
+        or args.release_every != 1
+        or args.sealed is None
+        or args.task_attempts != 1
+    ):
+        sys.exit(
+            "guarded mode needs --instances, --release-every 1, --sealed and --task-attempts 1"
+        )
     if (
         args.batch < 1
         or args.recent_batches < 1
@@ -2397,6 +2413,8 @@ def cmd_init(args) -> None:
             "recent": args.recent_batches,
             "release_every": args.release_every,
         }
+        if args.stream_mode == "guarded":
+            stream["mode"] = "guarded"
         dev, confirm = [], []
         if args.release_every:
             if args.sealed is None:
@@ -2720,6 +2738,9 @@ def main() -> None:
     init.add_argument("--confirm-pool", type=int, default=8)
     init.add_argument("--confirm-tasks", type=int, default=4)
     init.add_argument("--research-steps", type=int, default=2)
+    init.add_argument(
+        "--stream-mode", choices=("explore", "guarded"), default="explore"
+    )
     init.add_argument("--task-attempts", type=int, choices=(1, 2), default=1)
     init.add_argument("--dev-min-delta", type=float, default=0.0)
     init.add_argument(
