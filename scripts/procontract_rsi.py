@@ -188,6 +188,9 @@ LAYOUT = """Layout:
   failures.txt, trajectory.md (the executor's thread in order), events.jsonl (the same as records)
   and final/ (the text files the executor left).
 - tasks/<task>/outcomes.md: the outcome matrix of one task across all the runs above.
+- method-trials/<method>.json: completed paired-updater outcomes. These attribute descendant
+  quality to the method that produced it; they do not claim general method superiority or adopt
+  the descendant. No future held-out plans appear here.
 - attribution/: per task, how a version's behavior and outcomes differ from its parent's.
 - insight/<k>/: earlier analyses (ANALYSIS.md, CHALLENGE.md, hindsight.json, and the verdict.json
   that counted an experiment's signature).
@@ -889,6 +892,9 @@ class Host:
                     if (kept / name).exists():
                         shutil.copy(kept / name, target)
         copy_knowledge(self.current_knowledge(), archive / "knowledge")
+        import procontract_method_confirmation as method_confirmation
+
+        method_confirmation.write_feedback(self, archive)
         return list(runs)
 
     def write_readme(self, archive: Path, parent: str) -> None:
@@ -2555,6 +2561,12 @@ def cmd_init(args) -> None:
             "guarded mode needs --instances, --release-every 1, --sealed and --task-attempts 1"
         )
     if (
+        args.stream_mode == "guarded"
+        and args.method_confirmation == "paired-descendants"
+        and not 0 <= args.confirm_min_delta <= 1
+    ):
+        sys.exit("method confirmation requires a nonnegative improvement threshold")
+    if (
         args.batch < 1
         or args.recent_batches < 1
         or args.release_every < 0
@@ -2578,6 +2590,7 @@ def cmd_init(args) -> None:
         }
         if args.stream_mode == "guarded":
             stream["mode"] = "guarded"
+            stream["method_confirmation"] = args.method_confirmation
         dev, confirm = [], []
         if args.release_every:
             if args.sealed is None:
@@ -2921,6 +2934,11 @@ def main() -> None:
     init.add_argument("--research-steps", type=int, default=2)
     init.add_argument(
         "--stream-mode", choices=("explore", "guarded"), default="explore"
+    )
+    init.add_argument(
+        "--method-confirmation",
+        choices=("paired-descendants", "defer"),
+        default="paired-descendants",
     )
     init.add_argument("--canonical-registry", type=Path)
     init.add_argument("--canonical-registry-sha256")

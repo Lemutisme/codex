@@ -38,7 +38,14 @@ class GradedTasks(ActivatedTasks):
 
 
 class GuardedStreamTest(unittest.TestCase):
-    def make_host(self, *, adoption="presumed", quality="behavior", mode="guarded"):
+    def make_host(
+        self,
+        *,
+        adoption="presumed",
+        quality="behavior",
+        mode="guarded",
+        method_confirmation="defer",
+    ):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
@@ -77,6 +84,8 @@ class GuardedStreamTest(unittest.TestCase):
                     "2",
                     "--adoption",
                     adoption,
+                    "--method-confirmation",
+                    method_confirmation,
                 ]
             )
             with mock.patch.object(sys, "argv", [*sys.argv, *extra]):

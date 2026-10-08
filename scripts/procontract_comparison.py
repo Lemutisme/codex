@@ -15,6 +15,10 @@ def validate_comparison(stream, baseline) -> None:
         raise ValueError("comparison stream differs: mode")
     if stream.terms.get("canonical") != baseline.terms.get("canonical"):
         raise ValueError("comparison identity differs: canonical")
+    if stream.terms["stream"].get("method_confirmation", "defer") != baseline.terms[
+        "stream"
+    ].get("method_confirmation", "defer"):
+        raise ValueError("comparison stream differs: method_confirmation")
     for field in (
         "codex_sha256",
         "model",

@@ -90,6 +90,10 @@ def confirm(host, candidate, incumbent):
         return "confirmed and adopted"
     host.validate_evaluator()
     plan = confirmation_plan(host, candidate)
+    if plan is not None and plan.get("class") == "paired_updater_v1":
+        raise RuntimeError(
+            "method confirmation must resume its paired updater workflow, not inherited task scores"
+        )
     if plan is None:
         if state is not None:
             raise RuntimeError(
@@ -209,6 +213,10 @@ def adopt(host, candidate, presumed=False):
     # already settled decision: historical adoption remains readable after artifact cleanup.
     host.validate_harness(candidate)
     host.validate_evaluator()
+    if plan is not None and plan.get("class") == "paired_updater_v1":
+        import procontract_method_confirmation as method_confirmation
+
+        method_confirmation.validate_adoption(host, plan)
     coordinate = state["support"]["coordinate"]
     if coordinate["evaluator_digest"] != store.digest(
         "evaluator", host.adapter.evaluator()

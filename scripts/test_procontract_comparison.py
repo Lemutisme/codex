@@ -54,6 +54,13 @@ class ComparisonTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "mode"):
             comparison.validate_comparison(self.stream, self.baseline)
 
+    def test_method_comparison_normalizes_old_defer_but_not_paired_updaters(self):
+        self.baseline.terms["stream"]["method_confirmation"] = "defer"
+        comparison.validate_comparison(self.stream, self.baseline)
+        self.baseline.terms["stream"]["method_confirmation"] = "paired-descendants"
+        with self.assertRaisesRegex(ValueError, "method_confirmation"):
+            comparison.validate_comparison(self.stream, self.baseline)
+
     def test_registry_bound_campaign_cannot_be_compared_with_generic_or_other_pins(
         self,
     ):

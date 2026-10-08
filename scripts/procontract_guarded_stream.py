@@ -5,6 +5,7 @@ next serve: an explicit adoption must settle before production can advance.
 """
 
 import procontract_release as release
+import procontract_method_confirmation as method_confirmation
 import procontract_store as store
 import procontract_succession as succession
 
@@ -134,27 +135,42 @@ def step(host):
                 "guarded proposal producer changed before probe assignment"
             )
         size = host.terms["stream"]["batch"]
+        method = candidate is not None and host.twin(candidate) == host.twin(version)
         batch = {
             "batch": number,
-            "phase": "probe" if candidate else "serve",
-            "version": candidate or version,
+            "phase": "method_probe" if method else "probe" if candidate else "serve",
+            "version": version if method else candidate or version,
             "expected_incumbent": version,
             "expected_incumbent_seq": incumbent["seq"],
             "tasks": host.order()[(number - 1) * size : number * size],
         }
+        if method:
+            if any(
+                task in host.exposed_tasks()
+                or any((host.camp / "runs").glob(f"*-{task}"))
+                for task in batch["tasks"]
+            ):
+                raise RuntimeError(
+                    "method probe requires observations not exposed or started before its assignment"
+                )
+            batch["method_candidate"] = candidate
         host.record("assignment", batch)
     else:
         batch = batches[-1]
     number, version = batch["batch"], batch["version"]
+    tested = batch.get("method_candidate", version)
     adoption = (
-        host.contract(f"adoption.{version[:16]}") if batch["phase"] == "probe" else None
+        host.contract(f"adoption.{tested[:16]}")
+        if batch["phase"] in ("probe", "method_probe")
+        else None
     )
     if adoption and adoption["standing"] == "discharged":
-        if host.incumbent() != version:
+        if host.incumbent() != tested:
             raise RuntimeError(
                 "guarded adopted producer changed before phase reconciliation"
             )
-        release.advance(_ReleaseHost(host))
+        if batch["phase"] == "probe":
+            release.advance(_ReleaseHost(host))
         return _finish(
             host, batch, "adopted", detail="next serve uses the settled incumbent"
         )
@@ -187,7 +203,11 @@ def step(host):
         candidate = (
             selected["version"] if selected and number < host.batch_count() else None
         )
-        if candidate is not None and host.twin(candidate) == host.twin(version):
+        if (
+            candidate is not None
+            and host.twin(candidate) == host.twin(version)
+            and host.terms["stream"].get("method_confirmation", "defer") == "defer"
+        ):
             _record(host, "guarded_method_deferred", batch, candidate=candidate)
             detail = "method-only candidate deferred; task confirmation cannot certify its research method"
             candidate = None
@@ -199,6 +219,25 @@ def step(host):
                 None  # A previously decided version cannot buy another confirmation.
             )
         return _finish(host, batch, "served", candidate=candidate, detail=detail)
+
+    if batch["phase"] == "method_probe":
+        _measure(host, [(version, task) for task in batch["tasks"]], "stream")
+        detail = method_confirmation.step(host, batch)
+        adoption = host.contract(f"adoption.{tested[:16]}")
+        if adoption and adoption["standing"] == "discharged":
+            if host.incumbent() != tested:
+                raise RuntimeError(
+                    "method adoption did not publish its expected producer"
+                )
+            return _finish(host, batch, "adopted", detail=detail)
+        if adoption and adoption["standing"] == "outstanding":
+            if adoption["support"]:
+                _record(host, "guarded_awaiting_adoption", batch)
+                return f"guarded method probe batch {number}: {detail}; next serve is pending"
+            raise RuntimeError(
+                "method confirmation is unfinished; preserving its assignment"
+            )
+        return _finish(host, batch, "rejected", detail=detail)
 
     if _event(host, "guarded_probe_ready", number) is None:
         _measure(host, [(version, task) for task in batch["tasks"]], "stream")
