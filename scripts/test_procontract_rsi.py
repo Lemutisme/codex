@@ -785,7 +785,13 @@ class SuccessionTest(unittest.TestCase):
 
             self.assertEqual(log.read_text().split(), ["analyst.md"] * 2)
             first = h.camp / "insight" / "1" / "analyst-1"
-            h.run_agent(first, "analyst-1-1", v0, "analyst.md", 1)
+            h.run_agent(
+                first,
+                "analyst-1-1",
+                v0,
+                "analyst.md",
+                h.terms["analysis_deadline_secs"],
+            )
             self.assertEqual(log.read_text().split(), ["analyst.md"] * 2)
 
     def test_a_spent_confirmation_run_enters_a_later_view_and_an_unspent_task_never_does(

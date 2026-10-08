@@ -49,6 +49,7 @@ Every phase is resumable: runs are cached by directory, kernel commands are idem
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import shutil
@@ -911,21 +912,77 @@ class Host:
     ) -> Path:
         """Runs a codex agent on the research image in root/workspace, no network and no
         reference, with the parent's bundle file `instructions` as its standing instructions;
-        returns the workspace it leaves. A finished run (run.json) is never run again, and neither
-        is one that ended without it: that attempt is spent and marked, so a resumed host judges
-        what it left instead of paying for the attempt twice. A failed prepare starts no agent, so
-        it stops the host, which resumes there."""
+        returns the workspace it leaves. A durable claim precedes every paid launch. Recovery
+        never relaunches a claimed attempt: without a trustworthy terminal receipt or a recorded
+        exit it remains unreconciled, not stopped or failed. A later terminal receipt can settle
+        that same claim. A failed prepare starts no agent and remains retryable."""
         run_dir = root / "run"
         ended = root / "ended-without-run-json"
         failed = root / "runner-failed.json"
+        claim_path = root / "launch-claim.json"
+        exit_path = root / "launch-exit.json"
+        preparation = root / "prepare-only.json"
         self.validate_harness(parent)
+        prompt = harness_program.read_regular(root / "prompt.md", MAX_BUNDLE_FILE)
+        identity = {
+            "parent": parent,
+            "instance": instance,
+            "instructions": instructions,
+            "model": self.terms["model"],
+            "effort": self.terms["effort"],
+            "harness": self.versions()[parent].get("harness"),
+            "binary": self.terms["codex_sha256"],
+            "runner": self.runner,
+            "image": self.terms["research_image"],
+            "deadline_secs": deadline,
+            "prompt": hashlib.sha256(prompt).hexdigest()
+            if prompt is not None
+            else None,
+            "input": store.capture(self.store, root / "workspace", [])["subject_hash"]
+            if (root / "workspace").is_dir()
+            else None,
+        }
+        claim = None
+        if claim_path.exists():
+            try:
+                claim = json.loads(claim_path.read_text())
+                prepared = harness_program.read_regular(
+                    run_dir / "manifest.json", MAX_BUNDLE_FILE
+                )
+                if (
+                    type(claim["schema"]) is not int
+                    or claim["schema"] != 1
+                    or claim["identity"] != identity
+                    or claim["prepared_manifest"]
+                    != (
+                        hashlib.sha256(prepared).hexdigest()
+                        if prepared is not None
+                        else None
+                    )
+                ):
+                    raise ValueError("inputs changed")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise RuntimeError(
+                    "learning launch inputs changed or claim is unreadable; preserving the attempt"
+                ) from error
         if (run_dir / "harness-identity-failure.txt").exists():
             self.validate_harness(parent, run_dir)
         if (
             not (run_dir / "run.json").exists()
             and not ended.exists()
             and not failed.exists()
+            and claim is None
         ):
+            if run_dir.exists() and any(run_dir.iterdir()) and not preparation.exists():
+                raise RuntimeError(
+                    "unreconciled legacy learning directory: no claim or trusted prepare-only "
+                    "record; process state and cost remain unknown"
+                )
+            if preparation.exists() and json.loads(preparation.read_text()) != identity:
+                raise RuntimeError(
+                    "learning preparation inputs changed; preserving the attempt"
+                )
+            succession.receipt(preparation, identity)
             shutil.rmtree(run_dir, ignore_errors=True)
             common = [
                 "--arm",
@@ -959,8 +1016,37 @@ class Host:
                 "--no-reference",
             ]
             subprocess.run([*self.runner, "prepare", *prepare], check=True)
+            prepared = harness_program.read_regular(
+                run_dir / "manifest.json", MAX_BUNDLE_FILE
+            )
+            claim = {
+                "schema": 1,
+                "identity": identity,
+                "prepared_manifest": hashlib.sha256(prepared).hexdigest()
+                if prepared is not None
+                else None,
+            }
+            # Exclusive creation also leaves a blocking claim if the writer dies mid-write.
+            with claim_path.open("x", encoding="utf-8") as handle:
+                json.dump(claim, handle, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            preparation.unlink()
+            if os.name == "posix":
+                directory = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
             run = common + ["--deadline-secs", str(deadline)]
             completed = subprocess.run([*self.runner, "run", *run], check=False)
+            succession.receipt(
+                exit_path,
+                {
+                    "claim": store.digest("learning_launch", claim),
+                    "returncode": completed.returncode,
+                },
+            )
             if completed.returncode:
                 succession.receipt(
                     failed,
@@ -968,12 +1054,44 @@ class Host:
                 )
             if not (run_dir / "run.json").exists():
                 ended.write_text("the run ended without run.json\n")
+        exited = None
+        if claim is not None and exit_path.exists():
+            try:
+                exited = json.loads(exit_path.read_text())
+                if (
+                    exited["claim"] != store.digest("learning_launch", claim)
+                    or type(exited["returncode"]) is not int
+                ):
+                    raise ValueError("exit belongs to another launch")
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                raise RuntimeError(
+                    "unreconciled learning launch: invalid exit receipt"
+                ) from error
+            if exited["returncode"] and not failed.exists():
+                succession.receipt(
+                    failed,
+                    {"reason": "runner failed", "returncode": exited["returncode"]},
+                )
         if not failed.exists():
+            terminal = False
             try:
                 summary = json.loads((run_dir / "run.json").read_text())
                 problem = runner_problem(summary)
+                terminal = bool(problem) or (
+                    isinstance(summary.get("turn_statuses"), list)
+                    and bool(summary["turn_statuses"])
+                    and summary["turn_statuses"][-1]
+                    in ("completed", "interrupted", "failed")
+                )
             except (OSError, ValueError, AttributeError):
                 problem = "runner ended without a readable terminal receipt"
+            if claim is not None and not terminal:
+                if exited is None:
+                    raise RuntimeError(
+                        "unreconciled learning launch: process state and cost remain unknown; "
+                        "preserving the claim and workspace without relaunching"
+                    )
+                problem = "runner exited without a trustworthy terminal receipt"
             if problem:
                 succession.receipt(failed, {"reason": problem})
             else:
