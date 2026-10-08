@@ -211,6 +211,131 @@ class GuardedStreamTest(unittest.TestCase):
             {r["pass_rate"] for r in host.observed().values()}, {0.5, 0.6, 0.7}
         )
 
+    def test_ties_and_refusal_keep_the_incumbent_as_next_producer(self):
+        for refusal in ("tie", "authority"):
+            with self.subTest(refusal=refusal):
+                host = self.make_host(
+                    adoption="explicit" if refusal == "authority" else "presumed",
+                    quality="tie" if refusal == "tie" else "behavior",
+                )
+                root = host.incumbent()
+                host.stream_step()
+                candidate = host.stream_policy()
+                host.stream_step()
+                adoption = f"adoption.{candidate[:16]}"
+                if refusal == "authority":
+                    host.release(
+                        adoption, "the independent authority declines adoption"
+                    )
+                self.assertEqual(
+                    (host.incumbent(), host.contract(adoption)["standing"]),
+                    (root, "released"),
+                )
+                spent = host.used_confirmation_tasks()
+                self.assertEqual(len(spent), 3)
+                host = self.reopen(host)
+                for _ in range(2):
+                    if len(host.batches()) == 3:
+                        break
+                    host.stream_step()
+                self.assertEqual(host.batches()[2]["version"], root)
+                self.assertEqual(host.used_confirmation_tasks(), spent)
+                self.assert_activation(
+                    host,
+                    host.camp / "research" / "step-3" / "run" / "run.json",
+                    root,
+                    "research.md",
+                    0,
+                )
+
+    def test_explicit_adoption_blocks_serving_and_research_without_new_paid_work(self):
+        host = self.make_host(adoption="explicit")
+        root = host.incumbent()
+        host.stream_step()
+        candidate = host.stream_policy()
+        host.stream_step()
+        before = (
+            host.batches(),
+            host.insights(),
+            host.used_confirmation_tasks(),
+            list(host.adapter.runs),
+        )
+        host = self.reopen(host)
+        for _ in range(2):
+            host.stream_step()
+        self.assertEqual(
+            (
+                host.batches(),
+                host.insights(),
+                host.used_confirmation_tasks(),
+                host.adapter.runs,
+            ),
+            before,
+        )
+        self.assertEqual(host.incumbent(), root)
+        self.assertFalse(host.learned(2))
+        self.assertFalse((host.camp / "research" / "step-2").exists())
+        host.adopt(candidate)
+        host = self.reopen(host)
+        for _ in range(2):
+            if len(host.batches()) == 3:
+                break
+            host.stream_step()
+        self.assert_adopted_producer(host, candidate)
+
+    def test_confirmation_restart_keeps_reservation_and_never_repeats_an_arm(self):
+        host = self.make_host()
+        host.stream_step()
+        candidate = host.stream_policy()
+        measure_all = host.measure_all
+
+        def interrupted(pairs, purpose):
+            if purpose == "confirm":
+                host.measure(*pairs[0], purpose)
+                raise InterruptedError("after the first completed confirmation arm")
+            return measure_all(pairs, purpose)
+
+        with mock.patch.object(host, "measure_all", side_effect=interrupted):
+            with self.assertRaises(InterruptedError):
+                host.stream_step()
+        spent = host.used_confirmation_tasks()
+        self.assertEqual(len(spent), 3)
+        insights = host.insights()
+        host = self.reopen(host)
+        host.stream_step()
+        self.assertEqual(
+            (host.incumbent(), len(host.batches()), host.used_confirmation_tasks()),
+            (candidate, 2, spent),
+        )
+        self.assertEqual(host.insights(), insights)
+        pairs = [(v, t) for v, t in host.adapter.runs if t in spent]
+        self.assertEqual((len(pairs), len(set(pairs))), (6, 6))
+        self.assertEqual(
+            len(
+                [
+                    e
+                    for e in host.events("assignment")
+                    if e["body"].get("confirmation") == candidate
+                ]
+            ),
+            1,
+        )
+
+    def test_default_explore_keeps_its_existing_dual_head_behavior(self):
+        host = self.make_host(mode="explore")
+        root = host.incumbent()
+        host.stream_step()
+        candidate = host.stream_policy()
+        host.stream_step()
+        self.assertEqual(
+            (host.incumbent(), host.batches()[1]["version"]), (root, candidate)
+        )
+        self.assertNotEqual(host.stream_policy(), candidate)
+        self.assertTrue(
+            (host.camp / "research" / "step-2" / "run" / "run.json").exists()
+        )
+        self.assertEqual(host.used_confirmation_tasks(), [])
+
 
 if __name__ == "__main__":
     unittest.main()
