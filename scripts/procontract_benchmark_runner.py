@@ -456,6 +456,9 @@ class AppServer:
 
 
 def prepare(args: argparse.Namespace) -> None:
+    import procontract_study_launch as study_launch
+
+    study = study_launch.prepare(args)
     run_dir: Path = args.run_dir
     if run_dir.exists() and any(run_dir.iterdir()):
         sys.exit(f"{run_dir} is not empty; choose a fresh run directory")
@@ -510,7 +513,7 @@ def prepare(args: argparse.Namespace) -> None:
         policy = run_dir / "policy"
         shutil.copytree(args.policy, policy)
         chosen = policy / args.instructions
-        instructions = chosen.read_text() if chosen.exists() else ""
+        instructions = chosen.read_text(encoding="utf-8") if chosen.exists() else ""
     program = harness_program.load(policy)
     write_codex_home(
         run_dir / "codex-home",
@@ -541,6 +544,8 @@ def prepare(args: argparse.Namespace) -> None:
             "sha256": program.digest,
             "interpreter": harness_program.INTERPRETER,
         }
+    if study is not None:
+        manifest.update(study=study, study_version=args.policy.parent.name)
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 
@@ -596,7 +601,11 @@ def run(args: argparse.Namespace) -> None:
         sys.exit("OPENAI_API_KEY must be set in the runner's environment")
     (run_dir / "home").mkdir(exist_ok=True)
     env = server_env(run_dir, dict(os.environ))
-    prompt = (run_dir / "prompt.txt").read_text()
+    prompt = (run_dir / "prompt.txt").read_text(encoding="utf-8")
+    import procontract_study_launch as study_launch
+
+    # All task and research roles converge here. Cached Host results never reserve again.
+    launch = study_launch.authorize(args, manifest, sys.modules[__name__])
     server = AppServer(
         app_server_command(args.codex_bin, args.arm),
         env,
@@ -623,6 +632,8 @@ def run(args: argparse.Namespace) -> None:
         "model": model,
         "effort": effort,
     }
+    if launch is not None:
+        summary["study_launch"] = launch
     try:
         server.request(
             "initialize",
@@ -792,6 +803,8 @@ def main() -> None:
         "--effort", default=EFFORT, help="reasoning effort pinned by prepare"
     )
     parser.add_argument("--prompt", type=Path, default=DEFAULT_PROMPT)
+    parser.add_argument("--study-manifest", type=Path)
+    parser.add_argument("--study-sha256")
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
     parser.add_argument(
         "--delivery-reserve-secs",
