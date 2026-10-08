@@ -991,24 +991,44 @@ class Host:
         stays and the verdict is unknown. Each stage may retry once; finished runs are never run
         again."""
         self.validate_harness(parent)
-        coverage = sorted(self.observed())
+        observed = self.observed()
+        coverage = sorted(observed)
+        previous = self.current_knowledge()
+        knowledge = knowledge_identity(previous)
+        pending = self.pending_experiment()
+        identity = {
+            "parent": parent,
+            "coverage": coverage,
+            "experiment": pending,
+            "evidence": store.digest("analysis_evidence", observed),
+            "protocol": store.digest(
+                "analysis_protocol",
+                [ANALYST_PROTOCOL, CHALLENGER_PROTOCOL, PENDING, PENDING_STREAM],
+            ),
+        }
         done = self.insights()
+        prior_identity = dict(done[-1].get("analysis_identity", {})) if done else {}
+        if pending is None:
+            # A qualified verdict consumes its pending experiment, not the request's evidence.
+            prior_identity["experiment"] = None
         if (
             done
-            and done[-1]["coverage"] == coverage
             and done[-1]["status"] == "qualified"
+            and prior_identity == identity
+            and done[-1].get("knowledge_digest") == knowledge
         ):
+            # The latest output is now current knowledge; it is not a new analysis input.
             return done[-1]["k"]
         k = len(done) + 1
         root = self.camp / "insight" / str(k)
         marker = root / "coverage.json"
-        if marker.exists() and json.loads(marker.read_text()) != coverage:
-            # Runs arrived after an interrupted attempt staged its views: start the analysis over.
-            shutil.rmtree(root)
+        inputs = {**identity, "prior_knowledge": knowledge}
+        if marker.exists() and json.loads(marker.read_text()) != inputs:
+            raise RuntimeError(
+                f"analysis {k} inputs changed; preserving its spent attempts at {root}"
+            )
         root.mkdir(parents=True, exist_ok=True)
-        marker.write_text(json.dumps(coverage))
-        pending = self.pending_experiment()
-        previous = self.current_knowledge()
+        marker.write_text(json.dumps(inputs))
         note = (
             (PENDING_STREAM if self.stream else PENDING).format(version=pending[:12])
             if pending
@@ -1047,6 +1067,8 @@ class Host:
         body = {
             "k": k,
             "coverage": coverage,
+            "analysis_identity": identity,
+            "prior_knowledge": knowledge,
             "experiment": pending,
             "verdict": "unknown",
             "status": "failed",
@@ -1066,6 +1088,7 @@ class Host:
                 else None
             )
             body = {**body, "verdict": verdict, "status": "qualified"}
+            body["knowledge_digest"] = knowledge_identity(root / "knowledge")
             del body["reason"]
         self.record("insight", body)
         return k
@@ -2156,6 +2179,20 @@ def copy_knowledge(source: Path | None, dest: Path) -> None:
         dest.mkdir(parents=True)
 
 
+def knowledge_identity(root: Path | None) -> str:
+    """Content identity, independent of where a qualified knowledge snapshot was copied."""
+    if root is not None and (problem := knowledge_problem(root)):
+        raise ValueError(problem)
+    files = (
+        {
+            path.relative_to(root).as_posix(): path.read_text()
+            for path in sorted(root.rglob("*"))
+            if CACHE not in path.relative_to(root).parts and path.is_file()
+        }
+        if root is not None
+        else {}
+    )
+    return store.digest("knowledge", files)
 
 
 def bundle_texts(bundle: Path) -> dict[str, str]:

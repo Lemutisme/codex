@@ -109,8 +109,57 @@ class VersionIdentityTest(unittest.TestCase):
             self.host.qualify(self.delivery, self.parent)[::2], (False, False)
         )
 
+    def test_analysis_reuses_own_output_but_not_another_method_or_changed_knowledge(
+        self,
+    ):
+        self.host.dev(self.parent)
+        first = self.host.analyze(self.parent)
+        self.assertEqual(self.host.analyze(self.parent), first)
+        method = self.bundle / "analyst.md"
+        method.write_text(
+            method.read_text() + "\nCheck the next mechanism independently.\n"
+        )
+        successor = self.host.register(self.bundle, self.parent, self.parent, "method")
+        self.assertEqual(self.host.twin(successor), self.parent)
+        second = self.host.analyze(successor)
+        self.assertEqual((first, second, self.host.analyze(successor)), (1, 2, 2))
+        knowledge = self.host.current_knowledge() / "mechanisms.md"
+        knowledge.write_text(knowledge.read_text() + "\nNew external evidence.\n")
+        third = self.host.analyze(successor)
+        self.assertEqual((third, self.host.analyze(successor)), (3, 3))
+        self.assertEqual(
+            self.host.insight(second)["analysis_identity"]["parent"], successor
+        )
 
+    def test_analysis_protocol_and_harness_changes_invalidate_the_cache(self):
+        self.host.dev(self.parent)
+        self.host.analyze(self.parent)
+        with mock.patch.object(
+            rsi, "ANALYST_PROTOCOL", rsi.ANALYST_PROTOCOL + "\nNew protocol."
+        ):
+            self.assertEqual(self.host.analyze(self.parent), 2)
+            self.assertEqual(self.host.analyze(self.parent), 2)
+        self.write_program()
+        successor = self.host.register(self.bundle, self.parent, self.parent, "harness")
+        # This fixture exercises cache identity; the recursive peer separately witnesses activation.
+        with mock.patch.object(self.host, "validate_harness"):
+            self.assertEqual(self.host.analyze(successor), 3)
+            self.assertEqual(self.host.analyze(successor), 3)
 
+    def test_new_pending_experiment_invalidates_cache_but_consuming_it_does_not(self):
+        self.host.dev(self.parent)
+        with mock.patch.object(
+            self.host, "pending_experiment", return_value=self.parent
+        ):
+            self.assertEqual(self.host.analyze(self.parent), 1)
+        with mock.patch.object(self.host, "pending_experiment", return_value=None):
+            self.assertEqual(self.host.analyze(self.parent), 1)
+        target = self.host.register(self.bundle, self.parent, self.parent, "new target")
+        with mock.patch.object(self.host, "pending_experiment", return_value=target):
+            self.assertEqual(self.host.analyze(self.parent), 2)
+        self.assertEqual(
+            self.host.insight(2)["analysis_identity"]["experiment"], target
+        )
 
     def test_witness_requires_both_prepared_and_runtime_program_identities(self):
         self.write_program()
@@ -313,6 +362,21 @@ class VersionIdentityTest(unittest.TestCase):
             self.host.qualify(self.delivery, self.parent)[::2], (False, False)
         )
 
+    def test_changed_interrupted_inputs_preserve_spent_attempts(self):
+        self.host.dev(self.parent)
+        with mock.patch.object(
+            self.host, "insight_stage", side_effect=InterruptedError
+        ):
+            with self.assertRaises(InterruptedError):
+                self.host.analyze(self.parent)
+        marker = self.host.camp / "insight" / "1" / "coverage.json"
+        before = marker.read_bytes()
+        self.write_program()
+        successor = self.host.register(self.bundle, self.parent, self.parent, "harness")
+        with self.assertRaisesRegex(RuntimeError, "preserving its spent attempts"):
+            self.host.analyze(successor)
+        self.assertEqual(marker.read_bytes(), before)
+        self.assertEqual(self.host.analyze(self.parent), 1)
 
 
 if __name__ == "__main__":

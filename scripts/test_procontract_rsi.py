@@ -848,7 +848,7 @@ class SuccessionTest(unittest.TestCase):
             ]
             self.assertEqual(exposures, ["analysis:1"], "one view, recorded once")
 
-    def test_analysis_restarts_when_the_runs_changed_during_an_interruption(self):
+    def test_changed_analysis_inputs_preserve_spent_attempts_and_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             os.environ["FAKE_CHALLENGE"] = "crash"
             h = host(campaign(tmp), FakeTasks())
@@ -856,14 +856,24 @@ class SuccessionTest(unittest.TestCase):
             h.measure(v0, DEV[0], "dev")
             with self.assertRaises(rsi.subprocess.CalledProcessError):
                 h.analyze(v0)
+            analysis = h.camp / "insight" / "1"
+            before = {
+                p.relative_to(analysis): p.read_bytes()
+                for p in analysis.rglob("*")
+                if p.is_file()
+            }
             del os.environ["FAKE_CHALLENGE"]
             h.dev(v0)
 
-            h.analyze(v0)
+            with self.assertRaisesRegex(RuntimeError, "preserving its spent attempts"):
+                h.analyze(v0)
 
-            self.assertEqual(len(h.insight(1)["coverage"]), len(DEV))
-            archive = h.camp / "insight" / "1" / "analyst-1" / "workspace" / "archive"
-            self.assertEqual(len(list((archive / "runs").iterdir())), len(DEV))
+            after = {
+                p.relative_to(analysis): p.read_bytes()
+                for p in analysis.rglob("*")
+                if p.is_file()
+            }
+            self.assertEqual(after, before)
 
     def test_status_lists_the_latest_verdicts_and_the_head_of_the_proposals(self):
         with tempfile.TemporaryDirectory() as tmp:
