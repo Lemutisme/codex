@@ -24,7 +24,9 @@ always and sensitive sets but still count in that run's pass rate."""
 
 
 def pass_rate(outcomes: dict) -> float:
-    return sum(o["passed"] for o in outcomes.values()) / len(outcomes) if outcomes else 0.0
+    return (
+        sum(o["passed"] for o in outcomes.values()) / len(outcomes) if outcomes else 0.0
+    )
 
 
 def passed_map(run: dict) -> dict[str, bool]:
@@ -46,7 +48,9 @@ def classify(runs: list[dict]) -> tuple[list[str], list[str], list[str], list[st
     floor, always, sensitive = [], [], []
     for item in common:
         votes = {bool(r["outcomes"][item]["passed"]) for r in runs}
-        (sensitive if len(votes) > 1 else always if votes == {True} else floor).append(item)
+        (sensitive if len(votes) > 1 else always if votes == {True} else floor).append(
+            item
+        )
     return common, floor, always, sensitive
 
 
@@ -79,7 +83,9 @@ def replicate_rows(runs: list[dict]) -> list[dict]:
         rates = [pass_rate(r["outcomes"]) for r in group]
         shared = set.intersection(*(set(r["outcomes"]) for r in group))
         disagree = sorted(
-            i for i in shared if len({bool(r["outcomes"][i]["passed"]) for r in group}) > 1
+            i
+            for i in shared
+            if len({bool(r["outcomes"][i]["passed"]) for r in group}) > 1
         )
         rows.append(
             {
@@ -146,7 +152,12 @@ def floor(runs: list[dict]) -> list[str]:
 
 def failed_items(runs: list[dict]) -> set[str]:
     """The items some run failed."""
-    return {item for run in runs for item, outcome in run["outcomes"].items() if not outcome["passed"]}
+    return {
+        item
+        for run in runs
+        for item, outcome in run["outcomes"].items()
+        if not outcome["passed"]
+    }
 
 
 def by_family(items) -> dict[str, list[str]]:
@@ -170,10 +181,13 @@ def chance_rescues(groups: dict[str, list[dict]]) -> dict[str, tuple[int, int]]:
             others = runs[:i] + runs[i + 1 :]
             if not others:
                 continue
-            units = by_family(item for item in floor(others) if item in held["outcomes"])
+            units = by_family(
+                item for item in floor(others) if item in held["outcomes"]
+            )
             exposed += len(units)
             rescued += sum(
-                any(held["outcomes"][item]["passed"] for item in members) for members in units.values()
+                any(held["outcomes"][item]["passed"] for item in members)
+                for members in units.values()
             )
         counts[task] = (rescued, exposed)
     return counts
@@ -185,7 +199,8 @@ def rescue_tail(rates: list[float], k: int) -> float:
     dist = [1.0]
     for p in rates:
         dist = [
-            (dist[i] * (1 - p) if i < len(dist) else 0.0) + (dist[i - 1] * p if i else 0.0)
+            (dist[i] * (1 - p) if i < len(dist) else 0.0)
+            + (dist[i - 1] * p if i else 0.0)
             for i in range(len(dist) + 1)
         ]
     return sum(dist[k:])
@@ -204,7 +219,9 @@ def top(counts: dict[str, int]) -> str:
 
 
 def render(task: str, m: dict) -> str:
-    runs = ", ".join(f"{r['name']} {r['pass_rate']:.3f} ({r['items']} items)" for r in m["runs"])
+    runs = ", ".join(
+        f"{r['name']} {r['pass_rate']:.3f} ({r['items']} items)" for r in m["runs"]
+    )
     out = [
         f"# Outcomes: {task}",
         "",
@@ -221,7 +238,9 @@ def render(task: str, m: dict) -> str:
         "## Families",
         "",
     ]
-    ordered = sorted(m["families"], key=lambda f: (-f["sensitive"], -f["floor"], f["family"]))
+    ordered = sorted(
+        m["families"], key=lambda f: (-f["sensitive"], -f["floor"], f["family"])
+    )
     names = [r["name"] for r in m["runs"]]
     rows = [
         f"| {f['family']} | {f['n']} | {f['floor']} | {f['always']} | {f['sensitive']} | "

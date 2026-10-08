@@ -47,7 +47,11 @@ class FakeTasks:
             }
         executor = (bundle / "executor.md").read_text()
         if task in self.invalid_better and "better" in executor:
-            return {"validity": "invalid", "pass_rate": None, "reason": "the executor turn failed"}
+            return {
+                "validity": "invalid",
+                "pass_rate": None,
+                "reason": "the executor turn failed",
+            }
         self.write_evidence(run_dir, executor.count("better"))
         rate = 0.5 + 0.1 * executor.count("better") - 0.1 * executor.count("worse")
         return {
@@ -559,7 +563,9 @@ class SuccessionTest(unittest.TestCase):
             self.assertEqual(len(h.versions()), 2)
             self.assertEqual(h.contract("improvement.1")["standing"], "discharged")
 
-    def test_a_prediction_is_registered_before_the_candidate_runs_and_held_by_its_rescues(self):
+    def test_a_prediction_is_registered_before_the_candidate_runs_and_held_by_its_rescues(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             h = host(campaign(tmp), FakeTasks())
 
@@ -576,7 +582,9 @@ class SuccessionTest(unittest.TestCase):
                 for e in h.events()
             ]
             issued = kinds.index(("issue", f"prediction.{v1[:16]}", None))
-            first_run = next(i for i, (k, _, v) in enumerate(kinds) if k == "execution" and v == v1)
+            first_run = next(
+                i for i, (k, _, v) in enumerate(kinds) if k == "execution" and v == v1
+            )
             self.assertLess(issued, first_run)
             settled = h.settlement(v1)
             self.assertTrue(settled["held"])
@@ -592,7 +600,9 @@ class SuccessionTest(unittest.TestCase):
             [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
             self.assertIn("stays in research", outcome)
             self.assertIn("prediction 0 of 3 families rescued", outcome)
-            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertEqual(
+                h.contract(f"prediction.{v1[:16]}")["standing"], "released"
+            )
             self.assertFalse(h.settlement(v1)["held"])
             self.assertEqual(h.used_confirmation_tasks(), [])
 
@@ -676,7 +686,9 @@ class SuccessionTest(unittest.TestCase):
             settled = h.settlement(v1)
             self.assertEqual(settled["void"], [DEV[1]])
             self.assertFalse(settled["held"])
-            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertEqual(
+                h.contract(f"prediction.{v1[:16]}")["standing"], "released"
+            )
             self.assertIn("(void)", outcome)
             self.assertIn("stays in research", outcome)
 
@@ -690,7 +702,9 @@ class SuccessionTest(unittest.TestCase):
 
             [v1] = [vid for vid in h.versions() if vid != h.incumbent()]
             self.assertIn("failed its mechanism witness", outcome)
-            self.assertEqual(h.contract(f"prediction.{v1[:16]}")["standing"], "released")
+            self.assertEqual(
+                h.contract(f"prediction.{v1[:16]}")["standing"], "released"
+            )
             self.assertIsNone(h.unsettled())
             self.assertIsNone(h.settlement(v1))
 
@@ -711,8 +725,19 @@ class SuccessionTest(unittest.TestCase):
 
             self.assertIn(f"candidate {v1[:12]} put forward", outcome)
             self.assertTrue(resumed.settlement(v1)["held"])
-            self.assertEqual(resumed.contract(f"prediction.{v1[:16]}")["standing"], "discharged")
-            self.assertEqual(len([e for e in resumed.events("selection") if e["body"]["role"] == "research_parent"]), 1)
+            self.assertEqual(
+                resumed.contract(f"prediction.{v1[:16]}")["standing"], "discharged"
+            )
+            self.assertEqual(
+                len(
+                    [
+                        e
+                        for e in resumed.events("selection")
+                        if e["body"]["role"] == "research_parent"
+                    ]
+                ),
+                1,
+            )
             self.assertIsNone(resumed.unsettled())
 
     def test_an_analysis_whose_credit_table_names_unknown_items_fails(self):
@@ -737,9 +762,13 @@ class SuccessionTest(unittest.TestCase):
             readme = (archive / "README.md").read_text()
             self.assertIn("Chance rescue rate of a floor family", readme)
             self.assertIn("| never_sent | convention |", readme)
-            settled = json.loads((archive / "versions" / v1[:12] / "settlement.json").read_text())
+            settled = json.loads(
+                (archive / "versions" / v1[:12] / "settlement.json").read_text()
+            )
             self.assertTrue(settled["held"])
-            self.assertTrue((archive / "versions" / v1[:12] / "prediction.json").exists())
+            self.assertTrue(
+                (archive / "versions" / v1[:12] / "prediction.json").exists()
+            )
 
     def test_a_failed_analysis_is_tried_again_for_the_same_experiment(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -976,10 +1005,26 @@ def stream_campaign(tmp, name="stream", batch=2, recent=1) -> Path:
     prompt = Path(tmp, "prompt.txt")
     prompt.write_text("Implement the program.")
     argv = [
-        "rsi", "init", "--camp", str(camp), "--instances", str(instances),
-        "--batch", str(batch), "--recent-batches", str(recent),
-        "--codex-bin", str(codex), "--task-prompt", str(prompt),
-        "--research-image", "img", "--programbench", tmp, "--hf-revision", "rev",
+        "rsi",
+        "init",
+        "--camp",
+        str(camp),
+        "--instances",
+        str(instances),
+        "--batch",
+        str(batch),
+        "--recent-batches",
+        str(recent),
+        "--codex-bin",
+        str(codex),
+        "--task-prompt",
+        str(prompt),
+        "--research-image",
+        "img",
+        "--programbench",
+        tmp,
+        "--hf-revision",
+        "rev",
     ]
     with mock.patch.object(sys, "argv", argv), mock.patch("sys.stdout"):
         rsi.main()
@@ -994,7 +1039,9 @@ class StreamTest(unittest.TestCase):
     def tearDown(self):
         self.env.stop()
 
-    def test_a_stream_runs_each_instance_once_in_a_committed_order_with_the_policy_of_its_time(self):
+    def test_a_stream_runs_each_instance_once_in_a_committed_order_with_the_policy_of_its_time(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             tasks = FakeTasks()
             h = host(stream_campaign(tmp), tasks)
@@ -1038,7 +1085,9 @@ class StreamTest(unittest.TestCase):
             old = next((archive / "runs").glob(f"*-{order[0]}"))
             new = next((archive / "runs").glob(f"*-{order[2]}"))
             self.assertTrue((old / "summary.json").exists())
-            self.assertFalse((old / "trajectory.md").exists(), "older runs are summaries")
+            self.assertFalse(
+                (old / "trajectory.md").exists(), "older runs are summaries"
+            )
             self.assertTrue((new / "trajectory.md").exists())
             prompt = (h.camp / "research" / "step-2" / "prompt.md").read_text()
             self.assertIn("no run has seen", prompt)
@@ -1075,8 +1124,20 @@ class StreamTest(unittest.TestCase):
             tasks = FakeTasks()
             h = host(stream_campaign(tmp), tasks)
             order = h.terms["stream"]["order"]
-            argv = ["rsi", "exclude", "--camp", str(h.camp), "--task", order[1], "--reason", "a fixture"]
-            with mock.patch.object(sys, "argv", argv), mock.patch.object(rsi, "Host", lambda camp: h):
+            argv = [
+                "rsi",
+                "exclude",
+                "--camp",
+                str(h.camp),
+                "--task",
+                order[1],
+                "--reason",
+                "a fixture",
+            ]
+            with (
+                mock.patch.object(sys, "argv", argv),
+                mock.patch.object(rsi, "Host", lambda camp: h),
+            ):
                 with mock.patch("sys.stdout"):
                     rsi.main()
 
@@ -1086,15 +1147,22 @@ class StreamTest(unittest.TestCase):
             self.assertEqual(h.order(), [t for t in order if t != order[1]])
             self.assertEqual(h.batch_count(), 2)
             self.assertNotIn(order[1], [task for _, task in tasks.runs])
-            self.assertEqual(h.terms["stream"]["order"], order, "the committed order is unchanged")
+            self.assertEqual(
+                h.terms["stream"]["order"], order, "the committed order is unchanged"
+            )
 
     def test_the_report_pairs_the_stream_with_a_baseline_it_never_saw(self):
         with tempfile.TemporaryDirectory() as tmp:
             stream = host(stream_campaign(tmp), FakeTasks())
             base = host(stream_campaign(tmp, name="baseline"), FakeTasks())
             self.assertEqual(base.incumbent(), stream.incumbent())
-            with mock.patch.object(sys, "argv", ["rsi", "baseline", "--camp", str(base.camp)]):
-                with mock.patch.object(rsi, "Host", lambda camp: base), mock.patch("sys.stdout"):
+            with mock.patch.object(
+                sys, "argv", ["rsi", "baseline", "--camp", str(base.camp)]
+            ):
+                with (
+                    mock.patch.object(rsi, "Host", lambda camp: base),
+                    mock.patch("sys.stdout"),
+                ):
                     rsi.main()
             for _ in range(3):
                 stream.stream_step()
@@ -1107,8 +1175,12 @@ class StreamTest(unittest.TestCase):
             self.assertGreater(report["batches"][1]["mean_delta"], 0.0)
             self.assertGreater(report["mean_delta"], 0.0)
             # The stream never observed a baseline run.
-            self.assertFalse(any(r["purpose"] == "baseline" for r in stream.observed().values()))
-            self.assertTrue(all(r["purpose"] == "stream" for r in stream.observed().values()))
+            self.assertFalse(
+                any(r["purpose"] == "baseline" for r in stream.observed().values())
+            )
+            self.assertTrue(
+                all(r["purpose"] == "stream" for r in stream.observed().values())
+            )
 
 
 class ProgramBenchTest(unittest.TestCase):
@@ -1176,26 +1248,46 @@ class HindsightTest(unittest.TestCase):
         return {"task": "t", "items": ["a.x.1"], "class": "left_unfixed", **fields}
 
     def test_a_credit_table_over_failing_items_is_accepted(self):
-        sent = self.cluster(items=["a.x.2"], **{"class": "never_sent", "source": "artifact"})
-        self.assertEqual(self.problem([self.cluster(), sent, self.cluster(items=["b.y.1"], source=None)]), "")
+        sent = self.cluster(
+            items=["a.x.2"], **{"class": "never_sent", "source": "artifact"}
+        )
+        self.assertEqual(
+            self.problem(
+                [self.cluster(), sent, self.cluster(items=["b.y.1"], source=None)]
+            ),
+            "",
+        )
 
     def test_malformed_fields_are_reasons_not_crashes(self):
         self.assertIn("no observed task", self.problem([self.cluster(task=["t"])]))
         self.assertIn("no observed task", self.problem(["t"]))
         self.assertIn("no observed task", self.problem([self.cluster(task="u")]))
         self.assertIn("names items", self.problem([self.cluster(items=[["a.x.1"]])]))
-        self.assertIn("no class", self.problem([self.cluster(**{"class": ["never_sent"]})]))
+        self.assertIn(
+            "no class", self.problem([self.cluster(**{"class": ["never_sent"]})])
+        )
         self.assertIn("not text", self.problem([self.cluster(source=["artifact"])]))
-        self.assertIn("not text", self.problem([self.cluster(source={"from": "artifact"})]))
-        self.assertIn("no source", self.problem([self.cluster(**{"class": "never_sent"})]))
+        self.assertIn(
+            "not text", self.problem([self.cluster(source={"from": "artifact"})])
+        )
+        self.assertIn(
+            "no source", self.problem([self.cluster(**{"class": "never_sent"})])
+        )
 
     def test_an_item_is_failing_and_in_one_cluster_only(self):
         self.assertIn("names items", self.problem([self.cluster(items=["c.z.1"])]))
         self.assertIn("another cluster", self.problem([self.cluster(), self.cluster()]))
-        self.assertIn("another cluster", self.problem([self.cluster(items=["a.x.1", "a.x.1"])]))
+        self.assertIn(
+            "another cluster", self.problem([self.cluster(items=["a.x.1", "a.x.1"])])
+        )
 
     def test_the_failure_mass_sums_by_class_and_source(self):
-        table = {"clusters": [self.cluster(items=["a.x.1", "a.x.2"]), self.cluster(items=["b.y.1"])]}
+        table = {
+            "clusters": [
+                self.cluster(items=["a.x.1", "a.x.2"]),
+                self.cluster(items=["b.y.1"]),
+            ]
+        }
         self.assertIn("| left_unfixed | - | 3 | 1 |", rsi.failure_mass(table))
 
 
@@ -1220,12 +1312,16 @@ class KnowledgeTest(unittest.TestCase):
             os.mkfifo(ws / "knowledge" / "pipe")
             self.assertIn("not a regular file", rsi.knowledge_problem(ws / "knowledge"))
 
-    def test_a_bytecode_cache_left_by_a_knowledge_tool_is_neither_checked_nor_kept(self):
+    def test_a_bytecode_cache_left_by_a_knowledge_tool_is_neither_checked_nor_kept(
+        self,
+    ):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp, "knowledge")
             (root / "tools" / "__pycache__").mkdir(parents=True)
             (root / "tools" / "t.py").write_text("print(1)\n")
-            (root / "tools" / "__pycache__" / "t.cpython-310.pyc").write_bytes(b"\x00\xff")
+            (root / "tools" / "__pycache__" / "t.cpython-310.pyc").write_bytes(
+                b"\x00\xff"
+            )
             self.assertEqual(rsi.knowledge_problem(root), "")
             rsi.copy_knowledge(root, Path(tmp, "copy"))
             self.assertTrue(Path(tmp, "copy", "tools", "t.py").exists())
@@ -1249,7 +1345,8 @@ class KnowledgeTest(unittest.TestCase):
             self.assertEqual(rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}), "")
             shutil.rmtree(ws / "knowledge")
             self.assertEqual(
-                rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}), "knowledge/ is missing"
+                rsi.delivery_problem(ws, "CHALLENGE.md", "abc", {}),
+                "knowledge/ is missing",
             )
 
 
@@ -1290,7 +1387,9 @@ class WitnessTest(unittest.TestCase):
             text = "Probe each mode – terminal and pipe – before you implement."
             rollout.write_text(json.dumps({"content": text}, ensure_ascii=False) + "\n")
             self.assertTrue(rsi.executor_delivered(text, Path(tmp)))
-            self.assertFalse(rsi.executor_delivered("Something else entirely.", Path(tmp)))
+            self.assertFalse(
+                rsi.executor_delivered("Something else entirely.", Path(tmp))
+            )
 
 
 class OraclePatternTest(unittest.TestCase):

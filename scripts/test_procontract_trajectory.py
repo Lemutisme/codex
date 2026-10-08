@@ -15,14 +15,20 @@ MELODY_THREAD = "01a10b16-1d57-7c91-8b65-586b714b4586"
 
 def rec(second: int, type_: str, payload: dict) -> str:
     return json.dumps(
-        {"timestamp": f"2026-10-05T08:00:{second:02d}.000Z", "type": type_, "payload": payload}
+        {
+            "timestamp": f"2026-10-05T08:00:{second:02d}.000Z",
+            "type": type_,
+            "payload": payload,
+        }
     )
 
 
 def message(second: int, role: str, text: str) -> str:
     kind = "output_text" if role == "assistant" else "input_text"
     content = [{"type": kind, "text": text}]
-    return rec(second, "response_item", {"type": "message", "role": role, "content": content})
+    return rec(
+        second, "response_item", {"type": "message", "role": role, "content": content}
+    )
 
 
 def call(second: int, call_id: str, code: str) -> str:
@@ -34,7 +40,12 @@ def call(second: int, call_id: str, code: str) -> str:
 
 
 def output(second: int, call_id: str, text: str) -> str:
-    body = [{"type": "input_text", "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"}]
+    body = [
+        {
+            "type": "input_text",
+            "text": "Script completed\nWall time 0.1 seconds\nOutput:\n",
+        }
+    ]
     body.append({"type": "input_text", "text": text})
     return rec(
         second,
@@ -49,7 +60,11 @@ def tokens(second: int, total: int) -> str:
 
 
 def exec_code(cmd: str) -> str:
-    return "const r = await tools.exec_command({cmd:" + json.dumps(cmd) + ",workdir:\"/w\"});"
+    return (
+        "const r = await tools.exec_command({cmd:"
+        + json.dumps(cmd)
+        + ',workdir:"/w"});'
+    )
 
 
 def two_turns(note: str) -> list[str]:
@@ -96,17 +111,32 @@ class ReadTest(unittest.TestCase):
         events = self.events()
         self.assertEqual(
             [e["kind"] for e in events],
-            ["turn_start", "user", "message", "call", "call", "turn_end",
-             "turn_start", "note", "call", "compaction", "turn_end"],
+            [
+                "turn_start",
+                "user",
+                "message",
+                "call",
+                "call",
+                "turn_end",
+                "turn_start",
+                "note",
+                "call",
+                "compaction",
+                "turn_end",
+            ],
         )
         self.assertEqual([e["turn"] for e in events], [1] * 6 + [2] * 5)
         self.assertEqual(events[3]["t"], 3.0)
-        self.assertEqual([e["tokens"] for e in events if e["kind"] == "call"], [0, 100, 250])
+        self.assertEqual(
+            [e["tokens"] for e in events if e["kind"] == "call"], [0, 100, 250]
+        )
         self.assertEqual(events[5]["text"], "Done.")
 
     def test_boilerplate_is_skipped_and_the_task_prompt_kept(self):
         events = self.events()
-        self.assertEqual([e["text"] for e in events if e["kind"] == "user"], ["Build the program."])
+        self.assertEqual(
+            [e["text"] for e in events if e["kind"] == "user"], ["Build the program."]
+        )
 
     def test_calls_are_indexed_matched_to_outputs_and_flagged_for_the_oracle(self):
         calls = [e for e in self.events() if e["kind"] == "call"]
@@ -128,7 +158,8 @@ class ReadTest(unittest.TestCase):
     def test_a_compaction_keeps_the_summary(self):
         events = self.events()
         self.assertEqual(
-            [e["text"] for e in events if e["kind"] == "compaction"], ["Summary: I believed X."]
+            [e["text"] for e in events if e["kind"] == "compaction"],
+            ["Summary: I believed X."],
         )
 
     def test_long_output_keeps_head_and_tail(self):
@@ -161,7 +192,12 @@ class StatsTest(unittest.TestCase):
             path = write_rollout(Path(tmp, "rollout-t1.jsonl"), two_turns(NOTE))
             result = trajectory.stats(trajectory.read(path, ORACLE))
         self.assertEqual(
-            (result["calls"], result["oracle_calls"], result["tokens"], result["compactions"]),
+            (
+                result["calls"],
+                result["oracle_calls"],
+                result["tokens"],
+                result["compactions"],
+            ),
             (3, 1, 400, 1),
         )
         self.assertEqual(result["wall_secs"], 14)
@@ -172,11 +208,16 @@ class StatsTest(unittest.TestCase):
                 {"calls": 1, "oracle_calls": 0, "tokens": 150},
             ],
         )
-        self.assertEqual(result["notes"], [{"turn": 2, "bytes": len(NOTE.encode()), "clipped": False}])
+        self.assertEqual(
+            result["notes"],
+            [{"turn": 2, "bytes": len(NOTE.encode()), "clipped": False}],
+        )
 
     def test_no_events_gives_zeros(self):
         result = trajectory.stats([])
-        self.assertEqual((result["calls"], result["turns"], result["tokens"]), (0, [], 0))
+        self.assertEqual(
+            (result["calls"], result["turns"], result["tokens"]), (0, [], 0)
+        )
 
 
 class RenderTest(unittest.TestCase):
@@ -199,8 +240,16 @@ class RenderTest(unittest.TestCase):
 
     def test_excerpts_are_bounded(self):
         events = [
-            {"kind": "call", "turn": 1, "t": 1.0, "tokens": 5, "index": 1, "oracle": False,
-             "command": "c" * 5000, "output": "o" * 5000},
+            {
+                "kind": "call",
+                "turn": 1,
+                "t": 1.0,
+                "tokens": 5,
+                "index": 1,
+                "oracle": False,
+                "command": "c" * 5000,
+                "output": "o" * 5000,
+            },
             {"kind": "turn_end", "turn": 1, "t": 2.0, "tokens": 5, "text": "f" * 9000},
         ]
         text = trajectory.render(events)
@@ -221,13 +270,19 @@ class RolloutSelectionTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_the_largest_when_no_thread_is_given(self):
-        self.assertEqual(trajectory.executor_rollout(self.run).name, "rollout-aaa.jsonl")
+        self.assertEqual(
+            trajectory.executor_rollout(self.run).name, "rollout-aaa.jsonl"
+        )
 
     def test_the_named_thread_over_the_largest(self):
-        self.assertEqual(trajectory.executor_rollout(self.run, "bbb").name, "rollout-bbb.jsonl")
+        self.assertEqual(
+            trajectory.executor_rollout(self.run, "bbb").name, "rollout-bbb.jsonl"
+        )
 
     def test_an_unknown_thread_falls_back_to_the_largest(self):
-        self.assertEqual(trajectory.executor_rollout(self.run, "zzz").name, "rollout-aaa.jsonl")
+        self.assertEqual(
+            trajectory.executor_rollout(self.run, "zzz").name, "rollout-aaa.jsonl"
+        )
 
     def test_no_rollout_is_none(self):
         self.assertIsNone(trajectory.executor_rollout(self.run / "absent"))
@@ -237,7 +292,9 @@ class WriteTest(unittest.TestCase):
     def test_writes_both_files_and_returns_stats(self):
         with tempfile.TemporaryDirectory() as tmp:
             run, dest = Path(tmp, "run"), Path(tmp, "out")
-            write_rollout(run / "codex-home" / "sessions" / "rollout-t1.jsonl", two_turns(NOTE))
+            write_rollout(
+                run / "codex-home" / "sessions" / "rollout-t1.jsonl", two_turns(NOTE)
+            )
             result = trajectory.write(run, dest, ORACLE, "t1")
             lines = (dest / "events.jsonl").read_text().splitlines()
             self.assertEqual(result["calls"], 3)

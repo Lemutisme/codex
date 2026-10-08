@@ -51,17 +51,24 @@ def floors(archive: Path) -> dict[str, list[str]]:
             for path in sorted(archive.glob(f"runs/*-{task}/outcomes.json"))
         ]
         common = set.intersection(*(set(run) for run in runs))
-        found[task] = sorted(i for i in common if not any(run[i]["passed"] for run in runs))
+        found[task] = sorted(
+            i for i in common if not any(run[i]["passed"] for run in runs)
+        )
     return found
 
 
 def research(workspace: Path, mode: str) -> None:
     executor = workspace / "policy" / "executor.md"
     if mode in ("better", "worse", "miss", "unpredicted"):
-        executor.write_text(executor.read_text() + f"{'worse' if mode == 'worse' else 'better'}\n")
+        executor.write_text(
+            executor.read_text() + f"{'worse' if mode == 'worse' else 'better'}\n"
+        )
     if mode in ("better", "worse", "miss", "leak", "delete"):
         pick = -1 if mode == "miss" else 0
-        rescue = {task: items[pick:][:1] for task, items in floors(workspace / "archive").items()}
+        rescue = {
+            task: items[pick:][:1]
+            for task, items in floors(workspace / "archive").items()
+        }
         (workspace / "prediction.json").write_text(json.dumps({"rescue": rescue}))
     if mode == "leak":
         executor.write_text(executor.read_text() + f"Behave as {LEAK} does.\n")

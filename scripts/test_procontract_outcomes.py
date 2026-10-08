@@ -5,11 +5,15 @@ import procontract_outcomes as po
 
 def run(name, twin, passed, parent=None, missing=(), purpose="dev"):
     """passed: ids that pass; every id in `all` below not in passed fails, except `missing`."""
-    items = {
-        i: {"passed": i in passed, "message": ""} for i in ALL if i not in missing
+    items = {i: {"passed": i in passed, "message": ""} for i in ALL if i not in missing}
+    return {
+        "name": name,
+        "version": "v" + twin,
+        "twin": twin,
+        "parent": parent,
+        "purpose": purpose,
+        "outcomes": items,
     }
-    return {"name": name, "version": "v" + twin, "twin": twin, "parent": parent,
-            "purpose": purpose, "outcomes": items}
 
 
 ALL = ["a.x.1", "a.x.2", "a.y.1", "b.z.1", "b.z.2", "c"]
@@ -31,11 +35,16 @@ class MatrixTest(unittest.TestCase):
         self.assertAlmostEqual(m["runs"][1]["pass_rate"], 3 / 5)
 
     def test_families(self):
-        runs = [run("r1", "t0", {"a.x.1", "a.x.2"}), run("r2", "t1", {"a.x.1", "b.z.1"})]
+        runs = [
+            run("r1", "t0", {"a.x.1", "a.x.2"}),
+            run("r2", "t1", {"a.x.1", "b.z.1"}),
+        ]
         fams = {f["family"]: f for f in po.matrix(runs)["families"]}
         self.assertEqual(set(fams), {"a.x", "a.y", "b.z", "c"})
         ax = fams["a.x"]
-        self.assertEqual((ax["n"], ax["always"], ax["sensitive"], ax["floor"]), (2, 1, 1, 0))
+        self.assertEqual(
+            (ax["n"], ax["always"], ax["sensitive"], ax["floor"]), (2, 1, 1, 0)
+        )
         self.assertEqual(ax["passed"], {"r1": 2, "r2": 1})
         self.assertEqual(fams["c"]["floor"], 1)
 
@@ -58,7 +67,9 @@ class MatrixTest(unittest.TestCase):
             run("c1", "t1", {"a.x.1", "a.x.2", "a.y.1"}, parent="t0"),
         ]
         edges = po.matrix(runs)["edges"]
-        self.assertEqual([(e["child"], e["parent"]) for e in edges], [("c1", "p1"), ("c1", "p2")])
+        self.assertEqual(
+            [(e["child"], e["parent"]) for e in edges], [("c1", "p1"), ("c1", "p2")]
+        )
         self.assertEqual(edges[0]["progress"], ["a.x.2", "a.y.1"])
         self.assertEqual(edges[0]["regress"], [])
         self.assertEqual(edges[1]["by_family"]["progress"], {"a.x": 1, "a.y": 1})
@@ -80,7 +91,9 @@ class ChanceTest(unittest.TestCase):
         # Held out against the floor of the others: r1 meets families a.y and b.z and passes
         # neither; r2 meets a.x, a.y and b.z and passes a.x.2; r3 lacks c, so it meets a.y and b.z
         # and passes neither. A lone run exposes nothing, and counts are kept per task.
-        self.assertEqual(po.chance_rescues({"t": task, "u": alone}), {"t": (1, 7), "u": (0, 0)})
+        self.assertEqual(
+            po.chance_rescues({"t": task, "u": alone}), {"t": (1, 7), "u": (0, 0)}
+        )
         self.assertEqual(po.chance_rescues({}), {})
 
     def test_a_lump_of_one_family_is_one_rescue(self):
@@ -93,8 +106,10 @@ class ChanceTest(unittest.TestCase):
         self.assertEqual(po.floor(runs), ["a.y.1", "b.z.1", "b.z.2"])
         self.assertEqual(po.failed_items(runs), set(ALL))
         self.assertEqual(po.failed_items([run("r", "t0", set(ALL))]), set())
-        self.assertEqual(po.by_family(["b.z.2", "a.x.1", "b.z.1", "c"]),
-                         {"a.x": ["a.x.1"], "b.z": ["b.z.1", "b.z.2"], "c": ["c"]})
+        self.assertEqual(
+            po.by_family(["b.z.2", "a.x.1", "b.z.1", "c"]),
+            {"a.x": ["a.x.1"], "b.z": ["b.z.1", "b.z.2"], "c": ["c"]},
+        )
 
     def test_rescue_tail_over_unequal_chances(self):
         self.assertAlmostEqual(po.rescue_tail([0.1] * 3, 3), 0.001)
@@ -124,8 +139,14 @@ class RenderTest(unittest.TestCase):
 
     def test_omission_note_when_capped(self):
         ids = [f"f{i:02d}.t" for i in range(po.MAX_ROWS + 4)]
-        mk = lambda n, p: {"name": n, "version": n, "twin": n, "parent": None, "purpose": "dev",
-                           "outcomes": {i: {"passed": i in p, "message": ""} for i in ids}}
+        mk = lambda n, p: {
+            "name": n,
+            "version": n,
+            "twin": n,
+            "parent": None,
+            "purpose": "dev",
+            "outcomes": {i: {"passed": i in p, "message": ""} for i in ids},
+        }
         text = po.render("t", po.matrix([mk("r1", set()), mk("r2", set(ids[:2]))]))
         self.assertIn("4 more families omitted.", text)
 
