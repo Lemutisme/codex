@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 from procontract_delivery_budget import DeliveryBudget
+from procontract_execution_health import ExecutionHealth
 import procontract_harness_program as harness_program
 
 MODEL = "gpt-5.6-luna"
@@ -70,6 +71,13 @@ wire_api = "responses"
 
 
 EXECUTOR_MEMORY = "32g"
+# A single generated probe exhausted the container and killed its exec-server.
+# Keep its hard per-process address-space limit below the unchanged aggregate cap.
+# Docker does not accept an `as` ulimit; bash applies inherited RLIMIT_AS in KiB.
+# This also constrains the exec-server; it is not an aggregate child-process budget.
+# Tool-less internal workers need no shell limit. Separate internal check containers
+# retain their existing timeout-only profile; this limit does not cover those containers.
+PROCESS_ADDRESS_SPACE_KIB = 8 * 1024 * 1024
 
 
 def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
@@ -84,6 +92,8 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         EXECUTOR_MEMORY,
         "--memory-swap",
         EXECUTOR_MEMORY,
+        "--ulimit",
+        "core=0:0",
         # Bytecode caches would land in deliverables (a knowledge tool run in place, for one).
         "-e",
         "PYTHONDONTWRITEBYTECODE=1",
@@ -96,6 +106,11 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         "-w",
         CONTAINER_WORKSPACE,
         image,
+        "/bin/bash",
+        "-c",
+        f"ulimit -Sv {PROCESS_ADDRESS_SPACE_KIB} && "
+        f'ulimit -Hv {PROCESS_ADDRESS_SPACE_KIB} && exec "$@"',
+        "procontract-process-limit",
         "/opt/codex",
         "exec-server",
         "--listen",
@@ -615,6 +630,7 @@ def run(args: argparse.Namespace) -> None:
     )
     started = time.monotonic()
     turns = TurnTracker()
+    health = ExecutionHealth()
     eof = threading.Event()
 
     def handle(message: dict) -> None:
@@ -625,6 +641,7 @@ def run(args: argparse.Namespace) -> None:
             eof.set()
         else:
             turns.observe(message)
+            health.observe(message, turns.thread_id)
 
     summary: dict = {
         "arm": args.arm,
@@ -751,6 +768,7 @@ def run(args: argparse.Namespace) -> None:
         )
         raise
     finally:
+        summary["execution_environment"] = health.summary()
         summary["delivery_budget"] = budget.summary()
         if budget.activation is not None:
             summary["harness_program"] = budget.activation

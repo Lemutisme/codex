@@ -27,7 +27,15 @@ class DeliveryRunnerTest(unittest.TestCase):
                     runner.run(args)
                 server.assert_not_called()
 
-    def drive(self, *, reserve=3600, end="completed", reject=False, program=None):
+    def drive(
+        self,
+        *,
+        reserve=3600,
+        end="completed",
+        reject=False,
+        program=None,
+        environment_disconnects=(),
+    ):
         clock = [0.0]
         server = mock.Mock()
         working = {"phase": "working", "resting": False}
@@ -48,6 +56,8 @@ class DeliveryRunnerTest(unittest.TestCase):
                 return {"thread": {"id": "executor"}}
             if method == "turn/start":
                 handle(event("turn/started", "inProgress"))
+                for disconnected in environment_disconnects:
+                    handle(disconnected)
             if method == "turn/steer":
                 if reject:
                     raise RuntimeError("active turn changed")
@@ -132,6 +142,38 @@ class DeliveryRunnerTest(unittest.TestCase):
         summary, methods = self.drive(reserve=0)
         self.assertEqual(methods, ["initialize", "thread/start", "turn/start"])
         self.assertEqual(summary["turn_statuses"], ["completed"])
+
+    def test_completed_turn_does_not_hide_execution_environment_loss(self):
+        disconnected = {
+            "method": "thread/environment/disconnected",
+            "params": {"threadId": "executor", "environmentId": "cleanroom"},
+            "emittedAtMs": 1234,
+        }
+        summary, methods = self.drive(
+            reserve=0, environment_disconnects=(disconnected, disconnected)
+        )
+        self.assertEqual(
+            (
+                summary["server_exited_early"],
+                summary["turn_statuses"],
+                summary["execution_environment"],
+                methods,
+            ),
+            (
+                False,
+                ["completed"],
+                {
+                    "disconnect_observed": True,
+                    "disconnect_count": 2,
+                    "disconnections": [
+                        {"environment_id": "cleanroom", "emitted_at_ms": 1234},
+                        {"environment_id": "cleanroom", "emitted_at_ms": 1234},
+                    ],
+                    "events_omitted": 0,
+                },
+                ["initialize", "thread/start", "turn/start"],
+            ),
+        )
 
     def test_deadline_interrupt_remains_interrupted_not_a_successful_handoff(self):
         summary, methods = self.drive(end="deadline")
