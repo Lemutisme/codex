@@ -222,6 +222,210 @@ class CanonicalTest(unittest.TestCase):
                     json.loads((self.root / "canonical-feedback.json").read_text()), {}
                 )
 
+    def evaluate(self, work, valid_attempts):
+        archive = self.root / (work.name + ".tar.gz")
+        archive.write_bytes(b"frozen submission")
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            raw = Path(command[command.index("--eval-json") + 1])
+            canonical.write_json(raw, {"synthetic": True})
+            valid = valid_attempts[len(calls) - 1]
+            canonical.write_json(
+                raw.with_name("canonical-score.json"),
+                {
+                    "valid": valid,
+                    "pass_rate": 1 / 3,
+                    "resolved": 1,
+                    "total": 3,
+                    "task": self.task,
+                    "reasons": [] if valid else ["branch_error:b"],
+                    "eval_json": str(raw.resolve()),
+                    "eval_sha256": canonical.sha256(raw),
+                    "pins_sha256": canonical.sha256(self.registry.pins_file),
+                },
+            )
+            canonical.write_json(
+                raw.with_name("canonical-feedback.json"),
+                {
+                    "b/a": {"passed": True},
+                    "b/b": {"passed": False},
+                    "b/c": {"passed": False},
+                },
+            )
+            return SimpleNamespace(returncode=0)
+
+        def score(task, raw, output):
+            return json.loads(output.read_text())
+
+        with (
+            mock.patch.object(canonical.subprocess, "run", side_effect=run),
+            mock.patch.object(
+                canonical, "canonical_score_subprocess", side_effect=score
+            ),
+        ):
+            if any(valid_attempts):
+                outcome = canonical.evaluate_archive(self.task, archive, work)
+                self.assertEqual(outcome["attempts"], valid_attempts.index(True) + 1)
+            else:
+                with self.assertRaisesRegex(RuntimeError, "after 2 attempts"):
+                    canonical.evaluate_archive(self.task, archive, work)
+        self.assertEqual(
+            len(calls), valid_attempts.index(True) + 1 if any(valid_attempts) else 2
+        )
+        for command in calls:
+            self.assertEqual(
+                command[command.index("--registry-sha256") + 1], self.registry.digest
+            )
+            self.assertEqual(
+                canonical.sha256(Path(command[command.index("--archive") + 1])),
+                canonical.sha256(archive),
+            )
+        return archive
+
+    def test_evaluation_keeps_one_or_two_same_subject_attempts(self):
+        for index, outcomes in enumerate(([True], [False, True], [False, False])):
+            with self.subTest(outcomes=outcomes):
+                self.evaluate(self.root / str(index), outcomes)
+
+    def test_bound_result_revalidates_without_another_evaluation(self):
+        work = self.root / "resume"
+        archive = self.evaluate(work, [True])
+        score_file = work / "attempt-1" / self.task / "canonical-score.json"
+        with (
+            mock.patch.object(
+                canonical.subprocess, "run", side_effect=AssertionError("rerun")
+            ),
+            mock.patch.object(
+                canonical,
+                "canonical_score_subprocess",
+                return_value=json.loads(score_file.read_text()),
+            ) as score,
+        ):
+            outcome = canonical.evaluate_archive(self.task, archive, work)
+        self.assertEqual(
+            (outcome["attempts"], outcome["submission_sha256"]),
+            (1, canonical.sha256(archive)),
+        )
+        score.assert_called_once_with(
+            self.task, score_file.with_name(f"{self.task}.eval.json"), score_file
+        )
+
+    def test_legacy_or_changed_receipts_cannot_relabel_cached_scores(self):
+        for mutation in ("legacy", "archive", "raw"):
+            with self.subTest(mutation=mutation):
+                work = self.root / mutation
+                archive = self.evaluate(work, [True])
+                directory = work / "attempt-1" / self.task
+                receipt = directory / "evaluation-receipt.json"
+                if mutation == "legacy":
+                    body = json.loads(receipt.read_text())
+                    del body["raw_eval_sha256"]
+                    canonical.write_json(receipt, body)
+                elif mutation == "archive":
+                    archive.write_bytes(b"different submission")
+                    (directory / "submission.tar.gz").write_bytes(archive.read_bytes())
+                else:
+                    canonical.write_json(
+                        directory / f"{self.task}.eval.json", {"substituted": True}
+                    )
+                with (
+                    mock.patch.object(
+                        canonical.subprocess, "run", side_effect=AssertionError("rerun")
+                    ),
+                    self.assertRaisesRegex(RuntimeError, "unbound or changed"),
+                ):
+                    canonical.evaluate_archive(self.task, archive, work)
+
+    def cached_result(self, name):
+        run_dir = self.root / name
+        archive = self.evaluate(run_dir / "eval", [True])
+        archive.rename(run_dir / "submission.tar.gz")
+        outcome = json.loads((run_dir / "eval" / "canonical-result.json").read_text())
+        (run_dir / "canonical-feedback.json").write_bytes(
+            Path(outcome["feedback_json"]).read_bytes()
+        )
+        adapter = canonical.CanonicalProgramBench(self.terms)
+        label = {
+            "task": self.task,
+            "evaluator_epoch": canonical.packaging.epoch(adapter.evaluator()),
+            "validity": "valid",
+            "reason": "",
+            "attempts": 1,
+            "outcome": {"pass_rate": 1 / 3, "passed": 1, "counted": 3},
+            "canonical": outcome,
+        }
+        return adapter, {
+            "validity": "valid",
+            "task": self.task,
+            "pass_rate": 1 / 3,
+            "run_dir": str(run_dir),
+            "label": label,
+        }
+
+    def test_cached_scalar_epoch_and_bound_evidence_are_checked_without_processes(self):
+        for mutation in (
+            None,
+            "scalar",
+            "epoch",
+            "task",
+            "canonical",
+            "score",
+            "raw",
+            "feedback",
+        ):
+            with self.subTest(mutation=mutation):
+                adapter, result = self.cached_result(str(mutation))
+                run_dir = Path(result["run_dir"])
+                if mutation == "scalar":
+                    result["pass_rate"] = result["label"]["outcome"]["pass_rate"] = 0.9
+                elif mutation == "epoch":
+                    result["label"]["evaluator_epoch"] = "0" * 64
+                elif mutation == "task":
+                    result["task"] = "other__task.7654321"
+                elif mutation == "canonical":
+                    outcome = result["label"]["canonical"]
+                    canonical.write_json(
+                        run_dir / "eval" / "canonical-result.json",
+                        {**outcome, "pass_rate": 0.9},
+                    )
+                elif mutation == "score":
+                    canonical.write_json(
+                        Path(result["label"]["canonical"]["eval_json"]).with_name(
+                            "canonical-score.json"
+                        ),
+                        {},
+                    )
+                elif mutation == "raw":
+                    Path(result["label"]["canonical"]["eval_json"]).write_text("{}")
+                elif mutation == "feedback":
+                    (run_dir / "canonical-feedback.json").write_text("{}")
+                with mock.patch.object(
+                    canonical.subprocess,
+                    "run",
+                    side_effect=AssertionError("external process"),
+                ):
+                    if mutation is None:
+                        adapter.validate_cached(result)
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            adapter.validate_cached(result)
+
+    def test_existing_adapter_rechecks_pins_for_every_cached_access(self):
+        adapter, result = self.cached_result("pins")
+        adapter.validate_cached(result)
+        canonical.write_json(self.registry.pins_file, {**self.pins, "changed": True})
+        with (
+            mock.patch.object(
+                canonical.subprocess,
+                "run",
+                side_effect=AssertionError("external process"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "identity changed"),
+        ):
+            adapter.validate_cached(result)
+
 
 if __name__ == "__main__":
     unittest.main()

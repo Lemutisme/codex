@@ -507,6 +507,59 @@ class CanonicalProgramBench(rsi.ProgramBench):
             "canonical": outcome,
         }
 
+    def validate_cached(self, result):
+        """Accept only the unchanged, canonically labelled subject; never start a process."""
+        validate_identity(self.terms)
+        if result.get("validity") != "valid":
+            return
+        task = result.get("task")
+        if not isinstance(task, str) or task not in TASKS:
+            raise RuntimeError("cached task is outside the canonical registry")
+        run_dir = Path(result["run_dir"])
+        outcome = json.loads((run_dir / "eval" / "canonical-result.json").read_text())
+        attempt = outcome.get("attempts")
+        if type(attempt) is not int or attempt not in (1, 2):
+            raise RuntimeError("cached canonical attempt is invalid")
+        directory = run_dir / "eval" / f"attempt-{attempt}" / task
+        archive = run_dir / "submission.tar.gz"
+        validate_receipt(task, archive, directory)
+        score = json.loads((directory / "canonical-score.json").read_text())
+        raw = directory / f"{task}.eval.json"
+        expected = {
+            **score,
+            "attempts": attempt,
+            "submission_sha256": sha256(archive),
+            "feedback_json": str(directory / "canonical-feedback.json"),
+        }
+        if (
+            outcome != expected
+            or score.get("valid") is not True
+            or score.get("reasons") != []
+            or score.get("task") != task
+            or score.get("total") != TASKS[task]["total"]
+            or score.get("eval_json") != str(raw.resolve())
+            or score.get("eval_sha256") != sha256(raw)
+            or score.get("pins_sha256") != sha256(PINS_FILE)
+        ):
+            raise RuntimeError("cached canonical result differs from its bound score")
+        resolved, total = score.get("resolved"), score.get("total")
+        if (
+            type(resolved) is not int
+            or type(total) is not int
+            or not 0 <= resolved <= total
+            or type(result.get("pass_rate")) not in (int, float)
+            or score.get("pass_rate") != resolved / total
+            or result["pass_rate"] != score["pass_rate"]
+            or result.get("label") != self._label(task, outcome)
+        ):
+            raise RuntimeError("cached canonical scalar or evaluator epoch differs")
+        if sha256(run_dir / "canonical-feedback.json") != sha256(
+            directory / "canonical-feedback.json"
+        ):
+            raise RuntimeError(
+                "cached learning feedback differs from the bound evaluation"
+            )
+
     def run_and_label(self, host, bundle, task, run_dir):
         validate_identity(self.terms)
         if task not in TASKS:
