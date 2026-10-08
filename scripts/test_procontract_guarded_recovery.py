@@ -280,11 +280,14 @@ class GuardedRecoveryTest(unittest.TestCase):
 
         def method_only(parent, step):
             delivery = research(parent, step)
-            # Controlled transport fixture: keep the method edits, omit the harness edit.
-            shutil.copyfile(
-                host.version_dir(parent) / "bundle" / harness.PROGRAM_FILE,
-                delivery / "policy" / harness.PROGRAM_FILE,
-            )
+            # Controlled transport fixture: restore P/H and propose only a method edit.
+            for name in ("executor.md", harness.PROGRAM_FILE):
+                shutil.copyfile(
+                    host.version_dir(parent) / "bundle" / name,
+                    delivery / "policy" / name,
+                )
+            method = delivery / "policy" / "research.md"
+            method.write_text(method.read_text() + "\nMethod-only fixture.\n")
             return delivery
 
         with mock.patch.object(host, "research", side_effect=method_only):

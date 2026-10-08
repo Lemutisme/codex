@@ -81,7 +81,7 @@ def prepare(run_dir, bundle, instructions, source=None):
     )
 
 
-def run(run_dir):
+def run(run_dir, intervention="mixed"):
     manifest = json.loads((run_dir / "manifest.json").read_text())
     role = manifest["instructions"]
     receipt = activation(run_dir / "policy", role)
@@ -100,18 +100,24 @@ def run(run_dir):
         receipt["feedback"] = [
             {"task": row["task"], "pass_rate": row["pass_rate"]} for row in feedback
         ]
-        fake.research(workspace, "method")
-        successor = receipt["method_stage"] + 1
-        for name in METHODS:
-            path = workspace / "policy" / name
-            path.write_text(
-                re.sub(
-                    r"^PEER_STAGE=\d+$",
-                    f"PEER_STAGE={successor}",
-                    path.read_text(),
-                    flags=re.MULTILINE,
+        fake.research(workspace, "better" if intervention == "execution" else "method")
+        if intervention == "execution":
+            # Guarded task confirmation may certify P/H, not simultaneous method edits.
+            successor = json.loads(harness.load(run_dir / "policy").source)["when"][
+                "remaining_fraction_lte"
+            ][0]
+        else:
+            successor = receipt["method_stage"] + 1
+            for name in METHODS:
+                path = workspace / "policy" / name
+                path.write_text(
+                    re.sub(
+                        r"^PEER_STAGE=\d+$",
+                        f"PEER_STAGE={successor}",
+                        path.read_text(),
+                        flags=re.MULTILINE,
+                    )
                 )
-            )
         write_json(
             workspace / "policy" / harness.PROGRAM_FILE,
             {"schema": 1, "when": {"remaining_fraction_lte": [successor + 1, 20]}},
@@ -133,11 +139,14 @@ def main():
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--instructions")
     parser.add_argument("--workspace-from", type=Path)
+    parser.add_argument(
+        "--intervention", choices=("mixed", "execution"), default="mixed"
+    )
     args, _ = parser.parse_known_args()
     if args.command == "prepare":
         prepare(args.run_dir, args.policy, args.instructions, args.workspace_from)
     else:
-        run(args.run_dir)
+        run(args.run_dir, args.intervention)
 
 
 if __name__ == "__main__":

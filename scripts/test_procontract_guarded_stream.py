@@ -10,12 +10,15 @@ from pathlib import Path
 from unittest import mock
 
 import procontract_harness_program as harness
+import procontract_proposal_scope as proposal_scope
 import procontract_rsi as rsi
 import procontract_store as store
 import test_procontract_rsi as fixtures
 from test_procontract_recursive_engine import ActivatedTasks
-from test_procontract_recursive_engine import RUNNER
+from test_procontract_recursive_engine import RUNNER as RECURSIVE_RUNNER
 from testing import recursive_research_runner as peer
+
+RUNNER = [*RECURSIVE_RUNNER, "--intervention", "execution"]
 
 
 class GradedTasks(ActivatedTasks):
@@ -45,6 +48,7 @@ class GuardedStreamTest(unittest.TestCase):
         quality="behavior",
         mode="guarded",
         method_confirmation="defer",
+        mutable=None,
     ):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -88,6 +92,8 @@ class GuardedStreamTest(unittest.TestCase):
                     method_confirmation,
                 ]
             )
+            if mutable is not None:
+                extra += ["--mutable", *mutable]
             with mock.patch.object(sys, "argv", [*sys.argv, *extra]):
                 main()
 
@@ -96,12 +102,16 @@ class GuardedStreamTest(unittest.TestCase):
             mock.patch.object(rsi, "main", side_effect=initialize),
         ):
             camp = fixtures.stream_campaign(temporary.name, batch=1)
-        return rsi.Host(camp, adapter=GradedTasks(quality), runner=RUNNER)
+        return rsi.Host(
+            camp,
+            adapter=GradedTasks(quality),
+            runner=RUNNER if mode == "guarded" else RECURSIVE_RUNNER,
+        )
 
     def reopen(self, host):
-        return rsi.Host(host.camp, adapter=host.adapter, runner=RUNNER)
+        return rsi.Host(host.camp, adapter=host.adapter, runner=host.runner)
 
-    def assert_activation(self, host, path, version, role, stage):
+    def assert_activation(self, host, path, version, role, harness_stage):
         receipt = json.loads(path.read_text())
         bundle = host.version_dir(version) / "bundle"
         self.assertEqual(
@@ -115,11 +125,11 @@ class GuardedStreamTest(unittest.TestCase):
             ),
             (
                 role,
-                stage,
+                0,
                 hashlib.sha256((bundle / role).read_bytes()).hexdigest(),
                 harness.load(bundle).digest,
                 1,
-                5 * (stage + 1),
+                5 * (harness_stage + 1),
             ),
         )
         return receipt
@@ -143,6 +153,23 @@ class GuardedStreamTest(unittest.TestCase):
         self.assertEqual(
             host.versions()[successor]["lineage"],
             {"parent": adopted, "proposed_by": adopted},
+        )
+        parent = host.versions()[adopted]["lineage"]["parent"]
+        self.assertEqual(
+            {
+                (version, name): (
+                    host.version_dir(version) / "bundle" / name
+                ).read_bytes()
+                for version in (adopted, successor)
+                for name in peer.METHODS
+            },
+            {
+                (version, name): (
+                    host.version_dir(parent) / "bundle" / name
+                ).read_bytes()
+                for version in (adopted, successor)
+                for name in peer.METHODS
+            },
         )
         records = store.events(host.store)
         adoption = next(
@@ -335,6 +362,11 @@ class GuardedStreamTest(unittest.TestCase):
         root = host.incumbent()
         host.stream_step()
         candidate = host.stream_policy()
+        for name in (*peer.METHODS, harness.PROGRAM_FILE):
+            self.assertNotEqual(
+                (host.version_dir(candidate) / "bundle" / name).read_bytes(),
+                (host.version_dir(root) / "bundle" / name).read_bytes(),
+            )
         host.stream_step()
         self.assertEqual(
             (host.incumbent(), host.batches()[1]["version"]), (root, candidate)
