@@ -47,6 +47,25 @@ class ComparisonTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "roots differ"):
                 comparison.validate_comparison(self.stream, self.baseline)
 
+    def test_stream_mode_normalizes_legacy_explore_but_not_guarded(self):
+        self.baseline.terms["stream"]["mode"] = "explore"
+        comparison.validate_comparison(self.stream, self.baseline)
+        self.baseline.terms["stream"]["mode"] = "guarded"
+        with self.assertRaisesRegex(ValueError, "mode"):
+            comparison.validate_comparison(self.stream, self.baseline)
+
+    def test_registry_bound_campaign_cannot_be_compared_with_generic_or_other_pins(
+        self,
+    ):
+        self.stream.terms["canonical"] = {"pins_sha256": "a" * 64}
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            comparison.validate_comparison(self.stream, self.baseline)
+        self.baseline.terms["canonical"] = {"pins_sha256": "b" * 64}
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            comparison.validate_comparison(self.stream, self.baseline)
+        self.baseline.terms["canonical"] = dict(self.stream.terms["canonical"])
+        comparison.validate_comparison(self.stream, self.baseline)
+
     def test_coverage_keeps_invalid_and_unassigned_tasks_in_denominator(self):
         tasks = self.stream.order()
         root = self.stream.incumbent()

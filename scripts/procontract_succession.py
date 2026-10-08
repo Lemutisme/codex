@@ -88,6 +88,7 @@ def confirm(host, candidate, incumbent):
         return "confirmation failed; its sources remain spent"
     if state and state["standing"] == "discharged":
         return "confirmed and adopted"
+    host.validate_evaluator()
     plan = confirmation_plan(host, candidate)
     if plan is None:
         if state is not None:
@@ -207,6 +208,16 @@ def adopt(host, candidate, presumed=False):
     # Support names frozen bytes. Verify them before first publication, not when replaying an
     # already settled decision: historical adoption remains readable after artifact cleanup.
     host.validate_harness(candidate)
+    host.validate_evaluator()
+    coordinate = state["support"]["coordinate"]
+    if coordinate["evaluator_digest"] != store.digest(
+        "evaluator", host.adapter.evaluator()
+    ) or coordinate["environment_digest"] != store.digest(
+        "environment", host.adapter.environment()
+    ):
+        raise RuntimeError(
+            "adoption evidence belongs to a different evaluator or environment"
+        )
     decision = host.presumed() if presumed else {"type": "explicit"}
     command = {
         "contract_id": adoption,

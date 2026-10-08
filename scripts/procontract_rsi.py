@@ -206,8 +206,44 @@ class Host:
         self.camp = camp
         self.store = camp / "store"
         self.terms = json.loads((camp / "campaign.json").read_text())
-        self.adapter = adapter or ProgramBench(self.terms)
+        if "canonical" in self.terms:
+            import procontract_canonical as canonical
+
+            if adapter is not None and not isinstance(
+                adapter, canonical.CanonicalProgramBench
+            ):
+                raise ValueError(
+                    "a canonical campaign cannot fall back to a different adapter"
+                )
+            self.adapter = (
+                adapter
+                if adapter is not None
+                else canonical.CanonicalProgramBench(self.terms)
+            )
+        else:
+            self.adapter = adapter if adapter is not None else ProgramBench(self.terms)
         self.runner = runner or RUNNER
+        self.validate_evaluator()
+
+    def validate_evaluator(self, cached: dict | None = None) -> None:
+        """Keep registry-bound studies pinned even when no fresh evaluation is needed."""
+        if "canonical" not in self.terms:
+            return
+        import procontract_canonical as canonical
+
+        if (
+            not isinstance(self.adapter, canonical.CanonicalProgramBench)
+            or self.adapter.terms != self.terms
+        ):
+            raise ValueError("canonical adapter does not match the campaign terms")
+        canonical.validate_identity(self.terms)
+        state = self.contract("campaign")
+        if state is not None and state["bindings"]["terms_hash"] != store.digest(
+            "terms", self.terms
+        ):
+            raise RuntimeError("frozen canonical campaign terms changed")
+        if cached is not None and cached["validity"] == "valid":
+            self.adapter.validate_cached(cached)
 
     # ---- ledger -------------------------------------------------------------------------------
 
@@ -562,6 +598,7 @@ class Host:
 
     def measure(self, vid: str, task: str, purpose: str) -> dict:
         """Runs a version on one task and labels the result; cached by run directory."""
+        self.validate_evaluator()
         limit = succession.task_attempt_limit(self.terms)
         self.validate_harness(vid)
         run_dir = self.camp / "runs" / f"{purpose}-{vid[:12]}-{task}"
@@ -573,6 +610,15 @@ class Host:
         # Invalid attempts consume their allowance too. Restarting never resets that budget.
         if result_file.exists():
             result = json.loads(result_file.read_text())
+            if (result.get("version"), result.get("task"), result.get("purpose")) != (
+                vid,
+                task,
+                purpose,
+            ) or Path(result.get("run_dir", "")) not in {
+                run_dir / f"attempt-{number}" for number in range(1, limit + 1)
+            }:
+                raise RuntimeError("cached result differs from its task assignment")
+            self.validate_evaluator(result)
             if result["validity"] == "valid":
                 self.validate_harness(vid, Path(result["run_dir"]))
             return succession.record_run(self, result)
@@ -606,12 +652,13 @@ class Host:
             if result["validity"] == "valid":
                 break
         result = {
+            **result,
             "version": vid,
             "task": task,
             "purpose": purpose,
             "run_dir": str(attempt_dir),
-            **result,
         }
+        self.validate_evaluator(result)
         run_dir.mkdir(parents=True, exist_ok=True)
         succession.receipt(result_file, result)
         return succession.record_run(self, result)
@@ -995,6 +1042,7 @@ class Host:
         never relaunches a claimed attempt: without a trustworthy terminal receipt or a recorded
         exit it remains unreconciled, not stopped or failed. A later terminal receipt can settle
         that same claim. A failed prepare starts no agent and remains retryable."""
+        self.validate_evaluator()
         run_dir = root / "run"
         ended = root / "ended-without-run-json"
         failed = root / "runner-failed.json"
@@ -2451,6 +2499,17 @@ def cmd_init(args) -> None:
     camp: Path = args.camp
     if (camp / "campaign.json").exists():
         sys.exit(f"{camp} already holds a campaign")
+    canonical_inputs = (
+        args.canonical_registry,
+        args.canonical_registry_sha256,
+        args.canonical_pins_sha256,
+    )
+    if any(value is not None for value in canonical_inputs) and not all(
+        value is not None for value in canonical_inputs
+    ):
+        sys.exit(
+            "canonical studies require registry path, registry SHA-256 and pins SHA-256"
+        )
     if args.knowledge and (problem := knowledge_problem(args.knowledge)):
         sys.exit(f"the seed knowledge is not acceptable: {problem}")
     if args.instances and args.knowledge:
@@ -2557,6 +2616,17 @@ def cmd_init(args) -> None:
     }
     if stream:
         terms["stream"] = stream
+    if args.canonical_registry is not None:
+        import procontract_canonical as canonical
+
+        terms["programbench"] = str(Path(terms["programbench"]).resolve())
+        terms["canonical"] = {
+            "registry_path": str(args.canonical_registry.resolve()),
+            "registry_sha256": args.canonical_registry_sha256,
+            "pins_sha256": args.canonical_pins_sha256,
+            "adapter_sha256": canonical.sha256(Path(canonical.__file__).resolve()),
+        }
+        canonical.validate_identity(terms)
     camp.mkdir(parents=True, exist_ok=True)
     if args.knowledge:
         copy_knowledge(args.knowledge, camp / "knowledge-seed")
@@ -2816,6 +2886,9 @@ def main() -> None:
     init.add_argument(
         "--stream-mode", choices=("explore", "guarded"), default="explore"
     )
+    init.add_argument("--canonical-registry", type=Path)
+    init.add_argument("--canonical-registry-sha256")
+    init.add_argument("--canonical-pins-sha256")
     init.add_argument("--task-attempts", type=int, choices=(1, 2), default=1)
     init.add_argument("--dev-min-delta", type=float, default=0.0)
     init.add_argument(
