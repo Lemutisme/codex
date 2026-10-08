@@ -201,6 +201,9 @@ def adopt(host, candidate, presumed=False):
         raise RuntimeError("adoption needs a frozen confirmation assignment")
     if plan is not None and host.incumbent() != plan["incumbent"]:
         raise RuntimeError("the confirmation incumbent is no longer authorized")
+    # Support names frozen bytes. Verify them before first publication, not when replaying an
+    # already settled decision: historical adoption remains readable after artifact cleanup.
+    host.validate_harness(candidate)
     decision = host.presumed() if presumed else {"type": "explicit"}
     command = {
         "contract_id": adoption,

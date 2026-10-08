@@ -399,12 +399,12 @@ class Host:
         if not target.exists():
             (target / "bundle").mkdir(parents=True)
             for name, text in files.items():
-                (target / "bundle" / name).write_text(text)
+                (target / "bundle" / name).write_bytes(text.encode("utf-8"))
             if program is not None:
                 (target / "bundle" / harness_program.PROGRAM_FILE).write_bytes(
                     program.source
                 )
-            (target / "EXPERIMENT.md").write_text(experiment)
+            (target / "EXPERIMENT.md").write_bytes(experiment.encode("utf-8"))
             (target / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
             self.record("version", {"id": vid, "manifest": manifest})
         return vid
