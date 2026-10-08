@@ -17,13 +17,16 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from pathlib import PurePosixPath
 
 import procontract_canonical_registry as registries
+import procontract_canonical_recovery as recovery
 import procontract_evaluation as packaging
 import procontract_rsi as rsi
 
 SCRIPTS = Path(__file__).resolve().parent
 _REGISTRY = None
+_EXPECTED_PINS = None
 
 
 def configure(path: Path, expected_sha256: str):
@@ -53,6 +56,8 @@ def registry():
 
 def checked_pins():
     frozen = registry()
+    if _EXPECTED_PINS is not None and sha256(PINS_FILE) != _EXPECTED_PINS:
+        raise RuntimeError("canonical pins identity changed")
     pins = json.loads(PINS_FILE.read_text())
     if (pins.get("registry_sha256"), pins.get("adapter_sha256")) != (
         frozen.digest,
@@ -60,6 +65,15 @@ def checked_pins():
     ):
         raise RuntimeError("canonical pins do not bind this registry and adapter")
     return pins
+
+
+def bind_pins(expected):
+    global _EXPECTED_PINS
+    if sha256(PINS_FILE) != expected or (
+        _EXPECTED_PINS is not None and _EXPECTED_PINS != expected
+    ):
+        raise RuntimeError("canonical pins identity changed")
+    _EXPECTED_PINS = expected
 
 
 def validate_identity(terms):
@@ -72,11 +86,13 @@ def validate_identity(terms):
         identity["adapter_sha256"],
     ):
         raise RuntimeError("frozen canonical pins or adapter identity changed")
+    bind_pins(identity["pins_sha256"])
     checked_pins()
 
 
 def worker_command(command, *args):
     frozen = registry()
+    checked_pins()
     return [
         str(PB_PYTHON),
         str(Path(__file__).resolve()),
@@ -85,6 +101,8 @@ def worker_command(command, *args):
         str(frozen.path),
         "--registry-sha256",
         frozen.digest,
+        "--pins-sha256",
+        _EXPECTED_PINS or sha256(PINS_FILE),
         *map(str, args),
     ]
 
@@ -147,8 +165,12 @@ def pin_state():
         subprocess.run(["git", "-C", str(PROGRAMBENCH), *args], check=True)
     fixtures = {}
     images = {}
+    required_blobs = set()
     for task, expected in TASKS.items():
         instance = fixture(task)
+        required_blobs.update(
+            f"{task}/tests/{branch}.tar.gz" for branch in active(instance)
+        )
         eligible = {
             f"{branch}/{name}"
             for branch in active(instance)
@@ -182,14 +204,39 @@ def pin_state():
     cached = json.loads(BLOB_MANIFEST.read_text())
     if cached["commit"] != HF_REVISION or Path(cached["blob_root"]) != BLOBS:
         raise RuntimeError("Cached fixture revision/root drift")
+    for name in cached["blob_sha256"]:
+        relative = PurePosixPath(name)
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in name
+            or str(relative) != name
+        ):
+            raise RuntimeError("Offline blob path escapes its declared root")
     blobs = {
         name: digest
         for name, digest in cached["blob_sha256"].items()
         if name.split("/")[0] in TASKS
     }
+    if missing := required_blobs - blobs.keys():
+        raise RuntimeError(
+            f"Missing {len(missing)} required offline test blobs: {sorted(missing)[:3]}"
+        )
+    if BLOBS.is_symlink() or not BLOBS.is_dir():
+        raise RuntimeError("Offline blob root must be a regular directory")
     for name, expected in blobs.items():
+        relative = PurePosixPath(name)
         path = BLOBS / name
-        if path.is_symlink() or sha256(path) != expected:
+        prefix = BLOBS
+        for part in relative.parts:
+            prefix = prefix / part
+            if prefix.is_symlink():
+                raise RuntimeError("Offline blob path contains a symlink")
+        if (
+            not path.is_file()
+            or not path.resolve().is_relative_to(BLOBS.resolve())
+            or sha256(path) != expected
+        ):
             raise RuntimeError(f"Cached fixture hash mismatch: {name}")
     wheels = {
         path.name: sha256(path)
@@ -344,8 +391,34 @@ def evaluate_one(task, archive, eval_json):
     )
 
 
+def attempt_binding(task, archive, attempt):
+    return {
+        "task": task,
+        "attempt": attempt,
+        "submission_sha256": sha256(archive),
+        "image": TASKS[task]["image"],
+        "pins_sha256": _EXPECTED_PINS or sha256(PINS_FILE),
+        "registry_sha256": registry().digest,
+        "adapter_sha256": sha256(Path(__file__).resolve()),
+    }
+
+
+def terminal_fields(directory, task, exit_code, elapsed):
+    paths = {
+        "raw_eval_sha256": directory / f"{task}.eval.json",
+        "score_sha256": directory / "canonical-score.json",
+        "feedback_sha256": directory / "canonical-feedback.json",
+    }
+    return {
+        "exit_code": exit_code,
+        "elapsed_seconds": elapsed,
+        **{key: sha256(path) if path.exists() else None for key, path in paths.items()},
+    }
+
+
 def validate_receipt(task, archive, directory):
     """Read-only evidence binding, shared by evaluation resume and Host cache reads."""
+    checked_pins()
     digest = sha256(archive)
     if sha256(directory / "submission.tar.gz") != digest:
         raise RuntimeError("Frozen evaluator subject changed across attempts")
@@ -362,7 +435,15 @@ def validate_receipt(task, archive, directory):
         "adapter_sha256": sha256(Path(__file__).resolve()),
         **{key: sha256(path) if path.exists() else None for key, path in paths.items()},
     }
-    bound = json.loads((directory / "evaluation-receipt.json").read_text())
+    claim = recovery.claimed(directory)
+    attempt = claim["binding"].get("attempt")
+    if (
+        type(attempt) is not int
+        or attempt not in (1, 2)
+        or directory.parent.name != f"attempt-{attempt}"
+    ):
+        raise RuntimeError("canonical evaluator attempt identity changed")
+    bound = recovery.terminal(directory, attempt_binding(task, archive, attempt))
     if (
         not isinstance(bound, dict)
         or not expected.keys() <= bound.keys()
@@ -371,6 +452,43 @@ def validate_receipt(task, archive, directory):
         raise RuntimeError(
             "unbound or changed canonical evaluation receipt; reconcile without rerunning"
         )
+    return bound
+
+
+def evaluate_claimed(task, archive, eval_json):
+    """The evaluator worker publishes its own terminal evidence, even if its parent has exited."""
+    checked_pins()
+    directory = eval_json.parent
+    claim = recovery.claimed(directory)
+    attempt = claim["binding"].get("attempt")
+    if (
+        type(attempt) is not int
+        or attempt not in (1, 2)
+        or directory.parent.name != f"attempt-{attempt}"
+        or archive.resolve() != (directory / "submission.tar.gz").resolve()
+        or eval_json.name != f"{task}.eval.json"
+    ):
+        raise RuntimeError("evaluator worker does not match its claimed paths")
+    recovery.claimed(directory, attempt_binding(task, archive, attempt))
+    if (directory / recovery.TERMINAL).exists():
+        raise RuntimeError("evaluator worker already has terminal evidence")
+    recovery.enter_worker(directory, claim)
+    started = time.monotonic()
+    try:
+        outcome = evaluate_one(task, archive, eval_json)
+    except Exception:
+        recovery.finish(
+            directory,
+            claim,
+            terminal_fields(directory, task, 1, time.monotonic() - started),
+        )
+        raise
+    recovery.finish(
+        directory,
+        claim,
+        terminal_fields(directory, task, 0, time.monotonic() - started),
+    )
+    return outcome
 
 
 def evaluate_archive(task, archive, work):
@@ -383,13 +501,18 @@ def evaluate_archive(task, archive, work):
         directory.mkdir(parents=True, exist_ok=True)
         frozen = directory / "submission.tar.gz"
         if not frozen.exists():
-            shutil.copyfile(archive, frozen)
+            recovery.atomic_artifact(
+                frozen, lambda target: shutil.copyfile(archive, target)
+            )
         if sha256(frozen) != digest:
             raise RuntimeError("Frozen evaluator subject changed across attempts")
         eval_json = directory / f"{task}.eval.json"
         score_file = directory / "canonical-score.json"
         receipt = directory / "evaluation-receipt.json"
-        if not receipt.exists():
+        claim, launch = recovery.start(
+            directory, attempt_binding(task, archive, attempt)
+        )
+        if launch:
             command = worker_command(
                 "evaluate-one",
                 "--task",
@@ -409,35 +532,40 @@ def evaluate_archive(task, archive, work):
                     stderr=subprocess.STDOUT,
                     check=False,
                 )
-            write_json(
-                receipt,
-                {
-                    "command": command,
-                    "exit_code": process.returncode,
-                    "elapsed_seconds": time.monotonic() - started,
-                    "submission_sha256": digest,
-                    "image": TASKS[task]["image"],
-                    "pins_sha256": sha256(PINS_FILE),
-                    "registry_sha256": registry().digest,
-                    "adapter_sha256": sha256(Path(__file__).resolve()),
-                    "raw_eval_sha256": sha256(eval_json)
-                    if eval_json.exists()
-                    else None,
-                    "score_sha256": sha256(score_file) if score_file.exists() else None,
-                    "feedback_sha256": sha256(directory / "canonical-feedback.json")
-                    if (directory / "canonical-feedback.json").exists()
-                    else None,
-                },
-            )
-        validate_receipt(task, archive, directory)
+            # A reaped child is terminal evidence even when it died before publishing its receipt.
+            if not receipt.exists():
+                recovery.finish(
+                    directory,
+                    claim,
+                    terminal_fields(
+                        directory, task, process.returncode, time.monotonic() - started
+                    ),
+                )
+            elif (
+                recovery.terminal(directory, claim["binding"])["exit_code"]
+                != process.returncode
+            ):
+                raise RuntimeError(
+                    "canonical evaluator exit conflicts with its terminal evidence"
+                )
+        bound = validate_receipt(task, archive, directory)
         outcome = (
             json.loads(score_file.read_text())
             if score_file.exists()
             else {"valid": False, "reasons": ["evaluator_process_failed"]}
         )
+        if bound["exit_code"] != 0:
+            outcome = {"valid": False, "reasons": ["evaluator_process_failed"]}
         if outcome["valid"]:
             # Verify even on resume; never trust a stale scalar without its bound raw evidence.
-            outcome = canonical_score_subprocess(task, eval_json, score_file)
+            rechecked = directory / "recheck" / "canonical-score.json"
+            outcome = canonical_score_subprocess(task, eval_json, rechecked)
+            if outcome != json.loads(score_file.read_text()) or sha256(
+                rechecked.with_name("canonical-feedback.json")
+            ) != sha256(directory / "canonical-feedback.json"):
+                raise RuntimeError(
+                    "canonical revalidation differs from the bound score"
+                )
             if not outcome["valid"]:
                 raise RuntimeError("Completed evaluation failed revalidation")
             outcome.update(
@@ -466,6 +594,32 @@ def canonical_score_subprocess(task, eval_json, output):
         stdout=subprocess.DEVNULL,
     )
     return json.loads(Path(output).read_text())
+
+
+def package_submission(run_dir):
+    """Only canonical submissions use this atomic publication and explicit completeness receipt."""
+    archive, receipt = (
+        run_dir / "submission.tar.gz",
+        run_dir / "submission-receipt.json",
+    )
+    if archive.exists():
+        if not receipt.exists() or json.loads(receipt.read_text()) != {
+            "sha256": sha256(archive)
+        }:
+            raise RuntimeError(
+                "canonical submission is partial or unbound; preserve it for reconciliation"
+            )
+        return archive
+    if receipt.exists():
+        raise RuntimeError("canonical submission receipt has no archive")
+    recovery.atomic_artifact(
+        archive, lambda target: packaging.package(run_dir / "workspace", target)
+    )
+    recovery.atomic_artifact(
+        receipt,
+        lambda target: target.write_text(json.dumps({"sha256": sha256(archive)})),
+    )
+    return archive
 
 
 class CanonicalProgramBench(rsi.ProgramBench):
@@ -522,7 +676,11 @@ class CanonicalProgramBench(rsi.ProgramBench):
             raise RuntimeError("cached canonical attempt is invalid")
         directory = run_dir / "eval" / f"attempt-{attempt}" / task
         archive = run_dir / "submission.tar.gz"
-        validate_receipt(task, archive, directory)
+        bound = validate_receipt(task, archive, directory)
+        if bound["exit_code"] != 0:
+            raise RuntimeError(
+                "cached canonical evaluator did not complete successfully"
+            )
         score = json.loads((directory / "canonical-score.json").read_text())
         raw = directory / f"{task}.eval.json"
         expected = {
@@ -646,9 +804,7 @@ class CanonicalProgramBench(rsi.ProgramBench):
             "server_exited_early"
         ):
             raise RuntimeError(f"Executor failed; no automatic paid rerun: {run_dir}")
-        archive = run_dir / "submission.tar.gz"
-        if not archive.exists():
-            packaging.package(run_dir / "workspace", archive)
+        archive = package_submission(run_dir)
         outcome = evaluate_archive(task, archive, run_dir / "eval")
         shutil.copyfile(outcome["feedback_json"], run_dir / "canonical-feedback.json")
         rsi.compact(run_dir)
@@ -679,12 +835,17 @@ def main():
     )
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--registry-sha256", required=True)
+    parser.add_argument("--pins-sha256")
     parser.add_argument("--task")
     parser.add_argument("--eval-json", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     configure(args.registry, args.registry_sha256)
+    if args.command != "freeze":
+        if args.pins_sha256 is None:
+            parser.error("this command requires --pins-sha256")
+        bind_pins(args.pins_sha256)
     if args.task is not None and args.task not in TASKS:
         parser.error("task is outside the frozen registry")
     if (
@@ -703,7 +864,7 @@ def main():
     elif args.command == "score":
         result = canonical_score(args.task, args.eval_json, args.output)
     elif args.command == "evaluate-one":
-        result = evaluate_one(args.task, args.archive, args.eval_json)
+        result = evaluate_claimed(args.task, args.archive, args.eval_json)
     elif args.command == "evaluate":
         result = evaluate_archive(args.task, args.archive, args.output)
     else:
