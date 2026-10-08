@@ -67,6 +67,8 @@ import procontract_harness_program as harness_program
 import procontract_outcomes as outcome_matrix
 import procontract_release as release
 import procontract_store as store
+import procontract_study as study
+import procontract_study_budget as study_budget
 import procontract_succession as succession
 import procontract_trajectory as trajectory
 
@@ -206,6 +208,9 @@ class Host:
         self.camp = camp
         self.store = camp / "store"
         self.terms = json.loads((camp / "campaign.json").read_text())
+        self.runner = runner or RUNNER
+        if "study" in self.terms or os.path.lexists(camp / "study.json"):
+            study.verify(camp, self.terms, runner=self.runner)
         if "canonical" in self.terms:
             import procontract_canonical as canonical
 
@@ -222,11 +227,12 @@ class Host:
             )
         else:
             self.adapter = adapter if adapter is not None else ProgramBench(self.terms)
-        self.runner = runner or RUNNER
         self.validate_evaluator()
 
     def validate_evaluator(self, cached: dict | None = None) -> None:
         """Keep registry-bound studies pinned even when no fresh evaluation is needed."""
+        if "study" in self.terms or os.path.lexists(self.camp / "study.json"):
+            study.verify(self.camp, self.terms, runner=self.runner)
         if "canonical" not in self.terms:
             return
         import procontract_canonical as canonical
@@ -1142,7 +1148,17 @@ class Host:
                 str(root / "workspace"),
                 "--no-reference",
             ]
-            subprocess.run([*self.runner, "prepare", *prepare], check=True)
+            if "study" in self.terms:
+                prepare += [
+                    "--study-manifest",
+                    self.terms["study"]["manifest_path"],
+                    "--study-sha256",
+                    self.terms["study"]["manifest_sha256"],
+                ]
+            runner_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            subprocess.run(
+                [*self.runner, "prepare", *prepare], check=True, env=runner_env
+            )
             prepared = harness_program.read_regular(
                 run_dir / "manifest.json", MAX_BUNDLE_FILE
             )
@@ -1166,7 +1182,9 @@ class Host:
                 finally:
                     os.close(directory)
             run = common + ["--deadline-secs", str(deadline)]
-            completed = subprocess.run([*self.runner, "run", *run], check=False)
+            completed = subprocess.run(
+                [*self.runner, "run", *run], check=False, env=runner_env
+            )
             succession.receipt(
                 exit_path,
                 {
@@ -2499,6 +2517,17 @@ def cmd_init(args) -> None:
     camp: Path = args.camp
     if (camp / "campaign.json").exists():
         sys.exit(f"{camp} already holds a campaign")
+    study_limits = {
+        "task_launches": args.study_task_launches,
+        "learning_launches": args.study_learning_launches,
+        "allocated_seconds": args.study_allocated_secs,
+    }
+    if any(value is not None for value in study_limits.values()) and not all(
+        value is not None for value in study_limits.values()
+    ):
+        sys.exit(
+            "study limits require task launches, learning launches and allocated seconds together"
+        )
     canonical_inputs = (
         args.canonical_registry,
         args.canonical_registry_sha256,
@@ -2627,6 +2656,13 @@ def cmd_init(args) -> None:
             "adapter_sha256": canonical.sha256(Path(canonical.__file__).resolve()),
         }
         canonical.validate_identity(terms)
+    if all(value is not None for value in study_limits.values()):
+        terms["study"] = study.freeze(camp, terms, study_limits)
+        study_budget.initialize(
+            camp / "study-budget.sqlite",
+            terms["study"]["manifest_sha256"],
+            study_limits,
+        )
     camp.mkdir(parents=True, exist_ok=True)
     if args.knowledge:
         copy_knowledge(args.knowledge, camp / "knowledge-seed")
@@ -2889,6 +2925,9 @@ def main() -> None:
     init.add_argument("--canonical-registry", type=Path)
     init.add_argument("--canonical-registry-sha256")
     init.add_argument("--canonical-pins-sha256")
+    init.add_argument("--study-task-launches", type=int)
+    init.add_argument("--study-learning-launches", type=int)
+    init.add_argument("--study-allocated-secs", type=int)
     init.add_argument("--task-attempts", type=int, choices=(1, 2), default=1)
     init.add_argument("--dev-min-delta", type=float, default=0.0)
     init.add_argument(
