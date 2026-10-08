@@ -32,6 +32,9 @@ class CanonicalTest(unittest.TestCase):
         patch = mock.patch.object(canonical, "_REGISTRY", None)
         patch.start()
         self.addCleanup(patch.stop)
+        pin_patch = mock.patch.object(canonical, "_EXPECTED_PINS", None)
+        pin_patch.start()
+        self.addCleanup(pin_patch.stop)
         self.task = "fresh__demo.1234567"
         self.registry_file = self.root / "registry.json"
         self.data = {
@@ -114,6 +117,8 @@ class CanonicalTest(unittest.TestCase):
             str(self.registry_file),
             "--registry-sha256",
             self.registry.digest,
+            "--pins-sha256",
+            canonical.sha256(self.registry.pins_file),
             "--task",
             self.task,
         ]
@@ -152,6 +157,8 @@ class CanonicalTest(unittest.TestCase):
                     str(self.registry_file),
                     "--registry-sha256",
                     self.registry.digest,
+                    "--pins-sha256",
+                    canonical.sha256(self.registry.pins_file),
                     "--task",
                     self.task,
                 ],
@@ -257,7 +264,13 @@ class CanonicalTest(unittest.TestCase):
             return SimpleNamespace(returncode=0)
 
         def score(task, raw, output):
-            return json.loads(output.read_text())
+            value = json.loads(raw.with_name("canonical-score.json").read_text())
+            canonical.write_json(output, value)
+            canonical.write_json(
+                output.with_name("canonical-feedback.json"),
+                json.loads(raw.with_name("canonical-feedback.json").read_text()),
+            )
+            return value
 
         with (
             mock.patch.object(canonical.subprocess, "run", side_effect=run),
@@ -309,7 +322,9 @@ class CanonicalTest(unittest.TestCase):
             (1, canonical.sha256(archive)),
         )
         score.assert_called_once_with(
-            self.task, score_file.with_name(f"{self.task}.eval.json"), score_file
+            self.task,
+            score_file.with_name(f"{self.task}.eval.json"),
+            score_file.parent / "recheck" / "canonical-score.json",
         )
 
     def test_legacy_or_changed_receipts_cannot_relabel_cached_scores(self):
@@ -334,7 +349,9 @@ class CanonicalTest(unittest.TestCase):
                     mock.patch.object(
                         canonical.subprocess, "run", side_effect=AssertionError("rerun")
                     ),
-                    self.assertRaisesRegex(RuntimeError, "unbound or changed"),
+                    self.assertRaisesRegex(
+                        RuntimeError, "unbound or changed|claim identity changed"
+                    ),
                 ):
                     canonical.evaluate_archive(self.task, archive, work)
 
