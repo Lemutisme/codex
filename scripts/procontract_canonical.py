@@ -23,6 +23,7 @@ import procontract_canonical_registry as registries
 import procontract_canonical_recovery as recovery
 import procontract_evaluation as packaging
 import procontract_rsi as rsi
+import procontract_study_evaluation as study_evaluation
 
 SCRIPTS = Path(__file__).resolve().parent
 _REGISTRY = None
@@ -44,6 +45,7 @@ def configure(path: Path, expected_sha256: str):
     HF_REVISION, PB_PYTHON = loaded.hf_revision, loaded.python
     TASKS, WHEELHOUSE, BLOBS = loaded.tasks, loaded.wheelhouse, loaded.blob_root
     BLOB_MANIFEST, PINS_FILE = loaded.blob_manifest, loaded.pins_file
+    study_evaluation.bind(None)
     return loaded
 
 
@@ -55,6 +57,7 @@ def registry():
 
 
 def checked_pins():
+    study_evaluation.verify()
     frozen = registry()
     if _EXPECTED_PINS is not None and sha256(PINS_FILE) != _EXPECTED_PINS:
         raise RuntimeError("canonical pins identity changed")
@@ -80,6 +83,7 @@ def validate_identity(terms):
     """Static identity gate for campaign entry, cache reads and adoption; no Docker."""
     identity = terms["canonical"]
     frozen = configure(Path(identity["registry_path"]), identity["registry_sha256"])
+    study_evaluation.bind(terms.get("study"))
     frozen.validate_campaign(terms)
     if (sha256(PINS_FILE), sha256(Path(__file__).resolve())) != (
         identity["pins_sha256"],
@@ -103,6 +107,7 @@ def worker_command(command, *args):
         frozen.digest,
         "--pins-sha256",
         _EXPECTED_PINS or sha256(PINS_FILE),
+        *study_evaluation.flags(),
         *map(str, args),
     ]
 
@@ -772,7 +777,18 @@ class CanonicalProgramBench(rsi.ProgramBench):
                 "--effort",
                 self.terms["effort"],
             ]
-            subprocess.run([*host.runner, "prepare", *prepare], check=True)
+            if "study" in self.terms:
+                prepare += [
+                    "--study-manifest",
+                    self.terms["study"]["manifest_path"],
+                    "--study-sha256",
+                    self.terms["study"]["manifest_sha256"],
+                ]
+            subprocess.run(
+                [*host.runner, "prepare", *prepare],
+                check=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+            )
             write_json(
                 run_dir / "inference-started.json",
                 {"model": self.terms["model"], "effort": self.terms["effort"]},
@@ -786,6 +802,7 @@ class CanonicalProgramBench(rsi.ProgramBench):
                     str(self.terms["task_deadline_secs"]),
                 ],
                 check=False,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             )
         manifest = json.loads((run_dir / "manifest.json").read_text())
         if any(
@@ -836,12 +853,25 @@ def main():
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--registry-sha256", required=True)
     parser.add_argument("--pins-sha256")
+    parser.add_argument("--study-manifest", type=Path)
+    parser.add_argument("--study-sha256")
     parser.add_argument("--task")
     parser.add_argument("--eval-json", type=Path)
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     configure(args.registry, args.registry_sha256)
+    if args.study_manifest is not None or args.study_sha256 is not None:
+        if args.study_manifest is None or args.study_sha256 is None:
+            parser.error("sealed evaluation requires study manifest path and SHA-256")
+        study_evaluation.bind(
+            {
+                "manifest_path": str(args.study_manifest),
+                "manifest_sha256": args.study_sha256,
+            },
+            evaluator=True,
+        )
+        study_evaluation.verify()
     if args.command != "freeze":
         if args.pins_sha256 is None:
             parser.error("this command requires --pins-sha256")
