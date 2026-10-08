@@ -6,6 +6,7 @@ next serve: an explicit adoption must settle before production can advance.
 
 import procontract_release as release
 import procontract_method_confirmation as method_confirmation
+import procontract_proposal_scope as proposal_scope
 import procontract_store as store
 import procontract_succession as succession
 
@@ -136,6 +137,8 @@ def step(host):
             )
         size = host.terms["stream"]["batch"]
         method = candidate is not None and host.twin(candidate) == host.twin(version)
+        if candidate is not None and not method:
+            proposal_scope.assert_task_confirmation(host, candidate, version)
         batch = {
             "batch": number,
             "phase": "method_probe" if method else "probe" if candidate else "serve",
@@ -181,6 +184,10 @@ def step(host):
     ):
         raise RuntimeError(
             "guarded batch incumbent changed; preserving its frozen assignment"
+        )
+    if batch["phase"] == "probe":
+        proposal_scope.assert_task_confirmation(
+            host, version, batch["expected_incumbent"]
         )
 
     if batch["phase"] == "serve":

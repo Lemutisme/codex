@@ -135,6 +135,7 @@ used by both task and research runs. Format: {{"schema":1,"when":predicate}}. Pr
 {{"repairs_used_gte":integer}}, {{"always":boolean}}, {{"all":[predicates]}},
 {{"any":[predicates]}}, or {{"not":predicate}}. Keep it small and finite; no imports, external I/O or
 budget changes are allowed. A true result requests bounded handoff guidance, not acceptance.
+{intervention}
 """
 
 PREDICT_ITEMS = """When you change a file that shapes how tasks are done ({task_files}), also deliver
@@ -1422,6 +1423,7 @@ class Host:
             prediction=PREDICT_CLASSES
             if self.stream
             else PREDICT_ITEMS.format(task_files=", ".join(TASK_FILES)),
+            intervention=proposal_scope.research_constraint(self.terms),
         )
         self.stage_view(
             root,
@@ -1454,7 +1456,8 @@ class Host:
     ) -> tuple[bool, str, bool]:
         """Mechanical, complete criterion: an experiment record with every section, a bundle
         changed only within the campaign's mutable files, and task-shaping files that name no task
-        the campaign has exposed. Returns (qualified, reason, changed)."""
+        the campaign has exposed. Guarded proposals cannot mix method and execution/harness
+        changes. Returns (qualified, reason, changed)."""
         if allowed_files is not None and not set(allowed_files) <= set(
             self.terms["mutable"]
         ):
@@ -1516,6 +1519,8 @@ class Host:
                 f"changed files the campaign does not allow: {', '.join(outside)}",
                 False,
             )
+        if problem := proposal_scope.intervention_problem(self.terms, changed):
+            return False, problem, False
         if leak := self.boundary(files, changed):
             return False, leak, False
         if (

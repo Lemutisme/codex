@@ -225,6 +225,7 @@ def _stage(host, plan, producer, role, root, previous):
                     files=", ".join(allowed),
                     sections=", ".join(rsi.EXPERIMENT_SECTIONS),
                     prediction=rsi.PREDICT_CLASSES,
+                    intervention=rsi.proposal_scope.research_constraint(host.terms),
                 )
                 + "\nKeep research.md, analyst.md and challenger.md identical to the common target.\n"
             )

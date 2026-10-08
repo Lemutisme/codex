@@ -247,6 +247,114 @@ class GuardedStreamTest(unittest.TestCase):
             {r["pass_rate"] for r in host.observed().values()}, {0.5, 0.6, 0.7}
         )
 
+    def test_mixed_all_mode_proposals_reject_before_registration_or_candidate_work(
+        self,
+    ):
+        for execution_files in (
+            ("executor.md",),
+            (harness.PROGRAM_FILE,),
+            ("executor.md", harness.PROGRAM_FILE),
+        ):
+            with self.subTest(execution_files=execution_files):
+                host = self.make_host()
+                root = host.incumbent()
+                research = host.research
+
+                def mixed(parent, step):
+                    delivery = research(parent, step)
+                    for name in ("executor.md", harness.PROGRAM_FILE):
+                        if name not in execution_files:
+                            shutil.copyfile(
+                                host.version_dir(parent) / "bundle" / name,
+                                delivery / "policy" / name,
+                            )
+                    method = delivery / "policy" / "research.md"
+                    method.write_text(
+                        method.read_text() + "\nChanged method fixture.\n"
+                    )
+                    return delivery
+
+                with (
+                    mock.patch.object(host, "research", side_effect=mixed),
+                    mock.patch.object(
+                        host, "register", wraps=host.register
+                    ) as register,
+                ):
+                    result = host.stream_step()
+                register.assert_not_called()
+                self.assertIn("cannot mix method and execution/harness", result)
+                self.assertEqual(
+                    {
+                        "kind": host.terms["proposal_kind"],
+                        "versions": list(host.versions()),
+                        "incumbent": host.incumbent(),
+                        "runs": host.adapter.runs,
+                        "confirmation": host.used_confirmation_tasks(),
+                        "improvement": host.contract("improvement.1")["standing"],
+                    },
+                    {
+                        "kind": "all",
+                        "versions": [root],
+                        "incumbent": root,
+                        "runs": [(root, host.order()[0])],
+                        "confirmation": [],
+                        "improvement": "released",
+                    },
+                )
+                self.assertFalse(
+                    any(
+                        e["body"]["role"] == "stream_policy"
+                        for e in host.events("selection")
+                    )
+                )
+                prompt = host.camp / "research" / "step-1" / "prompt.md"
+                self.assertIn(proposal_scope.GUARDED_INTERVENTION, prompt.read_text())
+
+    def test_joint_execution_harness_adopts_with_fixed_method_mutation_authority(self):
+        authorized = [*rsi.TASK_FILES, harness.PROGRAM_FILE]
+        host = self.make_host(mutable=authorized)
+        root = host.incumbent()
+        host.stream_step()
+        candidate = host.stream_policy()
+        self.assertEqual(host.terms["mutable"], authorized)
+        self.assertNotEqual(candidate, root)
+        for name in ("executor.md", harness.PROGRAM_FILE):
+            self.assertNotEqual(
+                (host.version_dir(candidate) / "bundle" / name).read_bytes(),
+                (host.version_dir(root) / "bundle" / name).read_bytes(),
+            )
+        host.stream_step()
+        self.assertEqual(host.incumbent(), candidate)
+        host = self.reopen(host)
+        host.stream_step()
+        self.assert_adopted_producer(host, candidate)
+
+    def test_guarded_null_proposal_preserves_incumbent_without_registration(self):
+        host = self.make_host()
+        root = host.incumbent()
+        research = host.research
+
+        def unchanged(parent, step):
+            delivery = research(parent, step)
+            shutil.copytree(
+                host.version_dir(parent) / "bundle",
+                delivery / "policy",
+                dirs_exist_ok=True,
+            )
+            return delivery
+
+        with (
+            mock.patch.object(host, "research", side_effect=unchanged),
+            mock.patch.object(host, "register", wraps=host.register) as register,
+        ):
+            result = host.stream_step()
+        register.assert_not_called()
+        self.assertIn("a null experiment", result)
+        self.assertEqual(
+            (list(host.versions()), host.incumbent(), host.used_confirmation_tasks()),
+            ([root], root, []),
+        )
+
     def test_ties_and_refusal_keep_the_incumbent_as_next_producer(self):
         for refusal in ("tie", "authority"):
             with self.subTest(refusal=refusal):

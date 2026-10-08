@@ -9,6 +9,7 @@ import json
 import sqlite3
 import statistics
 
+import procontract_proposal_scope as proposal_scope
 import procontract_store as store
 
 
@@ -101,6 +102,7 @@ def confirm(host, candidate, incumbent):
             )
         if candidate == incumbent:
             return "the candidate is already incumbent"
+        proposal_scope.assert_task_confirmation(host, candidate, incumbent)
         fresh = [
             t
             for t in host.terms["pools"]["confirm"]
@@ -123,6 +125,8 @@ def confirm(host, candidate, incumbent):
             },
         }
         host.record("assignment", plan)
+    else:
+        proposal_scope.assert_task_confirmation(host, candidate, plan["incumbent"])
     if (
         host.incumbent() != plan["incumbent"]
         or incumbent_record(host)["seq"] != plan["incumbent_seq"]
@@ -217,6 +221,8 @@ def adopt(host, candidate, presumed=False):
         import procontract_method_confirmation as method_confirmation
 
         method_confirmation.validate_adoption(host, plan)
+    elif plan is not None:
+        proposal_scope.assert_task_confirmation(host, candidate, plan["incumbent"])
     coordinate = state["support"]["coordinate"]
     if coordinate["evaluator_digest"] != store.digest(
         "evaluator", host.adapter.evaluator()

@@ -11,6 +11,22 @@ import test_procontract_rsi as fixtures
 
 
 class ProposalScopeTest(unittest.TestCase):
+    def test_missing_or_null_stream_preserves_legacy_mixed_proposal_behavior(self):
+        changed = ["research.md", "executor.md", "harness.json"]
+        for terms in ({}, {"stream": None}):
+            with self.subTest(terms=terms):
+                host = mock.Mock(terms=terms)
+                self.assertEqual(
+                    (
+                        scope.research_constraint(terms),
+                        scope.intervention_problem(terms, changed),
+                    ),
+                    ("", ""),
+                )
+                scope.assert_task_confirmation(host, "candidate", "incumbent")
+                host.validate_harness.assert_not_called()
+                host.versions.assert_not_called()
+
     def test_default_and_explicit_all_preserve_existing_authority(self):
         for extra in ({}, {"proposal_kind": "all"}):
             with self.subTest(extra=extra):
