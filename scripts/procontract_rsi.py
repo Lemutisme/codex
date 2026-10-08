@@ -426,14 +426,78 @@ class Host:
 
     # ---- runs ---------------------------------------------------------------------------------
 
+    def validate_harness(
+        self, vid: str, run_dir: Path | None = None, *, require_success: bool = True
+    ) -> None:
+        """Fail closed on source or activation drift, preserving a stop marker after execution."""
+        marker = (
+            run_dir / "harness-identity-failure.txt" if run_dir is not None else None
+        )
+        if marker is not None and marker.exists():
+            raise RuntimeError(marker.read_text())
+        version = self.versions()[vid]
+        expected = version.get("harness")
+        try:
+            roles = bundle_texts(self.version_dir(vid) / "bundle")
+            if set(roles) != set(BUNDLE_FILES) or any(
+                store.digest("bundle_file", text) != version["bundle"][name]
+                for name, text in roles.items()
+            ):
+                raise ValueError(
+                    "version role files do not match their recorded identities"
+                )
+            program = harness_program.load(self.version_dir(vid) / "bundle")
+            actual = (
+                {"interpreter": harness_program.INTERPRETER, "sha256": program.digest}
+                if program is not None
+                else None
+            )
+            if actual != expected:
+                raise ValueError("version bundle does not match its harness identity")
+            if run_dir is not None:
+                for name in ("manifest.json", "run.json"):
+                    path = run_dir / name
+                    if not path.exists() and (expected is None or not require_success):
+                        continue  # Legacy runs did not carry program activation receipts.
+                    summary = json.loads(path.read_text())
+                    receipt = summary.get("harness_program")
+                    actual = (
+                        {key: receipt.get(key) for key in ("sha256", "interpreter")}
+                        if isinstance(receipt, dict)
+                        else None
+                    )
+                    if actual != expected:
+                        raise ValueError(
+                            f"{name} does not match the version's harness identity"
+                        )
+                    if (
+                        require_success
+                        and name == "run.json"
+                        and runner_problem(summary)
+                    ):
+                        raise ValueError("the runner did not execute successfully")
+        except (OSError, ValueError, AttributeError) as error:
+            message = f"harness identity validation failed for {vid}: {error}"
+            if marker is not None:
+                marker.parent.mkdir(parents=True, exist_ok=True)
+                marker.write_text(message + "\n")
+            raise RuntimeError(message) from error
 
     def measure(self, vid: str, task: str, purpose: str) -> dict:
         """Runs a version on one task and labels the result; cached by run directory."""
+        self.validate_harness(vid)
         run_dir = self.camp / "runs" / f"{purpose}-{vid[:12]}-{task}"
         result_file = run_dir / "result.json"
+        if list(run_dir.glob("attempt-*/harness-identity-failure.txt")):
+            raise RuntimeError(
+                "harness identity failure preserved; refusing another paid attempt"
+            )
         # Invalid attempts consume their allowance too. Restarting never resets that budget.
         if result_file.exists():
-            return succession.record_run(self, json.loads(result_file.read_text()))
+            result = json.loads(result_file.read_text())
+            if result["validity"] == "valid":
+                self.validate_harness(vid, Path(result["run_dir"]))
+            return succession.record_run(self, result)
         result = None
         run_dir.mkdir(parents=True, exist_ok=True)
         for attempt in (1, 2):
@@ -441,6 +505,9 @@ class Host:
             receipt = run_dir / f"attempt-{attempt}.json"
             if receipt.exists():
                 result = json.loads(receipt.read_text())
+                self.validate_harness(
+                    vid, attempt_dir, require_success=result["validity"] == "valid"
+                )
             else:
                 succession.receipt(
                     receipt,
@@ -453,6 +520,9 @@ class Host:
                 )
                 result = self.adapter.run_and_label(
                     self, self.version_dir(vid) / "bundle", task, attempt_dir
+                )
+                self.validate_harness(
+                    vid, attempt_dir, require_success=result["validity"] == "valid"
                 )
                 succession.receipt(receipt, result)
             if result["validity"] == "valid":
@@ -847,7 +917,15 @@ class Host:
         it stops the host, which resumes there."""
         run_dir = root / "run"
         ended = root / "ended-without-run-json"
-        if not (run_dir / "run.json").exists() and not ended.exists():
+        failed = root / "runner-failed.json"
+        self.validate_harness(parent)
+        if (run_dir / "harness-identity-failure.txt").exists():
+            self.validate_harness(parent, run_dir)
+        if (
+            not (run_dir / "run.json").exists()
+            and not ended.exists()
+            and not failed.exists()
+        ):
             shutil.rmtree(run_dir, ignore_errors=True)
             common = [
                 "--arm",
@@ -882,9 +960,26 @@ class Host:
             ]
             subprocess.run([*self.runner, "prepare", *prepare], check=True)
             run = common + ["--deadline-secs", str(deadline)]
-            subprocess.run([*self.runner, "run", *run], check=False)
+            completed = subprocess.run([*self.runner, "run", *run], check=False)
+            if completed.returncode:
+                succession.receipt(
+                    failed,
+                    {"reason": "runner failed", "returncode": completed.returncode},
+                )
             if not (run_dir / "run.json").exists():
                 ended.write_text("the run ended without run.json\n")
+        if not failed.exists():
+            try:
+                summary = json.loads((run_dir / "run.json").read_text())
+                problem = runner_problem(summary)
+            except (OSError, ValueError, AttributeError):
+                problem = "runner ended without a readable terminal receipt"
+            if problem:
+                succession.receipt(failed, {"reason": problem})
+            else:
+                self.validate_harness(parent, run_dir)
+        if failed.exists():
+            self.validate_harness(parent, run_dir, require_success=False)
         return run_dir / "workspace"
 
     def analyze(self, parent: str) -> int:
@@ -895,6 +990,7 @@ class Host:
         delivery that qualifies becomes the campaign's, else the failure is recorded, the knowledge
         stays and the verdict is unknown. Each stage may retry once; finished runs are never run
         again."""
+        self.validate_harness(parent)
         coverage = sorted(self.observed())
         done = self.insights()
         if (
@@ -1000,7 +1096,12 @@ class Host:
             delivery = self.run_agent(
                 base, f"{role}-{k}-{attempt}", parent, f"{role}.md", deadline
             )
-            reason = delivery_problem(delivery, document, pending, failing)
+            failure = base / "runner-failed.json"
+            reason = (
+                json.loads(failure.read_text())["reason"]
+                if failure.exists()
+                else delivery_problem(delivery, document, pending, failing)
+            )
             if not reason:
                 return delivery, ""
         return None, f"{role}: {reason}"
@@ -1062,6 +1163,10 @@ class Host:
             self.terms["research_deadline_secs"],
         )
 
+    def research_failure(self, step: int) -> str | None:
+        """Only the trusted runner's receipt, never a candidate-authored failure marker."""
+        path = self.camp / "research" / f"step-{step}" / "runner-failed.json"
+        return json.loads(path.read_text())["reason"] if path.exists() else None
 
     def qualify(self, delivery: Path, parent: str) -> tuple[bool, str, bool]:
         """Mechanical, complete criterion: an experiment record with every section, a bundle
@@ -1366,11 +1471,13 @@ class Host:
         self.dev(parent)
         self.analyze(parent)
         delivery = self.research(parent, step)
-        experiment = (
-            (delivery / "EXPERIMENT.md").read_text()
-            if (delivery / "EXPERIMENT.md").exists()
-            else ""
-        )
+        if failure := self.research_failure(step):
+            self.release(improvement, failure)
+            return f"step {step}: research failed ({failure}); the policy stays"
+        try:
+            experiment = experiment_text(delivery)
+        except ValueError:
+            experiment = ""  # Qualification records the rejection; never read through a bad path.
         ok, reason, changed = self.qualify(delivery, parent)
         subject = delivery_subject(delivery, experiment)
         self.propose(improvement, subject)
@@ -1545,7 +1652,8 @@ class Host:
         """What a stream learns from batch b: an analysis of the runs so far, which also counts the
         signature of the change that set this batch's policy, then research whose qualified delivery
         sets the next batch's policy. Choosing a policy is exploration and needs no authority: the
-        next batch measures it out of sample, and the baseline comparison certifies the stream."""
+        next batch measures it out of sample; baseline comparisons are descriptive, not causal
+        certification of the learning method."""
         policy = self.batches()[b - 1]["version"]
         self.measure_all(
             [(policy, task) for task in self.batches()[b - 1]["tasks"]], "stream"
@@ -1583,11 +1691,13 @@ class Host:
         if self.insight(k)["status"] != "qualified":
             return f"batch {b}: analysis failed; knowledge and policy stay unchanged"
         delivery = self.research(policy, b)
-        experiment = (
-            (delivery / "EXPERIMENT.md").read_text()
-            if (delivery / "EXPERIMENT.md").exists()
-            else ""
-        )
+        if failure := self.research_failure(b):
+            self.release(improvement, failure)
+            return f"batch {b}: research failed ({failure}); the policy stays"
+        try:
+            experiment = experiment_text(delivery)
+        except ValueError:
+            experiment = ""
         ok, reason, changed = self.qualify(delivery, policy)
         subject = delivery_subject(delivery, experiment)
         self.propose(improvement, subject)
@@ -1687,7 +1797,7 @@ class ProgramBench:
                 "reason": "prepare failed",
                 "pass_rate": None,
             }
-        subprocess.run(
+        completed = subprocess.run(
             [
                 *host.runner,
                 "run",
@@ -1697,17 +1807,15 @@ class ProgramBench:
             ],
             check=False,
         )
-        summary = (
-            json.loads((run_dir / "run.json").read_text())
-            if (run_dir / "run.json").exists()
-            else {}
-        )
-        if (summary.get("turn_statuses") or [""])[-1] == "failed" or summary.get(
-            "server_exited_early"
-        ):
+        try:
+            summary = json.loads((run_dir / "run.json").read_text())
+            problem = runner_problem(summary)
+        except (OSError, ValueError, AttributeError):
+            summary, problem = {}, "runner ended without a readable terminal receipt"
+        if completed.returncode or problem:
             return {
                 "validity": "invalid",
-                "reason": "the executor turn failed",
+                "reason": problem or "runner exited with a nonzero status",
                 "pass_rate": None,
                 "run": summary,
             }
@@ -1818,6 +1926,10 @@ class ProgramBench:
         if result["validity"] != "valid":
             return "its first development run was not valid"
         run_dir = Path(result["run_dir"])
+        try:
+            host.validate_harness(vid, run_dir)
+        except RuntimeError as error:
+            return str(error)
         texts = [
             (bundle / name).read_text()
             for name in ("drafter.md", "prober.md", "reviewer.md")
@@ -2067,6 +2179,15 @@ def experiment_text(delivery: Path) -> str:
     return raw.decode("utf-8") if raw is not None else ""
 
 
+def runner_problem(summary: dict) -> str:
+    """A failed runner cannot qualify its leftover workspace as a successful delivery."""
+    if (
+        summary.get("runner_error")
+        or summary.get("server_exited_early")
+        or (summary.get("turn_statuses") or [""])[-1] == "failed"
+    ):
+        return "the runner or executor turn failed"
+    return ""
 
 
 def hand_over(analysis: Path, workspace: Path, pending: str | None) -> None:
