@@ -1,6 +1,7 @@
 """Fenced succession and interrupted workflow recovery, using the real store."""
 
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -100,6 +101,52 @@ class SuccessionRecoveryTest(unittest.TestCase):
                     (run.call_count, result["validity"], result["cost_unknown"]),
                     (2, "invalid", True),
                 )
+
+    def test_confirmation_stops_if_incumbent_is_revoked_without_another_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks = fixtures.FakeTasks()
+            h = fixtures.host(fixtures.campaign(tmp), tasks)
+            root = h.incumbent()
+            h.step()
+            incumbent = next(v for v in h.versions() if v != root)
+            h.adopt(incumbent)
+            draft = Path(tmp, "successor")
+            shutil.copytree(h.version_dir(incumbent) / "bundle", draft)
+            executor = draft / "executor.md"
+            executor.write_text(executor.read_text() + "\nbetter\n")
+            candidate = h.register(draft, incumbent, incumbent, "revocation fixture")
+            with mock.patch.object(h, "measure_all", side_effect=InterruptedError):
+                with self.assertRaises(InterruptedError):
+                    h.confirm(candidate, incumbent)
+            selection = succession.incumbent_record(h)
+            adoption = f"adoption.{incumbent[:16]}"
+            state = h.contract(adoption)
+            h.apply(
+                adoption,
+                "settler",
+                "human",
+                {
+                    "type": "challenge",
+                    "target": {
+                        "type": "settlement",
+                        "coordinate": state["settlement"]["coordinate"],
+                    },
+                    "defeater": store.digest("defeater", "revoked fixture"),
+                },
+                "revoke-incumbent",
+            )
+            self.assertEqual(succession.incumbent_record(h), selection)
+            self.assertEqual(h.incumbent(), root)
+            before = (list(tasks.runs), h.used_confirmation_tasks())
+            resumed = fixtures.host(h.camp, tasks)
+            self.assertEqual(
+                resumed.confirm(candidate, incumbent),
+                "confirmation stale; incumbent changed",
+            )
+            self.assertEqual((tasks.runs, resumed.used_confirmation_tasks()), before)
+            self.assertEqual(
+                resumed.contract(f"adoption.{candidate[:16]}")["standing"], "released"
+            )
 
     def test_writer_excludes_another_writer_and_unlocks_after_failure(self):
         with tempfile.TemporaryDirectory() as tmp:

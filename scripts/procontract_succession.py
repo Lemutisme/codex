@@ -118,7 +118,10 @@ def confirm(host, candidate, incumbent):
             },
         }
         host.record("assignment", plan)
-    if incumbent_record(host)["seq"] != plan["incumbent_seq"]:
+    if (
+        host.incumbent() != plan["incumbent"]
+        or incumbent_record(host)["seq"] != plan["incumbent_seq"]
+    ):
         if state is not None:
             host.release(adoption, "the confirmation incumbent changed")
         return "confirmation stale; incumbent changed"
