@@ -16,6 +16,7 @@ from types import MappingProxyType
 from procontract_canonical_registry import HEX256, TASK_ID
 
 POLICY = "rust-preinstalled-v1"
+BUILD_RUNTIME_POLICY = "rust-preinstalled-build-runtime-v1"
 MAX_BYTES, MAX_PROMPT_BYTES = 1 << 20, 7500
 IMAGE = re.compile(r"sha256:[0-9a-f]{64}")
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}")
@@ -129,7 +130,66 @@ def validate_items(items, allowed):
     return result
 
 
-def render_prompt(allowed):
+def render_prompt(allowed, *, policy_name=POLICY):
+    """Select an explicit scope; the default preserves the original policy bytes."""
+    if policy_name == POLICY:
+        return _render_legacy_prompt(allowed)
+    _require(policy_name == BUILD_RUNTIME_POLICY, "unsupported policy scope")
+    rows = [
+        f"- {kind} {name}: {', '.join(use for use in uses if use != 'exploration')}."
+        for name, kind, uses in validate_allowed(allowed)
+        if any(use != "exploration" for use in uses)
+    ]
+    text = "Permitted preinstalled submission dependencies (build/runtime uses only):\n"
+    text += (
+        "\n".join(rows) if rows else "- No external build/runtime dependencies listed."
+    )
+    text += """
+
+Implement the program from scratch in Rust. Rust's standard library is permitted.
+Your submission, including compile.sh and its resulting executable, may use only
+the external tools and libraries listed above, and only for their listed build or
+runtime uses. They must already exist in the pinned cleanroom image.
+
+For exploration, you may use any tools already preinstalled in that image; the
+build/runtime list does not restrict exploration tools. Exploration permission,
+including any exploration-only manifest entry, grants no additional submission
+build/runtime dependency permission. No external network access, downloads,
+dependency installation (including offline installation), or vendoring of
+pre-existing implementation code is allowed in any phase. Do not use unlisted
+external crates, libraries, tools, or programs as submission dependencies.
+
+Rust's standard library and a permitted tool include their normal preinstalled
+runtime/toolchain components; this does not permit adding packages or directly using
+other third-party libraries from your implementation. Shell builtins belong to the
+permitted shell. Local loopback communication is permitted for probing or implementing
+the documented interface, not external access or downloads. Processing caller data
+or executing a caller-supplied command, when required by that interface, is program
+behavior rather than an implementation dependency. Never use this distinction to
+delegate your implementation to the reference or to a hard-coded unlisted program.
+
+You are in /workspace. It contains program documentation and ./executable, the
+compiled reference implementation. During exploration only, you may execute the
+reference as a black box to observe behavior. Do not read, copy, disassemble,
+decompile, reuse, or invoke the reference from your implementation or compile.sh.
+Do not overwrite or delete the reference while working; build to another location.
+
+Match the reference's command-line interface, standard output, standard error, exit
+codes, and observable behavior. Write source code in /workspace and provide
+/workspace/compile.sh. When run from the root of a clean copy of your submission,
+compile.sh must build your Rust implementation and place its binary at ./executable.
+The original ./executable and ./target are excluded from the submission. compile.sh
+must rebuild your Rust executable from submitted source, not prior task-build outputs.
+A hidden test suite compares your implementation with the reference. These
+requirements apply to every role, including exploration, drafting, review,
+compilation, and final execution.
+"""
+    raw = text.encode("utf-8")
+    _require(len(raw) <= MAX_PROMPT_BYTES, "rendered prompt exceeds native role limit")
+    return raw
+
+
+def _render_legacy_prompt(allowed):
     """Full task requirements fit the native isolated-role initial-message limit."""
     rows = [
         f"- {kind} {name}: {', '.join(uses)}."
@@ -182,6 +242,7 @@ including exploration, drafting, review, compilation, and final execution.
 class Policy:
     path: Path
     digest: str
+    name: str
     _prompt: bytes
     _images: object
 
@@ -206,7 +267,7 @@ class Policy:
 
     def validate_campaign(self, terms):
         self.verify_source()
-        _require(terms.get("submission_policy") == POLICY, "campaign rule differs")
+        _require(terms.get("submission_policy") == self.name, "campaign rule differs")
         _require(isinstance(terms.get("task_prompt"), str), "missing campaign prompt")
         raw = _read(terms["task_prompt"], MAX_PROMPT_BYTES)
         _require(
@@ -240,7 +301,7 @@ def load(path, expected_sha256, tasks):
             == {"schema", "policy", "allowed", "tasks", "images", "prompt_sha256"}
             and type(data["schema"]) is int
             and data["schema"] == 1
-            and data["policy"] == POLICY,
+            and data["policy"] in (POLICY, BUILD_RUNTIME_POLICY),
             "unsupported schema",
         )
         _require(
@@ -269,11 +330,13 @@ def load(path, expected_sha256, tasks):
             )
             for image, items in data["images"].items()
         }
-        prompt = render_prompt(data["allowed"])
+        prompt = render_prompt(data["allowed"], policy_name=data["policy"])
         _require(
             data["prompt_sha256"] == hashlib.sha256(prompt).hexdigest(),
             "prompt digest differs",
         )
-        return Policy(path, expected_sha256, prompt, MappingProxyType(images))
+        return Policy(
+            path, expected_sha256, data["policy"], prompt, MappingProxyType(images)
+        )
     except (KeyError, TypeError, UnicodeError, RecursionError) as error:
         raise ValueError("malformed dependency policy") from error

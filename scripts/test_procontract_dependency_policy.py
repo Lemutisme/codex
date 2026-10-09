@@ -48,7 +48,7 @@ class DependencyPolicyTest(unittest.TestCase):
         path = self.root / "prompt.txt"
         path.write_bytes(loaded.prompt())
         return {
-            "submission_policy": policy.POLICY,
+            "submission_policy": loaded.name,
             "task_prompt": str(path),
             "task_prompt_sha256": hashlib.sha256(loaded.prompt()).hexdigest(),
         }
@@ -121,6 +121,91 @@ class DependencyPolicyTest(unittest.TestCase):
         terms["task_prompt_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         with self.assertRaisesRegex(ValueError, "campaign prompt differs"):
             loaded.validate_campaign(terms)
+
+    def test_scope_tag_and_prompt_digest_must_change_together(self):
+        old = policy.load(self.path, self.write(), self.tasks)
+        old_terms = self.terms(old)
+        self.document["policy"] = policy.BUILD_RUNTIME_POLICY
+        with self.assertRaisesRegex(ValueError, "prompt digest differs"):
+            policy.load(self.path, self.write(), self.tasks)
+        prompt = policy.render_prompt(
+            self.allowed, policy_name=policy.BUILD_RUNTIME_POLICY
+        )
+        self.document["prompt_sha256"] = hashlib.sha256(prompt).hexdigest()
+        new = policy.load(self.path, self.write(), self.tasks)
+        new_terms = self.terms(new)
+        new.validate_campaign(new_terms)
+        self.assertEqual(new.name, policy.BUILD_RUNTIME_POLICY)
+        self.assertNotEqual(new.prompt(), old.prompt())
+        with self.assertRaisesRegex(ValueError, "campaign rule differs"):
+            new.validate_campaign(old_terms)
+        # Even with the new rule and a matching file hash, the old prompt is rejected.
+        Path(new_terms["task_prompt"]).write_bytes(old.prompt())
+        new_terms["task_prompt_sha256"] = hashlib.sha256(old.prompt()).hexdigest()
+        with self.assertRaisesRegex(ValueError, "campaign prompt differs"):
+            new.validate_campaign(new_terms)
+        self.document["policy"] = policy.POLICY
+        with self.assertRaisesRegex(ValueError, "prompt digest differs"):
+            policy.load(self.path, self.write(), self.tasks)
+
+    def test_future_scope_separates_exploration_from_submission_permissions(self):
+        allowed = self.allowed + [
+            {"name": "nl", "kind": "tool", "uses": ["exploration"]}
+        ]
+        old = policy.render_prompt(allowed)
+        new = policy.render_prompt(allowed, policy_name=policy.BUILD_RUNTIME_POLICY)
+        old_rows = old.split(b"\n\n", 1)[0]
+        new_rows = new.split(b"\n\n", 1)[0]
+        self.assertIn(b"- tool nl: exploration.", old_rows)
+        self.assertIn(b"- tool rustc: build, exploration.", old_rows)
+        self.assertEqual(
+            new_rows,
+            b"Permitted preinstalled submission dependencies (build/runtime uses only):\n"
+            b"- library libdeflate.so.0: runtime.\n- tool rustc: build.",
+        )
+        self.assertIn(b"you may use any tools already preinstalled", new)
+        for requirement in (
+            b"offline installation",
+            b"No external network access",
+            b"from scratch in Rust",
+            b"reference as a black box",
+            b"Do not read, copy, disassemble",
+            b"no additional submission",
+            b"compile.sh",
+            b"every role",
+        ):
+            self.assertIn(requirement, new)
+        # Exploration entries are still inventory evidence, never promoted to build/runtime.
+        self.allowed.append(allowed[-1])
+        self.items["tool:nl"] = {"path": "/usr/bin/nl", "sha256": "d" * 64}
+        self.document.update(
+            policy=policy.BUILD_RUNTIME_POLICY,
+            prompt_sha256=hashlib.sha256(new).hexdigest(),
+        )
+        loaded = policy.load(self.path, self.write(), self.tasks)
+        loaded.validate_campaign(self.terms(loaded))
+        self.assertEqual(loaded.items(self.image), self.items)
+        self.assertEqual(loaded.prompt(), new)
+
+    def test_future_scope_retains_prompt_budget_and_closed_policy_versions(self):
+        short = [
+            {"name": f"tool{i}", "kind": "tool", "uses": list(policy.USES)}
+            for i in range(64)
+        ]
+        rendered = policy.render_prompt(short, policy_name=policy.BUILD_RUNTIME_POLICY)
+        self.assertLessEqual(len(rendered), policy.MAX_PROMPT_BYTES)
+        long = [
+            {"name": str(i).zfill(64), "kind": "library", "uses": list(policy.USES)}
+            for i in range(64)
+        ]
+        with self.assertRaisesRegex(ValueError, "role limit"):
+            policy.render_prompt(long, policy_name=policy.BUILD_RUNTIME_POLICY)
+        for name in ("latest", "rust-preinstalled-v2", None):
+            with (
+                self.subTest(name=name),
+                self.assertRaisesRegex(ValueError, "policy scope"),
+            ):
+                policy.render_prompt(self.allowed, policy_name=name)
 
     def test_closed_schema_task_and_image_inventory(self):
         original = copy.deepcopy(self.document)
