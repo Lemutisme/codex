@@ -132,7 +132,7 @@ class Checkpoint:
             )
 
 
-def from_terms(terms, registry=None):
+def from_terms(terms, registry=None, *, store_bin=None):
     if "checkpoint" not in terms:
         return None
     value = terms["checkpoint"]
@@ -140,7 +140,9 @@ def from_terms(terms, registry=None):
         isinstance(value, dict) and isinstance(value.get("path"), str),
         "campaign descriptor is malformed",
     )
-    checkpoint = load(Path(value["path"]), value.get("manifest_sha256"))
+    checkpoint = load(
+        Path(value["path"]), value.get("manifest_sha256"), store_bin=store_bin
+    )
     _require(
         value == {"path": str(checkpoint.root), **checkpoint.descriptor()},
         "campaign descriptor changed",
@@ -149,20 +151,20 @@ def from_terms(terms, registry=None):
     return checkpoint
 
 
-def load(path, expected_manifest_sha256):
-    """Verify a bounded local export against an EXTERNAL operator pin; execute no data."""
+def load(path, expected_manifest_sha256, *, store_bin=None):
+    """Verify DATA with an external pin and, when supplied, the trusted caller's binary."""
     _require(
         isinstance(expected_manifest_sha256, str)
         and registries.HEX256.fullmatch(expected_manifest_sha256),
         "requires an external manifest SHA-256",
     )
     try:
-        return _load(Path(path), expected_manifest_sha256)
+        return _load(Path(path), expected_manifest_sha256, store_bin)
     except (KeyError, TypeError, IndexError, OSError, RecursionError) as error:
         raise ValueError(f"malformed checkpoint: {error}") from error
 
 
-def _load(root, pin):
+def _load(root, pin, store_bin):
     files = _tree(root)
     _require(
         hashlib.sha256(files["MANIFEST.json"]).hexdigest() == pin,
@@ -248,7 +250,10 @@ def _load(root, pin):
     )
     _require(
         version["bundle"]
-        == {name: store.digest("bundle_file", text) for name, text in bundle.items()},
+        == {
+            name: store.digest("bundle_file", text, binary=store_bin)
+            for name, text in bundle.items()
+        },
         "bundle identity differs",
     )
     program = harness.load(root / "incumbent/bundle")
@@ -269,7 +274,9 @@ def _load(root, pin):
         "bundle contains unregistered data",
     )
     _require(
-        vid == store.digest("version", version) == manifest["source_incumbent"],
+        vid
+        == store.digest("version", version, binary=store_bin)
+        == manifest["source_incumbent"],
         "selected version identity differs",
     )
     _require((root / "knowledge").is_dir(), "knowledge directory is missing")
@@ -291,7 +298,7 @@ def _load(root, pin):
         "knowledge budget/counts differ",
     )
     _require(
-        store.digest("knowledge", learned)
+        store.digest("knowledge", learned, binary=store_bin)
         == knowledge["digest"]
         == manifest["source_knowledge_digest"],
         "knowledge identity differs",
@@ -446,7 +453,8 @@ def _load(root, pin):
         "feedback differs from source evidence",
     )
     _require(
-        coordinate["evidence_hash"] == store.digest("evidence", evidence),
+        coordinate["evidence_hash"]
+        == store.digest("evidence", evidence, binary=store_bin),
         "settlement evidence differs",
     )
     exposure = _json(files["operator-metadata/complete-conservative-exposure.json"])

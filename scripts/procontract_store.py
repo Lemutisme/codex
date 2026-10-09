@@ -14,9 +14,15 @@ def store_bin() -> str:
     return os.environ.get("PRO_CONTRACT_STORE_BIN", str(DEFAULT_BIN))
 
 
-def _run(args: list[str], stdin: str | None = None) -> str:
+def _run(
+    args: list[str], stdin: str | None = None, *, binary: str | Path | None = None
+) -> str:
     result = subprocess.run(
-        [store_bin(), *args], input=stdin, capture_output=True, text=True, check=False
+        [store_bin() if binary is None else binary, *args],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -85,9 +91,11 @@ def contract(store: Path, contract_id: str) -> dict | None:
     return json.loads(_run(["contract", "--store", str(store), "--id", contract_id]))
 
 
-def digest(domain: str, value) -> str:
-    """The store's own domain-separated digest of a JSON value."""
-    return _run(["digest", "--domain", domain], stdin=json.dumps(value)).strip()
+def digest(domain: str, value, *, binary: str | Path | None = None) -> str:
+    """Use the explicit authenticated binary when supplied, otherwise the host default."""
+    return _run(
+        ["digest", "--domain", domain], stdin=json.dumps(value), binary=binary
+    ).strip()
 
 
 def adopt(

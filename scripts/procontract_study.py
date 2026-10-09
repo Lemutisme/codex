@@ -141,7 +141,7 @@ def mandatory_paths(terms, host_python, store_bin):
     cache = SCRIPTS / "__pycache__"
     if cache.exists():
         paths.update(_tree(cache))
-    checkpoint = checkpoints.from_terms(terms, frozen)
+    checkpoint = checkpoints.from_terms(terms, frozen, store_bin=store_bin)
     if frozen.dependency_policy is not None:
         paths.update(frozen.dependency_policy.required_paths())
     if "ph_supervisor" in terms:
@@ -289,7 +289,7 @@ def freeze(camp: Path, terms: dict, limits: dict) -> dict:
 def verify(
     camp: Path, terms: dict, runner: list | None = None, *, evaluator=False
 ) -> dict:
-    """Revalidate actual resources at an execution boundary; no process or model launch."""
+    """Revalidate resources at an execution boundary; no runner or model launch."""
     camp = camp.resolve()
     descriptor = terms.get("study")
     if (
@@ -340,6 +340,8 @@ def verify(
         or not Path(host_python).is_absolute()
         or not isinstance(store_bin, str)
         or not Path(store_bin).is_absolute()
+        # Checkpoint identity verification will execute this authenticated utility.
+        or store_bin not in actual
         or manifest["runner"] != expected_runner
         or (runner is not None and runner != expected_runner)
         or manifest["evaluator_python"] != str(frozen.python)

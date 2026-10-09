@@ -30,7 +30,8 @@ class StudyHostTest(unittest.TestCase):
         self.sealed_source = self.root / "source-fixture.py"
         self.sealed_source.write_text("# frozen runtime source fixture\n")
         paths = {path.absolute() for path in study.SCRIPTS.glob("*.py")} | {
-            self.sealed_source
+            self.sealed_source,
+            Path(store.store_bin()).absolute(),
         }
         self.enterContext(
             mock.patch.object(study, "mandatory_paths", return_value=paths)

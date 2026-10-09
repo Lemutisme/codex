@@ -13,6 +13,7 @@ import procontract_canonical as canonical
 import procontract_checkpoint as checkpoints
 import procontract_comparison as comparison
 import procontract_rsi as rsi
+import procontract_store as store
 import procontract_study as study
 import procontract_study_budget as budget
 import test_procontract_canonical_host as canonical_fixtures
@@ -220,6 +221,7 @@ class CheckpointHostTest(unittest.TestCase):
         paths = {p.absolute() for p in study.SCRIPTS.glob("*.py")} | {
             p for p in self.artifact.rglob("*") if p.is_file()
         }
+        paths.add(Path(store.store_bin()).absolute())
         real_freeze = study.freeze
 
         def freeze(camp, terms, limits):
