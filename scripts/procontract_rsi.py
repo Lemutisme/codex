@@ -421,7 +421,7 @@ class Host:
         program = harness_program.load(bundle)
         if program is not None:
             manifest["harness"] = {
-                "interpreter": harness_program.INTERPRETER,
+                "interpreter": program.interpreter,
                 "sha256": program.digest,
             }
         vid = store.digest("version", manifest)
@@ -553,7 +553,7 @@ class Host:
                 )
             program = harness_program.load(self.version_dir(vid) / "bundle")
             actual = (
-                {"interpreter": harness_program.INTERPRETER, "sha256": program.digest}
+                {"interpreter": program.interpreter, "sha256": program.digest}
                 if program is not None
                 else None
             )

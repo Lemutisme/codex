@@ -102,6 +102,10 @@ class Program:
     _tree: tuple
     source: bytes = field(repr=False)
 
+    @property
+    def interpreter(self) -> str:
+        return INTERPRETER
+
     def evaluate(self, facts) -> bool:
         if (
             type(facts) is not dict

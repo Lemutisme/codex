@@ -88,7 +88,7 @@ class DeliveryRunnerTest(unittest.TestCase):
                 loaded = runner.harness_program.load(root / "policy")
                 manifest["harness_program"] = {
                     "sha256": loaded.digest,
-                    "interpreter": runner.harness_program.INTERPRETER,
+                    "interpreter": loaded.interpreter,
                 }
             (root / "manifest.json").write_text(json.dumps(manifest))
             (root / "prompt.txt").write_text("ordinary task")

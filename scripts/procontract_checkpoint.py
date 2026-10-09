@@ -260,7 +260,7 @@ def _load(root, pin, store_bin):
     _require(
         version.get("harness")
         == (
-            {"interpreter": harness.INTERPRETER, "sha256": program.digest}
+            {"interpreter": program.interpreter, "sha256": program.digest}
             if program
             else None
         ),

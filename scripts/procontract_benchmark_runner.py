@@ -571,7 +571,7 @@ def prepare(args: argparse.Namespace) -> None:
     if program is not None:
         manifest["harness_program"] = {
             "sha256": program.digest,
-            "interpreter": harness_program.INTERPRETER,
+            "interpreter": program.interpreter,
         }
     if study is not None:
         manifest.update(study=study, study_version=args.policy.parent.name)
@@ -597,7 +597,7 @@ def run(args: argparse.Namespace) -> None:
     manifest = json.loads((run_dir / "manifest.json").read_text())
     program = harness_program.load(run_dir / "policy")
     identity = (
-        {"sha256": program.digest, "interpreter": harness_program.INTERPRETER}
+        {"sha256": program.digest, "interpreter": program.interpreter}
         if program is not None
         else None
     )

@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 import procontract_checkpoint as checkpoint
+import procontract_harness_program as harness
 import procontract_rsi as rsi
 import procontract_store as store
 
@@ -71,7 +72,9 @@ def reseal(root):
     return pin
 
 
-def make_checkpoint(root, *, native_sha256="a" * 64, model="gpt-5.6-luna", bundle=None):
+def make_checkpoint(
+    root, *, native_sha256="a" * 64, model="gpt-5.6-luna", bundle=None, manifest=None
+):
     """Small internally consistent operator fixture; no historical validity claim."""
     root.mkdir()
     bundle = rsi.V0_BUNDLE if bundle is None else bundle
@@ -82,15 +85,27 @@ def make_checkpoint(root, *, native_sha256="a" * 64, model="gpt-5.6-luna", bundl
         name = f"{role}.md"
         texts[name] = (bundle / name).read_text()
         (target / name).write_text(texts[name])
-    version = {
-        "schema": 1,
-        "binary": native_sha256,
-        "model": {"id": model, "effort": "max"},
-        "bundle": {
-            name: store.digest("bundle_file", text) for name, text in texts.items()
-        },
-        "lineage": {"parent": "b" * 64, "proposed_by": "b" * 64},
-    }
+    program = harness.load(bundle)
+    if program is not None:
+        (target / harness.PROGRAM_FILE).write_bytes(program.source)
+    version = (
+        manifest
+        if manifest is not None
+        else {
+            "schema": 1,
+            "binary": native_sha256,
+            "model": {"id": model, "effort": "max"},
+            "bundle": {
+                name: store.digest("bundle_file", text) for name, text in texts.items()
+            },
+            "lineage": {"parent": "b" * 64, "proposed_by": "b" * 64},
+        }
+    )
+    if program is not None and manifest is None:
+        version["harness"] = {
+            "sha256": program.digest,
+            "interpreter": program.interpreter,
+        }
     vid = store.digest("version", version)
     contract_id = f"adoption.{vid[:16]}"
     write_json(root, "incumbent/manifest.json", version)

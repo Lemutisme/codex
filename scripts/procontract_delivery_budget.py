@@ -6,7 +6,7 @@ changes what counts as a handoff, a verified artifact or an evaluation result.
 
 import math
 
-from procontract_harness_program import INTERPRETER, Program
+from procontract_harness_program import Program
 
 
 class DeliveryBudget:
@@ -30,7 +30,7 @@ class DeliveryBudget:
         self.activation = (
             {
                 "sha256": program.digest,
-                "interpreter": INTERPRETER,
+                "interpreter": program.interpreter,
                 "evaluations": 0,
                 "last_input": None,
                 "last_decision": None,

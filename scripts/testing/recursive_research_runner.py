@@ -75,7 +75,7 @@ def prepare(run_dir, bundle, instructions, source=None):
             "instructions": instructions,
             "harness_program": {
                 "sha256": program.digest,
-                "interpreter": harness.INTERPRETER,
+                "interpreter": program.interpreter,
             },
         },
     )
