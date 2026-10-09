@@ -16,9 +16,12 @@ import unittest
 from unittest import mock
 
 import procontract_canonical as canonical
+import procontract_compliance_gate as compliance
+import procontract_fixed_auditor_role as auditor_role
 import procontract_delivery_budget as delivery
 import procontract_h_admission as admission
 import procontract_harness_program as harness
+import procontract_native_trace_binding as trace_binding
 import procontract_ph_protocol as protocol
 import procontract_rsi as rsi
 import procontract_store as store
@@ -28,6 +31,7 @@ import procontract_study_launch as study_launch
 import procontract_succession as succession
 import test_procontract_canonical_host as fixtures
 import test_procontract_study_launch as launch_fixtures
+from testing import native_notice_fixture as trace_fixture
 
 
 def write(path, value):
@@ -43,10 +47,14 @@ class AdmissionTest(unittest.TestCase):
     preparation = launch_fixtures.StudyLaunchTest.preparation
     transport = launch_fixtures.StudyLaunchTest.transport
     program_document = {"schema": 2, "action": "checkpoint", "when": {"always": True}}
+    root_program_document = None
 
     def setUp(self):
         fixtures.CanonicalHostTest.setUp(self)
         source = self.host.version_dir(self.parent) / "bundle"
+        if self.root_program_document is not None:
+            source = shutil.copytree(source, self.root / "initial-bundle")
+            write(source / "harness.json", self.root_program_document)
         terms = copy.deepcopy(self.host.terms)
         tasks = [f"fixture__t{i}.000000{i}" for i in range(8)]
         self.task = tasks[1]
@@ -72,6 +80,13 @@ class AdmissionTest(unittest.TestCase):
         camp = self.root / "h-campaign"
         terms.update(
             canonical=self.descriptor,
+            native_notice_trace=dict(trace_binding.PROFILE),
+            fixed_auditor=auditor_role.descriptor(
+                {
+                    "base_url": "http://127.0.0.1/v1",
+                    "env_key": "TEST_AUDITOR_KEY",
+                }
+            ),
             study={
                 "manifest_path": str(camp / "study.json"),
                 "manifest_sha256": "a" * 64,
@@ -92,6 +107,26 @@ class AdmissionTest(unittest.TestCase):
         write(camp / "campaign.json", terms)
         self.enterContext(
             mock.patch.object(study, "verify", return_value={"limits": self.limits})
+        )
+        # Focused native-delivery tests do not execute the independent compliance gate.
+        for name in ("authorize_confirmation", "authorize_learning", "confirmation"):
+            self.enterContext(mock.patch.object(compliance, name))
+        self.enterContext(
+            mock.patch.object(
+                trace_binding, "storage", return_value=trace_fixture.STORAGE
+            )
+        )
+        self.enterContext(
+            mock.patch.object(
+                trace_binding, "provision", side_effect=trace_fixture.provision
+            )
+        )
+        self.enterContext(
+            mock.patch.object(
+                protocol,
+                "campaign_profile",
+                return_value=protocol.profile(protocol.H_PROTOCOL),
+            )
         )
         self.host = rsi.Host(camp)
         self.host.issue("campaign", terms, {"class": "campaign_report"}, "human")
@@ -140,6 +175,7 @@ class AdmissionTest(unittest.TestCase):
             "selection",
             {"role": "stream_policy", "version": self.candidate_id, "batch": 2},
         )
+        self.trace_fixtures = {}
         budget.initialize(camp / "study-budget.sqlite", "a" * 64, self.limits)
         self.complete(self.parent, tasks[0], "stream", 1)
         self.run = self.complete(self.candidate_id, self.task, "stream", 2)
@@ -199,6 +235,13 @@ class AdmissionTest(unittest.TestCase):
             prompt_sha256=protocol.digest(run / "prompt.txt"),
             harness_program=identity,
         )
+        trace = trace_fixture.Trace(
+            run,
+            manifest,
+            self.host.terms,
+            outcome=self.trace_outcome(version, task, purpose),
+        )
+        self.trace_fixtures[str(run)] = trace
         write(run / "manifest.json", manifest)
         configuration = {}
         for name in (
@@ -243,10 +286,12 @@ class AdmissionTest(unittest.TestCase):
             )
         program = harness.load(run / "policy")
         controller = delivery.DeliveryBudget(
-            deadline_secs=18000, reserve_secs=3600, program=program
+            deadline_secs=18000,
+            reserve_secs=3600 if program is not None else 0,
+            program=program,
         )
         server = mock.Mock()
-        server.request.return_value = {"turnId": "turn"}
+        server.request.side_effect = trace.request
         if program is not None:
             controller.maybe_steer(
                 server,
@@ -270,6 +315,9 @@ class AdmissionTest(unittest.TestCase):
             "harness_program": controller.activation,
             "delivery_budget": controller.summary(),
         }
+        summary["native_notice_trace"] = trace.finish(
+            controller.summary(), summary["native_process_exit"]
+        )
         write(run / "run.json", summary)
         lines = [
             json.dumps(
@@ -288,6 +336,9 @@ class AdmissionTest(unittest.TestCase):
         with gzip.open(run / "app-server.jsonl.gz", "wb") as target:
             target.write(("\n".join(lines) + "\n").encode())
         return run
+
+    def trace_outcome(self, version, task, purpose):
+        return "observed"
 
     def unspent(self):
         return (
@@ -547,6 +598,8 @@ class LegacyActionTest(unittest.TestCase):
     cached = fixtures.CanonicalHostTest.cached
     setUp = AdmissionTest.setUp
     complete = AdmissionTest.complete
+    trace_outcome = AdmissionTest.trace_outcome
+    root_program_document = None
     program_document = {"schema": 1, "when": {"always": True}}
 
     def test_legal_v1_convergence_ack_is_not_misclassified_as_invalid(self):
