@@ -160,23 +160,9 @@ class DeliveryBudget:
             if remaining > self.reserve_secs:
                 return
         turn_id = turns.turn_id
-        notice = (
-            f"Run budget notice: approximately {int(remaining)} seconds remain within the "
-            "existing total deadline; this notice grants no extra time. Stop broad exploration "
-            "and new scope. Prioritize the required deliverables, leave a runnable/buildable "
-            "artifact when the task calls for one, and use remaining time for targeted checks. "
-            "End your turn naturally to hand off, leaving time for independent verification "
-            "and any permitted repair. Report unfinished work and checks honestly; this notice "
-            "does not certify completion or successful validation."
+        notice_text = notice(
+            self.program.action if self.program else "converge", remaining
         )
-        if version_two and self.program.action == "checkpoint":
-            notice = (
-                "Evidence checkpoint within the existing task and deadline: briefly record "
-                "your current implementation state, evidence from checks already performed, "
-                "and the next discriminating check. Then continue the task. This is not a "
-                "request to finish or hand off, grants no extra time or permissions, and "
-                "does not certify progress or successful validation."
-            )
         attempt = {
             "turn_id": turn_id[:128],
             "remaining_secs": round(remaining, 3),
@@ -192,7 +178,9 @@ class DeliveryBudget:
                 {
                     "threadId": turns.thread_id,
                     "expectedTurnId": turn_id,
-                    "input": [{"type": "text", "text": notice, "text_elements": []}],
+                    "input": [
+                        {"type": "text", "text": notice_text, "text_elements": []}
+                    ],
                 },
                 handle,
                 timeout=min(10.0, remaining),
@@ -216,3 +204,25 @@ class DeliveryBudget:
             "reserve_secs": self.reserve_secs,
             "attempt": dict(self._attempt) if self._attempt is not None else None,
         }
+
+
+def notice(action: str, remaining: float) -> str:
+    """The fixed Host-owned notice, shared by dispatch and strict admission audit."""
+    result = (
+        f"Run budget notice: approximately {int(remaining)} seconds remain within the "
+        "existing total deadline; this notice grants no extra time. Stop broad exploration "
+        "and new scope. Prioritize the required deliverables, leave a runnable/buildable "
+        "artifact when the task calls for one, and use remaining time for targeted checks. "
+        "End your turn naturally to hand off, leaving time for independent verification "
+        "and any permitted repair. Report unfinished work and checks honestly; this notice "
+        "does not certify completion or successful validation."
+    )
+    if action == "checkpoint":
+        result = (
+            "Evidence checkpoint within the existing task and deadline: briefly record "
+            "your current implementation state, evidence from checks already performed, "
+            "and the next discriminating check. Then continue the task. This is not a "
+            "request to finish or hand off, grants no extra time or permissions, and "
+            "does not certify progress or successful validation."
+        )
+    return result
