@@ -4,6 +4,7 @@ Assignments and phase receipts are durable. Probe readiness permits confirmation
 next serve: an explicit adoption must settle before production can advance.
 """
 
+import procontract_compliance_gate as compliance
 import procontract_release as release
 import procontract_method_confirmation as method_confirmation
 import procontract_proposal_scope as proposal_scope
@@ -192,6 +193,7 @@ def step(host):
 
     if batch["phase"] == "serve":
         _measure(host, [(version, task) for task in batch["tasks"]], "stream")
+        compliance.stream(host, batch)
         improvement = f"improvement.{number}"
         state = host.contract(improvement)
         selected = _event(host, "stream_policy", number + 1)
@@ -248,6 +250,7 @@ def step(host):
 
     if _event(host, "guarded_probe_ready", number) is None:
         _measure(host, [(version, task) for task in batch["tasks"]], "stream")
+        compliance.stream(host, batch)
         analysis = _analysis(host, batch)
         if analysis is None:
             analysis = host.insight(host.analyze(batch["expected_incumbent"]))
@@ -258,6 +261,8 @@ def step(host):
             analysis=analysis["k"],
             analysis_status=analysis["status"],
         )
+    else:
+        compliance.stream(host, batch, freeze=False)
     detail = (
         release.advance(_ReleaseHost(host)) or "resuming the frozen release decision"
     )

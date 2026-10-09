@@ -281,7 +281,8 @@ class Supervisor:
             balance = audit.paid()
             require(
                 balance["reserved"]["task_launches"] <= (1, 10, 11)[phase - 1]
-                and balance["reserved"]["learning_launches"] <= (5, 9, 14)[phase - 1],
+                and balance["reserved"]["learning_launches"]
+                <= selected.phase_learning_limits[phase - 1],
                 "phase exceeded the predeclared launch envelope",
             )
             batches = host.batches()

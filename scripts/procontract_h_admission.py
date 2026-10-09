@@ -1,10 +1,10 @@
-"""Prospective H-only admission: an acknowledged action, never obedience or utility.
+"""Prospective H-only admission: notice in a completed native request, not obedience.
 
 Only the predeclared single probe can unlock confirmation. Host-owned evidence is
 frozen before exposure and rechecked at every paid confirmation and first adoption.
 """
 
-import procontract_h_action_evidence as action_evidence
+import procontract_h_notice_delivery as notice_delivery
 import procontract_harness_program as harness
 import procontract_ph_audit as audits
 import procontract_ph_protocol as protocol
@@ -30,6 +30,9 @@ def check(host, candidate, incumbent, *, freeze=False):
     """Freeze/revalidate one admission; return None for all historical profiles."""
     if not enabled(host):
         return None
+    import procontract_compliance_gate as compliance
+
+    compliance.authorize_confirmation(host)
     import procontract_rsi as rsi
     import procontract_succession as succession
 
@@ -158,7 +161,8 @@ def check(host, candidate, incumbent, *, freeze=False):
     )
     program = harness.load(bundles[0])
     protocol.require(program is not None, "H admission requires a registered action")
-    action = action_evidence.probe(run, program, host.terms["task_deadline_secs"])
+    native = notice_delivery.inspect_run(host, run, candidate)
+    action = native["action"]
     evidence = {
         "schema": 1,
         "candidate": candidate,
@@ -173,6 +177,9 @@ def check(host, candidate, incumbent, *, freeze=False):
             "action": program.action,
         },
         **action,
+        "native_notice": {
+            key: native[key] for key in ("native_notice_trace", "delivery")
+        },
         "release_intent": intent,
         "analysis": analysis,
         "research_receipts": {
@@ -197,7 +204,7 @@ def check(host, candidate, incumbent, *, freeze=False):
                 "../result.json",
             )
         },
-        "claim": "accepted RPC acknowledgement only; not obedience, progress, utility or compliance",
+        "claim": "exact user notice in a new same-turn completed request; not attention, utility or compliance",
     }
     entry = {
         "role": "h_probe_admission",
@@ -218,6 +225,10 @@ def check(host, candidate, incumbent, *, freeze=False):
     if action["outcome"] != "accepted":
         raise Inconclusive(
             f"H probe inconclusive: {action['outcome']}; no confirmation or retry"
+        )
+    if native["delivery"]["status"] != "observed":
+        raise Inconclusive(
+            "H probe native notice remains unknown; no confirmation or retry"
         )
     return entry
 

@@ -126,6 +126,7 @@ def _rpc(run, summary, attempt, action, floors):
     return {
         "path": path.name,
         "sha256": source_hash.hexdigest(),
+        "notice": request["params"]["input"][0]["text"] if request else None,
         "coordinate": {
             "request_id": request["id"],
             "thread_id": request["params"]["threadId"],

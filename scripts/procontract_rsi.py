@@ -63,6 +63,7 @@ from pathlib import Path
 import procontract_attribution as attribution
 import procontract_checkpoint as checkpoints
 import procontract_comparison as comparison
+import procontract_compliance_gate as compliance
 import procontract_dependency_policy as dependency_policy
 import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
@@ -1059,6 +1060,7 @@ class Host:
         agent's prompt beside it. It is built aside and renamed, so an existing workspace is a
         finished one, and the exposure of its sources is recorded before any agent can read it
         (and not twice when a crash falls between the record and the rename)."""
+        compliance.authorize_learning(self, parent)
         workspace = root / "workspace"
         if workspace.exists():
             return
@@ -1081,6 +1083,7 @@ class Host:
         never relaunches a claimed attempt: without a trustworthy terminal receipt or a recorded
         exit it remains unreconciled, not stopped or failed. A later terminal receipt can settle
         that same claim. A failed prepare starts no agent and remains retryable."""
+        compliance.authorize_learning(self, parent, instructions)
         self.validate_evaluator()
         run_dir = root / "run"
         ended = root / "ended-without-run-json"
@@ -2758,12 +2761,14 @@ def cmd_init(args) -> None:
     else:
         checkpoint = checkpoints.from_terms(terms)
     if supervisor_plan is not None:
+        import procontract_episode_init as episode_init
         import procontract_ph_supervisor as supervisor
 
         terms["ph_supervisor"] = {
             "plan_path": str(supervisor_plan.resolve()),
             "plan_sha256": supervisor_sha256,
         }
+        episode_init.derive_h_terms(terms)
         supervisor.validate_plan(camp, terms)
     if all(value is not None for value in study_limits.values()):
         terms["study"] = study.freeze(camp, terms, study_limits)

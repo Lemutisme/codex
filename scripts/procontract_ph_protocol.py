@@ -32,6 +32,8 @@ class EpisodeProfile:
     mutable: frozenset[str]
     fixed_roles: frozenset[str]
     required_admission: str | None = None
+    phase_learning_limits: tuple[int, int, int] = (5, 9, 14)
+    paid_row_limit: int = 25
 
 
 def profile(protocol):
@@ -47,6 +49,8 @@ def profile(protocol):
         frozenset(("harness.json",)),
         METHOD_ROLES | (PH - {"harness.json"}),
         H_ADMISSION,
+        (6, 12, 18),
+        29,
     )
 
 
@@ -172,6 +176,29 @@ def inspect_plan(camp, terms):
         and gates["confirm_min_delta"] == 0.000001,
         "P/H confirmation gate differs",
     )
+    if selected.protocol == H_PROTOCOL:
+        import procontract_fixed_auditor_role as auditor_role
+        import procontract_native_trace_binding as trace
+
+        auditor_role.validate_descriptor(terms.get("fixed_auditor"))
+        trace_profile = terms.get("native_notice_trace")
+        require(
+            isinstance(trace_profile, dict)
+            and trace_profile.keys() == trace.PROFILE.keys()
+            and all(
+                type(trace_profile[key]) is type(value) and trace_profile[key] == value
+                for key, value in trace.PROFILE.items()
+            ),
+            "native notice trace differs from the fixed H profile",
+        )
+    else:
+        require(
+            "fixed_auditor" not in terms, "fixed auditor requires the H-only profile"
+        )
+        require(
+            "native_notice_trace" not in terms,
+            "native notice trace requires the H-only profile",
+        )
     return plan
 
 

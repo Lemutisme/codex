@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import procontract_fixed_auditor_role as auditor_role
+import procontract_native_trace_binding as trace
 import procontract_ph_audit as audit
 import procontract_ph_protocol as protocol
 import procontract_ph_supervisor as supervisor
@@ -30,6 +32,10 @@ class HProfileTest(unittest.TestCase):
             submission_policy=protocol.BUILD_RUNTIME_POLICY,
             proposal_kind="harness",
             mutable=["harness.json"],
+            fixed_auditor=auditor_role.descriptor(
+                {"base_url": "http://127.0.0.1/v1", "env_key": "TEST_AUDITOR_KEY"}
+            ),
+            native_notice_trace=dict(trace.PROFILE),
         )
         plan = protocol.document(self.path)
         plan.update(
@@ -97,6 +103,23 @@ class HProfileTest(unittest.TestCase):
             self.publish_plan(changed)
             with self.subTest(plan=changed), self.assertRaises(RuntimeError):
                 protocol.inspect_plan(self.camp, self.terms)
+
+    def test_h_profile_requires_exact_fixed_auditor_and_cannot_apply_it_to_old_ph(self):
+        self.h_terms()
+        descriptor = self.terms["fixed_auditor"]
+        for changed in (
+            None,
+            {},
+            {**descriptor, "deadline_secs": 3601},
+            {**descriptor, "instructions_sha256": "0" * 64},
+        ):
+            with self.subTest(value=changed), self.assertRaises(ValueError):
+                protocol.inspect_plan(
+                    self.camp, {**self.terms, "fixed_auditor": changed}
+                )
+        old = plan_terms(self.camp)
+        with self.assertRaisesRegex(RuntimeError, "H-only"):
+            protocol.inspect_plan(self.camp, {**old, "fixed_auditor": descriptor})
 
     def test_h_not_ready_terminal_binds_validated_protocol_before_any_launch(self):
         self.h_terms()

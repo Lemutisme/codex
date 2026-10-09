@@ -9,7 +9,9 @@ import json
 import sqlite3
 import statistics
 
+import procontract_compliance_gate as compliance
 import procontract_h_admission as h_admission
+import procontract_h_notice_delivery as notice_delivery
 import procontract_proposal_scope as proposal_scope
 import procontract_store as store
 
@@ -164,6 +166,13 @@ def confirm(host, candidate, incumbent):
         results = host.measure_all(
             [(v, t) for t in tasks for v in (candidate, plan["incumbent"])], "confirm"
         )
+        if h_admission.enabled(host):
+            try:
+                notice_delivery.confirmation(host, candidate, plan, freeze=True)
+            except notice_delivery.Inconclusive as error:
+                host.release(adoption, str(error))
+                return str(error)
+        compliance.confirmation(host, candidate, plan, freeze=True)
         pairs = {
             t: (
                 results[(candidate, t)]["pass_rate"],
@@ -194,6 +203,10 @@ def confirm(host, candidate, incumbent):
             {"tasks": tasks, "evaluator": host.adapter.evaluator()},
             "beyond",
         )
+    else:
+        if h_admission.enabled(host):
+            notice_delivery.confirmation(host, candidate, plan)
+        compliance.confirmation(host, candidate, plan)
     if host.terms["adoption"] == "presumed":
         host.adopt(candidate, presumed=True)
         return "confirmed and adopted under the campaign's convention"
@@ -232,6 +245,9 @@ def adopt(host, candidate, presumed=False):
                 )
         else:
             h_admission.check(host, candidate, plan["incumbent"])
+            notice_delivery.confirmation(host, candidate, plan)
+    if not bootstrap and plan is not None:
+        compliance.confirmation(host, candidate, plan)
     # Support names frozen bytes. Verify them before first publication, not when replaying an
     # already settled decision: historical adoption remains readable after artifact cleanup.
     host.validate_harness(candidate)

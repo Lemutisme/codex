@@ -6,7 +6,15 @@ from pathlib import Path
 import sqlite3
 import statistics
 
-from procontract_ph_protocol import METHOD_ROLES, digest, document, raw, require
+from procontract_ph_protocol import (
+    H_PROTOCOL,
+    METHOD_ROLES,
+    campaign_profile,
+    digest,
+    document,
+    raw,
+    require,
+)
 
 
 def native_exited(summary):
@@ -25,8 +33,11 @@ class Audit:
         self.host, self.sealed = host, sealed
         self.camp, self.terms = host.camp, host.terms
         self.paid_runs = {}
+        self.episode_profile = episode_profile or campaign_profile(
+            self.camp, self.terms
+        )
         self.fixed_roles = (
-            episode_profile.fixed_roles if episode_profile else METHOD_ROLES
+            self.episode_profile.fixed_roles if self.episode_profile else METHOD_ROLES
         )
 
     def paid(self, *, completed_runs=None):
@@ -48,7 +59,8 @@ class Audit:
                 "SELECT key,kind,deadline_secs,identity_json,receipt_id,binding_sha256 FROM reservations"
             ).fetchall()
         require(
-            len(rows) <= 25,
+            len(rows)
+            <= (self.episode_profile.paid_row_limit if self.episode_profile else 25),
             "episode exceeded its maximum task/learning launch envelope",
         )
         self.paid_runs = {}
@@ -70,6 +82,25 @@ class Audit:
                 "deadline_secs": deadline,
                 "binding_sha256": binding,
             }
+            if (
+                identity.get("role") == "fixed_auditor"
+                or Path(key).parts[0] == "fixed-auditor"
+            ):
+                import procontract_fixed_auditor as fixed_auditor
+
+                require(
+                    self.episode_profile is not None
+                    and self.episode_profile.protocol == H_PROTOCOL
+                    and identity.get("role") == "fixed_auditor"
+                    and kind == "learning"
+                    and deadline == 3600,
+                    "fixed auditor has no matching H-only paid profile",
+                )
+                fixed_auditor.audit_reservation(
+                    self.host, self.sealed, key, identity, receipt
+                )
+                self.paid_runs[str(run)] = receipt
+                continue
             require(
                 document(run / "study-launch.json") == receipt
                 and digest(run / "manifest.json") == identity["manifest_sha256"],

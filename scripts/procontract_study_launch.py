@@ -117,6 +117,10 @@ def authorize(args, manifest, profile):
 
     host = rsi.Host(camp)
     version = manifest.get("study_version")
+    if not task:
+        import procontract_compliance_gate as compliance
+
+        compliance.authorize_learning(host, version, role)
     if version not in host.versions():
         raise RuntimeError("study runner producer is not registered")
     host.validate_harness(version, run_dir, require_success=False)
