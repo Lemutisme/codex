@@ -818,7 +818,12 @@ impl ThreadRuntime {
         let review = match (&checks, decision::mechanical_verdict(&checks, &policy)) {
             (Ok(receipts), None) => {
                 let summary = decision::review_summary(receipts, &policy);
-                let view = workspace_view(&subject, &self.store, reviewer::CANDIDATE_VIEW);
+                let view = super::views::workspace_view_for(
+                    &subject,
+                    &self.store,
+                    reviewer::CANDIDATE_VIEW,
+                    &terms.requirements,
+                );
                 let input = reviewer::ReviewInput {
                     instructions: &self.policies.reviewer,
                     terms: &terms,

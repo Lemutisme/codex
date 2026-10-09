@@ -59,6 +59,7 @@ struct FakePorts {
     /// The sealed cases each check run received.
     sealed_checked: Mutex<Vec<Vec<DifferentialCase>>>,
     reviews: Mutex<VecDeque<&'static str>>,
+    review_prompts: Mutex<Vec<String>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
     worker_model: &'static str,
@@ -77,6 +78,7 @@ impl FakePorts {
             sealed_passing: usize::MAX,
             sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
+            review_prompts: Mutex::new(Vec::new()),
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
             worker_model: "model-a",
@@ -111,13 +113,15 @@ impl Ports for FakePorts {
                     .probe
                     .map(str::to_string)
                     .ok_or_else(|| WorkerError::Failed("the prober failed".to_string())),
-                "pro_contract_review" => self
-                    .reviews
-                    .lock()
-                    .unwrap()
-                    .pop_front()
-                    .map(str::to_string)
-                    .ok_or_else(|| WorkerError::Failed("no scripted review".to_string())),
+                "pro_contract_review" => {
+                    self.review_prompts.lock().unwrap().push(turn.prompt);
+                    self.reviews
+                        .lock()
+                        .unwrap()
+                        .pop_front()
+                        .map(str::to_string)
+                        .ok_or_else(|| WorkerError::Failed("no scripted review".to_string()))
+                }
                 other => Err(WorkerError::Failed(format!("unexpected trigger {other}"))),
             }
         })
@@ -356,6 +360,36 @@ async fn declined_draft_rests_abstained_without_a_contract() {
         "{status:?}"
     );
     assert_eq!(lane.contract().await, None);
+}
+
+#[tokio::test]
+async fn host_source_ids_and_required_artifacts_reach_the_real_controller_review() {
+    const DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"hindsight.json contains the explanation","source_id":"request:0","inferred":false}],"out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":false}"#;
+    let lane = lane(
+        FakePorts::new(DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime
+        .intake("Deliver hindsight.json with an explanation.".to_string())
+        .await;
+    lane.wait_for("working").await;
+    let explanation = serde_json::json!({"explanation":"evidence ".repeat(8000)}).to_string();
+    std::fs::write(lane.workspace.join("hindsight.json"), &explanation).unwrap();
+    std::fs::write(lane.workspace.join("unrelated.rs"), " ".repeat(440_000)).unwrap();
+    lane.executor_turn("turn-1", "done").await;
+    lane.wait_for("supported").await;
+    {
+        let prompts = lane.ports.review_prompts.lock().unwrap();
+        assert_eq!(prompts.len(), 1);
+        assert!(
+            prompts[0].contains(&explanation),
+            "required JSON must be delivered whole"
+        );
+        assert!(prompts[0].contains("contents omitted for size: unrelated.rs"));
+    }
+    assert!(lane.contract().await.unwrap().support.is_some());
 }
 
 #[tokio::test]

@@ -139,7 +139,15 @@ pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
 
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
-    crate::digest_of("reviewer_policy", &(policy, schema(), CANDIDATE_VIEW))
+    crate::digest_of(
+        "reviewer_policy",
+        &(
+            policy,
+            schema(),
+            CANDIDATE_VIEW,
+            "requirement-focused-view-v1",
+        ),
+    )
 }
 
 pub(crate) fn schema() -> Value {

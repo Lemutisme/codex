@@ -11,6 +11,7 @@ use crate::DifferentialCase;
 use crate::EvidenceClass;
 use crate::EvidencePolicy;
 use crate::FixtureFile;
+use crate::OutOfScope;
 use crate::ProcessConstraint;
 use crate::Requirement;
 use crate::Terms;
@@ -71,13 +72,57 @@ fn the_prompt_carries_the_verbatim_intake_and_stays_bounded() {
         base_view: &huge,
         ..input()
     });
-    assert!(text.contains(INTAKE));
+    assert!(INTAKE.lines().all(|line| text.contains(line)));
     assert!(text.contains("usage: tool [OPTIONS] [FILE]"));
     assert!(text.len() < 90_000, "prompt is {} bytes", text.len());
 }
 
 fn message(value: Value) -> String {
     serde_json::to_string(&value).expect("json")
+}
+
+#[test]
+fn host_references_resolve_all_authority_fields_without_model_transcription() {
+    let value = json!({
+        "decision":"contract", "reason":"", "requirements":[{
+            "id":"R1", "text":"Preserve exit codes", "source_id":"request:1", "inferred":false
+        }], "out_of_scope":[{"element":"extra behavior", "human_source_id":"request:0", "non_substantive":false}],
+        "process_constraints":[{"text":"Preserve behavior", "source_id":"request:0"}],
+        "differential_cases":[], "candidate_tests":false
+    });
+    let Draft::Contract { terms, .. } = parse(&message(value.clone()), &input()).unwrap() else {
+        panic!("contract");
+    };
+    assert_eq!(
+        terms,
+        Terms {
+            intake_text: INTAKE.to_string(),
+            requirements: vec![Requirement {
+                id: "R1".to_string(),
+                text: "Preserve exit codes".to_string(),
+                source_quote: "Keep the exit codes identical.".to_string(),
+                inferred: false
+            }],
+            out_of_scope: vec![OutOfScope {
+                element: "extra behavior".to_string(),
+                human_statement: Some(
+                    "Implement the program so it behaves like the reference.\n".to_string()
+                ),
+                non_substantive: false
+            }],
+            process_constraints: vec![ProcessConstraint {
+                text: "Preserve behavior".to_string(),
+                source_quote: "Implement the program so it behaves like the reference.\n"
+                    .to_string()
+            }],
+        }
+    );
+    let mut bad = value.clone();
+    bad["requirements"][0]["source_id"] = json!("workspace:0");
+    assert!(parse(&message(bad), &input()).is_err());
+    let mut bad = value;
+    bad["requirements"][0]["source_quote"] = json!("Keep the exit codes identical.");
+    assert!(parse(&message(bad), &input()).is_err());
 }
 
 #[test]

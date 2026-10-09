@@ -4,6 +4,7 @@ pub(crate) mod cases;
 pub(crate) mod drafter;
 pub(crate) mod policies;
 pub(crate) mod prober;
+mod request_sources;
 pub(crate) mod reviewer;
 pub(crate) mod runtime;
 

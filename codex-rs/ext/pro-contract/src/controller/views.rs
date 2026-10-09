@@ -27,7 +27,28 @@ pub(crate) struct ViewPolicy {
 /// A listing of every entry followed by the contents of text files in the policy's order,
 /// within its cap. A file is shown whole or named as omitted; binary files are only listed.
 pub(crate) fn workspace_view(subject: &Subject, store: &BlobStore, policy: ViewPolicy) -> String {
+    workspace_view_for(subject, store, policy, &[])
+}
+
+/// Prefer artifacts named in the frozen requirements, independent of their file extension.
+/// Selection only changes ordering inside the same captured subject and byte budget.
+pub(crate) fn workspace_view_for(
+    subject: &Subject,
+    store: &BlobStore,
+    policy: ViewPolicy,
+    requirements: &[crate::Requirement],
+) -> String {
     let ViewPolicy { cap, order } = policy;
+    let mentioned: std::collections::HashSet<&str> = requirements
+        .iter()
+        .flat_map(|requirement| {
+            requirement
+                .text
+                .split(|c: char| !c.is_alphanumeric() && !"_./-".contains(c))
+        })
+        .map(|word| word.trim_start_matches("./"))
+        .filter(|word| !word.is_empty())
+        .collect();
     let mut listing = String::from("Files:\n");
     for entry in &subject.manifest.entries {
         match &entry.kind {
@@ -46,14 +67,21 @@ pub(crate) fn workspace_view(subject: &Subject, store: &BlobStore, policy: ViewP
         .iter()
         .filter_map(|entry| match &entry.kind {
             EntryKind::File { digest, .. } => {
-                Some((priority(&entry.path, order), entry.path.as_str(), digest))
+                let name = entry.path.rsplit('/').next().unwrap_or(&entry.path);
+                let required = mentioned.contains(entry.path.as_str()) || mentioned.contains(name);
+                Some((
+                    !required,
+                    priority(&entry.path, order),
+                    entry.path.as_str(),
+                    digest,
+                ))
             }
             EntryKind::Symlink { .. } => None,
         })
         .collect();
     files.sort();
     let mut omitted = Vec::new();
-    for (_, path, digest) in files {
+    for (_, _, path, digest) in files {
         let Ok(bytes) = store.get(digest) else {
             omitted.push(path);
             continue;

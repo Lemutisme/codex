@@ -7,6 +7,36 @@ use crate::BlobStore;
 use crate::CapturePolicy;
 use crate::capture;
 
+#[test]
+fn required_json_is_visible_before_unrelated_source_and_archive_material() {
+    let source = "fn f() {}\n".repeat(1000);
+    let data = b"{\"clusters\":[{\"class\":\"never_sent\"}]}";
+    let (_ws, store, subject) = capture_tree(&[
+        ("archive/main.rs", source.as_bytes()),
+        ("hindsight.json", data),
+    ]);
+    let view = super::workspace_view_for(
+        &subject,
+        &store,
+        ViewPolicy {
+            cap: 800,
+            order: ViewOrder::SourcesFirst,
+        },
+        &[crate::Requirement {
+            id: "R1".to_string(),
+            text: "Verify ./hindsight.json contains the failure classes.".to_string(),
+            source_quote: "classify failures".to_string(),
+            inferred: false,
+        }],
+    );
+    assert!(view.contains(std::str::from_utf8(data).unwrap()), "{view}");
+    assert!(
+        view.contains("contents omitted for size: archive/main.rs"),
+        "{view}"
+    );
+    assert!(view.len() <= 800);
+}
+
 fn capture_tree(files: &[(&str, &[u8])]) -> (tempfile::TempDir, BlobStore, crate::Subject) {
     let ws = tempfile::tempdir().expect("ws");
     for (path, bytes) in files {
