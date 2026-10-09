@@ -12,6 +12,9 @@ import re
 import stat
 from pathlib import Path
 
+from procontract_delivery_budget import ELIGIBILITY_REASONS
+from procontract_harness_program import MAX_INTEGER
+
 MAX_SOURCE_BYTES = 256 << 10
 MAX_PROJECTION_BYTES = 2048
 MAX_NUMBER = (1 << 53) - 1
@@ -31,6 +34,10 @@ def _number(value):
 
 def _integer(value):
     return type(value) is int and 0 <= value <= MAX_NUMBER
+
+
+def _counter(value):
+    return _integer(value) and value <= MAX_INTEGER
 
 
 def _object(pairs):
@@ -57,29 +64,56 @@ def _section(raw, fields):
 
 
 def _harness(raw):
+    version_two = (
+        isinstance(raw, dict) and raw.get("interpreter") == "bounded-steering-v2"
+    )
     facts = ("deadline_secs", "remaining_secs", "turns_completed", "repairs_used")
-    section = _section(
-        raw,
-        {
-            "sha256": lambda v: isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v),
-            "interpreter": lambda v: v == "convergence-v1",
-            "evaluations": _integer,
-            "last_input": lambda v: (
+    if version_two:
+        facts += ("executor_command_completions_observed",)
+    fields = {
+        "sha256": lambda v: isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v),
+        "interpreter": lambda v: v in ("convergence-v1", "bounded-steering-v2"),
+        "evaluations": _integer,
+        "last_input": lambda v: (
+            v is None
+            or (
+                isinstance(v, dict)
+                and all(k in v and _integer(v[k]) for k in facts)
+                and (
+                    not version_two
+                    or (
+                        v.keys() == set(facts)
+                        and v["deadline_secs"] > 0
+                        and all(value <= MAX_INTEGER for value in v.values())
+                    )
+                )
+            )
+        ),
+        "last_decision": lambda v: v is None or type(v) is bool,
+    }
+    if version_two:
+        fields.update(
+            evaluations=_counter,
+            action=lambda v: v in ("checkpoint", "converge"),
+            last_eligibility=lambda v: (
                 v is None
                 or (
                     isinstance(v, dict)
-                    and all(k in v and _integer(v[k]) for k in facts)
+                    and v.keys() == {"eligible", "reason"}
+                    and type(v["eligible"]) is bool
+                    and isinstance(v["reason"], str)
+                    and v["reason"] in ELIGIBILITY_REASONS
+                    and v["eligible"] == (v["reason"] == "eligible")
                 )
             ),
-            "last_decision": lambda v: v is None or type(v) is bool,
-        },
-    )
+        )
+    section = _section(raw, fields)
     if section.get("last_input") is not None:
         section["last_input"] = {key: section["last_input"][key] for key in facts}
     return section
 
 
-def _delivery(raw):
+def _delivery(raw, *, version_two=False):
     section = _section(
         raw,
         {
@@ -88,15 +122,15 @@ def _delivery(raw):
         },
     )
     if section.get("attempt") is not None:
-        section["attempt"] = _section(
-            section["attempt"],
-            {
-                "remaining_secs": _number,
-                "outcome": lambda v: (
-                    v in ("unacknowledged", "timeout", "error", "accepted")
-                ),
-            },
-        )
+        fields = {
+            "remaining_secs": _number,
+            "outcome": lambda v: (
+                v in ("unacknowledged", "timeout", "error", "accepted")
+            ),
+        }
+        if version_two:
+            fields["action"] = lambda v: v in ("checkpoint", "converge")
+        section["attempt"] = _section(section["attempt"], fields)
     return section
 
 
@@ -145,13 +179,19 @@ def read(run_dir: Path) -> dict:
         return _unknown("legacy")
     if any(key in raw and not valid(raw[key]) for key, valid in fields.items()):
         return _unknown("malformed")
+    version_two = (
+        isinstance(raw.get("harness_program"), dict)
+        and raw["harness_program"].get("interpreter") == "bounded-steering-v2"
+    )
     projection = {
         "status": "observed",
         "kind": "host_runtime_facts_v1",
         "null_means": "unobservable (except delivery attempt: explicitly no attempt)",
         **{key: raw.get(key) for key in fields},
         "harness_program": _harness(raw.get("harness_program")),
-        "delivery_budget": _delivery(raw.get("delivery_budget")),
+        "delivery_budget": _delivery(
+            raw.get("delivery_budget"), version_two=version_two
+        ),
         "execution_environment": _section(
             raw.get("execution_environment"),
             {
@@ -161,6 +201,11 @@ def read(run_dir: Path) -> dict:
             },
         ),
     }
+    if version_two or "execution_activity" in raw:
+        projection["execution_activity"] = _section(
+            raw.get("execution_activity"),
+            {"executor_command_completions_observed": _counter},
+        )
     return (
         projection
         if len(json.dumps(projection)) <= MAX_PROJECTION_BYTES

@@ -131,12 +131,24 @@ Your workspace holds:
 Deliver ./EXPERIMENT.md (at most 32 KiB) with the sections {sections}. {prediction} No network is available. Tools:
 python3, jq, grep, sed and awk are installed; rg is not.
 
-If authorized in the editable files above, policy/harness.json is a pure convergence program
-used by both task and research runs. Format: {{"schema":1,"when":predicate}}. Predicates are
-{{"remaining_fraction_lte":[numerator,denominator]}}, {{"completed_turns_lte":integer}},
-{{"repairs_used_gte":integer}}, {{"always":boolean}}, {{"all":[predicates]}},
-{{"any":[predicates]}}, or {{"not":predicate}}. Keep it small and finite; no imports, external I/O or
-budget changes are allowed. A true result requests bounded handoff guidance, not acceptance.
+If authorized above, policy/harness.json is a data-only program used in task and research runs:
+{{"schema":1,"when":predicate}} (converge only), or
+{{"schema":2,"action":"checkpoint","when":predicate}} (action may also be "converge").
+The complete UTF-8 file is at most 4 KiB, with at most 64 predicate nodes and depth 8.
+Predicates: {{"remaining_fraction_lte":[numerator,denominator]}},
+{{"completed_turns_lte":integer}}, {{"repairs_used_gte":integer}}, {{"always":boolean}},
+{{"all":[predicates]}}, {{"any":[predicates]}}, {{"not":predicate}}; schema 2 also permits
+{{"command_completions_observed_gte":integer}}. Integers are 0..2147483647; denominators >0.
+Facts: deadline_secs, remaining_secs, turns_completed, repairs_used; schema 2 adds
+executor_command_completions_observed. This is the run-cumulative count of native executor command-completion
+notifications (duplicates and failures included), not success, all tools or semantic progress.
+A true predicate is necessary, not sufficient: the host also checks eligibility. Converge remains inside
+the host's late window min(3600, deadline_secs//4). Checkpoint requests fixed short progress/evidence
+guidance, not early completion: elapsed >= min(300, deadline_secs//10), remaining >=
+min(60, deadline_secs//10), and a live executor turn in an allowed phase are required.
+Schema 2 requires an observed native repair count; absent status is unknown, never zero.
+At most one steering attempt total is fenced to the current executor turn; no extra time,
+turns, retries, permissions, imports or external I/O. Neither action certifies completion.
 {intervention}
 """
 

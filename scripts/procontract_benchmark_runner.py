@@ -770,6 +770,9 @@ def run(args: argparse.Namespace) -> None:
                 status,
                 handle,
                 elapsed_secs=time.monotonic() - started,
+                executor_command_completions_observed=activity.summary()[
+                    "executor_command_completions_observed"
+                ],
             )
         summary.update(
             status=read_status(ledger, thread_id),

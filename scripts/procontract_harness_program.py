@@ -1,4 +1,4 @@
-"""Bounded, data-only convergence predicates; evaluation has no external capabilities."""
+"""Bounded, data-only steering predicates; evaluation has no external capabilities."""
 
 import hashlib
 import json
@@ -9,6 +9,7 @@ from pathlib import Path
 
 PROGRAM_FILE = "harness.json"
 INTERPRETER = "convergence-v1"
+INTERPRETER_V2 = "bounded-steering-v2"
 MAX_BYTES = 4096
 MAX_NODES = 64
 MAX_DEPTH = 8
@@ -16,6 +17,7 @@ MAX_INTEGER = (1 << 31) - 1
 FACTS = frozenset(
     ("deadline_secs", "remaining_secs", "turns_completed", "repairs_used")
 )
+FACTS_V2 = FACTS | {"executor_command_completions_observed"}
 
 
 def _integer(value) -> bool:
@@ -35,7 +37,7 @@ def _invalid_number(value):
     raise ValueError("only bounded integers are allowed")
 
 
-def _compile(node, depth, count):
+def _compile(node, depth, count, schema):
     count[0] += 1
     if depth > MAX_DEPTH or count[0] > MAX_NODES:
         raise ValueError("predicate exceeds its depth or node budget")
@@ -45,9 +47,9 @@ def _compile(node, depth, count):
     if op in ("all", "any"):
         if type(value) is not list:
             raise ValueError("all/any require a predicate list")
-        value = tuple(_compile(child, depth + 1, count) for child in value)
+        value = tuple(_compile(child, depth + 1, count, schema) for child in value)
     elif op == "not":
-        value = _compile(value, depth + 1, count)
+        value = _compile(value, depth + 1, count, schema)
     elif op == "always":
         if type(value) is not bool:
             raise ValueError("always requires a boolean")
@@ -62,7 +64,9 @@ def _compile(node, depth, count):
                 "a fraction requires two bounded integers and a positive denominator"
             )
         value = tuple(value)
-    elif op in ("completed_turns_lte", "repairs_used_gte"):
+    elif op in ("completed_turns_lte", "repairs_used_gte") or (
+        schema == 2 and op == "command_completions_observed_gte"
+    ):
         if not _integer(value):
             raise ValueError(
                 "a turn/repair threshold requires a bounded nonnegative integer"
@@ -85,6 +89,8 @@ def _evaluate(node, facts):
         return facts["turns_completed"] <= value
     if op == "repairs_used_gte":
         return facts["repairs_used"] >= value
+    if op == "command_completions_observed_gte":
+        return facts["executor_command_completions_observed"] >= value
     if op == "all":
         return all(_evaluate(child, facts) for child in value)
     if op == "any":
@@ -96,25 +102,29 @@ def _evaluate(node, facts):
 
 @dataclass(frozen=True)
 class Program:
-    """Immutable validated predicate and the identity of its exact source bytes."""
+    """Immutable validated predicate/action and the identity of its exact source bytes."""
 
     digest: str
     _tree: tuple
     source: bytes = field(repr=False)
+    schema: int = 1
+    action: str = "converge"
 
     @property
     def interpreter(self) -> str:
-        return INTERPRETER
+        return INTERPRETER_V2 if self.schema == 2 else INTERPRETER
 
     def evaluate(self, facts) -> bool:
         if (
             type(facts) is not dict
-            or facts.keys() != FACTS
+            or facts.keys() != (FACTS_V2 if self.schema == 2 else FACTS)
             or not all(_integer(value) for value in facts.values())
             or facts["deadline_secs"] == 0
         ):
             raise ValueError(
                 "facts must contain exactly four bounded integers and a positive deadline"
+                if self.schema == 1
+                else "facts must contain exactly five bounded integers and a positive deadline"
             )
         return _evaluate(self._tree, facts)
 
@@ -178,10 +188,21 @@ def load(bundle: Path | None) -> Program | None:
         raise ValueError("harness program is too deeply nested") from error
     if (
         type(document) is not dict
-        or document.keys() != {"schema", "when"}
-        or type(document["schema"]) is not int
-        or document["schema"] != 1
+        or type(document.get("schema")) is not int
+        or document["schema"] not in (1, 2)
     ):
         raise ValueError("unsupported harness program schema")
-    tree = _compile(document["when"], 1, [0])
-    return Program(hashlib.sha256(raw).hexdigest(), tree, raw)
+    schema = document["schema"]
+    keys = {"schema", "when"} if schema == 1 else {"schema", "action", "when"}
+    if document.keys() != keys:
+        raise ValueError("unsupported harness program schema")
+    if schema == 2 and document["action"] not in ("checkpoint", "converge"):
+        raise ValueError("unsupported harness program action")
+    tree = _compile(document["when"], 1, [0], schema)
+    return Program(
+        hashlib.sha256(raw).hexdigest(),
+        tree,
+        raw,
+        schema,
+        document.get("action", "converge"),
+    )
