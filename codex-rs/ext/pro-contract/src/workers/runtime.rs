@@ -11,7 +11,6 @@ use codex_core::NewThread;
 use codex_core::StartIfIdleSubmission;
 use codex_core::StartThreadOptions;
 use codex_core::ThreadManager;
-use codex_core::TurnInputRequest;
 use codex_core::TurnStartOptions;
 use codex_core::config::Config;
 use codex_core::config::Constrained;
@@ -26,7 +25,6 @@ use codex_protocol::protocol::InternalSessionSource;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::ThreadSource;
-use codex_protocol::user_input::UserInput;
 use serde_json::Value;
 
 use super::WorkerError;
@@ -138,11 +136,7 @@ pub(crate) async fn run_turn(
         .await
         .map_err(|error| WorkerError::Start(error.to_string()))?;
     let result = async {
-        let request = TurnInputRequest::user_input(vec![UserInput::Text {
-            text: turn.prompt,
-            text_elements: Vec::new(),
-        }])
-        .on_start(TurnStartOptions {
+        let request = super::packet::request(&turn.prompt)?.on_start(TurnStartOptions {
             turn_trigger: Some(turn.trigger.to_string()),
             final_output_json_schema: Some(turn.schema),
             ..Default::default()

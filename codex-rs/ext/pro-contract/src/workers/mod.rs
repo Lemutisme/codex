@@ -2,6 +2,7 @@
 
 pub(crate) mod cases;
 pub(crate) mod drafter;
+mod packet;
 pub(crate) mod policies;
 pub(crate) mod prober;
 mod request_sources;
