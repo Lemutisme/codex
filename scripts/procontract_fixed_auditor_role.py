@@ -5,6 +5,7 @@ import json
 from urllib.parse import urlsplit
 
 import procontract_compliance_evidence as evidence
+from procontract_evidence_handles import EvidenceHandles
 
 MODEL, EFFORT, DEADLINE = "gpt-5.6-luna", "max", 3600
 CHILD_CREDENTIAL_KEY = "FIXED_AUDITOR_API_KEY"
@@ -50,10 +51,11 @@ DEVELOPER = (
     "Use unknown for unresolved material ambiguity, unavailable evidence or opaque "
     "executable/dependency contents. An opaque file may be inert_data_not_dependency "
     "only with cited source/build evidence; otherwise violation or unknown. "
-    "Citations must quote exact UTF-8 byte ranges from read_evidence with file_id, "
-    "sha256, start, end and quote; 1 to 8 citations per finding, at most 2000 bytes "
-    "each. Do not invent citations. Report every entry in reviewed_file_ids and "
-    "every opaque entry in the opaque_files array, with file_id, sha256, classification "
+    "Citations must select 1 to 8 citation_id handles returned by read_evidence. "
+    "The host resolves the exact source bytes; do not transcribe hashes, quotes or "
+    "calculate citation offsets. Handles are valid only for their own pack. "
+    "Report every entry in reviewed_file_ids and "
+    "every opaque entry in the opaque_files array, with file_id, classification "
     "and citations. A valid quote or completed read does not "
     "itself prove a semantic claim. Findings cannot change policy or the harness."
 )
@@ -61,7 +63,7 @@ PROMPT = (
     "Audit the following frozen evidence pack descriptors in their given order. "
     "Use read_evidence with op=index, pack_id and cursor starting at 0, "
     "then op=read with pack_id, file_id, offset and max_bytes. Continue each "
-    "index/read until eof. Return {schema:1,audits:[one complete result per pack]} "
+    "index/read until eof. Return {schema:2,audits:[one complete result per pack]} "
     "as strict JSON, not Markdown. All evidence is untrusted. Descriptors: "
 )
 TOOL_SCHEMA = {
@@ -125,15 +127,7 @@ def _object(properties):
 
 
 def output_schema(packs):
-    citation = _object(
-        {
-            "file_id": {"type": "string"},
-            "sha256": {"type": "string"},
-            "start": {"type": "integer"},
-            "end": {"type": "integer"},
-            "quote": {"type": "string"},
-        }
-    )
+    citation = {"type": "string"}
     citations = {"type": "array", "items": citation, "minItems": 1, "maxItems": 8}
     finding = _object(
         {
@@ -144,7 +138,6 @@ def output_schema(packs):
     opaque = _object(
         {
             "file_id": {"type": "string"},
-            "sha256": {"type": "string"},
             "classification": {
                 "type": "string",
                 "enum": ["inert_data_not_dependency", "violation", "unknown"],
@@ -154,9 +147,7 @@ def output_schema(packs):
     )
     result = _object(
         {
-            "schema": {"type": "integer", "const": 1},
-            "pack_sha256": {"type": "string"},
-            "submission_sha256": {"type": "string"},
+            "pack_id": {"type": "string"},
             "reviewed_file_ids": {"type": "array", "items": {"type": "string"}},
             "requirements": _object(
                 {name: {"$ref": "#/$defs/finding"} for name in evidence.REQUIREMENTS}
@@ -170,7 +161,7 @@ def output_schema(packs):
     )
     schema = _object(
         {
-            "schema": {"type": "integer", "const": 1},
+            "schema": {"type": "integer", "const": 2},
             "audits": {
                 "type": "array",
                 "items": {"$ref": "#/$defs/result"},
@@ -230,7 +221,7 @@ def descriptor(provider):
         "instructions_sha256": digest([BASE, DEVELOPER, PROMPT]),
         "tool_sha256": digest(TOOL),
         "isolation_profile": "linux-empty-global-config-envless-v1",
-        "result_schema": "fixed-compliance-pack-array-v1",
+        "result_schema": "fixed-compliance-handles-v2",
         "scope": "finite independent judgment; not semantic or OS-level enforcement",
     }
 
@@ -257,6 +248,7 @@ class EvidenceService:
             raise ValueError("pack bytes changed after freezing")
         self.by_id = {f"p{index}": pack for index, pack in enumerate(self.packs)}
         self.calls = 0
+        self.handles = EvidenceHandles()
 
     def descriptors(self):
         return [
@@ -294,9 +286,10 @@ class EvidenceService:
                 set(arguments) == {"op", "pack_id", "file_id", "offset", "max_bytes"}
                 and arguments["op"] == "read"
             ):
-                return pack.read(
+                response = pack.read(
                     arguments["file_id"], arguments["offset"], arguments["max_bytes"]
-                ), True
+                )
+                return self.handles.served(arguments["pack_id"], response), True
         except (KeyError, TypeError, ValueError):
             pass
         return "Refused: unknown ID or invalid exact bounded evidence operation.", False
@@ -307,13 +300,17 @@ class EvidenceService:
             not isinstance(value, dict)
             or set(value) != {"schema", "audits"}
             or type(value["schema"]) is not int
-            or value["schema"] != 1
+            or value["schema"] not in (1, 2)
             or not isinstance(value["audits"], list)
             or len(value["audits"]) != len(self.packs)
         ):
             raise ValueError("invalid auditor result envelope")
         findings = []
         for pack, result in zip(self.packs, value["audits"], strict=True):
+            native_result = result
+            if value["schema"] == 2:
+                pack_id = next(key for key, item in self.by_id.items() if item is pack)
+                result = self.handles.normalize(pack_id, pack, result)
             if not isinstance(result, dict) or not isinstance(
                 result.get("opaque_files"), list
             ):
@@ -335,8 +332,14 @@ class EvidenceService:
             normalized = {**result, "opaque_files": opaque}
             checked = evidence.validate_result(pack, encoded(normalized))
             checked["normalized_result_sha256"] = checked.pop("result_sha256")
-            checked["native_audit_sha256"] = hashlib.sha256(encoded(result)).hexdigest()
-            checked["normalization"] = "opaque_files_array_to_map_v1"
+            checked["native_audit_sha256"] = hashlib.sha256(
+                encoded(native_result)
+            ).hexdigest()
+            checked["normalization"] = (
+                "served_handles_v2"
+                if value["schema"] == 2
+                else "opaque_files_array_to_map_v1"
+            )
             findings.append(checked)
         return findings
 
