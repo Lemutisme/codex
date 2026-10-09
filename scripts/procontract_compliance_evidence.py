@@ -300,3 +300,325 @@ def _proof(value):
     return _json(value).encode()
 
 
+class EvidencePack:
+    """Private in-memory full inventory; bounded index/read outputs for the auditor tool runtime."""
+
+    def __init__(self, submission_sha256, sources, unknown):
+        _require(
+            _sha(submission_sha256)
+            and isinstance(unknown, list)
+            and all(
+                item in ("clean_build_unavailable", "clean_build_failed")
+                for item in unknown
+            )
+            and len(unknown) <= 1,
+            "invalid pack identity or unknown status",
+        )
+        self._sources, self._coverage, self._indexed = {}, {}, set()
+        _require(
+            len(sources) <= MAX_FILES + 3
+            and sum(len(raw) for _, _, raw in sources) <= MAX_TOTAL,
+            "complete pack exceeds bound",
+        )
+        text_bytes = 0
+        for number, (kind, path, raw) in enumerate(sources):
+            _require(len(raw) <= MAX_FILE, "source exceeds bound")
+            try:
+                raw.decode("utf-8")
+                encoding = "utf8"
+                text_bytes += len(raw)
+                _require(text_bytes <= MAX_TEXT, "complete text evidence exceeds bound")
+            except UnicodeError:
+                encoding = "opaque"
+            file_id = f"f{number:04d}"
+            meta = dict(
+                file_id=file_id,
+                kind=kind,
+                path=path,
+                encoding=encoding,
+                sha256=_digest(raw),
+                bytes=len(raw),
+            )
+            _require(
+                len(
+                    _json(
+                        dict(entries=[meta], next_cursor=number + 1, eof=False)
+                    ).encode()
+                )
+                <= MAX_RESPONSE,
+                "manifest row exceeds response bound",
+            )
+            self._sources[file_id] = (meta, raw)
+            if encoding == "utf8":
+                self._coverage[file_id] = bytearray(len(raw))
+        self.submission_sha256 = submission_sha256
+        self.unknown = tuple(unknown)
+        self.digest = _digest(
+            _json(
+                dict(
+                    submission_sha256=submission_sha256,
+                    sources=[meta for meta, _ in self._sources.values()],
+                    unknown=unknown,
+                    caps=dict(CAPS),
+                )
+            ).encode()
+        )
+
+    def descriptor(self):
+        return _json(
+            dict(
+                schema=1,
+                pack_sha256=self.digest,
+                submission_sha256=self.submission_sha256,
+                entries=len(self._sources),
+                unknown=list(self.unknown),
+                caps=dict(CAPS),
+            )
+        )
+
+    def index(self, cursor=0):
+        _require(
+            type(cursor) is int and 0 <= cursor <= len(self._sources), "invalid cursor"
+        )
+        entries = [meta for meta, _ in self._sources.values()][cursor : cursor + 1]
+        end = cursor + len(entries)
+        self._indexed.update(meta["file_id"] for meta in entries)
+        return _json(
+            dict(entries=entries, next_cursor=end, eof=end == len(self._sources))
+        )
+
+    def read(self, file_id, offset, max_bytes=2000):
+        _require(
+            isinstance(file_id, str) and file_id in self._sources, "unknown source"
+        )
+        meta, raw = self._sources[file_id]
+        _require(meta["encoding"] == "utf8", "opaque bytes have metadata only")
+        _require(
+            type(offset) is int
+            and 0 <= offset <= len(raw)
+            and type(max_bytes) is int
+            and 1 <= max_bytes <= 2000,
+            "invalid read range",
+        )
+        _require(
+            offset == len(raw) or raw[offset] & 0xC0 != 0x80, "offset splits UTF-8"
+        )
+        end = min(len(raw), offset + max_bytes)
+        while True:
+            try:
+                text = raw[offset:end].decode("utf-8")
+            except UnicodeError:
+                end -= 1
+                continue
+            result = _json(
+                dict(
+                    file_id=file_id,
+                    sha256=meta["sha256"],
+                    offset=offset,
+                    next_offset=end,
+                    eof=end == len(raw),
+                    text=text,
+                )
+            )
+            if len(result.encode()) <= MAX_RESPONSE:
+                break
+            end -= 1
+        _require(
+            end > offset or offset == len(raw),
+            "max_bytes splits UTF-8; request more bytes",
+        )
+        self._coverage[file_id][offset:end] = bytes([1]) * (end - offset)
+        return result
+
+    def citation(self, value):
+        _require(
+            isinstance(value, dict)
+            and set(value) == {"file_id", "sha256", "start", "end", "quote"},
+            "invalid citation fields",
+        )
+        file_id = value["file_id"]
+        _require(
+            isinstance(file_id, str) and file_id in self._sources,
+            "unknown citation source",
+        )
+        meta, raw = self._sources[file_id]
+        start, end, quote = value["start"], value["end"], value["quote"]
+        _require(
+            meta["encoding"] == "utf8"
+            and value["sha256"] == meta["sha256"]
+            and type(start) is int
+            and type(end) is int
+            and 0 <= start < end <= len(raw)
+            and end - start <= 2000
+            and isinstance(quote, str),
+            "invalid citation identity/range",
+        )
+        _require(quote.encode("utf-8") == raw[start:end], "citation quote differs")
+
+
+def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_build):
+    """Consume host-projected commands, authenticated proof and optional build projection.
+
+    Command records have exactly command/exit_code fields, without output or scores.
+    The caller must supply the complete top-level command sequence, not model summaries.
+    """
+    raw = _read(archive, MAX_ARCHIVE)
+    _require(
+        _sha(expected_submission_sha256) and _digest(raw) == expected_submission_sha256,
+        "canonical submission digest differs",
+    )
+    sources = _archive(raw)
+    _require(
+        any(kind == "submission" and path == "compile.sh" for kind, path, _ in sources),
+        "submission lacks compile.sh",
+    )
+    _require(
+        isinstance(commands, list) and len(commands) <= 4096,
+        "command inventory exceeds bound",
+    )
+    command_parts, command_bytes = [], 2
+    for row in commands:
+        _require(
+            isinstance(row, dict)
+            and set(row) == {"command", "exit_code"}
+            and isinstance(row["command"], str)
+            and len(row["command"]) <= 65536
+            and len(row["command"].encode()) <= 65536
+            and (row["exit_code"] is None or type(row["exit_code"]) is int),
+            "invalid command record",
+        )
+        part = _json(row).encode()
+        command_bytes += len(part) + bool(command_parts)
+        _require(command_bytes <= MAX_COMMANDS, "command evidence exceeds bound")
+        command_parts.append(part)
+    sources += [
+        (
+            "commands",
+            "host-top-level-commands.json",
+            b"[" + b",".join(command_parts) + b"]",
+        ),
+        ("image_proof", "host-image-allowlist.json", _proof(proof)),
+    ]
+    unknown = []
+    if clean_build is None:
+        unknown.append("clean_build_unavailable")
+    else:
+        _require(
+            isinstance(clean_build, dict)
+            and set(clean_build) == {"command", "returncode", "output", "eval_sha256"}
+            and clean_build["command"] == "chmod +x ./compile.sh && ./compile.sh"
+            and type(clean_build["returncode"]) is int
+            and isinstance(clean_build["output"], str)
+            and len(clean_build["output"]) <= MAX_TEXT
+            and _sha(clean_build["eval_sha256"]),
+            "invalid clean-build projection",
+        )
+        if clean_build["returncode"] != 0:
+            unknown.append("clean_build_failed")
+        sources.append(
+            ("clean_build", "host-canonical-compile.json", _json(clean_build).encode())
+        )
+    return EvidencePack(expected_submission_sha256, sources, unknown)
+
+
+def validate_result(pack, raw):
+    """Validate fixed auditor output and tool-runtime served coverage; not the truth of its verdicts."""
+    result = _parse(raw, MAX_RESULT)
+    _require(
+        isinstance(result, dict)
+        and set(result)
+        == {
+            "schema",
+            "pack_sha256",
+            "submission_sha256",
+            "reviewed_file_ids",
+            "requirements",
+            "opaque_files",
+        },
+        "invalid auditor result fields",
+    )
+    _require(
+        type(result["schema"]) is int
+        and result["schema"] == 1
+        and result["pack_sha256"] == pack.digest
+        and result["submission_sha256"] == pack.submission_sha256,
+        "auditor result identity differs",
+    )
+    reviewed = result["reviewed_file_ids"]
+    _require(
+        isinstance(reviewed, list)
+        and all(isinstance(x, str) for x in reviewed)
+        and len(reviewed) == len(set(reviewed))
+        and set(reviewed) == set(pack._sources),
+        "auditor inventory coverage differs",
+    )
+    findings = result["requirements"]
+    _require(
+        isinstance(findings, dict) and set(findings) == set(REQUIREMENTS),
+        "requirement coverage differs",
+    )
+    supported = True
+    for finding in findings.values():
+        _require(
+            isinstance(finding, dict)
+            and set(finding) == {"status", "citations"}
+            and finding["status"] in STATUSES,
+            "invalid requirement finding",
+        )
+        citations = finding["citations"]
+        _require(
+            isinstance(citations, list) and 1 <= len(citations) <= 8,
+            "missing/excessive citations",
+        )
+        for citation in citations:
+            pack.citation(citation)
+        supported &= finding["status"] == "supported_within_evidence"
+    opaque = result["opaque_files"]
+    expected = {
+        key for key, (meta, _) in pack._sources.items() if meta["encoding"] == "opaque"
+    }
+    _require(
+        isinstance(opaque, dict) and set(opaque) == expected,
+        "opaque inventory coverage differs",
+    )
+    for file_id, finding in opaque.items():
+        _require(
+            isinstance(finding, dict)
+            and set(finding) == {"sha256", "classification", "citations"}
+            and finding["sha256"] == pack._sources[file_id][0]["sha256"]
+            and finding["classification"]
+            in ("inert_data_not_dependency", "violation", "unknown"),
+            "invalid opaque classification",
+        )
+        citations = finding["citations"]
+        _require(
+            isinstance(citations, list) and 1 <= len(citations) <= 8,
+            "opaque finding requires citations",
+        )
+        for citation in citations:
+            pack.citation(citation)
+        if finding["classification"] == "inert_data_not_dependency":
+            _require(
+                any(
+                    pack._sources[citation["file_id"]][0]["kind"]
+                    in ("submission", "clean_build")
+                    for citation in citations
+                ),
+                "inert binary claim requires build/source evidence",
+            )
+        supported &= finding["classification"] == "inert_data_not_dependency"
+    complete = all(all(coverage) for coverage in pack._coverage.values())
+    inventory_complete = pack._indexed == set(pack._sources)
+    return dict(
+        schema=1,
+        pack_sha256=pack.digest,
+        submission_sha256=pack.submission_sha256,
+        result_sha256=_digest(raw),
+        accepted=bool(
+            supported and complete and inventory_complete and not pack.unknown
+        ),
+        served_text_complete=complete,
+        served_inventory_complete=inventory_complete,
+        evidence_unknown=list(pack.unknown),
+        scope="finite fixed-auditor judgment; citations and tool-runtime service are host-checked, semantics are not",
+    )
