@@ -142,6 +142,8 @@ def mandatory_paths(terms, host_python, store_bin):
     if cache.exists():
         paths.update(_tree(cache))
     checkpoint = checkpoints.from_terms(terms, frozen)
+    if frozen.dependency_policy is not None:
+        paths.update(frozen.dependency_policy.required_paths())
     if checkpoint is not None:
         for path in checkpoint.required_paths():
             paths.update(_tree(path) if path.is_dir() else (path,))

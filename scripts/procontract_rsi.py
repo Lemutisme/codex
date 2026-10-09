@@ -2569,6 +2569,8 @@ def cmd_init(args) -> None:
     camp: Path = args.camp
     if (camp / "campaign.json").exists():
         sys.exit(f"{camp} already holds a campaign")
+    if getattr(args, "submission_policy", None) and args.canonical_registry is None:
+        sys.exit("submission policy requires a canonical dependency registry")
     study_limits = {
         "task_launches": args.study_task_launches,
         "learning_launches": args.study_learning_launches,
@@ -2715,6 +2717,8 @@ def cmd_init(args) -> None:
     }
     if stream:
         terms["stream"] = stream
+    if getattr(args, "submission_policy", None):
+        terms["submission_policy"] = args.submission_policy
     if checkpoint is not None:
         terms["checkpoint"] = {"path": str(checkpoint.root), **checkpoint.descriptor()}
     proposal_scope.editable(terms)
@@ -3097,6 +3101,11 @@ def main() -> None:
     )
     init.add_argument(
         "--checkpoint-sha256", help="externally pinned checkpoint MANIFEST SHA-256"
+    )
+    init.add_argument(
+        "--submission-policy",
+        choices=["rust-preinstalled-v1"],
+        help="future-only dependency policy, requiring a pinned registry manifest",
     )
     step = sub.add_parser("step")
     step.add_argument("--camp", type=Path, required=True)

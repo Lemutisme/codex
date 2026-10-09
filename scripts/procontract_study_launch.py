@@ -169,6 +169,21 @@ def authorize(args, manifest, profile):
         for path, text in expected.items()
     ):
         raise RuntimeError("prepared study runtime configuration changed")
+    dependency_verification = None
+    if task and frozen.dependency_policy is not None:
+        import procontract_canonical as canonical
+        import procontract_dependency_inspection as inspection
+
+        dependency_verification = inspection.verify_image(
+            frozen.dependency_policy, image
+        )
+        if (
+            canonical.checked_pins()["dependency_policy"]["images"][image]
+            != dependency_verification
+        ):
+            raise RuntimeError(
+                "study dependency artifacts differ from the verified pins"
+            )
     identity = {
         "version": version,
         "role": role,
@@ -181,6 +196,11 @@ def authorize(args, manifest, profile):
             for path, raw in actual.items()
         },
     }
+    if dependency_verification is not None:
+        identity["dependency_policy"] = {
+            "sha256": frozen.dependency_policy.digest,
+            "image_verification": dependency_verification,
+        }
     receipt = budget.reserve(
         camp / "study-budget.sqlite",
         descriptor["manifest_sha256"],

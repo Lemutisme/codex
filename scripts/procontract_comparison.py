@@ -36,6 +36,7 @@ def validate_comparison(stream, baseline) -> None:
     for name, default in (
         ("proposal_kind", "all"),
         ("confirmation_exposure_scope", "strict"),
+        ("submission_policy", None),
     ):
         if stream.terms.get(name, default) != baseline.terms.get(name, default):
             raise ValueError(f"comparison identity differs: {name}")

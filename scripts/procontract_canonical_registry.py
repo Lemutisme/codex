@@ -7,8 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
+from typing import TYPE_CHECKING
 
 from procontract_harness_program import read_regular
+
+if TYPE_CHECKING:
+    from procontract_dependency_policy import Policy
 
 MAX_BYTES = 1 << 20
 TASK_ID = re.compile(
@@ -73,12 +77,19 @@ class Registry:
     exposed_tasks: tuple[str, ...]
     exposure_scope: str
     operator_exposed_tasks: tuple[str, ...]
+    dependency_policy: "Policy | None" = None
 
     def verify_source(self):
         _source(self.path, self.digest)
+        if self.dependency_policy is not None:
+            self.dependency_policy.verify_source()
 
     def validate_campaign(self, terms):
         """Check source identity and known group overlap, not unknown training exposure."""
+        if self.dependency_policy is not None:
+            self.dependency_policy.validate_campaign(terms)
+        elif terms.get("submission_policy") is not None:
+            raise ValueError("submission policy requires a pinned dependency manifest")
         if terms.get("confirmation_exposure_scope", "strict") != self.exposure_scope:
             raise ValueError("canonical campaign differs: confirmation_exposure_scope")
         for name, expected in (
@@ -130,7 +141,13 @@ def load(path: Path, expected_sha256: str) -> Registry:
         or not REQUIRED <= data.keys()
         or data.keys()
         - REQUIRED
-        - {"python", "exposed_tasks", "exposure_scope", "operator_exposed_tasks"}
+        - {
+            "python",
+            "exposed_tasks",
+            "exposure_scope",
+            "operator_exposed_tasks",
+            "dependency_policy",
+        }
         or type(data["schema"]) is not int
         or data["schema"] != 1
     ):
@@ -195,6 +212,18 @@ def load(path: Path, expected_sha256: str) -> Registry:
     if exposure_scope == "prospective_lineage" and not operator_exposed:
         raise ValueError("prospective lineage requires disclosed operator exposure")
     programbench = _path(data["programbench"])
+    dependency_policy = None
+    if "dependency_policy" in data:
+        import procontract_dependency_policy as dependencies
+
+        descriptor = data["dependency_policy"]
+        if not isinstance(descriptor, dict) or set(descriptor) != {"path", "sha256"}:
+            raise ValueError("invalid dependency policy descriptor")
+        dependency_policy = dependencies.load(
+            _path(descriptor["path"]),
+            descriptor["sha256"],
+            {task: spec["image"] for task, spec in frozen.items()},
+        )
     return Registry(
         path=path,
         digest=expected_sha256,
@@ -210,4 +239,5 @@ def load(path: Path, expected_sha256: str) -> Registry:
         exposed_tasks=tuple(exposed),
         exposure_scope=exposure_scope,
         operator_exposed_tasks=tuple(operator_exposed),
+        dependency_policy=dependency_policy,
     )

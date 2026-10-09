@@ -67,6 +67,20 @@ def checked_pins():
         sha256(Path(__file__).resolve()),
     ):
         raise RuntimeError("canonical pins do not bind this registry and adapter")
+    if frozen.dependency_policy is not None:
+        import procontract_dependency_inspection as inspection
+
+        evidence = pins.get("dependency_policy")
+        if (
+            not isinstance(evidence, dict)
+            or set(evidence) != {"sha256", "images"}
+            or evidence["sha256"] != frozen.dependency_policy.digest
+            or not isinstance(evidence["images"], dict)
+            or set(evidence["images"]) != set(frozen.dependency_policy.images)
+        ):
+            raise RuntimeError("canonical pins lack the dependency image verification")
+        for image, receipt in evidence["images"].items():
+            inspection.validate_receipt(frozen.dependency_policy, image, receipt)
     return pins
 
 
@@ -250,7 +264,7 @@ def pin_state():
     }
     if not wheels:
         raise RuntimeError("No offline evaluator wheels")
-    return {
+    result = {
         "schema": 1,
         "registry_sha256": frozen.digest,
         "adapter_sha256": sha256(Path(__file__).resolve()),
@@ -272,6 +286,17 @@ def pin_state():
         "branch_retries": 1,
         "docker_cpus": 4,
     }
+    if frozen.dependency_policy is not None:
+        import procontract_dependency_inspection as inspection
+
+        policy = frozen.dependency_policy
+        result["dependency_policy"] = {
+            "sha256": policy.digest,
+            "images": {
+                image: inspection.verify_image(policy, image) for image in policy.images
+            },
+        }
+    return result
 
 
 def preflight():
