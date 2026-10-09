@@ -25,6 +25,7 @@ from pathlib import Path
 
 from procontract_delivery_budget import DeliveryBudget
 from procontract_execution_health import ExecutionHealth
+from procontract_execution_activity import ExecutorActivity
 import procontract_harness_program as harness_program
 
 MODEL = "gpt-5.6-luna"
@@ -644,6 +645,7 @@ def run(args: argparse.Namespace) -> None:
     started = time.monotonic()
     turns = TurnTracker()
     health = ExecutionHealth()
+    activity = ExecutorActivity()
     eof = threading.Event()
 
     def handle(message: dict) -> None:
@@ -655,6 +657,11 @@ def run(args: argparse.Namespace) -> None:
         else:
             turns.observe(message)
             health.observe(message, turns.thread_id)
+            activity.observe(
+                message,
+                thread_id=turns.thread_id,
+                turn_id=turns.turn_id if turns.active else None,
+            )
 
     summary: dict = {
         "arm": args.arm,
@@ -782,6 +789,7 @@ def run(args: argparse.Namespace) -> None:
         raise
     finally:
         summary["execution_environment"] = health.summary()
+        summary["execution_activity"] = activity.summary()
         summary["delivery_budget"] = budget.summary()
         if budget.activation is not None:
             summary["harness_program"] = budget.activation
