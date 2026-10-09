@@ -16,6 +16,8 @@ import tarfile
 from types import MappingProxyType
 import zlib
 
+import procontract_native_mutations as mutations
+
 MAX_ARCHIVE = 64 << 20
 MAX_TAR = 128 << 20
 MAX_FILES = 1024
@@ -23,6 +25,7 @@ MAX_FILE = 64 << 20
 MAX_TOTAL = 128 << 20
 MAX_TEXT = 16 << 20
 MAX_COMMANDS = 8 << 20
+MAX_TYPED_READS = 1 << 20
 MAX_EVAL = 64 << 20
 MAX_RESULT = 256 << 10
 MAX_RESPONSE = 900
@@ -44,6 +47,8 @@ CAPS = MappingProxyType(
         total_bytes=MAX_TOTAL,
         text_bytes=MAX_TEXT,
         commands_bytes=MAX_COMMANDS,
+        typed_reads_bytes=MAX_TYPED_READS,
+        typed_mutations_bytes=mutations.MAX_BYTES,
         eval_bytes=MAX_EVAL,
         result_bytes=MAX_RESULT,
         response_bytes=MAX_RESPONSE,
@@ -313,7 +318,7 @@ class EvidencePack:
         )
         self._sources, self._coverage, self._indexed = {}, {}, set()
         _require(
-            len(sources) <= MAX_FILES + 3
+            len(sources) <= MAX_FILES + 5
             and sum(len(raw) for _, _, raw in sources) <= MAX_TOTAL,
             "complete pack exceeds bound",
         )
@@ -453,7 +458,76 @@ class EvidencePack:
         _require(quote.encode("utf-8") == raw[start:end], "citation quote differs")
 
 
-def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_build):
+def _typed_reads(rows):
+    """Explicit view_image attempts; failed decoding never certifies bytes were unread."""
+    _require(
+        isinstance(rows, list) and len(rows) <= 4096,
+        "typed read inventory exceeds bound",
+    )
+    parts, size = [], 2
+    for row in rows:
+        _require(
+            isinstance(row, dict)
+            and set(row)
+            == {
+                "tool",
+                "path",
+                "environment_id",
+                "detail",
+                "observed_path",
+                "outcome",
+                "error",
+            }
+            and row["tool"] == "view_image"
+            and row["detail"] in (None, "high", "original"),
+            "invalid typed read record",
+        )
+        for key, cap in (
+            ("path", 4096),
+            ("observed_path", 4096),
+            ("environment_id", 256),
+            ("error", 4096),
+        ):
+            value = row[key]
+            _require(
+                (value is None and key != "path")
+                or (
+                    isinstance(value, str)
+                    and 0 < len(value.encode()) <= cap
+                    and "\0" not in value
+                ),
+                "invalid typed read text",
+            )
+        _require(
+            (
+                row["outcome"] == "completed"
+                and row["observed_path"] is not None
+                and row["error"] is None
+            )
+            or (
+                row["outcome"] == "error"
+                and row["observed_path"] is None
+                and row["error"] is not None
+            ),
+            "incomplete typed read outcome",
+        )
+        part = _json(row).encode()
+        size += len(part) + bool(parts)
+        _require(size <= MAX_TYPED_READS, "typed read evidence exceeds bound")
+        parts.append(part)
+    return b"[" + b",".join(parts) + b"]"
+
+
+def build_pack(
+    archive,
+    expected_submission_sha256,
+    *,
+    commands,
+    proof,
+    clean_build,
+    typed_reads=None,
+    typed_mutations=None,
+):
     """Consume host-projected commands, authenticated proof and optional build projection.
 
     Command records have exactly command/exit_code fields, without output or scores.
@@ -495,6 +569,18 @@ def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_bu
         ),
         ("image_proof", "host-image-allowlist.json", _proof(proof)),
     ]
+    if typed_reads is not None:
+        sources.append(
+            ("typed_reads", "host-native-image-reads.json", _typed_reads(typed_reads))
+        )
+    if typed_mutations is not None:
+        sources.append(
+            (
+                "typed_mutations",
+                "host-native-file-mutations.json",
+                mutations.encode(typed_mutations),
+            )
+        )
     unknown = []
     if clean_build is None:
         unknown.append("clean_build_unavailable")

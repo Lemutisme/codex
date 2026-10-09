@@ -68,6 +68,34 @@ class EvidenceTests(unittest.TestCase):
         )
         self.commands = [dict(command="rustc main.rs -o /tmp/probe", exit_code=0)]
 
+    def test_typed_read_file_is_bound_separately_and_rejects_ambiguous_rows(self):
+        row = dict(
+            tool="view_image",
+            path="/reference/program",
+            environment_id=None,
+            detail=None,
+            observed_path=None,
+            outcome="error",
+            error="decode failed",
+        )
+        pack = self.pack(typed_reads=[row])
+        source = next(
+            (meta, raw)
+            for meta, raw in pack._sources.values()
+            if meta["kind"] == "typed_reads"
+        )
+        self.assertEqual(source[0]["path"], "host-native-image-reads.json")
+        self.assertEqual(json.loads(source[1]), [row])
+        self.assertNotEqual(pack.digest, self.pack(typed_reads=[]).digest)
+        for changed in (
+            {**row, "exit_code": 0},
+            {**row, "outcome": "completed"},
+            {**row, "tool": "shell"},
+            {**row, "path": "x" * 4097},
+        ):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                self.pack(typed_reads=[changed])
+
     def pack(self, **kwargs):
         return evidence.build_pack(
             self.path,
