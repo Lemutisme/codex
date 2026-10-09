@@ -161,7 +161,11 @@ class LaneTests(unittest.TestCase):
         self.host.terms["fixed_auditor"] = role.descriptor(
             {**PROVIDER, "base_url": "https://example.test/v1"}
         )
-        with self.assertRaises(RuntimeError), patch.object(lane.native, "run") as run:
+        with (
+            patch.object(lane, "PAID_ENABLED", False),
+            self.assertRaises(RuntimeError),
+            patch.object(lane.native, "run") as run,
+        ):
             lane.execute(self.host, "probe", self.values, self.receipts)
         run.assert_not_called()
         self.assertEqual(
@@ -169,6 +173,20 @@ class LaneTests(unittest.TestCase):
                 "reserved"
             ]["learning_launches"],
             0,
+        )
+
+    def test_shared_paid_switch_allows_remote_route_with_mocked_native_transport(self):
+        self.host.terms["fixed_auditor"] = role.descriptor(
+            {**PROVIDER, "base_url": "https://example.test/v1"}
+        )
+        with (
+            patch.object(lane, "PAID_ENABLED", True),
+            patch.object(lane.native, "run", side_effect=self.native_fixture) as run,
+        ):
+            terminal = lane.execute(self.host, "probe", self.values, self.receipts)
+        self.assertEqual((terminal["outcome"], run.call_count), ("accepted", 1))
+        self.assertEqual(
+            run.call_args.args[3], self.host.terms["fixed_auditor"]["routing"]
         )
 
     def test_wrong_episode_profile_refused_before_spending(self):

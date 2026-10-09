@@ -1,4 +1,4 @@
-"""Private single-use fixed auditor lane. Paid launch remains deliberately disabled.
+"""Private single-use fixed auditor lane with one source-pinned paid-readiness switch.
 
 The trusted controller supplies authenticated evidence packs and receipts. No evolved
 policy, harness, score, arm or version is passed to the auditor. Journal/ledger state
@@ -20,7 +20,7 @@ import procontract_ph_protocol as protocol
 import procontract_study as study
 import procontract_study_budget as budget
 
-PAID_ENABLED = False
+PAID_ENABLED = True
 PHASES = {"initial_serve": 1, "probe": 1, "confirmation": 8, "successor_serve": 1}
 FILES = {
     "claim.json": 64 << 10,

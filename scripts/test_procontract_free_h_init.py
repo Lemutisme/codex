@@ -10,6 +10,7 @@ import procontract_benchmark_runner as runner
 import procontract_canonical as canonical
 import procontract_dependency_inspection as inspection
 import procontract_dependency_policy as dependencies
+import procontract_fixed_auditor as auditor
 import procontract_fixed_auditor_role as auditor_role
 import procontract_native_trace_binding as trace
 import procontract_ph_protocol as protocol
@@ -32,6 +33,7 @@ class FreeHInitTest(unittest.TestCase):
     balance = launch_fixtures.StudyLaunchTest.balance
 
     def setUp(self):
+        self.enterContext(mock.patch.object(auditor, "PAID_ENABLED", False))
         checkpoint_fixtures.CheckpointHostTest.setUp(self)
         stream = [f"free__serve{i}.1234567" for i in range(4)]
         self.task = stream[0]

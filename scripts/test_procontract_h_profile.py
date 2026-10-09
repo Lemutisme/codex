@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+import procontract_fixed_auditor as auditor
 import procontract_fixed_auditor_role as auditor_role
 import procontract_native_trace_binding as trace
 import procontract_ph_audit as audit
@@ -20,6 +21,7 @@ from test_procontract_ph_supervisor import plan_terms, write
 
 class HProfileTest(unittest.TestCase):
     def setUp(self):
+        self.enterContext(mock.patch.object(auditor, "PAID_ENABLED", False))
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.camp = Path(temporary.name) / "campaign"
@@ -50,9 +52,12 @@ class HProfileTest(unittest.TestCase):
 
     def test_old_profile_remains_paid_validation_compatible_without_new_fields(self):
         original = copy.deepcopy(self.terms)
-        self.assertEqual(
-            protocol.validate_plan(self.camp, self.terms), protocol.document(self.path)
-        )
+        for enabled in (False, True):
+            with mock.patch.object(auditor, "PAID_ENABLED", enabled):
+                self.assertEqual(
+                    protocol.validate_plan(self.camp, self.terms),
+                    protocol.document(self.path),
+                )
         self.assertEqual(self.terms, original)
         selected = protocol.campaign_profile(self.camp, self.terms)
         self.assertEqual(
@@ -103,6 +108,22 @@ class HProfileTest(unittest.TestCase):
             self.publish_plan(changed)
             with self.subTest(plan=changed), self.assertRaises(RuntimeError):
                 protocol.inspect_plan(self.camp, self.terms)
+
+    def test_shared_paid_switch_allows_only_the_strict_h_plan(self):
+        plan = self.h_terms()
+        with mock.patch.object(auditor, "PAID_ENABLED", True):
+            self.assertEqual(protocol.validate_plan(self.camp, self.terms), plan)
+            with self.assertRaisesRegex(RuntimeError, "fixed P/H scope"):
+                protocol.validate_plan(
+                    self.camp,
+                    {**self.terms, "mutable": ["executor.md", "harness.json"]},
+                )
+            with self.assertRaisesRegex(RuntimeError, "native notice trace"):
+                protocol.validate_plan(
+                    self.camp, {**self.terms, "native_notice_trace": None}
+                )
+        with self.assertRaises(protocol.EpisodeNotReady):
+            protocol.validate_plan(self.camp, self.terms)
 
     def test_h_profile_requires_exact_fixed_auditor_and_cannot_apply_it_to_old_ph(self):
         self.h_terms()

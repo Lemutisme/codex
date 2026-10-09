@@ -216,5 +216,8 @@ def validate_plan(camp, terms):
     plan = inspect_plan(camp, terms)
     selected = profile(plan["protocol"])
     if selected.required_admission is not None:
-        raise EpisodeNotReady(selected)
+        import procontract_fixed_auditor as auditor
+
+        if not auditor.PAID_ENABLED:
+            raise EpisodeNotReady(selected)
     return plan
