@@ -152,7 +152,7 @@ def probe(run, program, deadline):
         "last_input",
         "last_decision",
     }
-    if program.schema == 2:
+    if program.schema >= 2:
         expected_keys |= {"action", "last_eligibility"}
     protocol.require(
         set(activation) == expected_keys
@@ -175,7 +175,7 @@ def probe(run, program, deadline):
         protocol.require(
             activation["last_decision"] is None, "H predicate lacks its input"
         )
-    if program.schema == 2:
+    if program.schema >= 2:
         eligibility = activation["last_eligibility"]
         protocol.require(
             eligibility is None
@@ -197,7 +197,7 @@ def probe(run, program, deadline):
     attempt, outcome, floors = delivery["attempt"], "no_action", set()
     if attempt is not None:
         required = {"turn_id", "remaining_secs", "outcome"}
-        if program.schema == 2:
+        if program.schema >= 2:
             required.add("action")
         protocol.require(
             isinstance(attempt, dict)
@@ -230,7 +230,7 @@ def probe(run, program, deadline):
             ),
             "H attempt lacks valid true predicate facts",
         )
-        if program.schema == 2:
+        if program.schema >= 2:
             protocol.require(
                 activation["last_eligibility"]
                 == {"eligible": True, "reason": "eligible"},
@@ -268,7 +268,7 @@ def probe(run, program, deadline):
     return {
         "outcome": outcome,
         "eligibility_basis": "raw_last_eligibility"
-        if program.schema == 2
+        if program.schema >= 2
         else "legacy_controller_late_window",
         "protocol_log": _rpc(run, summary, attempt, program.action, floors),
     }

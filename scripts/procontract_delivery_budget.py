@@ -51,7 +51,7 @@ class DeliveryBudget:
             if program is not None
             else None
         )
-        if program is not None and program.schema == 2:
+        if program is not None and program.schema >= 2:
             self.activation.update(action=program.action, last_eligibility=None)
 
     def maybe_steer(
@@ -72,7 +72,7 @@ class DeliveryBudget:
         an attempt: a timeout can mean the notice was already delivered. The v2
         command counter reports notifications, not successful commands or progress.
         """
-        version_two = self.program is not None and self.program.schema == 2
+        version_two = self.program is not None and self.program.schema >= 2
         if version_two:
             if self._attempt is not None:
                 return
@@ -98,8 +98,16 @@ class DeliveryBudget:
                 reason = "inactive_executor"
             elif status is not None and (
                 not isinstance(status, dict)
-                or status.get("phase")
-                not in ("idle", "drafting", "working", "repairing")
+                or (
+                    status.get("phase")
+                    not in ("idle", "drafting", "working", "repairing")
+                    and not (
+                        self.program.schema == 3
+                        and self.program.action == "checkpoint"
+                        and status.get("resting") is True
+                        and status.get("phase") in ("abstained", "not_verified")
+                    )
+                )
             ):
                 reason = "protected_phase"
             elif self.program.action == "checkpoint":

@@ -10,6 +10,7 @@ from pathlib import Path
 PROGRAM_FILE = "harness.json"
 INTERPRETER = "convergence-v1"
 INTERPRETER_V2 = "bounded-steering-v2"
+INTERPRETER_V3 = "lifecycle-steering-v3"
 MAX_BYTES = 4096
 MAX_NODES = 64
 MAX_DEPTH = 8
@@ -65,7 +66,7 @@ def _compile(node, depth, count, schema):
             )
         value = tuple(value)
     elif op in ("completed_turns_lte", "repairs_used_gte") or (
-        schema == 2 and op == "command_completions_observed_gte"
+        schema >= 2 and op == "command_completions_observed_gte"
     ):
         if not _integer(value):
             raise ValueError(
@@ -112,12 +113,12 @@ class Program:
 
     @property
     def interpreter(self) -> str:
-        return INTERPRETER_V2 if self.schema == 2 else INTERPRETER
+        return {1: INTERPRETER, 2: INTERPRETER_V2, 3: INTERPRETER_V3}[self.schema]
 
     def evaluate(self, facts) -> bool:
         if (
             type(facts) is not dict
-            or facts.keys() != (FACTS_V2 if self.schema == 2 else FACTS)
+            or facts.keys() != (FACTS_V2 if self.schema >= 2 else FACTS)
             or not all(_integer(value) for value in facts.values())
             or facts["deadline_secs"] == 0
         ):
@@ -189,14 +190,14 @@ def load(bundle: Path | None) -> Program | None:
     if (
         type(document) is not dict
         or type(document.get("schema")) is not int
-        or document["schema"] not in (1, 2)
+        or document["schema"] not in (1, 2, 3)
     ):
         raise ValueError("unsupported harness program schema")
     schema = document["schema"]
     keys = {"schema", "when"} if schema == 1 else {"schema", "action", "when"}
     if document.keys() != keys:
         raise ValueError("unsupported harness program schema")
-    if schema == 2 and document["action"] not in ("checkpoint", "converge"):
+    if schema >= 2 and document["action"] not in ("checkpoint", "converge"):
         raise ValueError("unsupported harness program action")
     tree = _compile(document["when"], 1, [0], schema)
     return Program(

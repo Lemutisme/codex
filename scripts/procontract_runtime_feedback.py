@@ -64,15 +64,18 @@ def _section(raw, fields):
 
 
 def _harness(raw):
-    version_two = (
-        isinstance(raw, dict) and raw.get("interpreter") == "bounded-steering-v2"
+    version_two = isinstance(raw, dict) and raw.get("interpreter") in (
+        "bounded-steering-v2",
+        "lifecycle-steering-v3",
     )
     facts = ("deadline_secs", "remaining_secs", "turns_completed", "repairs_used")
     if version_two:
         facts += ("executor_command_completions_observed",)
     fields = {
         "sha256": lambda v: isinstance(v, str) and re.fullmatch(r"[0-9a-f]{64}", v),
-        "interpreter": lambda v: v in ("convergence-v1", "bounded-steering-v2"),
+        "interpreter": lambda v: (
+            v in ("convergence-v1", "bounded-steering-v2", "lifecycle-steering-v3")
+        ),
         "evaluations": _integer,
         "last_input": lambda v: (
             v is None
@@ -179,10 +182,9 @@ def read(run_dir: Path) -> dict:
         return _unknown("legacy")
     if any(key in raw and not valid(raw[key]) for key, valid in fields.items()):
         return _unknown("malformed")
-    version_two = (
-        isinstance(raw.get("harness_program"), dict)
-        and raw["harness_program"].get("interpreter") == "bounded-steering-v2"
-    )
+    version_two = isinstance(raw.get("harness_program"), dict) and raw[
+        "harness_program"
+    ].get("interpreter") in ("bounded-steering-v2", "lifecycle-steering-v3")
     projection = {
         "status": "observed",
         "kind": "host_runtime_facts_v1",

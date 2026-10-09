@@ -97,7 +97,7 @@ class HarnessV2Test(unittest.TestCase):
             {**valid, "schema": 1},
             {**valid, "when": {"unknown": 0}},
         ]
-        invalid += [{**valid, "schema": value} for value in (0, 3, True, "2", [], {})]
+        invalid += [{**valid, "schema": value} for value in (0, 4, True, "2", [], {})]
         invalid += [
             {**valid, "action": value}
             for value in ("", "unknown", ["checkpoint"], {}, None, True, 2)
