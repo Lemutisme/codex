@@ -201,6 +201,12 @@ def authorize(args, manifest, profile):
             "sha256": frozen.dependency_policy.digest,
             "image_verification": dependency_verification,
         }
+    if task:
+        import procontract_h_admission as h_admission
+
+        admission = h_admission.authorize_task(host, run_dir, manifest)
+        if admission is not None:
+            identity["h_admission"] = admission["digest"]
     receipt = budget.reserve(
         camp / "study-budget.sqlite",
         descriptor["manifest_sha256"],

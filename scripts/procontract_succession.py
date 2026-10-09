@@ -9,6 +9,7 @@ import json
 import sqlite3
 import statistics
 
+import procontract_h_admission as h_admission
 import procontract_proposal_scope as proposal_scope
 import procontract_store as store
 
@@ -90,6 +91,10 @@ def confirm(host, candidate, incumbent):
     if state and state["standing"] == "discharged":
         return "confirmed and adopted"
     host.validate_evaluator()
+    try:
+        h_admission.check(host, candidate, incumbent, freeze=True)
+    except h_admission.Inconclusive as error:
+        return str(error)
     plan = confirmation_plan(host, candidate)
     if plan is not None and plan.get("class") == "paired_updater_v1":
         raise RuntimeError(
@@ -213,6 +218,20 @@ def adopt(host, candidate, presumed=False):
         raise RuntimeError("adoption needs a frozen confirmation assignment")
     if plan is not None and host.incumbent() != plan["incumbent"]:
         raise RuntimeError("the confirmation incumbent is no longer authorized")
+    if h_admission.enabled(host):
+        if bootstrap:
+            if (
+                plan is not None
+                or set(host.versions()) != {candidate}
+                or host.versions()[candidate]["lineage"]
+                != {"parent": None, "proposed_by": "operator"}
+                or incumbent_record(host) is not None
+            ):
+                raise RuntimeError(
+                    "only the first operator root may bootstrap an H episode"
+                )
+        else:
+            h_admission.check(host, candidate, plan["incumbent"])
     # Support names frozen bytes. Verify them before first publication, not when replaying an
     # already settled decision: historical adoption remains readable after artifact cleanup.
     host.validate_harness(candidate)
