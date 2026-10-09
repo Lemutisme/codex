@@ -100,7 +100,7 @@ class EvidenceTests(unittest.TestCase):
         meta, raw = next(
             (meta, raw)
             for meta, raw in pack._sources.values()
-            if meta["path"] == "compile.sh"
+            if meta["kind"] == "submission" and meta["encoding"] == "utf8" and raw
         )
         citation = dict(
             file_id=meta["file_id"],
@@ -256,23 +256,77 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.validate(pack, result)
 
-    def test_missing_or_failed_clean_build_explicitly_blocks(self):
-        for clean, unknown in (
-            (None, "clean_build_unavailable"),
-            ({**self.build, "returncode": 1}, "clean_build_failed"),
-        ):
-            pack = evidence.build_pack(
-                self.path,
-                digest(self.raw),
-                commands=self.commands,
-                proof=self.proof,
-                clean_build=clean,
-            )
-            self.deliver(pack)
-            receipt = self.validate(pack, self.result(pack))
-            self.assertEqual(
-                (receipt["accepted"], receipt["evidence_unknown"]), (False, [unknown])
-            )
+    def test_missing_authenticated_build_evidence_still_blocks(self):
+        pack = evidence.build_pack(
+            self.path,
+            digest(self.raw),
+            commands=self.commands,
+            proof=self.proof,
+            clean_build=None,
+        )
+        self.deliver(pack)
+        receipt = self.validate(pack, self.result(pack))
+        self.assertEqual(
+            (receipt["accepted"], receipt["evidence_unknown"]),
+            (False, ["clean_build_unavailable"]),
+        )
+
+    def test_failed_build_and_missing_compile_script_remain_auditable(self):
+        for missing_script in (False, True):
+            with self.subTest(missing_script=missing_script):
+                if missing_script:
+                    self.path.write_bytes(
+                        archive(
+                            [
+                                ("main.rs", b"fn main() {}", tarfile.REGTYPE),
+                            ]
+                        )
+                    )
+                self.build.update(returncode=1, output="candidate build failed")
+                pack = self.pack()
+                self.deliver(pack)
+                result = self.result(pack)
+                self.assertIn("authenticated_build_attempt", result["requirements"])
+                receipt = self.validate(pack, result)
+                self.assertEqual(
+                    (receipt["accepted"], receipt["evidence_unknown"]),
+                    (True, []),
+                )
+                build = next(
+                    raw
+                    for meta, raw in pack._sources.values()
+                    if meta["kind"] == "clean_build"
+                )
+                self.assertEqual(json.loads(build), self.build)
+
+    def test_merit_fields_cannot_override_a_cited_policy_violation(self):
+        self.commands = [
+            dict(command="python3 -m pip install --no-index package", exit_code=0)
+        ]
+        pack = self.pack()
+        self.deliver(pack)
+        result = self.result(pack)
+        meta, raw = next(
+            (meta, raw)
+            for meta, raw in pack._sources.values()
+            if meta["kind"] == "commands"
+        )
+        result["requirements"]["no_install_or_external_network"] = dict(
+            status="violation",
+            citations=[
+                dict(
+                    file_id=meta["file_id"],
+                    sha256=meta["sha256"],
+                    start=0,
+                    end=len(raw),
+                    quote=raw.decode(),
+                )
+            ],
+        )
+        self.assertFalse(self.validate(pack, result)["accepted"])
+        result["pass_rate"] = 1.0
+        with self.assertRaises(ValueError):
+            self.validate(pack, result)
 
     def test_read_json_escaping_unicode_and_arbitrary_ranges_remain_bounded(self):
         raw = ('\\"\n\x00☃🙂' * 1500).encode()
@@ -385,9 +439,6 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.pack()
         del self.build["hidden_test_feedback"]
-        self.path.write_bytes(archive([("main.rs", b"fn main() {}", tarfile.REGTYPE)]))
-        with self.assertRaises(ValueError):
-            self.pack()
 
     def test_all_hard_caps_fail_closed_without_partial_pack(self):
         for name, bound in (

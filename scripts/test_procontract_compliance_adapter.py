@@ -375,6 +375,64 @@ class AssemblyTests(unittest.TestCase):
         self.assertEqual(replay.digest, pack.digest)
         self.assertEqual(replay_receipt, receipt)
 
+    def test_authenticated_valid_zero_compile_failure_is_not_reclassified(self):
+        # The trusted canonical caller supplies validity/score. This fixture does not
+        # claim the historical canonical scorer already admits real compile failures.
+        self.result.update(validity="valid", pass_rate=0.0, score="0")
+        self.write(self.run.parent / "result.json", self.result)
+        raw = archive([("main.rs", b"fn main() {}", tarfile.REGTYPE)])
+        (self.run / "submission.tar.gz").write_bytes(raw)
+        self.write(self.run / "submission-receipt.json", {"sha256": digest(raw)})
+        path = self.eval_dir / f"{self.task}.eval.json"
+        self.write(
+            path,
+            dict(
+                log=[
+                    dict(
+                        step="compile",
+                        command="chmod +x ./compile.sh && ./compile.sh",
+                        returncode=1,
+                        output="chmod: compile.sh: No such file or directory",
+                    )
+                ]
+            ),
+        )
+        self.canonical.validate_receipt.return_value.update(
+            submission_sha256=digest(raw),
+            raw_eval_sha256=digest(path.read_bytes()),
+        )
+        result_before = (self.run.parent / "result.json").read_bytes()
+        pack, _ = self.assemble()
+        self.host.validate_evaluator.assert_called_once_with(self.result)
+        self.assertEqual(pack.unknown, ())
+        self.assertEqual((self.run.parent / "result.json").read_bytes(), result_before)
+        self.assertEqual(
+            [
+                meta["path"]
+                for meta, _ in pack._sources.values()
+                if meta["kind"] == "submission"
+            ],
+            ["main.rs"],
+        )
+        projected = next(
+            raw for meta, raw in pack._sources.values() if meta["kind"] == "clean_build"
+        )
+        self.assertEqual(json.loads(projected)["returncode"], 1)
+
+    def test_infrastructure_invalid_is_not_given_a_zero_score(self):
+        self.result.update(validity="invalid", pass_rate=None, score=None)
+        self.write(self.run.parent / "result.json", self.result)
+        before = (self.run.parent / "result.json").read_bytes()
+        with self.assertRaises(adapter.EvidenceUnavailable):
+            self.assemble()
+        self.assertEqual((self.run.parent / "result.json").read_bytes(), before)
+        self.host.validate_evaluator.assert_not_called()
+        self.result.update(validity="valid", pass_rate=0.0)
+        self.write(self.run.parent / "result.json", self.result)
+        self.canonical.validate_receipt.return_value["exit_code"] = -15
+        with self.assertRaises(adapter.EvidenceUnavailable):
+            self.assemble()
+
     def test_even_ignored_native_bytes_change_private_replay_identity(self):
         pack, receipt = self.assemble()
         with (self.run / "app-server.jsonl").open("ab") as stream:

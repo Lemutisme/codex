@@ -31,7 +31,7 @@ REQUIREMENTS = (
     "listed_build_runtime_only",
     "no_install_or_external_network",
     "no_reference_content_or_reuse",
-    "clean_build_from_submission",
+    "authenticated_build_attempt",
 )
 STATUSES = ("supported_within_evidence", "violation", "unknown")
 HEX = re.compile(r"[0-9a-f]{64}")
@@ -307,10 +307,7 @@ class EvidencePack:
         _require(
             _sha(submission_sha256)
             and isinstance(unknown, list)
-            and all(
-                item in ("clean_build_unavailable", "clean_build_failed")
-                for item in unknown
-            )
+            and all(item == "clean_build_unavailable" for item in unknown)
             and len(unknown) <= 1,
             "invalid pack identity or unknown status",
         )
@@ -461,6 +458,9 @@ def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_bu
 
     Command records have exactly command/exit_code fields, without output or scores.
     The caller must supply the complete top-level command sequence, not model summaries.
+    Missing compile.sh or nonzero compile status is performance evidence, not automatic
+    noncompliance. Canonical validity remains the caller's authenticated prerequisite;
+    this pack neither changes validity nor supplies a replacement score.
     """
     raw = _read(archive, MAX_ARCHIVE)
     _require(
@@ -468,10 +468,6 @@ def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_bu
         "canonical submission digest differs",
     )
     sources = _archive(raw)
-    _require(
-        any(kind == "submission" and path == "compile.sh" for kind, path, _ in sources),
-        "submission lacks compile.sh",
-    )
     _require(
         isinstance(commands, list) and len(commands) <= 4096,
         "command inventory exceeds bound",
@@ -513,8 +509,6 @@ def build_pack(archive, expected_submission_sha256, *, commands, proof, clean_bu
             and _sha(clean_build["eval_sha256"]),
             "invalid clean-build projection",
         )
-        if clean_build["returncode"] != 0:
-            unknown.append("clean_build_failed")
         sources.append(
             ("clean_build", "host-canonical-compile.json", _json(clean_build).encode())
         )
