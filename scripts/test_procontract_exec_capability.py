@@ -176,15 +176,163 @@ class ExecCapabilityTest(unittest.TestCase):
             "candidate-ok",
         )
 
+    def test_unlisted_nl_is_denied_for_build_runtime_principal_and_descendants(self):
+        direct = self.invoke([self.nl, "--version"])
+        self.assertNotEqual(direct.returncode, 0)
+        self.assertIn("not an executable grant", direct.stderr)
+        shell = self.invoke(
+            [
+                self.bash,
+                "-c",
+                f"{self.nl} --version; s=$?; test $s -ne 0 || exit 1; printf denied",
+            ]
+        )
+        self.successful(shell, "denied")
+        self.assertIn("Permission denied", shell.stderr)
+        python = self.python_run(
+            f"import subprocess;\ntry: subprocess.run([{str(self.nl)!r}])\nexcept PermissionError: print('denied')\nelse: raise AssertionError('unlisted runtime executable ran')"
+        )
+        self.successful(python, "denied")
+        self.successful(
+            self.python_run(
+                "import subprocess;\ntry: subprocess.run(['nl'])\nexcept PermissionError: print('denied-by-capability')\nelse: raise AssertionError('unlisted nl name resolved and ran')"
+            ),
+            "denied-by-capability",
+        )
+        background = self.invoke(
+            [
+                self.bash,
+                "-c",
+                f'( {self.nl}; echo $? > "$TMPDIR/status" ) & wait; read s < "$TMPDIR/status"; test "$s" -ne 0 || exit 1; printf inherited',
+            ]
+        )
+        self.successful(background, "inherited")
 
+    def test_unlisted_file_cannot_be_copied_or_read_by_explicit_dynamic_loader(self):
+        result = self.python_run(
+            f"import os,shutil,subprocess;\ntry: shutil.copyfile({str(self.nl)!r}, os.environ['TMPDIR']+'/clone')\nexcept PermissionError: pass\nelse: raise AssertionError('unlisted executable was readable')\np=subprocess.run([{str(self.loader)!r},{str(self.nl)!r}],capture_output=True,text=True)\nassert p.returncode != 0 and 'Permission denied' in p.stderr, p\nprint('blocked')"
+        )
+        self.successful(result, "blocked")
 
+    def test_candidate_is_immutable_while_scratch_is_writable_but_not_executable(self):
+        before = self.candidate.read_bytes()
+        result = self.python_run(
+            f"import os,shutil,subprocess;\ntry: open({str(self.candidate)!r},'wb')\nexcept PermissionError: pass\nelse: raise AssertionError('candidate mutable')\np=os.environ['TMPDIR']+'/copy'\nshutil.copyfile({str(self.candidate)!r},p); os.chmod(p,0o755)\ntry: subprocess.run([p])\nexcept PermissionError: print('separated')\nelse: raise AssertionError('scratch executable ran')"
+        )
+        self.successful(result, "separated")
+        self.assertEqual(self.candidate.read_bytes(), before)
 
+    def test_candidate_truncate_link_and_rename_cannot_cross_into_scratch(self):
+        before = self.candidate.read_bytes()
+        try:
+            script = f"import os,errno; p={str(self.candidate)!r}; s=os.environ['TMPDIR']; os.chmod(p,0o755)\nfor op in [lambda:os.open(p,os.O_RDONLY|os.O_TRUNC),lambda:os.link(p,s+'/alias'),lambda:os.rename(p,s+'/moved')]:\n try: op()\n except OSError as e: assert e.errno in (errno.EACCES,errno.EPERM,errno.EXDEV), e\n else: raise AssertionError('immutable input changed')\nprint('immutable')"
+            self.successful(self.python_run(script), "immutable")
+            self.assertEqual(self.candidate.read_bytes(), before)
+        finally:
+            self.candidate.chmod(0o555)
 
+    def test_inherited_file_descriptor_is_closed_before_granted_python(self):
+        with self.nl.open("rb") as inherited:
+            result = self.python_run(
+                f"import os,errno;\ntry: os.read({inherited.fileno()},1)\nexcept OSError as error: assert error.errno == errno.EBADF\nelse: raise AssertionError('inherited descriptor readable')\nprint('closed')",
+                pass_fds=(inherited.fileno(),),
+            )
+        self.successful(result, "closed")
 
+    def test_tcp_loopback_is_not_silently_disabled(self):
+        result = self.python_run(
+            "import socket; s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(); c=socket.socket(); c.connect(s.getsockname()); a,_=s.accept(); c.sendall(b'ok'); assert a.recv(2)==b'ok'; a.close(); c.close(); s.close(); print('loopback')"
+        )
+        self.successful(result, "loopback")
 
+    def test_fd_import_socketpair_and_memfd_profiles_are_refused(self):
+        script = "import socket,os,errno\nfor op in [lambda:socket.socket(socket.AF_UNIX),socket.socketpair,lambda:os.memfd_create('bytes')]:\n try: op()\n except OSError as e: assert e.errno == errno.EPERM, e\n else: raise AssertionError('unsupported FD import profile allowed')\nprint('refused')"
+        self.successful(self.python_run(script), "refused")
 
+    def test_pseudo_filesystem_grants_fail_before_command_execution(self):
+        result = self.invoke(
+            [self.echo, "UNSAFE"], extra=["--read", f"/proc/{os.getpid()}/status"]
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("filesystem", result.stderr)
 
+    def test_stdio_rejects_regular_files_and_sockets(self):
+        import socket
 
+        with (self.case / "output").open("w") as output:
+            result = subprocess.run(
+                self.arguments([self.candidate]),
+                input="",
+                stdout=output,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("stdio", result.stderr)
+        left, right = socket.socketpair()
+        with left, right:
+            result = subprocess.run(
+                self.arguments([self.candidate]),
+                stdin=left,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("stdio", result.stderr)
+
+    def test_explicit_pty_slave_works_but_default_and_master_are_rejected(self):
+        import pty
+
+        master, slave = pty.openpty()
+        try:
+            for fd, extra in ((slave, []), (master, ["--pty-stdio"])):
+                result = subprocess.run(
+                    self.arguments([self.candidate], extra=extra),
+                    stdin=fd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                    timeout=15,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("stdio", result.stderr)
+            result = subprocess.run(
+                self.arguments(
+                    [self.bash, "-c", 'printf "%s\\n" "$TERM"'],
+                    extra=["--pty-stdio", "--term", "xterm"],
+                ),
+                stdin=slave,
+                stdout=slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(os.read(master, 128), b"xterm\r\n")
+            script = "import fcntl,termios,errno\ntry: fcntl.ioctl(0,termios.TIOCSTI,b'x')\nexcept OSError as e: assert e.errno == errno.EPERM\nelse: raise AssertionError('TTY input injection permitted')\nprint('no-injection')"
+            result = subprocess.run(
+                self.arguments(
+                    [self.python, "-I", "-S", "-B", "-c", script], extra=["--pty-stdio"]
+                ),
+                stdin=slave,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            self.successful(result, "no-injection")
+        finally:
+            os.close(master)
+            os.close(slave)
 
     def test_registered_rust_runs_but_command_nl_is_denied(self):
         compilers = sorted((Path.home() / ".rustup/toolchains").glob("*/bin/rustc"))
