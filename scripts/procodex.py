@@ -174,6 +174,7 @@ def main(argv=None):
         return 0
     env = dict(os.environ)
     env["CODEX_HOME"] = str(home)
+    env["CODEX_SQLITE_HOME"] = str(home)
     env.pop("CODEX_ROLLOUT_TRACE_ROOT", None)
     provider = config.get("model_providers", {}).get(config["model_provider"], {})
     if provider.get("env_key", "OPENAI_API_KEY") == "OPENAI_API_KEY":

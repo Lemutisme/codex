@@ -40,6 +40,9 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(
             config["model_providers"], tomllib.loads(self.raw)["model_providers"]
         )
+        self.assertEqual(
+            (config["sqlite_home"], config["log_dir"]), (str(home), str(home / "log"))
+        )
         self.assertNotIn("notify", config)
         self.assertNotIn("mcp_servers", config)
         self.assertEqual(

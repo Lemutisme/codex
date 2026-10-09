@@ -101,6 +101,8 @@ def configure(
     if any(path.is_symlink() for path in (home, *home.parents)):
         raise ValueError("redirected ProCodex workspace state")
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    config["sqlite_home"] = str(home)
+    config["log_dir"] = str(home / "log")
     docker_args = [
         "run",
         "-i",
