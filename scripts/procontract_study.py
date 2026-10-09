@@ -133,12 +133,18 @@ def _store_bin():
 
 def mandatory_paths(terms, host_python, store_bin):
     """Recompute the required inventory from trusted code/terms, never manifest file keys."""
+    import procontract_checkpoint as checkpoints
+
     frozen = _registry(terms)
     codex = Path(terms["codex_bin"])
     paths = set(SCRIPTS.glob("*.py"))
     cache = SCRIPTS / "__pycache__"
     if cache.exists():
         paths.update(_tree(cache))
+    checkpoint = checkpoints.from_terms(terms, frozen)
+    if checkpoint is not None:
+        for path in checkpoint.required_paths():
+            paths.update(_tree(path) if path.is_dir() else (path,))
     paths.update(
         SCRIPTS.parent / "codex-rs/ext/pro-contract/policies" / name
         for name in (

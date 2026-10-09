@@ -61,6 +61,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import procontract_attribution as attribution
+import procontract_checkpoint as checkpoints
 import procontract_comparison as comparison
 import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
@@ -216,6 +217,7 @@ class Host:
         if "study" in self.terms or os.path.lexists(self.camp / "study.json"):
             study.verify(self.camp, self.terms, runner=self.runner)
         if "canonical" not in self.terms:
+            self.checkpoint = checkpoints.from_terms(self.terms)
             return
         import procontract_canonical as canonical
 
@@ -225,6 +227,7 @@ class Host:
         ):
             raise ValueError("canonical adapter does not match the campaign terms")
         canonical.validate_identity(self.terms)
+        self.checkpoint = checkpoints.from_terms(self.terms, canonical.registry())
         state = self.contract("campaign")
         if state is not None and state["bindings"]["terms_hash"] != store.digest(
             "terms", self.terms
@@ -790,6 +793,11 @@ class Host:
         if latest := self.latest_insight():
             return latest / "knowledge"
         seed = self.camp / "knowledge-seed"
+        if (
+            self.checkpoint
+            and knowledge_identity(seed) != self.checkpoint.origin["knowledge_digest"]
+        ):
+            raise ValueError("checkpoint knowledge seed changed")
         return seed if seed.is_dir() else None
 
     def pending_experiment(self) -> str | None:
@@ -826,6 +834,7 @@ class Host:
     def write_archive(self, archive: Path, parent: str) -> list[str]:
         """The archive every view shares: versions, observed runs, per-task matrices, attribution,
         completed analyses and the current knowledge. Returns its sources, the run names."""
+        self.validate_evaluator()
         runs = self.observed()
         archive.mkdir(parents=True)
         self.write_readme(archive, parent)
@@ -874,6 +883,28 @@ class Host:
         import procontract_method_confirmation as method_confirmation
 
         method_confirmation.write_feedback(self, archive)
+        inherited = self.checkpoint
+        if inherited is not None:
+            target = archive / "method-trials"
+            target.mkdir(exist_ok=True)
+            for source in inherited.feedback_files:
+                shutil.copyfile(source, target / f"inherited-{source.name}")
+            (target / "checkpoint-origin.json").write_text(
+                json.dumps(
+                    {
+                        "source_method": inherited.origin["source_version"],
+                        "bootstrap_root": next(
+                            vid
+                            for vid, manifest in self.versions().items()
+                            if manifest["lineage"]["parent"] is None
+                        ),
+                        "new_promotion": False,
+                        "meaning": "state migration, not a new earned adoption",
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
         return list(runs)
 
     def write_readme(self, archive: Path, parent: str) -> None:
@@ -1690,7 +1721,13 @@ class Host:
         """Tasks some view or selection has read: the development pool, the spent confirmation tasks
         and the tasks a stream has run."""
         streamed = [task for batch in self.batches() for task in batch["tasks"]]
-        return [*self.terms["pools"]["dev"], *self.used_confirmation_tasks(), *streamed]
+        inherited = self.checkpoint.excluded_tasks if self.checkpoint else ()
+        return [
+            *inherited,
+            *self.terms["pools"]["dev"],
+            *self.used_confirmation_tasks(),
+            *streamed,
+        ]
 
     def boundary(self, files: dict[str, str], changed: list[str]) -> str:
         """Why a changed task-shaping file crosses the boundary, or an empty string. Dossiers carry
@@ -2550,6 +2587,15 @@ def cmd_init(args) -> None:
         sys.exit(
             "canonical studies require registry path, registry SHA-256 and pins SHA-256"
         )
+    if (args.checkpoint is None) != (args.checkpoint_sha256 is None):
+        sys.exit("checkpoint path and manifest SHA-256 are required together")
+    if args.checkpoint is not None and args.knowledge is not None:
+        sys.exit("checkpoint and raw knowledge cannot be combined")
+    checkpoint = (
+        checkpoints.load(args.checkpoint, args.checkpoint_sha256)
+        if args.checkpoint is not None
+        else None
+    )
     if args.knowledge and (problem := knowledge_problem(args.knowledge)):
         sys.exit(f"the seed knowledge is not acceptable: {problem}")
     if args.instances and args.knowledge:
@@ -2665,6 +2711,8 @@ def cmd_init(args) -> None:
     }
     if stream:
         terms["stream"] = stream
+    if checkpoint is not None:
+        terms["checkpoint"] = {"path": str(checkpoint.root), **checkpoint.descriptor()}
     proposal_scope.editable(terms)
     if args.canonical_registry is not None:
         import procontract_canonical as canonical
@@ -2677,6 +2725,9 @@ def cmd_init(args) -> None:
             "adapter_sha256": canonical.sha256(Path(canonical.__file__).resolve()),
         }
         canonical.validate_identity(terms)
+        checkpoint = checkpoints.from_terms(terms, canonical.registry())
+    else:
+        checkpoint = checkpoints.from_terms(terms)
     if all(value is not None for value in study_limits.values()):
         terms["study"] = study.freeze(camp, terms, study_limits)
         study_budget.initialize(
@@ -2685,14 +2736,45 @@ def cmd_init(args) -> None:
             study_limits,
         )
     camp.mkdir(parents=True, exist_ok=True)
-    if args.knowledge:
-        copy_knowledge(args.knowledge, camp / "knowledge-seed")
+    if checkpoint is not None or args.knowledge:
+        copy_knowledge(
+            checkpoint.knowledge if checkpoint is not None else args.knowledge,
+            camp / "knowledge-seed",
+        )
+        if checkpoint is not None:
+            seed = camp / "knowledge-seed"
+            # The export stays read-only; future analysts must be able to update their copies.
+            for path in (seed, *seed.rglob("*")):
+                path.chmod(path.stat().st_mode | 0o200)
     (camp / "campaign.json").write_text(json.dumps(terms, indent=2) + "\n")
     host = Host(camp)
     host.issue("campaign", terms, {"class": "campaign_report"}, "human")
     v0 = host.register(
-        V0_BUNDLE, None, "operator", "Version 0: the shipped policy bundle.\n"
+        checkpoint.bundle if checkpoint is not None else V0_BUNDLE,
+        None,
+        "operator",
+        "Checkpoint bootstrap: the settled source bundle; state migration, not a new earned adoption.\n"
+        if checkpoint is not None
+        else "Version 0: the shipped policy bundle.\n",
     )
+    if checkpoint is not None:
+        host.record(
+            "selection",
+            {
+                "role": "checkpoint_bootstrap",
+                "origin": checkpoint.origin,
+                "version": v0,
+            },
+        )
+        host.record(
+            "exposure",
+            {
+                "view": "checkpoint:inherited",
+                "sources": list(checkpoint.excluded_tasks),
+                "operator_exposed_tasks": list(checkpoint.operator_exposed_tasks),
+                "manifest_sha256": args.checkpoint_sha256,
+            },
+        )
     adoption = f"adoption.{v0[:16]}"
     host.issue(
         adoption,
@@ -2702,7 +2784,12 @@ def cmd_init(args) -> None:
     )
     host.propose(adoption, v0)
     host.support(
-        adoption, {"bootstrap": "operator-seeded"}, {"operator": True}, "within"
+        adoption,
+        {"bootstrap": "operator-checkpoint-migration", "origin": checkpoint.origin}
+        if checkpoint is not None
+        else {"bootstrap": "operator-seeded"},
+        {"operator": True},
+        "within",
     )
     host.adopt(v0)
     # The sealed confirmation tasks stay sealed: only their count and commitment are shown.
@@ -3000,6 +3087,12 @@ def main() -> None:
         "--knowledge",
         type=Path,
         help="a directory of UTF-8 text, at most 512 KiB, that seeds the campaign's knowledge",
+    )
+    init.add_argument(
+        "--checkpoint", type=Path, help="operator-pinned settled state migration"
+    )
+    init.add_argument(
+        "--checkpoint-sha256", help="externally pinned checkpoint MANIFEST SHA-256"
     )
     step = sub.add_parser("step")
     step.add_argument("--camp", type=Path, required=True)

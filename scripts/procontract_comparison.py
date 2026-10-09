@@ -7,6 +7,30 @@ from procontract_succession import task_attempt_limit
 
 def validate_comparison(stream, baseline) -> None:
     """Reject comparisons that change the committed experiment or its fixed control."""
+    from procontract_rsi import knowledge_identity
+
+    checkpoints = [
+        {
+            key: value
+            for key, value in host.terms.get("checkpoint", {}).items()
+            if key != "path"
+        }
+        for host in (stream, baseline)
+    ]
+    if checkpoints[0] != checkpoints[1]:
+        raise ValueError("comparison identity differs: checkpoint seed")
+    seeds = []
+    for host in (stream, baseline):
+        path = host.camp / "knowledge-seed"
+        digest = knowledge_identity(path if path.exists() else None)
+        if (
+            "checkpoint" in host.terms
+            and digest != host.terms["checkpoint"]["knowledge_digest"]
+        ):
+            raise ValueError("comparison knowledge seeds differ from checkpoint")
+        seeds.append(digest)
+    if seeds[0] != seeds[1]:
+        raise ValueError("comparison knowledge seeds differ")
     if task_attempt_limit(stream.terms) != task_attempt_limit(baseline.terms):
         raise ValueError("comparison identity differs: task_attempts")
     for name, default in (
