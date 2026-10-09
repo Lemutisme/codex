@@ -60,12 +60,23 @@ def prepare(args):
     return descriptor
 
 
+def prepare_trace(run_dir, manifest):
+    """Derive an optional private observer only from already sealed study terms."""
+    if manifest.get("study") is not None:
+        import procontract_native_trace_binding as native_trace
+
+        _, terms = _campaign(manifest["study"])
+        native_trace.prepare(run_dir, manifest, terms)
+
+
 def authorize(args, manifest, profile):
     """A committed reservation authorizes only this invocation; replay is never free."""
     descriptor = manifest.get("study")
     if descriptor is None:
         if _enclosing_study(args.run_dir.resolve()) is not None:
             raise RuntimeError("sealed campaign runner cannot omit its study identity")
+        if "native_notice_trace" in manifest:
+            raise RuntimeError("native trace requires a sealed study")
         return None
     camp, terms = _campaign(descriptor)
     seal = study.verify(camp, terms)
@@ -207,6 +218,11 @@ def authorize(args, manifest, profile):
         admission = h_admission.authorize_task(host, run_dir, manifest)
         if admission is not None:
             identity["h_admission"] = admission["digest"]
+    import procontract_native_trace_binding as native_trace
+
+    trace = native_trace.provision(run_dir, manifest, terms)
+    if trace is not None:
+        identity["native_notice_trace"] = trace
     receipt = budget.reserve(
         camp / "study-budget.sqlite",
         descriptor["manifest_sha256"],

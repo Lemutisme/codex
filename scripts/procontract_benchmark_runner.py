@@ -225,11 +225,14 @@ def app_server_command(codex_bin: Path, arm: str) -> list[str]:
 
 def server_env(run_dir: Path, base: dict) -> dict:
     """The host environment with CODEX_HOME and HOME confined to the run directory."""
-    return {
+    env = {
         **base,
         "CODEX_HOME": str(run_dir / "codex-home"),
         "HOME": str(run_dir / "home"),
     }
+    # Only the authenticated future profile may enable private bounded tracing.
+    env.pop("CODEX_ROLLOUT_TRACE_ROOT", None)
+    return env
 
 
 def read_status(ledger: Path, thread_id: str) -> dict | None:
@@ -407,6 +410,7 @@ class AppServer:
         )
         self.messages: queue.Queue[dict] = queue.Queue()
         self._next_id = 0
+        self.notice_observer = None
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self) -> None:
@@ -436,8 +440,20 @@ class AppServer:
         """Sends a request; other messages that arrive meanwhile go to `handle`."""
         self._next_id += 1
         request_id = self._next_id
-        self._send({"id": request_id, "method": method, "params": params})
-        deadline = time.monotonic() + timeout
+        message = {"id": request_id, "method": method, "params": params}
+        observer = vars(self).get("notice_observer")
+        if observer is not None and method == "turn/steer":
+            deadline = min(time.monotonic() + timeout, observer.latest_dispatch)
+            observer.before_send(message)
+            if time.monotonic() >= deadline:
+                observer.dispatch_skipped = True
+                raise TimeoutError(
+                    "notice observation exhausted the existing dispatch window"
+                )
+            self._send(message)
+        else:
+            self._send(message)
+            deadline = time.monotonic() + timeout
         while (remaining := deadline - time.monotonic()) > 0:
             try:
                 message = self.messages.get(timeout=min(1.0, remaining))
@@ -575,6 +591,7 @@ def prepare(args: argparse.Namespace) -> None:
         }
     if study is not None:
         manifest.update(study=study, study_version=args.policy.parent.name)
+    study_launch.prepare_trace(run_dir, manifest)
     (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))
 
@@ -635,6 +652,12 @@ def run(args: argparse.Namespace) -> None:
 
     # All task and research roles converge here. Cached Host results never reserve again.
     launch = study_launch.authorize(args, manifest, sys.modules[__name__])
+    observer = None
+    if "native_notice_trace" in manifest:
+        import procontract_native_trace_binding as trace_binding
+
+        env[trace_binding.ENV] = str(run_dir / trace_binding.ROOT)
+        observer = trace_binding.Observer(run_dir, manifest, latest_dispatch=0)
     server = AppServer(
         app_server_command(args.codex_bin, args.arm),
         env,
@@ -643,6 +666,14 @@ def run(args: argparse.Namespace) -> None:
         cwd=run_dir,
     )
     started = time.monotonic()
+    if observer is not None:
+        reserve = (
+            min(60, args.deadline_secs // 10)
+            if program and program.action == "checkpoint"
+            else 0
+        )
+        observer.latest_dispatch = started + args.deadline_secs - reserve
+        server.notice_observer = observer
     turns = TurnTracker()
     health = ExecutionHealth()
     activity = ExecutorActivity()
@@ -698,6 +729,8 @@ def run(args: argparse.Namespace) -> None:
         )
         thread_id = thread["thread"]["id"]
         turns.thread_id = thread_id
+        if observer is not None:
+            observer.thread_id = thread_id
         summary["thread_id"] = thread_id
         server.request(
             "turn/start",
@@ -803,6 +836,10 @@ def run(args: argparse.Namespace) -> None:
             if isinstance(closed, dict)
             else {"status": "unknown", "returncode": None, "shutdown": "stdin_closed"}
         )
+        if observer is not None:
+            summary["native_notice_trace"] = observer.after_run(
+                budget.summary(), closed
+            )
         readable(run_dir / "workspace", manifest["image"])
         (run_dir / "run.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))
