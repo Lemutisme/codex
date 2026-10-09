@@ -207,6 +207,35 @@ class DependencyPolicyTest(unittest.TestCase):
             ):
                 policy.render_prompt(self.allowed, policy_name=name)
 
+    def test_future_reference_location_rule_requires_new_prompt_and_manifest_pins(self):
+        old_rule = b"Do not overwrite or delete the reference while working; build to another location."
+        new_rule = (
+            b"Do not overwrite, delete, or move the original reference while working; keep it at\n"
+            b"./executable and build to another location."
+        )
+        legacy = policy.load(self.path, self.write(), self.tasks)
+        self.assertIn(old_rule, legacy.prompt())
+        self.assertNotIn(new_rule, legacy.prompt())
+        prompt = policy.render_prompt(
+            self.allowed, policy_name=policy.BUILD_RUNTIME_POLICY
+        )
+        self.assertIn(new_rule, prompt)
+        previous = prompt.replace(new_rule, old_rule, 1)
+        self.document.update(
+            policy=policy.BUILD_RUNTIME_POLICY,
+            prompt_sha256=hashlib.sha256(previous).hexdigest(),
+        )
+        with self.assertRaisesRegex(ValueError, "prompt digest differs"):
+            policy.load(self.path, self.write(), self.tasks)
+        self.document["prompt_sha256"] = hashlib.sha256(prompt).hexdigest()
+        updated = policy.load(self.path, self.write(), self.tasks)
+        terms = self.terms(updated)
+        updated.validate_campaign(terms)
+        Path(terms["task_prompt"]).write_bytes(previous)
+        terms["task_prompt_sha256"] = hashlib.sha256(previous).hexdigest()
+        with self.assertRaisesRegex(ValueError, "campaign prompt differs"):
+            updated.validate_campaign(terms)
+
     def test_closed_schema_task_and_image_inventory(self):
         original = copy.deepcopy(self.document)
         mutations = [

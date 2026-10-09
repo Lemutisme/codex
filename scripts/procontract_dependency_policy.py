@@ -172,7 +172,8 @@ You are in /workspace. It contains program documentation and ./executable, the
 compiled reference implementation. During exploration only, you may execute the
 reference as a black box to observe behavior. Do not read, copy, disassemble,
 decompile, reuse, or invoke the reference from your implementation or compile.sh.
-Do not overwrite or delete the reference while working; build to another location.
+Do not overwrite, delete, or move the original reference while working; keep it at
+./executable and build to another location.
 
 Match the reference's command-line interface, standard output, standard error, exit
 codes, and observable behavior. Write source code in /workspace and provide
