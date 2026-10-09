@@ -74,6 +74,7 @@ from procontract_insight_protocol import SOURCES
 import procontract_outcomes as outcome_matrix
 import procontract_proposal_scope as proposal_scope
 import procontract_release as release
+import procontract_runtime_feedback as runtime_feedback
 import procontract_store as store
 import procontract_study as study
 import procontract_study_budget as study_budget
@@ -736,8 +737,10 @@ class Host:
         runs = {}
         for path in sorted((self.camp / "runs").glob("*/result.json")):
             result = json.loads(path.read_text())
-            if result["validity"] == "valid" and (
-                result["purpose"] in ("dev", "stream") or result["task"] in spent
+            if (
+                result["validity"] == "valid"
+                and result["purpose"] != "baseline"
+                and (result["purpose"] in ("dev", "stream") or result["task"] in spent)
             ):
                 runs[path.parent.name] = result
         return runs
@@ -769,6 +772,7 @@ class Host:
         (partial / "failures.txt").write_text(result.get("failures", ""))
         summary = {k: v for k, v in result.items() if k not in ("label", "failures")}
         summary["trajectory"] = stats
+        summary["runtime_receipt"] = runtime_feedback.read(run_dir)
         summary["final"] = {"copied": len(copied), "omitted": omitted}
         (partial / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
         partial.rename(dest)
