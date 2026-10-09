@@ -77,7 +77,7 @@ def _read(path, limit):
 
 def validate_allowed(allowed):
     """Return canonical (name, kind, uses) tuples; permit no free-form instructions."""
-    _require(isinstance(allowed, list) and 1 <= len(allowed) <= 32, "invalid allowlist")
+    _require(isinstance(allowed, list) and 1 <= len(allowed) <= 64, "invalid allowlist")
     result = {}
     for item in allowed:
         _require(
@@ -142,11 +142,20 @@ def render_prompt(allowed):
 Implement the program from scratch in Rust. Rust's standard library is permitted.
 Only the external tools and libraries listed above may be used, and only for their
 listed uses. They must already exist in the pinned cleanroom image. A use permitted
-for exploration is not permission to use it at build time or runtime. No network
-access, downloads, dependency installation (including offline installation), or
+for exploration is not permission to use it at build time or runtime. No external
+network access, downloads, dependency installation (including offline installation), or
 vendoring of pre-existing implementation code is allowed. Do not use other external
 crates, libraries, tools, or programs as implementation dependencies. This permission
 does not permit reuse of the reference program or its source code.
+
+Rust's standard library and a permitted tool include their normal preinstalled
+runtime/toolchain components; this does not permit adding packages or directly using
+other third-party libraries from your implementation. Shell builtins belong to the
+listed shell. Local loopback communication is permitted for probing or implementing
+the documented interface, not external access or downloads. Processing caller data
+or executing a caller-supplied command, when required by that interface, is program
+behavior rather than an implementation dependency. Never use this distinction to
+delegate your implementation to the reference or to a hard-coded unlisted program.
 
 You are in /workspace. It contains program documentation and ./executable, the
 compiled reference implementation. During exploration only, you may execute the

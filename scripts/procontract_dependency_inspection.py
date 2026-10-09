@@ -118,7 +118,7 @@ def verify_image(policy, image):
     ):
         raise ValueError("dependency inspection requires an allowlisted image ID")
     expected = policy.items(image)
-    if not isinstance(expected, dict) or not 0 < len(expected) <= 32:
+    if not isinstance(expected, dict) or not 0 < len(expected) <= 64:
         raise ValueError("dependency inspection artifact inventory is invalid")
     for key, value in expected.items():
         if (

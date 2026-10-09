@@ -85,6 +85,26 @@ class DependencyPolicyTest(unittest.TestCase):
             for n in range(32)
         ]
         self.assertLessEqual(len(policy.render_prompt(maximal)), 7500)
+        wider = [
+            {"name": f"tool{i}", "kind": "tool", "uses": list(policy.USES)}
+            for i in range(64)
+        ]
+        self.assertLessEqual(len(policy.render_prompt(wider)), 7500)
+        with self.assertRaisesRegex(ValueError, "role limit"):
+            policy.render_prompt(
+                [
+                    {
+                        "name": str(i).zfill(64),
+                        "kind": "library",
+                        "uses": list(policy.USES),
+                    }
+                    for i in range(64)
+                ]
+            )
+        with self.assertRaisesRegex(ValueError, "allowlist"):
+            policy.render_prompt(
+                wider + [{"name": "overflow", "kind": "tool", "uses": ["build"]}]
+            )
 
     def test_campaign_rejects_legacy_rules_and_prompt_tampering(self):
         loaded = policy.load(self.path, self.write(), self.tasks)
