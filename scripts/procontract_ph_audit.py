@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 import statistics
 
-from procontract_ph_protocol import digest, document, raw, require
+from procontract_ph_protocol import METHOD_ROLES, digest, document, raw, require
 
 
 def native_exited(summary):
@@ -21,12 +21,15 @@ def native_exited(summary):
 
 
 class Audit:
-    def __init__(self, host, sealed):
+    def __init__(self, host, sealed, *, episode_profile=None):
         self.host, self.sealed = host, sealed
         self.camp, self.terms = host.camp, host.terms
         self.paid_runs = {}
+        self.fixed_roles = (
+            episode_profile.fixed_roles if episode_profile else METHOD_ROLES
+        )
 
-    def paid(self):
+    def paid(self, *, completed_runs=None):
         import procontract_study_budget as budget
         import procontract_rsi as rsi
 
@@ -49,8 +52,12 @@ class Audit:
             "episode exceeded its maximum task/learning launch envelope",
         )
         self.paid_runs = {}
+        self.reservation_identities = {}
         for key, kind, deadline, encoded, receipt_id, binding in rows:
             run, identity = self.camp / key, json.loads(encoded)
+            self.reservation_identities[str(run)] = identity
+            if completed_runs is not None and str(run) not in completed_runs:
+                continue
             require(
                 run.resolve().is_relative_to(self.camp) and ".." not in Path(key).parts,
                 "paid receipt escapes campaign",
@@ -115,6 +122,11 @@ class Audit:
                 "learning reservation lacks its Host claim",
             )
             self.paid_runs[str(run)] = receipt
+        if completed_runs is not None:
+            require(
+                set(self.paid_runs) == completed_runs, "missing selected paid probe"
+            )
+            return balance
         claims = list(self.camp.glob("insight/*/*/launch-claim.json")) + list(
             self.camp.glob("research/*/launch-claim.json")
         )
@@ -386,9 +398,9 @@ class Audit:
                 all(
                     manifest["bundle"][name]
                     == self.host.versions()[parent]["bundle"][name]
-                    for name in ("analyst.md", "challenger.md", "research.md")
+                    for name in self.fixed_roles
                 ),
-                "method policies changed",
+                "fixed execution or method policies changed",
             )
         return {
             "candidate": candidate,

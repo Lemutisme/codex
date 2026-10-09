@@ -20,10 +20,13 @@ import time
 from procontract_ph_protocol import MAX_BYTES as MAX_BYTES
 from procontract_ph_protocol import PH as PH
 from procontract_ph_protocol import PROTOCOL
+from procontract_ph_protocol import H_PROTOCOL
+from procontract_ph_protocol import EpisodeNotReady
 from procontract_ph_protocol import digest
 from procontract_ph_protocol import document
 from procontract_ph_protocol import plan_path as plan_path
 from procontract_ph_protocol import publish
+from procontract_ph_protocol import profile
 from procontract_ph_protocol import raw
 from procontract_ph_protocol import require
 from procontract_ph_protocol import validate_plan as validate_plan
@@ -213,7 +216,17 @@ class Supervisor:
             == {"plan_path": str(self.args.plan), "plan_sha256": self.args.plan_sha256},
             "operator pins differ from study",
         )
-        validate_plan(self.camp, terms)
+        try:
+            plan = validate_plan(self.camp, terms)
+        except EpisodeNotReady as error:
+            self.terminal.update(
+                protocol=error.profile.protocol,
+                required_admission=error.profile.required_admission,
+                outcome="not_paid_ready",
+            )
+            raise
+        selected = profile(H_PROTOCOL if plan["protocol"] == H_PROTOCOL else PROTOCOL)
+        self.terminal["protocol"] = selected.protocol
         raw_seal = raw(self.camp / "study.json", 16 << 20)
         require(
             hashlib.sha256(raw_seal).hexdigest() == self.args.study_sha256,
@@ -238,7 +251,7 @@ class Supervisor:
         from procontract_ph_audit import Audit
 
         host = rsi.Host(self.camp)
-        audit = Audit(host, sealed)
+        audit = Audit(host, sealed, episode_profile=selected)
         require(
             not host.batches()
             and not host.events("execution")

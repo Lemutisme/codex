@@ -3,10 +3,16 @@
 import hashlib
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
+from procontract_dependency_policy import BUILD_RUNTIME_POLICY
+
 PROTOCOL = "single_candidate_ph_v1"
+H_PROTOCOL = "single_candidate_h_v1"
+H_ADMISSION = "accepted_h_probe_v1"
 PH = {"executor.md", "drafter.md", "prober.md", "reviewer.md", "harness.json"}
+METHOD_ROLES = frozenset(("analyst.md", "challenger.md", "research.md"))
 MAX_BYTES = 512 << 10
 SUPERVISOR = Path(__file__).with_name("procontract_ph_supervisor.py").resolve()
 
@@ -14,6 +20,45 @@ SUPERVISOR = Path(__file__).with_name("procontract_ph_supervisor.py").resolve()
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
+
+
+@dataclass(frozen=True)
+class EpisodeProfile:
+    """Closed episode scope; selecting it does not authorize a paid launch."""
+
+    protocol: str
+    submission_policy: str
+    proposal_kind: str
+    mutable: frozenset[str]
+    fixed_roles: frozenset[str]
+    required_admission: str | None = None
+
+
+def profile(protocol):
+    if protocol == PROTOCOL:
+        return EpisodeProfile(
+            PROTOCOL, "rust-preinstalled-v1", "all", frozenset(PH), METHOD_ROLES
+        )
+    require(protocol == H_PROTOCOL, "unknown sealed episode protocol")
+    return EpisodeProfile(
+        H_PROTOCOL,
+        BUILD_RUNTIME_POLICY,
+        "harness",
+        frozenset(("harness.json",)),
+        METHOD_ROLES | (PH - {"harness.json"}),
+        H_ADMISSION,
+    )
+
+
+class EpisodeNotReady(RuntimeError):
+    """A valid future plan lacks its trusted admission/enforcement integration."""
+
+    def __init__(self, selected):
+        self.profile = selected
+        super().__init__(
+            "H-only supervision is not paid-ready: build/runtime execution evidence "
+            "and the complete study preflight have not been enabled"
+        )
 
 
 def raw(path, limit=MAX_BYTES):
@@ -72,24 +117,32 @@ def plan_path(terms):
     return path
 
 
-def validate_plan(camp, terms):
+def inspect_plan(camp, terms):
+    """Validate an externally pinned profile/plan as DATA, not launch readiness."""
     plan = document(plan_path(terms))
+    require(isinstance(plan, dict), "supervisor plan must be an object")
+    selected = profile(plan.get("protocol"))
     require(
         plan
         == {
             "schema": 1,
-            "protocol": PROTOCOL,
+            "protocol": selected.protocol,
             "campaign": str(camp.resolve()),
             "source_sha256": digest(SUPERVISOR),
             "max_phases": 3,
+            **(
+                {"required_admission": selected.required_admission}
+                if selected.required_admission
+                else {}
+            ),
         },
         "supervisor plan does not bind this episode/source",
     )
     expected = {
         "model": "gpt-5.6-luna",
         "effort": "max",
-        "submission_policy": "rust-preinstalled-v1",
-        "proposal_kind": "all",
+        "submission_policy": selected.submission_policy,
+        "proposal_kind": selected.proposal_kind,
         "adoption": "presumed",
         "task_deadline_secs": 18000,
         "analysis_deadline_secs": 3600,
@@ -99,8 +152,8 @@ def validate_plan(camp, terms):
     stream, gates = terms["stream"], terms["gates"]
     require(
         all(terms.get(key) == value for key, value in expected.items())
-        and set(terms["mutable"]) == PH
-        and len(terms["mutable"]) == len(PH),
+        and set(terms["mutable"]) == selected.mutable
+        and len(terms["mutable"]) == len(selected.mutable),
         "campaign differs from fixed P/H scope",
     )
     require(
@@ -119,4 +172,22 @@ def validate_plan(camp, terms):
         and gates["confirm_min_delta"] == 0.000001,
         "P/H confirmation gate differs",
     )
+    return plan
+
+
+def campaign_profile(camp, terms):
+    """Inspect a declared episode; absence means an ordinary, non-profile campaign."""
+    return (
+        profile(inspect_plan(camp, terms)["protocol"])
+        if "ph_supervisor" in terms
+        else None
+    )
+
+
+def validate_plan(camp, terms):
+    """Paid/init entry: execution-profile readiness must be enabled separately."""
+    plan = inspect_plan(camp, terms)
+    selected = profile(plan["protocol"])
+    if selected.required_admission is not None:
+        raise EpisodeNotReady(selected)
     return plan
