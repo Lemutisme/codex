@@ -288,16 +288,28 @@ class RoutingTest(unittest.TestCase):
 
 
 class PaidReceiptTest(unittest.TestCase):
+    @unittest.skipUnless(supervisor.sys.platform == "linux", "Linux group containment")
     def test_live_child_is_always_one_phase_and_nonzero_exit_is_terminal(self):
         with tempfile.TemporaryDirectory() as directory:
             args = argparse.Namespace(camp=Path(directory), study_sha256="a" * 64)
             controller = supervisor.Supervisor(args)
             controller.root.mkdir()
-            process = mock.Mock(pid=os.getpid())
+            process = mock.Mock(pid=999999)
             process.wait.return_value = 7
-            with mock.patch.object(
-                supervisor.subprocess, "Popen", return_value=process
-            ) as launch:
+            with (
+                mock.patch.object(
+                    supervisor.subprocess, "Popen", return_value=process
+                ) as launch,
+                mock.patch.object(supervisor.os, "getpgid", return_value=process.pid),
+                mock.patch.object(supervisor.os, "getsid", return_value=process.pid),
+                mock.patch.object(
+                    supervisor.os,
+                    "waitid",
+                    return_value=argparse.Namespace(si_code=os.CLD_EXITED, si_status=7),
+                ),
+                mock.patch.object(supervisor.os, "killpg"),
+                mock.patch.object(supervisor.time, "sleep"),
+            ):
                 with self.assertRaisesRegex(RuntimeError, "no retry"):
                     controller.command(1)
             command = launch.call_args.args[0]
@@ -315,6 +327,7 @@ class PaidReceiptTest(unittest.TestCase):
                 ],
             )
             self.assertEqual(launch.call_count, 1)
+            self.assertTrue(launch.call_args.kwargs["start_new_session"])
             self.assertEqual(
                 supervisor.document(controller.root / "phase-1/exit.json")[
                     "returncode"

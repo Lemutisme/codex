@@ -3,6 +3,8 @@
 
 Terminal closure is NOT evidence of H action, submission compliance, isolated H benefit,
 method improvement or general RSI advantage. Those require separate evidence audits.
+Phase process-group containment is Linux-only; escaped sessions and daemon containers
+are not covered. An interrupted or failed phase never authorizes a restart.
 """
 
 import argparse
@@ -26,6 +28,9 @@ from procontract_ph_protocol import raw
 from procontract_ph_protocol import require
 from procontract_ph_protocol import validate_plan as validate_plan
 
+SHUTDOWN_GRACE = 2.0
+SHUTDOWN_WAIT = 5.0
+
 
 def process_identity(pid):
     value = {"pid": pid, "observed_at": time.time()}
@@ -45,6 +50,8 @@ class Supervisor:
     def __init__(self, args):
         self.args, self.camp = args, args.camp.resolve()
         self.root, self.active = self.camp / "ph-supervision", None
+        self.group = self.pending_signal = None
+        self.launching = self.stopping = False
         self.terminal = {
             "schema": 1,
             "protocol": PROTOCOL,
@@ -54,7 +61,57 @@ class Supervisor:
             "automatic_restart": False,
         }
 
+    def interrupted(self, signum, _frame):
+        if self.launching or self.stopping:
+            self.pending_signal = signum
+            return
+        raise InterruptedError(f"signal {signum}; no restart is authorized")
+
+    def shutdown(self):
+        # The leader remains unreaped until both signals: its PID cannot be reused.
+        result = {
+            "scope": "owned_group_only_not_escaped_sessions_or_daemon_containers",
+            "pgid": self.group,
+            "signals": [],
+            "returncode": None,
+        }
+        self.stopping = True
+        try:
+            if self.group is None:
+                result["status"] = "unverified_group_not_signalled"
+                return result
+            for sig in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(self.group, sig)
+                    outcome = "sent"
+                except ProcessLookupError:
+                    outcome = "absent"
+                except OSError as error:
+                    outcome = f"error:{error.errno}"
+                result["signals"].append({"signal": sig.name, "result": outcome})
+                if sig == signal.SIGTERM:
+                    time.sleep(SHUTDOWN_GRACE)
+            try:
+                result["returncode"] = self.active.wait(timeout=SHUTDOWN_WAIT)
+                self.active = None
+            except (subprocess.TimeoutExpired, ChildProcessError):
+                pass
+            result["status"] = (
+                "signals_requested_leader_reaped"
+                if type(result["returncode"]) is int
+                and all(s["result"] in {"sent", "absent"} for s in result["signals"])
+                else "unknown"
+            )
+            return result
+        finally:
+            self.stopping = False
+            self.group = None
+
     def command(self, phase):
+        require(
+            sys.platform == "linux" and hasattr(os, "WNOWAIT"),
+            "live process-group containment requires Linux; no paid launch",
+        )
         directory = self.root / f"phase-{phase}"
         directory.mkdir()
         command = [
@@ -70,15 +127,49 @@ class Supervisor:
         ]
         publish(directory / "intent.json", {"command": command, "at": time.time()})
         with (directory / "stdout.log").open("xb") as log:
-            self.active = subprocess.Popen(
-                command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT
-            )
-            publish(directory / "process.json", process_identity(self.active.pid))
-            code = self.active.wait()
-            self.active = None
+            try:
+                self.launching = True
+                try:
+                    self.active = subprocess.Popen(
+                        command,
+                        stdin=subprocess.DEVNULL,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                    pid = self.active.pid
+                    require(
+                        pid != os.getpid()
+                        and pid != os.getpgrp()
+                        and os.getpgid(pid) == os.getsid(pid) == pid,
+                        "phase group ownership unverified; no retry",
+                    )
+                    self.group = pid
+                finally:
+                    self.launching = False
+                publish(directory / "process.json", process_identity(pid))
+                if self.pending_signal:
+                    self.interrupted(self.pending_signal, None)
+                ended = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
+                code = (
+                    ended.si_status
+                    if ended.si_code == os.CLD_EXITED
+                    else -ended.si_status
+                )
+            finally:
+                if self.active is not None:
+                    cleanup = self.shutdown()
+                    self.terminal["group_cleanup"] = cleanup
+                    publish(directory / "group-cleanup.json", cleanup)
             log.flush()
             os.fsync(log.fileno())
         publish(directory / "exit.json", {"returncode": code, "at": time.time()})
+        if self.pending_signal:
+            self.interrupted(self.pending_signal, None)
+        require(
+            cleanup["status"] == "signals_requested_leader_reaped",
+            "phase group shutdown is unknown; no retry",
+        )
         require(code == 0, "phase exited nonzero; no retry or additional study")
 
     def run(self):
@@ -291,14 +382,10 @@ def main():
     parser.add_argument("--plan-sha256", required=True)
     args = parser.parse_args()
 
-    def interrupted(signum, _frame):
-        raise InterruptedError(
-            f"signal {signum}; child state is not a restart authorization"
-        )
-
-    signal.signal(signal.SIGINT, interrupted)
-    signal.signal(signal.SIGTERM, interrupted)
-    result = Supervisor(args).run()
+    controller = Supervisor(args)
+    signal.signal(signal.SIGINT, controller.interrupted)
+    signal.signal(signal.SIGTERM, controller.interrupted)
+    result = controller.run()
     print(json.dumps({"outcome": result["outcome"], "automatic_restart": False}))
     return 1 if result.get("error") else 0
 
