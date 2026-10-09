@@ -107,6 +107,8 @@ class NativeCommandsTests(unittest.TestCase):
                     scope="observed root command notifications; not complete process/syscall or file-tool capture",
                     thread_id="thread",
                     turn_id="turn",
+                    image_views=[],
+                    typed_mutations=[],
                     commands=1,
                     pending=0,
                     terminal_status="completed",
@@ -337,6 +339,12 @@ class AssemblyTests(unittest.TestCase):
             ),
         )
         self.inspection = SimpleNamespace(validate_receipt=Mock())
+        self.image_reader = Mock(return_value=([], {"schema": 1, "fixture": "bound"}))
+        self.image_patch = patch.object(
+            adapter.image_reads, "collect", self.image_reader
+        )
+        self.image_patch.start()
+        self.addCleanup(self.image_patch.stop)
         self.modules = {
             "procontract_canonical": self.canonical,
             "procontract_dependency_inspection": self.inspection,
@@ -374,6 +382,31 @@ class AssemblyTests(unittest.TestCase):
         replay, replay_receipt = self.assemble()
         self.assertEqual(replay.digest, pack.digest)
         self.assertEqual(replay_receipt, receipt)
+
+    def test_typed_reads_are_independent_and_mandatory_in_future_assembly(self):
+        row = dict(
+            tool="view_image",
+            path="/reference/program",
+            environment_id=None,
+            detail=None,
+            observed_path=None,
+            outcome="error",
+            error="decode failed after reading",
+        )
+        self.image_reader.return_value = ([row], {"schema": 1, "fixture": "bound"})
+        pack, receipt = self.assemble()
+        self.image_reader.assert_called_once()
+        self.assertEqual(self.image_reader.call_args.args[0], self.run)
+        projected = {meta["kind"]: raw for meta, raw in pack._sources.values()}
+        self.assertEqual(json.loads(projected["typed_reads"]), [row])
+        self.assertEqual(
+            json.loads(projected["commands"]),
+            [dict(command="rustc main.rs", exit_code=0)],
+        )
+        self.assertEqual(receipt["typed_reads"], {"schema": 1, "fixture": "bound"})
+        self.image_reader.side_effect = ValueError("missing trace")
+        with self.assertRaises(adapter.EvidenceUnavailable):
+            self.assemble()
 
     def test_authenticated_valid_zero_compile_failure_is_not_reclassified(self):
         # The trusted canonical caller supplies validity/score. This fixture does not

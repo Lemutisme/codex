@@ -1,7 +1,7 @@
 """Read-only authenticated canonical pack assembly, never an adoption/paid-run gate.
 
 Only root-thread native command notifications are projected, not full child-process,
-syscall, or file-tool behavior. Pending starts retain exit_code=None. Private receipts
+syscall behavior. Typed image reads are collected separately from the bound private trace. Pending starts retain exit_code=None. Private receipts
 may identify runs; only the EvidencePack goes to the independent auditor.
 """
 
@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 
 import procontract_compliance_evidence as evidence
+import procontract_native_image_reads as image_reads
+import procontract_native_mutations as mutations
 
 MAX_PROTOCOL = 256 << 20
 MAX_COMPRESSED = 32 << 20
@@ -21,7 +23,6 @@ PASSIVE_ITEMS = frozenset(
         "userMessage",
         "agentMessage",
         "reasoning",
-        "fileChange",
         "plan",
         "contextCompaction",
     )
@@ -53,6 +54,8 @@ def native_commands(raw, *, compressed, thread_id):
     request = response = active = None
     turns = []
     commands, completed, count, command_bytes = {}, set(), 0, 0
+    image_views, image_completed, image_bytes = {}, set(), 0
+    mutation_capture = mutations.Capture()
     try:
         with stream:
             while line := stream.readline(MAX_RECORD + 1):
@@ -94,6 +97,20 @@ def native_commands(raw, *, compressed, thread_id):
                         isinstance(response, str) and response,
                         "missing native turn acknowledgement",
                     )
+                mutation_event = method == "item/fileChange/patchUpdated" or (
+                    method in ("item/started", "item/completed")
+                    and isinstance(params, dict)
+                    and isinstance(params.get("item"), dict)
+                    and params["item"].get("type") == "fileChange"
+                )
+                if not outgoing and mutation_event:
+                    _require(
+                        "id" not in value
+                        and isinstance(params, dict)
+                        and isinstance(params.get("threadId"), str)
+                        and 0 < len(params["threadId"]) <= 160,
+                        "mutation notification has no thread identity",
+                    )
                 if (
                     outgoing
                     or "id" in value
@@ -125,6 +142,20 @@ def native_commands(raw, *, compressed, thread_id):
                         )
                         turns[-1]["status"] = item["status"]
                         active = None
+                elif method == "item/fileChange/patchUpdated":
+                    _require(
+                        active is not None
+                        and params.get("turnId") == active
+                        and set(params) == {"threadId", "turnId", "itemId", "changes"},
+                        "patch update is outside captured lifecycle or malformed",
+                    )
+                    mutation_capture.observe(
+                        turn_id=active,
+                        item_id=params["itemId"],
+                        phase="patch_updated",
+                        status=None,
+                        changes=params["changes"],
+                    )
                 elif method in ("item/started", "item/completed"):
                     item = params.get("item", {})
                     item_turn = params.get("turnId")
@@ -134,9 +165,57 @@ def native_commands(raw, *, compressed, thread_id):
                     )
                     kind = item.get("type")
                     _require(
-                        kind == "commandExecution" or kind in PASSIVE_ITEMS,
+                        kind in ("commandExecution", "imageView", "fileChange")
+                        or kind in PASSIVE_ITEMS,
                         "unsupported native execution mechanism",
                     )
+                    if kind == "fileChange":
+                        _require(
+                            set(item) == {"type", "id", "changes", "status"},
+                            "malformed native file change",
+                        )
+                        mutation_capture.observe(
+                            turn_id=item_turn,
+                            item_id=item["id"],
+                            phase="started"
+                            if method == "item/started"
+                            else "completed",
+                            status=item["status"],
+                            changes=item["changes"],
+                        )
+                        continue
+                    if kind == "imageView":
+                        item_id, path = item.get("id"), item.get("path")
+                        _require(
+                            set(item) == {"type", "id", "path"}
+                            and isinstance(item_id, str)
+                            and 0 < len(item_id) <= 256
+                            and isinstance(path, str)
+                            and 0 < len(path.encode()) <= 4096
+                            and "\0" not in path,
+                            "malformed native image view",
+                        )
+                        key = (item_turn, item_id)
+                        if method == "item/started":
+                            _require(
+                                key not in image_views and len(image_views) < 4096,
+                                "duplicate native image start",
+                            )
+                            image_bytes += len(path.encode()) + len(item_id.encode())
+                            _require(
+                                image_bytes <= evidence.MAX_TYPED_READS,
+                                "image projection exceeds bound",
+                            )
+                            image_views[key] = path
+                        else:
+                            _require(
+                                key in image_views
+                                and key not in image_completed
+                                and image_views[key] == path,
+                                "orphan/conflicting image completion",
+                            )
+                            image_completed.add(key)
+                        continue
                     if kind != "commandExecution":
                         continue
                     item_id, command = item.get("id"), item.get("command")
@@ -180,9 +259,11 @@ def native_commands(raw, *, compressed, thread_id):
             request is not None
             and turns
             and response == turns[0]["id"]
-            and active is None,
+            and active is None
+            and set(image_views) == image_completed,
             "native root lifecycle is incomplete",
         )
+        typed_mutations = mutation_capture.finish()
     except (OSError, EOFError, ValueError, AttributeError, TypeError) as error:
         raise EvidenceUnavailable(
             "native capture is unreadable or malformed"
@@ -191,6 +272,11 @@ def native_commands(raw, *, compressed, thread_id):
         scope="observed root command notifications; not complete process/syscall or file-tool capture",
         thread_id=thread_id,
         turn_id=turns[0]["id"],
+        image_views=[
+            dict(turn_id=turn, id=item, path=path)
+            for (turn, item), path in image_views.items()
+        ],
+        typed_mutations=typed_mutations,
         commands=len(commands),
         turns=turns,
         pending=len(commands) - len(completed),
@@ -287,6 +373,9 @@ def build_run_pack(host, run_dir):
             compressed=log.suffix == ".gz",
             thread_id=summary.get("thread_id"),
         )
+        typed_reads, typed_receipt = image_reads.collect(
+            run, manifest, summary, capture
+        )
         archive = run / "submission.tar.gz"
         submission = evidence._parse(read(run / "submission-receipt.json"), MAX_RECORD)
         _require(
@@ -342,7 +431,13 @@ def build_run_pack(host, run_dir):
             ],
         )
         pack = evidence.build_pack(
-            archive, digest, commands=commands, proof=proof, clean_build=build
+            archive,
+            digest,
+            commands=commands,
+            proof=proof,
+            clean_build=build,
+            typed_reads=typed_reads,
+            typed_mutations=capture["typed_mutations"],
         )
         receipt = dict(
             schema=1,
@@ -350,6 +445,7 @@ def build_run_pack(host, run_dir):
             pack_sha256=pack.digest,
             artifacts=artifacts,
             capture=capture,
+            typed_reads=typed_receipt,
         )
         return pack, receipt
     except EvidenceUnavailable:
