@@ -80,6 +80,11 @@ def authorize(args, manifest, profile):
         return None
     camp, terms = _campaign(descriptor)
     seal = study.verify(camp, terms)
+    import procontract_ph_protocol as protocol
+
+    selected = protocol.campaign_profile(camp, terms)
+    if selected is not None and selected.protocol == protocol.H_PROTOCOL:
+        protocol.validate_plan(camp, terms)
     run_dir = args.run_dir.resolve()
     if not run_dir.is_relative_to(camp) or run_dir == camp:
         raise RuntimeError("study runner lies outside its campaign")

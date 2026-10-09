@@ -537,7 +537,8 @@ class AdmissionTest(unittest.TestCase):
         )
         args = self.preparation(name="fenced-confirmation", run_dir=path)
         args.instance = task
-        with self.transport() as opened:
+        # This synthetic lane tests admission after the separately covered readiness fence.
+        with self.transport() as opened, mock.patch.object(protocol, "validate_plan"):
             launch_fixtures.runner.prepare(args)
             before = self.balance()
             receipt = self.run / "run.json"
@@ -578,7 +579,8 @@ class AdmissionTest(unittest.TestCase):
         )
         args = self.preparation(name="paid-identity", run_dir=path)
         args.instance = task
-        with self.transport() as opened:
+        # Readiness remains disabled in production; only fake transport proceeds here.
+        with self.transport() as opened, mock.patch.object(protocol, "validate_plan"):
             launch_fixtures.runner.prepare(args)
             study_launch.authorize(
                 args, protocol.document(path / "manifest.json"), launch_fixtures.runner

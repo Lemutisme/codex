@@ -212,7 +212,7 @@ def campaign_profile(camp, terms):
 
 
 def validate_plan(camp, terms):
-    """Paid/init entry: execution-profile readiness must be enabled separately."""
+    """Paid entry: free initialization uses inspect_plan, never this readiness gate."""
     plan = inspect_plan(camp, terms)
     selected = profile(plan["protocol"])
     if selected.required_admission is not None:

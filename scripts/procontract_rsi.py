@@ -2762,6 +2762,7 @@ def cmd_init(args) -> None:
         checkpoint = checkpoints.from_terms(terms)
     if supervisor_plan is not None:
         import procontract_episode_init as episode_init
+        import procontract_ph_protocol as protocol
         import procontract_ph_supervisor as supervisor
 
         terms["ph_supervisor"] = {
@@ -2769,7 +2770,9 @@ def cmd_init(args) -> None:
             "plan_sha256": supervisor_sha256,
         }
         episode_init.derive_h_terms(terms)
-        supervisor.validate_plan(camp, terms)
+        plan = protocol.inspect_plan(camp, terms)
+        if plan["protocol"] != protocol.H_PROTOCOL:
+            supervisor.validate_plan(camp, terms)
     if all(value is not None for value in study_limits.values()):
         terms["study"] = study.freeze(camp, terms, study_limits)
         study_budget.initialize(

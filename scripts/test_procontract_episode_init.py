@@ -1,4 +1,4 @@
-"""Free synthetic init reaches the intentional H stop, never transport or provisioning."""
+"""Free synthetic H term derivation reaches sealing, never transport or provisioning."""
 
 import copy
 import json
@@ -16,7 +16,6 @@ import procontract_episode_init as episode_init
 import procontract_fixed_auditor_role as auditor_role
 import procontract_native_trace_binding as trace
 import procontract_ph_protocol as protocol
-import procontract_ph_supervisor as supervisor
 import procontract_rsi as rsi
 from test_procontract_ph_supervisor import plan_terms, write
 
@@ -113,7 +112,7 @@ class EpisodeInitTest(unittest.TestCase):
                 self.camp, {**old, "native_notice_trace": trace.PROFILE}
             )
 
-    def test_cli_init_reaches_not_ready_with_derived_terms_before_seal_budget_or_mount(
+    def test_cli_init_reaches_free_sealing_with_derived_terms_before_any_launch(
         self,
     ):
         self.h()
@@ -166,10 +165,11 @@ class EpisodeInitTest(unittest.TestCase):
             root=self.root / "checkpoint", descriptor=lambda: {"fixture": True}
         )
         inspected = []
+        inspect = protocol.inspect_plan
 
         def validate(camp, terms):
             inspected.append(copy.deepcopy(terms))
-            return protocol.validate_plan(camp, terms)
+            return inspect(camp, terms)
 
         # Resource validation and the two administrative digest commands are synthetic;
         # derivation, CLI wiring and closed-profile validation execute their real paths.
@@ -184,12 +184,16 @@ class EpisodeInitTest(unittest.TestCase):
             mock.patch.object(rsi.checkpoints, "from_terms", return_value=checkpoint),
             mock.patch.object(canonical, "validate_identity"),
             mock.patch.object(canonical, "registry"),
-            mock.patch.object(supervisor, "validate_plan", side_effect=validate),
-            mock.patch.object(rsi.study, "freeze") as freeze,
+            mock.patch.object(protocol, "inspect_plan", side_effect=validate),
+            mock.patch.object(
+                rsi.study,
+                "freeze",
+                side_effect=RuntimeError("synthetic free-seal stop"),
+            ) as freeze,
             mock.patch.object(rsi.study_budget, "initialize") as initialize,
             mock.patch.object(runner, "AppServer") as server,
             mock.patch.object(trace, "provision") as mount,
-            self.assertRaises(protocol.EpisodeNotReady),
+            self.assertRaisesRegex(RuntimeError, "synthetic free-seal stop"),
         ):
             rsi.main()
         selected = tomllib.loads(runner.config_toml())
@@ -201,7 +205,8 @@ class EpisodeInitTest(unittest.TestCase):
             ),
         )
         self.assertEqual(inspected[0]["native_notice_trace"], trace.PROFILE)
-        for operation in (freeze, initialize, server, mount):
+        freeze.assert_called_once()
+        for operation in (initialize, server, mount):
             operation.assert_not_called()
         self.assertFalse((self.camp / "campaign.json").exists())
         self.assertFalse((self.camp / "study-budget.sqlite").exists())
