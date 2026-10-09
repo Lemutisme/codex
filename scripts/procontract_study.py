@@ -144,6 +144,10 @@ def mandatory_paths(terms, host_python, store_bin):
     checkpoint = checkpoints.from_terms(terms, frozen)
     if frozen.dependency_policy is not None:
         paths.update(frozen.dependency_policy.required_paths())
+    if "ph_supervisor" in terms:
+        import procontract_ph_supervisor as supervisor
+
+        paths.add(supervisor.plan_path(terms))
     if checkpoint is not None:
         for path in checkpoint.required_paths():
             paths.update(_tree(path) if path.is_dir() else (path,))

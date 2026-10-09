@@ -2582,6 +2582,14 @@ def cmd_init(args) -> None:
         sys.exit(
             "study limits require task launches, learning launches and allocated seconds together"
         )
+    supervisor_plan = getattr(args, "ph_supervisor_plan", None)
+    supervisor_sha256 = getattr(args, "ph_supervisor_sha256", None)
+    if (supervisor_plan is None) != (supervisor_sha256 is None):
+        sys.exit("P/H supervisor plan and SHA-256 are required together")
+    if supervisor_plan is not None and not all(
+        value is not None for value in study_limits.values()
+    ):
+        sys.exit("P/H supervision requires a sealed finite study budget")
     canonical_inputs = (
         args.canonical_registry,
         args.canonical_registry_sha256,
@@ -2736,6 +2744,14 @@ def cmd_init(args) -> None:
         checkpoint = checkpoints.from_terms(terms, canonical.registry())
     else:
         checkpoint = checkpoints.from_terms(terms)
+    if supervisor_plan is not None:
+        import procontract_ph_supervisor as supervisor
+
+        terms["ph_supervisor"] = {
+            "plan_path": str(supervisor_plan.resolve()),
+            "plan_sha256": supervisor_sha256,
+        }
+        supervisor.validate_plan(camp, terms)
     if all(value is not None for value in study_limits.values()):
         terms["study"] = study.freeze(camp, terms, study_limits)
         study_budget.initialize(
@@ -3106,6 +3122,14 @@ def main() -> None:
         "--submission-policy",
         choices=["rust-preinstalled-v1"],
         help="future-only dependency policy, requiring a pinned registry manifest",
+    )
+    init.add_argument(
+        "--ph-supervisor-plan",
+        type=Path,
+        help="sealed single-candidate P/H episode plan",
+    )
+    init.add_argument(
+        "--ph-supervisor-sha256", help="externally pinned P/H episode plan SHA-256"
     )
     step = sub.add_parser("step")
     step.add_argument("--camp", type=Path, required=True)
