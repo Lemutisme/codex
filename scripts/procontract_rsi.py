@@ -63,6 +63,7 @@ from pathlib import Path
 import procontract_attribution as attribution
 import procontract_checkpoint as checkpoints
 import procontract_comparison as comparison
+import procontract_dependency_policy as dependency_policy
 import procontract_guarded_stream as guarded_stream
 import procontract_harness_program as harness_program
 import procontract_insight_protocol as insight_protocol
@@ -3132,7 +3133,7 @@ def main() -> None:
     )
     init.add_argument(
         "--submission-policy",
-        choices=["rust-preinstalled-v1"],
+        choices=[dependency_policy.POLICY, dependency_policy.BUILD_RUNTIME_POLICY],
         help="future-only dependency policy, requiring a pinned registry manifest",
     )
     init.add_argument(
