@@ -559,6 +559,7 @@ impl ThreadRuntime {
                 schema,
                 trigger,
                 deadline: Duration::from_secs(self.settings.worker.deadline_secs),
+                evidence: None,
             })
             .await
     }
@@ -818,25 +819,26 @@ impl ThreadRuntime {
         let review = match (&checks, decision::mechanical_verdict(&checks, &policy)) {
             (Ok(receipts), None) => {
                 let summary = decision::review_summary(receipts, &policy);
-                let view = super::views::workspace_view_for(
-                    &subject,
-                    &self.store,
-                    reviewer::CANDIDATE_VIEW,
-                    &terms.requirements,
+                let evidence = crate::workers::review_evidence::ReviewEvidence::new(
+                    subject.clone(),
+                    self.store.clone(),
+                    &terms,
+                    crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
                 );
-                let input = reviewer::ReviewInput {
-                    instructions: &self.policies.reviewer,
-                    terms: &terms,
-                    check_summary: &crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
-                    candidate_view: &view,
+                let message = match evidence {
+                    Ok(evidence) => {
+                        self.ports
+                            .run_worker(WorkerTurn {
+                                prompt: evidence.prompt(&self.policies.reviewer),
+                                schema: reviewer::schema(),
+                                trigger: "pro_contract_review",
+                                deadline: Duration::from_secs(self.settings.worker.deadline_secs),
+                                evidence: Some(evidence),
+                            })
+                            .await
+                    }
+                    Err(error) => Err(error),
                 };
-                let message = self
-                    .run_worker(
-                        reviewer::prompt(&input),
-                        reviewer::schema(),
-                        "pro_contract_review",
-                    )
-                    .await;
                 Some(message.and_then(|message| reviewer::parse(&message, &terms)))
             }
             _ => None,

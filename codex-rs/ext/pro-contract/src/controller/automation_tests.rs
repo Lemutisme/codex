@@ -115,6 +115,36 @@ impl Ports for FakePorts {
                     .ok_or_else(|| WorkerError::Failed("the prober failed".to_string())),
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);
+                    if let Some(mut evidence) = turn.evidence {
+                        let mut cursor = 0;
+                        loop {
+                            let response = evidence.respond(
+                                serde_json::json!({"op":"index","source_id":"","offset":cursor}),
+                            );
+                            let codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText { text } = &response.content_items[0] else { panic!("text evidence"); };
+                            let index: serde_json::Value = serde_json::from_str(text).unwrap();
+                            if index["entry"]["path"] == "hindsight.json" {
+                                let mut offset = 0;
+                                let mut document = String::new();
+                                loop {
+                                    let response = evidence.respond(serde_json::json!({"op":"read","source_id":index["entry"]["source_id"],"offset":offset}));
+                                    let codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText { text } = &response.content_items[0] else { panic!("text evidence"); };
+                                    let chunk: serde_json::Value =
+                                        serde_json::from_str(text).unwrap();
+                                    document.push_str(chunk["text"].as_str().unwrap());
+                                    if chunk["eof"] == true {
+                                        break;
+                                    }
+                                    offset = chunk["next_offset"].as_u64().unwrap();
+                                }
+                                self.review_prompts.lock().unwrap().push(document);
+                            }
+                            if index["eof"] == true {
+                                break;
+                            }
+                            cursor = index["next_offset"].as_u64().unwrap();
+                        }
+                    }
                     self.reviews
                         .lock()
                         .unwrap()
@@ -382,12 +412,9 @@ async fn host_source_ids_and_required_artifacts_reach_the_real_controller_review
     lane.wait_for("supported").await;
     {
         let prompts = lane.ports.review_prompts.lock().unwrap();
-        assert_eq!(prompts.len(), 1);
-        assert!(
-            prompts[0].contains(&explanation),
-            "required JSON must be delivered whole"
-        );
-        assert!(prompts[0].contains("contents omitted for size: unrelated.rs"));
+        assert_eq!(prompts.len(), 2);
+        assert!(prompts[0].len() < 4096);
+        assert_eq!(prompts[1], explanation);
     }
     assert!(lane.contract().await.unwrap().support.is_some());
 }

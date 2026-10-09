@@ -4,13 +4,10 @@ use serde_json::json;
 
 use super::Coverage;
 use super::Finding;
-use super::ReviewInput;
 use super::ReviewVerdict;
 use super::TermsGap;
 use super::parse;
-use super::prompt;
 use super::schema;
-use crate::OutOfScope;
 use crate::Requirement;
 use crate::Terms;
 use crate::WorkerError;
@@ -80,26 +77,6 @@ fn the_schema_is_strict() {
         }
     }
     assert_strict(&schema());
-}
-
-#[test]
-fn the_prompt_carries_intake_and_requirements_and_stays_bounded() {
-    let terms = terms();
-    let huge = "y".repeat(super::CANDIDATE_VIEW.cap * 2);
-    let text = prompt(&ReviewInput {
-        instructions: super::DEFAULT_INSTRUCTIONS,
-        terms: &terms,
-        check_summary: "build: pass",
-        candidate_view: &huge,
-    });
-    assert!(text.contains("Implement the tool. Keep exit codes identical."));
-    assert!(text.contains("R2"));
-    assert!(text.contains("build: pass"));
-    assert!(
-        text.len() < super::CANDIDATE_VIEW.cap + super::super::PROMPT_EVIDENCE_CAP,
-        "prompt is {} bytes",
-        text.len()
-    );
 }
 
 #[test]
@@ -207,101 +184,11 @@ fn an_unknown_verdict_is_malformed() {
 }
 
 #[test]
-fn the_prompt_respects_the_evidence_caps_and_says_what_to_do_about_omissions() {
-    let huge = "x".repeat(super::super::PROMPT_EVIDENCE_CAP * 2);
-    let huge_view = "v".repeat(super::CANDIDATE_VIEW.cap * 2);
-    let terms = Terms {
-        intake_text: huge.clone(),
-        requirements: vec![Requirement {
-            id: "R1".to_string(),
-            text: huge.clone(),
-            source_quote: "q".to_string(),
-            inferred: false,
-        }],
-        out_of_scope: vec![OutOfScope {
-            element: huge.clone(),
-            human_statement: None,
-            non_substantive: true,
-        }],
-        process_constraints: vec![],
-    };
-    let input = ReviewInput {
-        instructions: super::DEFAULT_INSTRUCTIONS,
-        terms: &terms,
-        check_summary: &huge,
-        candidate_view: &huge_view,
-    };
-
-    let prompt = prompt(&input);
-
-    // The fixed part (instructions, tags, separators) is what an all-empty prompt weighs.
-    let empty_terms = Terms {
-        intake_text: String::new(),
-        requirements: vec![],
-        out_of_scope: vec![],
-        process_constraints: vec![],
-    };
-    let fixed = super::prompt(&ReviewInput {
-        instructions: super::DEFAULT_INSTRUCTIONS,
-        terms: &empty_terms,
-        check_summary: "",
-        candidate_view: "",
-    })
-    .len();
-    let evidence = prompt.len() - fixed;
-    let omission_notes = 5 * 64;
-    // Terms and receipts share the evidence cap; the candidate view has its own.
-    assert!(
-        evidence <= super::super::PROMPT_EVIDENCE_CAP + super::CANDIDATE_VIEW.cap + omission_notes,
-        "evidence is {evidence} bytes"
-    );
-    assert!(
-        prompt.contains("answer cannot_judge and name the omitted files in missing"),
-        "the instructions must say what to do when file contents are omitted"
-    );
-}
-
-#[test]
-fn a_candidate_view_of_several_hundred_kilobytes_reaches_the_reviewer_intact() {
-    let terms = terms();
-    let view = format!("{}END-OF-VIEW", "fn f() {}\n".repeat(30_000));
-    let text = prompt(&ReviewInput {
-        instructions: super::DEFAULT_INSTRUCTIONS,
-        terms: &terms,
-        check_summary: "build: pass",
-        candidate_view: &view,
-    });
-    assert!(text.contains(&view), "the view was cut");
-}
-
-#[test]
-fn the_policy_digest_covers_the_candidate_view_policy() {
+fn the_policy_digest_covers_the_evidence_protocol() {
     let without_view =
         crate::digest_of("reviewer_policy", &(super::DEFAULT_INSTRUCTIONS, schema()));
     assert_ne!(
         super::policy_digest(super::DEFAULT_INSTRUCTIONS),
         without_view
     );
-}
-
-#[test]
-fn the_prompt_lists_process_constraints_and_says_how_to_judge_them() {
-    let terms = Terms {
-        process_constraints: vec![crate::ProcessConstraint {
-            text: "Do not read the reference program.".to_string(),
-            source_quote: "Implement the tool.".to_string(),
-        }],
-        ..terms()
-    };
-    let text = prompt(&ReviewInput {
-        instructions: super::DEFAULT_INSTRUCTIONS,
-        terms: &terms,
-        check_summary: "build: pass",
-        candidate_view: "",
-    });
-    assert!(
-        text.contains("<process_constraints>\nDo not read the reference program."),
-        "{text}"
-    );
-    assert!(text.contains("never report them as a terms gap"), "{text}");
 }

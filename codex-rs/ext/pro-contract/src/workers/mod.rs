@@ -1,4 +1,4 @@
-//! Hidden, isolated, tool-less worker threads of the automatic Principal.
+//! Hidden isolated workers; only reviewers receive a frozen read-only evidence capability.
 
 pub(crate) mod cases;
 pub(crate) mod drafter;
@@ -6,6 +6,7 @@ mod packet;
 pub(crate) mod policies;
 pub(crate) mod prober;
 mod request_sources;
+pub(crate) mod review_evidence;
 pub(crate) mod reviewer;
 pub(crate) mod runtime;
 
@@ -13,8 +14,8 @@ pub(crate) mod runtime;
 #[path = "mod_tests.rs"]
 mod tests;
 
-/// Hard cap on the evidence text placed in a worker prompt; the reviewer's candidate view has its
-/// own cap (`reviewer::CANDIDATE_VIEW`).
+/// Evidence cap for drafting/probing. Worker packets are split into bounded context items;
+/// reviewers obtain candidate evidence through the separate read-only catalog.
 pub(crate) const PROMPT_EVIDENCE_CAP: usize = 60_000;
 
 #[derive(Debug, thiserror::Error)]

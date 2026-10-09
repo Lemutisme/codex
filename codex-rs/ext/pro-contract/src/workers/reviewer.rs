@@ -1,5 +1,5 @@
 //! The reviewer judges a frozen candidate against frozen terms. It sees the verbatim intake,
-//! the terms, the check receipts and a bounded view of the candidate — never the executor's
+//! the terms, the check receipts and bounded reads of the frozen candidate — never the executor's
 //! transcript or final message.
 
 use serde::Deserialize;
@@ -7,31 +7,9 @@ use serde::Serialize;
 use serde_json::Value;
 use serde_json::json;
 
-use super::PROMPT_EVIDENCE_CAP;
 use super::WorkerError;
-use super::bounded;
 use super::strict_object;
 use crate::Terms;
-use crate::controller::views::ViewOrder;
-use crate::controller::views::ViewPolicy;
-
-/// What the reviewer sees of the candidate: build files and sources before documentation, and
-/// enough of them that a single-binary candidate of about 300 KB of source is shown whole while
-/// the prompt stays well inside a 272K-token context window.
-pub(crate) const CANDIDATE_VIEW: ViewPolicy = ViewPolicy {
-    cap: 480_000,
-    order: ViewOrder::SourcesFirst,
-};
-
-pub(crate) struct ReviewInput<'a> {
-    /// The version's review instructions.
-    pub instructions: &'a str,
-    pub terms: &'a Terms,
-    /// Check receipts rendered for the reviewer, already bounded by the caller.
-    pub check_summary: &'a str,
-    /// Candidate listing and file contents, already bounded by the caller.
-    pub candidate_view: &'a str,
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coverage {
@@ -80,63 +58,6 @@ pub struct Review {
 /// The built-in instructions: version 0 of this part of a policy bundle.
 pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/reviewer.md");
 
-pub(crate) fn prompt(input: &ReviewInput<'_>) -> String {
-    let requirements: String = input
-        .terms
-        .requirements
-        .iter()
-        .map(|requirement| {
-            format!(
-                "{}: {} (quote: \"{}\"{})\n",
-                requirement.id,
-                requirement.text,
-                requirement.source_quote,
-                if requirement.inferred {
-                    ", inferred"
-                } else {
-                    ""
-                }
-            )
-        })
-        .collect();
-    let out_of_scope: String = input
-        .terms
-        .out_of_scope
-        .iter()
-        .map(|element| {
-            format!(
-                "{} (human statement: {})\n",
-                element.element,
-                element
-                    .human_statement
-                    .as_deref()
-                    .unwrap_or("none; non-substantive")
-            )
-        })
-        .collect();
-    let process_constraints: String = input
-        .terms
-        .process_constraints
-        .iter()
-        .map(|constraint| {
-            format!(
-                "{} (quote: \"{}\")\n",
-                constraint.text, constraint.source_quote
-            )
-        })
-        .collect();
-    format!(
-        "{}\n\n<human_request>\n{}\n</human_request>\n\n<requirements>\n{}</requirements>\n\n<process_constraints>\n{}</process_constraints>\n\n<out_of_scope>\n{}</out_of_scope>\n\n<check_receipts>\n{}\n</check_receipts>\n\n<candidate>\n{}\n</candidate>\n",
-        input.instructions,
-        bounded(&input.terms.intake_text, PROMPT_EVIDENCE_CAP / 8),
-        bounded(&requirements, PROMPT_EVIDENCE_CAP / 8),
-        bounded(&process_constraints, PROMPT_EVIDENCE_CAP / 16),
-        bounded(&out_of_scope, PROMPT_EVIDENCE_CAP / 16),
-        bounded(input.check_summary, PROMPT_EVIDENCE_CAP / 4),
-        bounded(input.candidate_view, CANDIDATE_VIEW.cap),
-    )
-}
-
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
     crate::digest_of(
@@ -144,8 +65,8 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
         &(
             policy,
             schema(),
-            CANDIDATE_VIEW,
-            "requirement-focused-view-v1",
+            "frozen-evidence-read-handles-v2",
+            super::review_evidence::ReviewEvidence::tool(),
         ),
     )
 }

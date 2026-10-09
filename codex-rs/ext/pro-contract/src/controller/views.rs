@@ -24,6 +24,21 @@ pub(crate) struct ViewPolicy {
     pub order: ViewOrder,
 }
 
+pub(crate) fn mentioned_paths(
+    requirements: &[crate::Requirement],
+) -> std::collections::HashSet<&str> {
+    requirements
+        .iter()
+        .flat_map(|requirement| {
+            requirement
+                .text
+                .split(|c: char| !c.is_alphanumeric() && !"_./-".contains(c))
+        })
+        .map(|word| word.trim_start_matches("./"))
+        .filter(|word| !word.is_empty())
+        .collect()
+}
+
 /// A listing of every entry followed by the contents of text files in the policy's order,
 /// within its cap. A file is shown whole or named as omitted; binary files are only listed.
 pub(crate) fn workspace_view(subject: &Subject, store: &BlobStore, policy: ViewPolicy) -> String {
@@ -39,16 +54,7 @@ pub(crate) fn workspace_view_for(
     requirements: &[crate::Requirement],
 ) -> String {
     let ViewPolicy { cap, order } = policy;
-    let mentioned: std::collections::HashSet<&str> = requirements
-        .iter()
-        .flat_map(|requirement| {
-            requirement
-                .text
-                .split(|c: char| !c.is_alphanumeric() && !"_./-".contains(c))
-        })
-        .map(|word| word.trim_start_matches("./"))
-        .filter(|word| !word.is_empty())
-        .collect();
+    let mentioned = mentioned_paths(requirements);
     let mut listing = String::from("Files:\n");
     for entry in &subject.manifest.entries {
         match &entry.kind {
@@ -125,7 +131,7 @@ fn file_kind(path: &str) -> FileKind {
 }
 
 /// Lower comes first; everything else always comes last.
-fn priority(path: &str, order: ViewOrder) -> u8 {
+pub(crate) fn priority(path: &str, order: ViewOrder) -> u8 {
     match (order, file_kind(path)) {
         (ViewOrder::DocumentationFirst, FileKind::Documentation) => 0,
         (ViewOrder::DocumentationFirst, FileKind::Build) => 1,
