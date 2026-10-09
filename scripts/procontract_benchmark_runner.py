@@ -455,19 +455,32 @@ class AppServer:
             {"id": message["id"], "error": {"code": -32601, "message": "unsupported"}}
         )
 
-    def close(self) -> None:
+    def close(self) -> dict:
+        shutdown = "stdin_closed"
         if self.process.stdin:
             self.process.stdin.close()
         try:
             self.process.wait(timeout=30)
         except subprocess.TimeoutExpired:
+            shutdown = "terminate"
             self.process.terminate()
             try:
                 self.process.wait(timeout=30)
             except subprocess.TimeoutExpired:
+                shutdown = "kill"
                 self.process.kill()
+                try:
+                    self.process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass  # Unknown termination is evidence, not permission to continue.
+        returncode = self.process.poll()
         self._log.close()
         self._stderr.close()
+        return {
+            "status": "exited" if type(returncode) is int else "unknown",
+            "returncode": returncode if type(returncode) is int else None,
+            "shutdown": shutdown,
+        }
 
 
 def prepare(args: argparse.Namespace) -> None:
@@ -773,7 +786,12 @@ def run(args: argparse.Namespace) -> None:
         if budget.activation is not None:
             summary["harness_program"] = budget.activation
         summary["elapsed_secs"] = round(time.monotonic() - started)
-        server.close()
+        closed = server.close()
+        summary["native_process_exit"] = (
+            closed
+            if isinstance(closed, dict)
+            else {"status": "unknown", "returncode": None, "shutdown": "stdin_closed"}
+        )
         readable(run_dir / "workspace", manifest["image"])
         (run_dir / "run.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))
