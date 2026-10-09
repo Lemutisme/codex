@@ -83,7 +83,9 @@ def _context(host, phase):
     return seal, config, root
 
 
-def _identity(host, phase, packs, evidence_receipts, config):
+def _identity(host, phase, packs, evidence_receipts, config, *, receipt_schema=2):
+    if type(receipt_schema) is not int or receipt_schema not in (1, 2):
+        raise ValueError("unsupported fixed auditor receipt schema")
     service = role.EvidenceService(packs)
     if len(packs) != PHASES[phase] or len(evidence_receipts) != len(packs):
         raise ValueError("fixed auditor phase evidence count differs")
@@ -116,6 +118,8 @@ def _identity(host, phase, packs, evidence_receipts, config):
             for pack, receipt in zip(service.packs, evidence_receipts, strict=True)
         ],
     }
+    if receipt_schema == 2:
+        identity["receipt_schema"] = 2
     if len(role.encoded(identity)) > 16 << 10:
         raise ValueError("fixed auditor identity exceeds bound")
     return identity
@@ -183,6 +187,13 @@ def audit_reservation(host, seal, key, identity, receipt):
         "episode_protocol",
         "plan_sha256",
     }
+    receipt_schema = (
+        identity.get("receipt_schema", 1) if isinstance(identity, dict) else None
+    )
+    if type(receipt_schema) is not int or receipt_schema not in (1, 2):
+        raise ValueError("unsupported fixed auditor receipt schema")
+    if receipt_schema == 2:
+        expected_keys.add("receipt_schema")
     if (
         not isinstance(identity, dict)
         or set(identity) != expected_keys
@@ -214,7 +225,9 @@ def audit_reservation(host, seal, key, identity, receipt):
     terminal = _read(root / "receipt.json", 1 << 20)
     if (
         type(terminal.get("schema")) is not int
-        or terminal["schema"] != 1
+        or terminal["schema"] != receipt_schema
+        or receipt_schema == 2
+        and "validation_error" not in terminal
         or terminal.get("phase") != phase
         or terminal.get("identity") != identity
         or terminal.get("identity_sha256") != role.digest(identity)
@@ -297,7 +310,7 @@ def execute(host, phase, packs, evidence_receipts):
             output.flush()
             os.fsync(output.fileno())
     _write(root / "native.json", terminal)
-    findings, outcome = [], "unknown"
+    findings, outcome, validation_error = [], "unknown", None
     if (
         terminal["status"] == "completed"
         and terminal["native_exit"] == 0
@@ -306,10 +319,10 @@ def execute(host, phase, packs, evidence_receipts):
         try:
             findings = service.validate(raw)
             outcome = _decision(findings, raw)
-        except ValueError:
-            pass
+        except ValueError as error:
+            validation_error = _validation_error(error)
     result = {
-        "schema": 1,
+        "schema": identity.get("receipt_schema", 1),
         "phase": phase,
         "identity": identity,
         "identity_sha256": role.digest(identity),
@@ -319,6 +332,8 @@ def execute(host, phase, packs, evidence_receipts):
         "outcome": outcome,
         "files": _files(root),
     }
+    if result["schema"] == 2:
+        result["validation_error"] = validation_error
     _write(root / "receipt.json", result)
     return verify(host, phase, packs, evidence_receipts)
 
@@ -341,16 +356,34 @@ def _decision(findings, raw):
     return "rejected" if violation else "unknown"
 
 
+def _validation_error(error):
+    """Private bounded diagnostic, not a judgment or permission to retry."""
+    raw = str(error)[:513].encode("utf-8", errors="replace")
+    return {
+        "type": "ValueError",
+        "message": raw[:512].decode("utf-8", errors="ignore"),
+        "truncated": len(raw) > 512,
+    }
+
+
 def verify(host, phase, packs, evidence_receipts):
     """Authenticate terminal custody, replay exact tool service, and recheck final citations."""
     seal, config, root = _context(host, phase)
-    identity = _identity(host, phase, packs, evidence_receipts, config)
+    recorded = _read(root / "claim.json")["identity"]
+    identity = _identity(
+        host,
+        phase,
+        packs,
+        evidence_receipts,
+        config,
+        receipt_schema=recorded.get("receipt_schema", 1),
+    )
     receipt = _read(root / "study-launch.json")
     terminal = audit_reservation(
         host, seal, f"fixed-auditor/{phase}", identity, receipt
     )
     service = role.EvidenceService(packs)
-    findings, outcome = [], "unknown"
+    findings, outcome, validation_error = [], "unknown", None
     native_receipt = terminal["native"]
     if native_receipt["status"] == "completed" and native_receipt["native_exit"] == 0:
         raw = evidence._read(root / "evidence-served.jsonl", native.MAX_LOG)
@@ -378,8 +411,12 @@ def verify(host, phase, packs, evidence_receipts):
         try:
             findings = service.validate(result)
             outcome = _decision(findings, result)
-        except ValueError:
-            pass
+        except ValueError as error:
+            validation_error = _validation_error(error)
+    if terminal["schema"] == 2 and role.encoded(
+        terminal["validation_error"]
+    ) != role.encoded(validation_error):
+        raise ValueError("fixed auditor validation diagnostic changed")
     if terminal["outcome"] != outcome or terminal["findings"] != findings:
         raise ValueError("fixed auditor result or served coverage changed")
     return terminal
