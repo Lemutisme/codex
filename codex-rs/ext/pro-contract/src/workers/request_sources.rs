@@ -15,23 +15,21 @@ impl<'a> RequestSources<'a> {
     pub(super) fn new(request: &'a str) -> Self {
         let mut spans = Vec::new();
         let mut consumed = 0;
-        for line in request.split_inclusive('\n') {
-            let mut rest = line;
-            while !rest.is_empty() && consumed < MAX_BYTES && spans.len() < MAX_SOURCES {
-                let count = rest.floor_char_boundary(CHUNK_BYTES.min(MAX_BYTES - consumed));
-                if count == 0 {
-                    return Self {
-                        spans,
-                        complete: false,
-                    };
-                }
-                spans.push(&rest[..count]);
-                consumed += count;
-                rest = &rest[count..];
+        let mut rest = request;
+        while !rest.is_empty() && consumed < MAX_BYTES && spans.len() < MAX_SOURCES {
+            let end = rest.floor_char_boundary(CHUNK_BYTES.min(MAX_BYTES - consumed));
+            // Source slots bound chunks, not lines: a short allowlist must not
+            // consume every slot before the actual task requirements arrive.
+            let count = rest[..end].rfind('\n').map_or(end, |index| index + 1);
+            if count == 0 {
+                return Self {
+                    spans,
+                    complete: false,
+                };
             }
-            if !rest.is_empty() {
-                break;
-            }
+            spans.push(&rest[..count]);
+            consumed += count;
+            rest = &rest[count..];
         }
         Self {
             spans,

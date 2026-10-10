@@ -36,8 +36,8 @@ def publish(path, value):
 
 
 def select_tasks(tasks):
-    if len(tasks) < 3:
-        raise ValueError("pilot requires three distinct ready instances")
+    if len(tasks) < 2:
+        raise ValueError("pilot requires at least two distinct ready instances")
     return sorted(
         tasks,
         key=lambda t: hashlib.sha256(("online-pilot-v1:" + t).encode()).hexdigest(),
@@ -136,9 +136,9 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
         "grading_secs": 3600,
         "research_secs": 900,
         "limits": {
-            "task_launches": 3 * len(arms),
-            "learning_launches": 3,
-            "allocated_seconds": 54000 * len(arms),
+            "task_launches": len(tasks) * len(arms),
+            "learning_launches": len(tasks),
+            "allocated_seconds": 18000 * len(tasks) * len(arms),
         },
         "binary": str(binary),
         "entrypoint": str(frozen_scripts / "procontract_online_pilot.py"),

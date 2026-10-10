@@ -52,6 +52,7 @@ const PROBE: &str = r#"{"coverage_plan":[{"family":"answer","surface":"answer.tx
 struct FakePorts {
     draft: &'static str,
     draft_gate: Option<Arc<Notify>>,
+    draft_prompts: Mutex<Vec<String>>,
     /// The prober's second turn; `None` makes the prober fail.
     probe: Option<&'static str>,
     /// How many sealed cases pass in each check run; the rest fail.
@@ -74,6 +75,7 @@ impl FakePorts {
         Self {
             draft,
             draft_gate: None,
+            draft_prompts: Mutex::new(Vec::new()),
             probe: Some(PROBE),
             sealed_passing: usize::MAX,
             sealed_checked: Mutex::new(Vec::new()),
@@ -103,6 +105,7 @@ impl Ports for FakePorts {
         Box::pin(async move {
             match turn.trigger {
                 "pro_contract_draft" => {
+                    self.draft_prompts.lock().unwrap().push(turn.prompt);
                     if let Some(gate) = &self.draft_gate {
                         gate.notified().await;
                     }
@@ -390,6 +393,25 @@ async fn declined_draft_rests_abstained_without_a_contract() {
         "{status:?}"
     );
     assert_eq!(lane.contract().await, None);
+}
+
+#[tokio::test]
+async fn multiline_intake_reaches_contract_issue_without_losing_the_tail() {
+    const DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_id":"request:0","inferred":false}],"out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":false}"#;
+    let lane = lane(FakePorts::new(DRAFT)).await;
+    let request = format!(
+        "answer.txt must say done.\n{}Never reuse the reference implementation.\n",
+        "Preserve the existing constraint.\n".repeat(100)
+    );
+    lane.runtime.intake(request).await;
+    lane.wait_for("working").await;
+    {
+        let prompts = lane.ports.draft_prompts.lock().unwrap();
+        assert_eq!(prompts.len(), 1);
+        assert!(prompts[0].contains("Never reuse the reference implementation."));
+        assert!(!prompts[0].contains("request exceeds source budget"));
+    }
+    assert!(lane.contract().await.is_some());
 }
 
 #[tokio::test]

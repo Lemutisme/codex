@@ -86,6 +86,12 @@ class OnlineRuntime:
         self.commands = self.commands[-3:]
 
     def poll(self, server, turns, status, handle, *, elapsed_secs):
+        if status and status.get("resting") is True and not status.get("contract_id"):
+            raise RuntimeError(
+                "online learning requires an issued ProContract task contract"
+            )
+        if not status or not status.get("contract_id"):
+            return
         remaining = self.allocation["executor_secs"] - elapsed_secs
         if self.cancel.is_set() or remaining <= 0:
             return

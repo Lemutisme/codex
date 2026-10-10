@@ -21,7 +21,7 @@ class PlanTests(unittest.TestCase):
         )
         self.assertEqual(len(set(selected)), 3)
         with self.assertRaises(ValueError):
-            plans.select_tasks(["a", "b"])
+            plans.select_tasks(["a"])
 
     def test_plan_drift_and_input_drift_fail_closed(self):
         with tempfile.TemporaryDirectory() as temporary:

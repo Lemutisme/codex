@@ -32,7 +32,12 @@ class RuntimeTests(unittest.TestCase):
         self.turns = SimpleNamespace(
             active=True, thread_id="t", turn_id="u", completed=0
         )
-        self.status = {"phase": "working", "resting": False, "repairs_used": 0}
+        self.status = {
+            "phase": "working",
+            "resting": False,
+            "repairs_used": 0,
+            "contract_id": "contract",
+        }
         self.server = mock.Mock()
         self.server.request.return_value = {"turnId": "u"}
         self.handle = mock.Mock()
@@ -120,6 +125,21 @@ class RuntimeTests(unittest.TestCase):
         self.status["phase"] = "working"
         self.poll()
         self.server.request.assert_called_once()
+
+    def test_unissued_contract_never_launches_research_or_steers(self):
+        for _ in range(4):
+            self.observe()
+        self.status = {
+            "phase": "abstained",
+            "resting": True,
+            "repairs_used": 0,
+            "contract_id": None,
+        }
+        with mock.patch.object(self.runtime.pool, "submit") as submit:
+            with self.assertRaisesRegex(RuntimeError, "issued ProContract"):
+                self.poll()
+            submit.assert_not_called()
+        self.server.request.assert_not_called()
 
     def test_lost_ack_consumes_attempt_and_does_not_inherit(self):
         self.begin()

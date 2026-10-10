@@ -28,9 +28,22 @@ fn long_unicode_requests_are_chunked_without_changing_content() {
 
 #[test]
 fn incomplete_catalog_never_authorizes_partial_request_terms() {
-    for text in ["a".repeat(20_000), "line\n".repeat(100)] {
+    for text in ["a".repeat(20_000), "line\n".repeat(4_000)] {
         let sources = RequestSources::new(&text);
         assert!(sources.render().len() < 12_000);
         assert!(sources.resolve("request:0").is_err());
     }
+}
+
+#[test]
+fn short_allowlist_lines_do_not_hide_the_task_requirements() {
+    let request = format!(
+        "Permitted tools:\n{}Implement from scratch in Rust; never reuse the reference.\n",
+        "- tool: build and runtime only.\n".repeat(100)
+    );
+    let sources = RequestSources::new(&request);
+    let restored: String = (0..sources.spans.len())
+        .map(|index| sources.resolve(&format!("request:{index}")).unwrap())
+        .collect();
+    assert_eq!(restored, request);
 }

@@ -66,7 +66,7 @@ class PilotTests(unittest.TestCase):
                     "turn_statuses": ["completed"],
                     "native_process_exit": {"status": "exited"},
                     "server_exited_early": False,
-                    "status": {"phase": "supported"},
+                    "status": {"phase": "supported", "contract_id": "contract"},
                     "cost": {},
                 }
                 if learning is not None:

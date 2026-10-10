@@ -28,7 +28,11 @@ import procontract_owned_process as owned_process
 
 
 def episode(plan, digest, index, arm):
-    if type(index) is not int or not 0 <= index < 3 or arm not in plan["arms"]:
+    if (
+        type(index) is not int
+        or not 0 <= index < len(plan["tasks"])
+        or arm not in plan["arms"]
+    ):
         raise ValueError("episode outside frozen plan")
     root = Path(plan["root"])
     if (root / "terminal.json").exists():
@@ -154,6 +158,8 @@ def episode(plan, digest, index, arm):
         raise RuntimeError(
             "native execution infrastructure failed; no replacement task run"
         )
+    if not (summary.get("status") or {}).get("contract_id"):
+        raise RuntimeError("required ProContract task contract was never issued")
     archive = canonical.package_submission(run)
     started = time.monotonic()
     command = canonical.worker_command(

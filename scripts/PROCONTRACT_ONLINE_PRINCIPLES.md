@@ -124,3 +124,26 @@ seconds, three research attempts maximum, no retries or reused old-study balance
 This can verify operational test-time updates and recursive method consumption.
 It CANNOT establish matched-budget net RSI gain; do not turn historical, null or
 leaderboard comparisons into causal certification. A paired plan remains opt-in.
+
+## Live qualification finding (first paid task; not an RSI success)
+
+The 4,501-byte task request exhausted 64 source slots because each short allowlist
+line took a slot. The drafter correctly declined incomplete authority. Research
+nevertheless ran and a checkpoint was acknowledged: this exposed a missing
+prerequisite in the controller, not a successful ProContract-based RSI episode.
+The run was stopped and preserved; no score or successful contract is invented.
+
+Engineering fixes: pack adjacent lines into bounded 512-byte chunks without raising
+10,000-byte/64-source caps; require an issued task contract before online research
+and before task qualification. These human engineering changes are NOT RSI gains.
+
+The actual provider uses 505-character opaque response IDs. The future online trace
+profile explicitly supports at most 1,024 characters for those IDs only. Native
+UUID checks remain strict and the legacy reader defaults remain 128. The old trace
+verdict remains unknown; diagnostic reinterpretation must be separately labelled.
+
+Only the original request's remaining TWO predetermined tasks may now be attempted:
+ascii-image-converter and igrep, with a fresh empty lineage and rebuilt native
+binary. Do not rerun dropbear, import its candidate as certified knowledge, merge
+mixed-revision outcomes into a gain claim, or spend more than three task/research
+slots (54,000 allocated seconds) across this request.
