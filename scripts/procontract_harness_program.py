@@ -178,6 +178,13 @@ def load(bundle: Path | None) -> Program | None:
     raw = read_regular(bundle / PROGRAM_FILE, MAX_BYTES)
     if raw is None:
         return None
+    return parse(raw)
+
+
+def parse(raw: bytes) -> Program:
+    """Compile captured bytes; callers must execute these bytes, never reopen a candidate path."""
+    if type(raw) is not bytes or len(raw) > MAX_BYTES:
+        raise ValueError("harness program must be bounded bytes")
     try:
         document = json.loads(
             raw.decode("utf-8"),
