@@ -272,6 +272,8 @@ def main():
         )
     else:
         plan = plans.verify(args.plan, args.plan_sha256)
+        if plan["entrypoint"] != str(Path(__file__).resolve()):
+            parser.error("run the frozen controller entrypoint recorded in the plan")
         plans.authorize(plan, args.plan_sha256, args.authorization)
 
         # Interruption must unwind native/research cleanup rather than leave a paid worker.

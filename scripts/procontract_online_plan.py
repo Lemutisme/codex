@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -88,7 +89,11 @@ def prepare(root, source_registry, binary, prompt):
     base = tomllib.loads(runner.config_toml())
     provider = base["model_providers"][base["model_provider"]]
     source_files = [*SCRIPTS.glob("procontract_*.py"), SCRIPTS / "procodex_config.py"]
-    files = {str(path): sha(path) for path in source_files}
+    frozen_scripts = root / "controller/scripts"
+    frozen_scripts.mkdir(parents=True)
+    for path in source_files:
+        shutil.copyfile(path, frozen_scripts / path.name)
+    files = {str(path): sha(path) for path in frozen_scripts.iterdir()}
     for name in ("codex", "codex-code-mode-host", "pro-contract-store"):
         path = package / "bin" / name
         if sha(path) != release["binaries"][name]:
@@ -116,6 +121,7 @@ def prepare(root, source_registry, binary, prompt):
             "allocated_seconds": 108000,
         },
         "binary": str(binary),
+        "entrypoint": str(frozen_scripts / "procontract_online_pilot.py"),
         "native_source_commit": release["source_commit"],
         "controller_source_commit": git("rev-parse", "HEAD"),
         "provider": {"base_url": provider["base_url"], "env_key": provider["env_key"]},
