@@ -28,6 +28,11 @@ def episode(plan, digest, index, arm):
     if type(index) is not int or not 0 <= index < 3 or arm not in plan["arms"]:
         raise ValueError("episode outside frozen plan")
     root = Path(plan["root"])
+    if (root / "terminal.json").exists():
+        raise ValueError("terminal pilot cannot launch another episode")
+    launch = json.loads((root / "launch.json").read_text())
+    if launch.get("plan_sha256") != digest:
+        raise ValueError("episode requires its supervisor launch identity")
     task = plan["tasks"][index]
     key = f"{index}-{arm}"
     run = root / "runs" / key

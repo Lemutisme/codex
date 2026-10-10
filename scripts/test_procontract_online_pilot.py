@@ -47,6 +47,7 @@ class PilotTests(unittest.TestCase):
             }
             digest = "d" * 64
             budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
+            plans.publish(root / "launch.json", {"plan_sha256": digest})
             registry = SimpleNamespace(
                 tasks={"task-a": {"image": "pinned", "total": 5}}
             )
@@ -119,6 +120,9 @@ class PilotTests(unittest.TestCase):
             )
             self.assertEqual(deadlines, [14400, 13500])
             self.assertEqual(len(prepared), 2)
+            plans.publish(root / "terminal.json", {"status": "stopped"})
+            with self.assertRaisesRegex(ValueError, "terminal pilot"):
+                pilot.episode(plan, digest, 1, "adaptive")
             rewards = [
                 e["body"]
                 for e in Lineage(root / "lineage").events()
