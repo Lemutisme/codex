@@ -610,7 +610,7 @@ def current_key(environ: dict) -> str | None:
     return environ.get("OPENAI_API_KEY")
 
 
-def run(args: argparse.Namespace, *, learning=None) -> None:
+def run(args: argparse.Namespace, *, learning=None, online_trace=None) -> None:
     run_dir: Path = args.run_dir
     if (
         learning is not None
@@ -657,12 +657,18 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
         sys.exit("OPENAI_API_KEY must be set in the runner's environment")
     (run_dir / "home").mkdir(exist_ok=True)
     env = server_env(run_dir, dict(os.environ))
+    if learning is not None or online_trace is not None:
+        env["CODEX_SQLITE_HOME"] = str(home)
     prompt = (run_dir / "prompt.txt").read_text(encoding="utf-8")
     import procontract_study_launch as study_launch
 
     # All task and research roles converge here. Cached Host results never reserve again.
     launch = study_launch.authorize(args, manifest, sys.modules[__name__])
-    observer = None
+    observer = online_trace
+    if online_trace is not None:
+        if "native_notice_trace" in manifest:
+            raise ValueError("online and legacy trace authorities cannot be combined")
+        env["CODEX_ROLLOUT_TRACE_ROOT"] = str(online_trace.root)
     if "native_notice_trace" in manifest:
         import procontract_native_trace_binding as trace_binding
 
@@ -679,7 +685,7 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
     if observer is not None:
         reserve = (
             min(60, args.deadline_secs // 10)
-            if program and program.action == "checkpoint"
+            if online_trace is not None or program and program.action == "checkpoint"
             else 0
         )
         observer.latest_dispatch = started + args.deadline_secs - reserve
@@ -870,9 +876,12 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
             else {"status": "unknown", "returncode": None, "shutdown": "stdin_closed"}
         )
         if observer is not None:
-            summary["native_notice_trace"] = observer.after_run(
-                budget.summary(), closed
+            delivery = (
+                learning.budget.summary()
+                if learning is not None and learning.budget is not None
+                else budget.summary()
             )
+            summary["native_notice_trace"] = observer.after_run(delivery, closed)
         readable(run_dir / "workspace", manifest["image"])
         (run_dir / "run.json").write_text(json.dumps(summary, indent=2) + "\n")
         print(json.dumps(summary, indent=2))

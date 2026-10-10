@@ -21,6 +21,7 @@ import procontract_online as online
 from procontract_online_lineage import Lineage
 import procontract_online_plan as plans
 from procontract_online_runtime import OnlineRuntime
+from procontract_online_trace import OnlineTrace
 import procontract_study_budget as budgets
 
 
@@ -105,6 +106,7 @@ def episode(plan, digest, index, arm):
         }
         (run / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     learning = None
+    observed = OnlineTrace(run, digest)
     try:
         if arm == "adaptive":
             key_value = runner.current_key(os.environ)
@@ -125,10 +127,14 @@ def episode(plan, digest, index, arm):
                 **common, deadline_secs=plan["inference_secs"] - research_secs
             ),
             learning=learning,
+            online_trace=observed,
         )
     finally:
-        if learning is not None:
-            learning.close()
+        try:
+            if learning is not None:
+                learning.close()
+        finally:
+            observed.close()
     summary = json.loads((run / "run.json").read_text())
     if (
         summary.get("runner_error")
@@ -178,6 +184,7 @@ def episode(plan, digest, index, arm):
         "native_contract": summary.get("status"),
         "native_cost": summary.get("cost"),
         "online": summary.get("online_learning"),
+        "native_context_evidence": summary.get("native_notice_trace"),
         "claims": "descriptive functional outcome; no stable promotion or independent compliance proof",
     }
     plans.publish(run / "result.json", result)

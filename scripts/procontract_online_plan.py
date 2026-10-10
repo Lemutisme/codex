@@ -11,9 +11,14 @@ import tomllib
 import procontract_benchmark_runner as runner
 import procontract_canonical as canonical
 import procontract_online as online
+import procontract_native_trace_binding as trace
 
 SCRIPTS = Path(__file__).resolve().parent
 ORDER_RULE = "sha256(online-pilot-v1:<instance>), ascending, first 3"
+TRACE_PROFILE = {
+    **trace.PROFILE,
+    "retention": "private_archive_then_release_owned_mount",
+}
 
 
 def sha(path):
@@ -144,6 +149,7 @@ def prepare(root, source_registry, binary, prompt):
         "files": files,
         "seed": online.seed(),
         "automatic_stable_adoption": False,
+        "private_native_trace": TRACE_PROFILE,
         "exposure": "new empty lineage; historical operator exposure disclosed; not globally unseen",
         "comparison": "paired descriptive combined-program effect; no method-only causal attribution",
         "budget_note": "5h total per arm/instance: 4h inference including research, 1h frozen grading. Adaptive researcher reserves 15min of the 4h, even if concurrent. Actual tokens/cost may differ.",

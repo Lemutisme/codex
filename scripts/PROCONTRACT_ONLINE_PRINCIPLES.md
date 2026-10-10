@@ -27,8 +27,10 @@ not the existence of a changed markdown file.
    M reward measures descendant outcomes, not explanation quality; this is observed
    credit, not isolated causal attribution when P/M/H jointly change.
 4. **Test-time means before action.** Research starts during the run, not solely
-   after delivery. A successful expected-turn-fenced steering receipt must precede
-   later executor activity to establish within-task uptake. ACK alone is not uptake.
+   after delivery. ACK and later activity alone do not establish input uptake.
+   Require a native request witness: the exact strategy appears in a subsequent
+   completed model request in the fenced turn, without rewriting prior user history.
+   This proves input consumption, never attention, obedience or utility.
 5. **H must execute.** Candidate H runs in the existing bounded data-only interpreter;
    its actual facts, decision and dispatch are recorded. Unsupported operations,
    capabilities, unbounded predicates and malformed JSON are rejected.
@@ -104,3 +106,10 @@ Learned P must never be concatenated into the user's original task text. Initial
 is supplied as a separately framed developer strategy; contract intake receives the
 exact frozen human task prompt. In-task steering does not revise frozen contract
 terms. The runner integration test asserts this boundary on the actual RPC inputs.
+
+Native input witnesses reuse the existing strict notice reader. Both arms opt into
+a private 1 GiB / 65,536-inode tmpfs trace, archived privately and released after
+native shutdown. Trace exhaustion or incomplete requests remain unknown. Archival
+failure preserves the mount for reconciliation instead of destroying the evidence.
+No raw traces or baseline material enter the updater. The additional failed-trial
+feedback is bounded and explicitly typed as an observation, not a quality reward.

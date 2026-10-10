@@ -60,7 +60,7 @@ class PilotTests(unittest.TestCase):
                 (args.run_dir / "policy").mkdir()
                 (args.run_dir / "manifest.json").write_text("{}")
 
-            def execute(args, *, learning):
+            def execute(args, *, learning, online_trace):
                 deadlines.append(args.deadline_secs)
                 summary = {
                     "turn_statuses": ["completed"],
@@ -95,6 +95,7 @@ class PilotTests(unittest.TestCase):
                 )
 
             with (
+                mock.patch.object(pilot, "OnlineTrace"),
                 mock.patch.object(pilot.canonical, "configure", return_value=registry),
                 mock.patch.object(pilot.canonical, "bind_pins"),
                 mock.patch.object(pilot.canonical, "preflight"),
