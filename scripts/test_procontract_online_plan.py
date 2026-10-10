@@ -143,6 +143,17 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(policy_path.read_bytes(), before)
             sealed = plans.verify(Path(result["plan"]), result["sha256"])
             self.assertTrue(Path(sealed["entrypoint"]).is_relative_to(destination))
+            self.assertEqual(
+                (sealed["arms"], sealed["limits"]),
+                (
+                    ["adaptive"],
+                    {
+                        "task_launches": 3,
+                        "learning_launches": 3,
+                        "allocated_seconds": 54000,
+                    },
+                ),
+            )
 
     def test_receipt_publication_is_non_overwriting(self):
         with tempfile.TemporaryDirectory() as temporary:

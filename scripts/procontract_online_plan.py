@@ -1,4 +1,4 @@
-"""Operator-owned, fresh six-run pilot plan. Preparation never calls a model."""
+"""Operator-owned, fresh three-instance pilot plan. Preparation never calls a model."""
 
 import hashlib
 import json
@@ -44,7 +44,10 @@ def select_tasks(tasks):
     )[:3]
 
 
-def prepare(root, source_registry, binary, prompt):
+def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
+    if comparison not in ("stream", "paired"):
+        raise ValueError("comparison must be stream or paired")
+    arms = ["adaptive"] if comparison == "stream" else ["frozen", "adaptive"]
     root, binary = root.resolve(), binary.resolve()
     inputs = root / "inputs"
     inputs.mkdir(parents=True)
@@ -125,7 +128,7 @@ def prepare(root, source_registry, binary, prompt):
         "effort": "max",
         "tasks": tasks,
         "order_rule": ORDER_RULE,
-        "arms": ["frozen", "adaptive"],
+        "arms": arms,
         "task_attempts": 1,
         "research_attempts_per_task": 1,
         "episode_secs": 18000,
@@ -133,9 +136,9 @@ def prepare(root, source_registry, binary, prompt):
         "grading_secs": 3600,
         "research_secs": 900,
         "limits": {
-            "task_launches": 6,
+            "task_launches": 3 * len(arms),
             "learning_launches": 3,
-            "allocated_seconds": 108000,
+            "allocated_seconds": 54000 * len(arms),
         },
         "binary": str(binary),
         "entrypoint": str(frozen_scripts / "procontract_online_pilot.py"),
@@ -151,7 +154,12 @@ def prepare(root, source_registry, binary, prompt):
         "automatic_stable_adoption": False,
         "private_native_trace": TRACE_PROFILE,
         "exposure": "new empty lineage; historical operator exposure disclosed; not globally unseen",
-        "comparison": "paired descriptive combined-program effect; no method-only causal attribution",
+        "comparison_mode": comparison,
+        "comparison": (
+            "paired descriptive combined-program effect; no method-only causal attribution"
+            if comparison == "paired"
+            else "adaptive-only stream: operational closure and descriptive scores; no matched-budget net-gain claim"
+        ),
         "budget_note": "5h total per arm/instance: 4h inference including research, 1h frozen grading. Adaptive researcher reserves 15min of the 4h, even if concurrent. Actual tokens/cost may differ.",
         "compliance_note": "Native ProContract provides within-evidence review, not an exhaustive syscall/dependency audit. Functional scores alone do not certify all submission constraints.",
         "unknown_policy": "stop on infrastructure unknown; preserve malformed/inactive proposals without same-task retry",

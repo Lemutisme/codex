@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fresh, pinned native online-learning pilot. `prepare` is inference-free.
 
-`run` requires a separately recorded operator budget decision. Exactly six task
-slots, at most three one-attempt research turns; no terminal study restart.
+`run` requires a recorded operator authorization. Three task slots by default;
+six only for an explicitly selected paired plan. At most three one-attempt research
+turns; no terminal study restart.
 """
 
 import argparse
@@ -271,6 +272,7 @@ def main():
     parser.add_argument("--source-registry", type=Path)
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--prompt", type=Path)
+    parser.add_argument("--comparison", choices=("stream", "paired"), default="stream")
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--plan-sha256")
     parser.add_argument("--authorization", type=Path)

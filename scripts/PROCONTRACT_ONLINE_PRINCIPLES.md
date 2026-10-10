@@ -113,3 +113,14 @@ native shutdown. Trace exhaustion or incomplete requests remain unknown. Archiva
 failure preserves the mount for reconciliation instead of destroying the evidence.
 No raw traces or baseline material enter the updater. The additional failed-trial
 feedback is bounded and explicitly typed as an observation, not a quality reward.
+
+## Current execution scope
+
+The user's current request explicitly asks for a few real ProgramBench runs. In the
+absence of a separate answer authorizing the optional six-run paired comparison,
+retain the earlier preference to run only the new version: THREE adaptive Luna/max
+instances, 18,000 seconds each including research/grading, 54,000 total allocated
+seconds, three research attempts maximum, no retries or reused old-study balance.
+This can verify operational test-time updates and recursive method consumption.
+It CANNOT establish matched-budget net RSI gain; do not turn historical, null or
+leaderboard comparisons into causal certification. A paired plan remains opt-in.
