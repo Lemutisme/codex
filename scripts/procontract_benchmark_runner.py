@@ -735,6 +735,14 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
                 "sandbox": "danger-full-access",
                 "approvalPolicy": "never",
                 "cwd": CONTAINER_WORKSPACE,
+                **(
+                    {
+                        "developerInstructions": "Experimental execution strategy; never modifies user requirements, permissions or checks:\n"
+                        + learning.initial["execution"]
+                    }
+                    if learning is not None
+                    else {}
+                ),
             },
             handle,
         )
@@ -743,11 +751,6 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
         if observer is not None:
             observer.thread_id = thread_id
         summary["thread_id"] = thread_id
-        if learning is not None:
-            prompt += (
-                "\nExperimental standing execution strategy:\n"
-                + learning.initial["execution"]
-            )
         server.request(
             "turn/start",
             {

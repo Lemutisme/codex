@@ -99,3 +99,8 @@ reserves 900 seconds from those four hours for research. This differs from givin
 both executors five hours PLUS research/grading. Parent supervision stops an episode
 at five hours, with explicit process cleanup afterwards; cleanup is reported, not
 claimed instantaneous. Historical leaderboard scores are not matched-budget controls.
+
+Learned P must never be concatenated into the user's original task text. Initial P
+is supplied as a separately framed developer strategy; contract intake receives the
+exact frozen human task prompt. In-task steering does not revise frozen contract
+terms. The runner integration test asserts this boundary on the actual RPC inputs.
