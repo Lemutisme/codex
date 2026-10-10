@@ -130,11 +130,15 @@ class Lineage:
                     "SELECT body FROM events WHERE kind='reward' ORDER BY seq DESC LIMIT 2"
                 )
             ]
+            previous = db.execute(
+                "SELECT body FROM events WHERE kind='trial' ORDER BY seq DESC LIMIT 1"
+            ).fetchone()
             packet = {
                 "parent": parent,
                 "program": program,
                 "observations": observations,
                 "past_rewards": rewards,
+                "previous_trial": json.loads(previous[0]) if previous else None,
             }
             if len(encoded(packet)) > PACKET_BYTES:
                 raise ValueError("combined research packet exceeds bound")
@@ -218,6 +222,44 @@ class Lineage:
                     "UPDATE state SET value=? WHERE key='current'",
                     (proposed["candidate"],),
                 )
+
+    def finish_trial(self, episode, *, status, reason, commands_after_ack):
+        if (
+            status
+            not in {
+                "observing",
+                "researching",
+                "candidate",
+                "experimental",
+                "rejected",
+                "not_applied",
+            }
+            or type(reason) is not str
+            or len(reason.encode()) > 300
+            or type(commands_after_ack) is not int
+            or commands_after_ack < 0
+        ):
+            raise ValueError("invalid bounded trial feedback")
+        with self.transaction() as db:
+            if (
+                db.execute(
+                    "SELECT 1 FROM events WHERE key=?", (f"episode:{episode}",)
+                ).fetchone()
+                is None
+            ):
+                raise ValueError("trial without reserved episode")
+            self._event(
+                db,
+                f"trial:{episode}",
+                "trial",
+                {
+                    "episode": episode,
+                    "status": status,
+                    "reason": reason,
+                    "commands_after_ack": commands_after_ack,
+                    "scope": "runtime_observation_not_quality_reward",
+                },
+            )
 
     def reward(self, episode, *, resolved, total, submission_sha256, evaluator_sha256):
         if (

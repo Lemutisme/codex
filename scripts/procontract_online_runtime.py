@@ -221,6 +221,13 @@ class OnlineRuntime:
             "command_completions_after_ack": self.after_ack,
             "claim": "experimental_dispatch_and_observed_activity_only; no stable adoption or causal gain",
         }
+        reason = (self.error or "").encode()[:300].decode("utf-8", errors="ignore")
+        self.lineage.finish_trial(
+            self.episode,
+            status=self.status,
+            reason=reason,
+            commands_after_ack=self.after_ack,
+        )
         self._write("terminal.json", result)
         self._terminal = result
         return result

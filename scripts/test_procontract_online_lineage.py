@@ -63,6 +63,7 @@ class LineageTests(unittest.TestCase):
                 "program": successor,
                 "observations": {"status": "working"},
                 "past_rewards": [reward],
+                "previous_trial": None,
             },
         )
         next_program, raw = candidate(second["program"], "two")
@@ -173,6 +174,27 @@ class LineageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceeds"):
             self.lineage.claim("one", {"text": "x" * 3500})
         self.lineage.claim("one", {"text": "small"})
+
+    def test_failed_trial_is_future_learning_data_but_never_a_zero_reward(self):
+        self.reserve("one")
+        self.lineage.claim("one", {})
+        self.lineage.finish_trial(
+            "one", status="rejected", reason="invalid H predicate", commands_after_ack=0
+        )
+        self.reserve("two")
+        packet = self.lineage.claim("two", {})
+        self.assertEqual(
+            packet["previous_trial"],
+            {
+                "episode": "one",
+                "status": "rejected",
+                "reason": "invalid H predicate",
+                "commands_after_ack": 0,
+                "scope": "runtime_observation_not_quality_reward",
+            },
+        )
+        self.assertEqual(packet["past_rewards"], [])
+        self.assertEqual(self.lineage.current(), online.seed())
 
     def test_unclaimed_proposal_and_reward_are_rejected(self):
         _, raw = candidate(online.seed(), "new")
