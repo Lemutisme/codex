@@ -25,7 +25,9 @@ MAX_QUEUE = 256
 
 
 class NativeSession:
-    def __init__(self, process, service, root, cwd, deadline):
+    def __init__(self, process, service, root, cwd, deadline, *, worker_role=role):
+        self.role = worker_role
+        self.cancellation = None
         self.process, self.service, self.root, self.deadline = (
             process,
             service,
@@ -84,6 +86,8 @@ class NativeSession:
 
     def receive(self):
         while True:
+            if self.cancellation is not None and self.cancellation.is_set():
+                raise RuntimeError("native worker cancelled")
             if self.failed.is_set():
                 raise RuntimeError("native reader failed or exceeded a hard bound")
             remaining = self.deadline - time.monotonic()
@@ -237,16 +241,16 @@ class NativeSession:
         thread = self.request(
             "thread/start",
             {
-                "model": role.MODEL,
-                "config": {"model_reasoning_effort": role.EFFORT},
+                "model": self.role.MODEL,
+                "config": {"model_reasoning_effort": self.role.EFFORT},
                 "cwd": str(self.cwd),
                 "approvalPolicy": "never",
                 "sandbox": "read-only",
-                "baseInstructions": role.BASE,
-                "developerInstructions": role.DEVELOPER,
+                "baseInstructions": self.role.BASE,
+                "developerInstructions": self.role.DEVELOPER,
                 "ephemeral": True,
                 "environments": [],
-                "dynamicTools": [role.TOOL],
+                "dynamicTools": getattr(self.role, "TOOLS", [self.role.TOOL]),
                 "selectedCapabilityRoots": [],
             },
         )
@@ -258,7 +262,7 @@ class NativeSession:
                 "threadId": self.thread_id,
                 "environments": [],
                 "input": [{"type": "text", "text": prompt, "text_elements": []}],
-                "outputSchema": role.output_schema(self.service.packs),
+                "outputSchema": self.role.output_schema(self.service.packs),
             },
         )
         self.turn_id = turn["turn"]["id"]
@@ -303,7 +307,17 @@ def ambient_preflight():
     }
 
 
-def run(binary, root, service, provider, credential, *, deadline_secs=role.DEADLINE):
+def run(
+    binary,
+    root,
+    service,
+    provider,
+    credential,
+    *,
+    deadline_secs=role.DEADLINE,
+    worker_role=role,
+    cancellation=None,
+):
     """One native process, no retries. Caller must reserve and durably claim first.
 
     Test fixtures may pass a shorter deadline; the sealed paid caller cannot. Credential
@@ -313,7 +327,7 @@ def run(binary, root, service, provider, credential, *, deadline_secs=role.DEADL
     ambient = ambient_preflight()
     for name in ("home", "codex-home", "tmp"):
         (root / name).mkdir(mode=0o700)
-    (root / "codex-home/config.toml").write_text(role.config(provider))
+    (root / "codex-home/config.toml").write_text(worker_role.config(provider))
     (root / "codex-home/environments.toml").write_text("include_local = false\n")
     # Fresh explicit environment excludes hooks, proxies, trace roots, inherited CODEX settings,
     # model routing and credentials other than this separately supplied frozen provider key.
@@ -323,7 +337,7 @@ def run(binary, root, service, provider, credential, *, deadline_secs=role.DEADL
         "CODEX_HOME": str(root / "codex-home"),
         "TMPDIR": str(root / "tmp"),
         "RUST_LOG": "warn",
-        role.CHILD_CREDENTIAL_KEY: credential,
+        worker_role.CHILD_CREDENTIAL_KEY: credential,
     }
     cwd = Path(tempfile.mkdtemp(prefix="procontract-fixed-auditor-", dir="/tmp"))
     started = time.monotonic()
@@ -364,7 +378,15 @@ def run(binary, root, service, provider, credential, *, deadline_secs=role.DEADL
         )
         timer.daemon = True
         timer.start()
-        session = NativeSession(process, service, root, cwd, started + deadline_secs)
+        session = NativeSession(
+            process,
+            service,
+            root,
+            cwd,
+            started + deadline_secs,
+            worker_role=worker_role,
+        )
+        session.cancellation = cancellation
         result = session.run()
         receipt.update(
             status="completed", final_sha256=hashlib.sha256(result).hexdigest()
