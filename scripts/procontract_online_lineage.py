@@ -140,7 +140,8 @@ class Lineage:
                 "past_rewards": rewards,
                 "previous_trial": json.loads(previous[0]) if previous else None,
             }
-            if len(encoded(packet)) > PACKET_BYTES:
+            frozen = encoded(packet)
+            if len(frozen) > PACKET_BYTES:
                 raise ValueError("combined research packet exceeds bound")
             self._event(
                 db,
@@ -152,7 +153,9 @@ class Lineage:
                     "producer_method": digest(program["research"]),
                 },
             )
-        return packet
+        # The runtime continues collecting commands while the researcher runs.
+        # Never hand its mutable observation list across that boundary.
+        return json.loads(frozen)
 
     def register(self, episode, raw):
         program, explanation = proposal(raw)

@@ -119,6 +119,17 @@ class LineageTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             reopened.begin("one", 18000, 900)
 
+    def test_claim_freezes_observations_before_concurrent_execution_continues(self):
+        self.reserve()
+        observed = {"commands": [{"command": "first"}]}
+        packet = self.lineage.claim("one", observed)
+        observed["commands"].append({"command": "later"})
+        self.assertEqual(packet["observations"], {"commands": [{"command": "first"}]})
+        claims = [
+            event["body"] for event in self.lineage.events() if event["kind"] == "claim"
+        ]
+        self.assertEqual(claims[0]["packet_sha256"], online.digest(packet))
+
     def test_stale_concurrent_episode_cannot_publish(self):
         self.propose("one")
         self.propose("two")
