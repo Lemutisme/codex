@@ -72,4 +72,5 @@ def run(binary, root, packet, provider, credential, *, deadline_secs, cancellati
         deadline_secs=deadline_secs,
         worker_role=ResearchRole,
         cancellation=cancellation,
+        process_scope="inherited",
     )

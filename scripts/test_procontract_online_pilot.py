@@ -64,6 +64,7 @@ class PilotTests(unittest.TestCase):
                 deadlines.append(args.deadline_secs)
                 summary = {
                     "turn_statuses": ["completed"],
+                    "native_process_exit": {"status": "exited"},
                     "server_exited_early": False,
                     "status": {"phase": "supported"},
                     "cost": {},

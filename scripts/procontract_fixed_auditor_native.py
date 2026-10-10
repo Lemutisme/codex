@@ -317,12 +317,15 @@ def run(
     deadline_secs=role.DEADLINE,
     worker_role=role,
     cancellation=None,
+    process_scope="isolated",
 ):
     """One native process, no retries. Caller must reserve and durably claim first.
 
     Test fixtures may pass a shorter deadline; the sealed paid caller cannot. Credential
     bodies are never written to configuration, logs or receipts by this host.
     """
+    if process_scope not in ("isolated", "inherited"):
+        raise ValueError("unknown native process scope")
     root = Path(root)
     ambient = ambient_preflight()
     for name in ("home", "codex-home", "tmp"):
@@ -363,13 +366,19 @@ def run(
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            start_new_session=True,
+            start_new_session=process_scope == "isolated",
         )
+
+        def stop(sig):
+            if process_scope == "isolated":
+                os.killpg(process.pid, sig)
+            else:
+                process.send_signal(sig)
 
         def expire():
             timed_out.set()
             try:
-                os.killpg(process.pid, signal.SIGKILL)
+                stop(signal.SIGKILL)
             except ProcessLookupError:
                 pass
 
@@ -409,8 +418,7 @@ def run(
         if process is not None:
             if receipt["status"] != "completed" and process.poll() is None:
                 try:
-                    os.killpg(
-                        process.pid,
+                    stop(
                         signal.SIGKILL
                         if timed_out.is_set() or receipt["status"] == "timeout"
                         else signal.SIGTERM,
@@ -424,25 +432,23 @@ def run(
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGTERM)
+                stop(signal.SIGTERM)
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    stop(signal.SIGKILL)
                     process.wait(timeout=5)
             # Clean only this newly-created process group, including a lingering V8 host.
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            # A descendant may retain stdout after the leader exits. Escalate the owned
-            # group before joining reader threads; never close a buffered stream whose
-            # reader can still hold its lock indefinitely.
-            time.sleep(0.05)
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            if process_scope == "isolated":
+                try:
+                    stop(signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                time.sleep(0.05)
+                try:
+                    stop(signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
             receipt["native_exit"] = process.returncode
             if session is not None:
                 for worker in session.threads:

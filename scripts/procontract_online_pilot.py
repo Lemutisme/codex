@@ -24,6 +24,7 @@ import procontract_online_plan as plans
 from procontract_online_runtime import OnlineRuntime
 from procontract_online_trace import OnlineTrace
 import procontract_study_budget as budgets
+import procontract_owned_process as owned_process
 
 
 def episode(plan, digest, index, arm):
@@ -139,6 +140,7 @@ def episode(plan, digest, index, arm):
     summary = json.loads((run / "run.json").read_text())
     if (
         summary.get("runner_error")
+        or summary.get("native_process_exit", {}).get("status") != "exited"
         or summary.get("server_exited_early")
         or (summary.get("turn_statuses") or [None])[-1] == "failed"
     ):
@@ -209,7 +211,6 @@ def run(plan, digest, authorization):
     seed.mkdir()
     (seed / "executor.md").write_text(online.instructions(plan["seed"]))
     terminal = {"status": "running", "episodes": [], "restarts": 0}
-    process = None
     try:
         for index, task in enumerate(plan["tasks"]):
             # Alternate arm order; adaptive lineage sees only its own earlier feedback.
@@ -232,24 +233,9 @@ def run(plan, digest, authorization):
                     arm,
                 ]
                 with (root / f"{key}.log").open("x") as log:
-                    process = subprocess.Popen(
-                        command,
-                        stdin=subprocess.DEVNULL,
-                        stdout=log,
-                        stderr=subprocess.STDOUT,
-                        start_new_session=True,
+                    code = owned_process.run(
+                        command, stdout=log, timeout=plan["episode_secs"]
                     )
-                    try:
-                        code = process.wait(timeout=plan["episode_secs"])
-                    except BaseException:
-                        os.killpg(process.pid, signal.SIGINT)
-                        try:
-                            process.wait(timeout=45)
-                        except subprocess.TimeoutExpired:
-                            os.killpg(process.pid, signal.SIGKILL)
-                            process.wait(timeout=5)
-                        raise
-                process = None
                 if code != 0:
                     raise RuntimeError(f"{key} exited {code}; stop without replacement")
                 terminal["episodes"].append({"task": task, "episode": key})
