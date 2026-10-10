@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import procontract_online_plan as plans
 
@@ -71,6 +72,77 @@ class PlanTests(unittest.TestCase):
                 path.write_text(json.dumps(wrong))
                 with self.assertRaises(ValueError):
                     plans.authorize({"limits": limits}, "a" * 64, path)
+
+    def test_preparation_subsets_dependency_inventory_without_changing_rules(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / "source/scripts"
+            scripts.mkdir(parents=True)
+            for name in (
+                "procontract_online_pilot.py",
+                "procontract_canonical.py",
+                "procodex_config.py",
+            ):
+                (scripts / name).write_text("fixture")
+            package = root / "package"
+            (package / "bin").mkdir(parents=True)
+            for name in ("codex", "codex-code-mode-host", "pro-contract-store"):
+                (package / "bin" / name).write_text(name)
+            release = {
+                "source_commit": "native",
+                "binaries": {p.name: plans.sha(p) for p in (package / "bin").iterdir()},
+            }
+            (package / "procodex-release.json").write_text(json.dumps(release))
+            tasks = {name: {"image": f"image-{name}"} for name in ("a", "b", "c", "d")}
+            policy = {
+                "tasks": {t: v["image"] for t, v in tasks.items()},
+                "images": {v["image"]: [] for v in tasks.values()},
+                "allowed": ["unchanged"],
+            }
+            policy_path = root / "original-policy.json"
+            policy_path.write_text(json.dumps(policy))
+            before = policy_path.read_bytes()
+            registry_path = root / "registry.json"
+            registry_path.write_text(
+                json.dumps(
+                    {
+                        "tasks": tasks,
+                        "dependency_policy": {
+                            "path": str(policy_path),
+                            "sha256": plans.sha(policy_path),
+                        },
+                    }
+                )
+            )
+            prompt = root / "prompt"
+            prompt.write_text("fixture")
+            destination = root / "pilot"
+
+            def freeze(*_args, **_kwargs):
+                (destination / "inputs/canonical-pins.json").write_text("{}")
+
+            def git(args, **_kwargs):
+                return "" if "status" in args else "controller"
+
+            with (
+                mock.patch.object(plans, "SCRIPTS", scripts),
+                mock.patch.object(plans.canonical, "configure"),
+                mock.patch.object(plans.canonical, "evaluator_env", return_value={}),
+                mock.patch.object(plans.subprocess, "run", side_effect=freeze),
+                mock.patch.object(plans.subprocess, "check_output", side_effect=git),
+            ):
+                result = plans.prepare(
+                    destination, registry_path, package / "bin/codex", prompt
+                )
+            subset = json.loads(
+                (destination / "inputs/dependency-policy.json").read_text()
+            )
+            self.assertEqual(set(subset["tasks"]), set(result["tasks"]))
+            self.assertEqual(set(subset["images"]), set(subset["tasks"].values()))
+            self.assertEqual(subset["allowed"], policy["allowed"])
+            self.assertEqual(policy_path.read_bytes(), before)
+            sealed = plans.verify(Path(result["plan"]), result["sha256"])
+            self.assertTrue(Path(sealed["entrypoint"]).is_relative_to(destination))
 
     def test_receipt_publication_is_non_overwriting(self):
         with tempfile.TemporaryDirectory() as temporary:

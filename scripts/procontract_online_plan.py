@@ -52,6 +52,18 @@ def prepare(root, source_registry, binary, prompt):
         "exposed_tasks": [],
         "exposure_scope": "prospective_lineage",
     }
+    if descriptor := source.get("dependency_policy"):
+        policy = json.loads(Path(descriptor["path"]).read_text())
+        if sha(Path(descriptor["path"])) != descriptor["sha256"]:
+            raise ValueError("source dependency manifest changed")
+        selected_images = {source["tasks"][task]["image"] for task in tasks}
+        policy["tasks"] = {task: policy["tasks"][task] for task in tasks}
+        policy["images"] = {image: policy["images"][image] for image in selected_images}
+        publish(inputs / "dependency-policy.json", policy)
+        registry["dependency_policy"] = {
+            "path": str(inputs / "dependency-policy.json"),
+            "sha256": sha(inputs / "dependency-policy.json"),
+        }
     # This is a fresh learning lineage, not an assertion of global non-exposure.
     publish(inputs / "canonical-registry.json", registry)
     (inputs / "task-prompt.txt").write_bytes(prompt.read_bytes())
