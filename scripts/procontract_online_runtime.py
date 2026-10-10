@@ -35,6 +35,7 @@ class OnlineRuntime:
         self.initial = lineage.current()
         if online.digest(self.initial) != self.allocation["parent"]:
             raise ValueError("initial program differs from reserved parent")
+        self.trigger = harness.parse(online.encoded(self.initial["harness"]))
         self.root.mkdir(mode=0o700)
         self.cancel = threading.Event()
         self.pool = ThreadPoolExecutor(
@@ -48,6 +49,7 @@ class OnlineRuntime:
         self.dispatch_recorded = False
         self.research_receipt = None
         self.error = None
+        self._terminal = None
         self._write("allocation.json", self.allocation)
 
     def _write(self, name, value):
@@ -99,12 +101,25 @@ class OnlineRuntime:
                 return
             if not status or status.get("phase") in ("checking", "drafting"):
                 return
+            repairs = status.get("repairs_used")
+            if type(repairs) is not int or repairs < 0:
+                return
+            facts = {
+                "deadline_secs": self.allocation["executor_secs"],
+                "remaining_secs": max(0, int(remaining)),
+                "turns_completed": turns.completed,
+                "repairs_used": repairs,
+                "executor_command_completions_observed": self.command_count,
+            }
+            if not self.trigger.evaluate(facts):
+                return
             observations = {
                 "status": {
                     k: status.get(k) for k in ("phase", "resting", "repairs_used")
                 },
                 "commands": self.commands,
                 "command_completions": self.command_count,
+                "research_trigger": {"program": self.trigger.digest, "facts": facts},
                 "remaining_secs": int(remaining),
                 "scope": "observed_execution_not_hidden_reward",
             }
@@ -181,6 +196,8 @@ class OnlineRuntime:
                 )
 
     def close(self):
+        if self._terminal is not None:
+            return self._terminal
         self.cancel.set()
         self.pool.shutdown(wait=True, cancel_futures=True)
         if (
@@ -205,4 +222,5 @@ class OnlineRuntime:
             "claim": "experimental_dispatch_and_observed_activity_only; no stable adoption or causal gain",
         }
         self._write("terminal.json", result)
+        self._terminal = result
         return result

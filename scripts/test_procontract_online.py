@@ -28,6 +28,7 @@ def candidate(program, suffix):
 class ProgramTests(unittest.TestCase):
     def test_harness_is_executable_but_cannot_acquire_capabilities(self):
         value = online.seed()
+        value["harness"]["when"] = {"remaining_fraction_lte": [3, 4]}
         loaded = online.parse(online.encoded(value))
         program = online.harness.parse(online.encoded(loaded["harness"]))
         facts = {

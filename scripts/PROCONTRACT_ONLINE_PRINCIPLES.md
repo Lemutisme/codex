@@ -76,3 +76,26 @@ B. Native no-tool researcher and runner integration; mock-provider E2E before pa
 C. New pinned six-run pilot and receipts, followed by claim-limited report.
 D. Interactive integration is a separate product completion criterion, not inferred
    from a benchmark runner. No change to the installed default until that is tested.
+
+## Context and integration review
+
+P0 manual context review item: the new native research input can exceed 1,000
+model tokens. The packet has a hard 7,000 UTF-8 byte cap, plus a fixed ~1.2 KiB
+protocol prefix; it contains a <=4,000-byte program, <=1,200-byte observation
+projection, and at most two prior scalar outcome receipts. No entire transcript,
+workspace, hidden test, baseline artifact or unbounded memory is injected. Native
+app-server's existing typed user-input path is used; existing history is not rewritten.
+The execution strategy addition is <=1,600 bytes plus fixed framing. Review verified
+these bounds and the synthetic native request's contents/tool surface before paid use.
+
+The initial H is an actual command-completion predicate (not a timer recommendation).
+Inherited H controls research eligibility; proposed H controls one fenced execution
+checkpoint. Host warmup, reserve and protected-phase guards remain non-learnable.
+Command completions count activity, including failures, not semantic progress.
+
+The proposed five-hour all-in episode is conservatively split: four hours for native
+execution/research/checks, one hour for frozen canonical grading. The adaptive arm
+reserves 900 seconds from those four hours for research. This differs from giving
+both executors five hours PLUS research/grading. Parent supervision stops an episode
+at five hours, with explicit process cleanup afterwards; cleanup is reported, not
+claimed instantaneous. Historical leaderboard scores are not matched-budget controls.

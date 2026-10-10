@@ -63,7 +63,7 @@ def seed():
         "harness": {
             "schema": 3,
             "action": "checkpoint",
-            "when": {"remaining_fraction_lte": [3, 4]},
+            "when": {"command_completions_observed_gte": 4},
         },
     }
 

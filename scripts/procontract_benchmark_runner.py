@@ -848,15 +848,17 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
         )
         raise
     finally:
-        if learning is not None:
-            summary["online_learning"] = learning.close()
+        try:
+            if learning is not None:
+                summary["online_learning"] = learning.close()
+        finally:
+            closed = server.close()
         summary["execution_environment"] = health.summary()
         summary["execution_activity"] = activity.summary()
         summary["delivery_budget"] = budget.summary()
         if budget.activation is not None:
             summary["harness_program"] = budget.activation
         summary["elapsed_secs"] = round(time.monotonic() - started)
-        closed = server.close()
         summary["native_process_exit"] = (
             closed
             if isinstance(closed, dict)
