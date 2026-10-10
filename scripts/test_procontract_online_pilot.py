@@ -12,10 +12,17 @@ from procontract_online_lineage import Lineage
 import procontract_online_pilot as pilot
 import procontract_online_plan as plans
 import procontract_study_budget as budgets
+import procontract_online_selection as selection
 
 
 class PilotTests(unittest.TestCase):
-    def test_each_arm_is_once_and_only_adaptive_gets_its_frozen_reward(self):
+    def test_research_charges_budget_and_only_adaptive_gets_its_reward(self):
+        self.drive(draw=0, researcher=1, execution=13500)
+
+    def test_hold_skips_research_reservation_and_restores_executor_capacity(self):
+        self.drive(draw=0.99, researcher=0, execution=14400)
+
+    def drive(self, *, draw, researcher, execution):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binary = root / "codex"
@@ -68,6 +75,7 @@ class PilotTests(unittest.TestCase):
                     "server_exited_early": False,
                     "status": {"phase": "supported", "contract_id": "contract"},
                     "cost": {},
+                    "elapsed_secs": 10,
                 }
                 if learning is not None:
                     summary["online_learning"] = learning.close()
@@ -98,6 +106,9 @@ class PilotTests(unittest.TestCase):
                 )
 
             with (
+                mock.patch.object(
+                    selection.random.SystemRandom, "random", return_value=draw
+                ),
                 mock.patch.object(pilot, "OnlineTrace"),
                 mock.patch.object(pilot.canonical, "configure", return_value=registry),
                 mock.patch.object(pilot.canonical, "bind_pins"),
@@ -126,14 +137,14 @@ class PilotTests(unittest.TestCase):
             self.assertEqual(
                 [frozen["outcome"]["resolved"], adaptive["outcome"]["resolved"]], [2, 2]
             )
-            self.assertEqual(deadlines, [14400, 13500])
+            self.assertEqual(deadlines, [14400, execution])
             self.assertEqual(len(prepared), 2)
             plans.publish(root / "terminal.json", {"status": "stopped"})
             with self.assertRaisesRegex(ValueError, "terminal pilot"):
                 pilot.episode(plan, digest, 1, "adaptive")
             rewards = [
                 e["body"]
-                for e in Lineage(root / "lineage").events()
+                for e in Lineage(root / "lineage", selection_scope=digest).events()
                 if e["kind"] == "reward"
             ]
             self.assertEqual(
@@ -147,7 +158,7 @@ class PilotTests(unittest.TestCase):
                 used,
                 {
                     "task_launches": 2,
-                    "learning_launches": 1,
+                    "learning_launches": researcher,
                     "allocated_seconds": 36000,
                 },
             )

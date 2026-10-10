@@ -53,7 +53,17 @@ def episode(plan, digest, index, arm):
         stdout=subprocess.DEVNULL,
         check=True,
     )
-    research_secs = plan["research_secs"] if arm == "adaptive" else 0
+    if run.exists():
+        raise budgets.AlreadyClaimed("episode directory already exists; no restart")
+    lineage = (
+        Lineage(root / "lineage", selection_scope=digest) if arm == "adaptive" else None
+    )
+    allocation = (
+        lineage.begin(key, plan["inference_secs"], plan["research_secs"])
+        if lineage
+        else None
+    )
+    research_secs = allocation["research_secs"] if allocation else 0
     reservation = budgets.reserve(
         root / "budget.sqlite",
         digest,
@@ -69,7 +79,7 @@ def episode(plan, digest, index, arm):
         },
     )
     learning_reservation = None
-    if arm == "adaptive":
+    if research_secs:
         learning_reservation = budgets.reserve(
             root / "budget.sqlite",
             digest,
@@ -106,18 +116,8 @@ def episode(plan, digest, index, arm):
         run / "pilot-reservation.json",
         {"task": reservation, "research": learning_reservation},
     )
-    # A frozen arm executes the same seed H without any learning calls.
-    if arm == "frozen":
-        (run / "policy/harness.json").write_bytes(
-            online.encoded(plan["seed"]["harness"])
-        )
-        manifest = json.loads((run / "manifest.json").read_text())
-        program = runner.harness_program.load(run / "policy")
-        manifest["harness_program"] = {
-            "sha256": program.digest,
-            "interpreter": program.interpreter,
-        }
-        (run / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    # Frozen and hold controllers execute seed/selected P without a fake checkpoint.
+    # The same kernel and ProContract remain enabled in every arm.
     learning = None
     observed = OnlineTrace(run, digest)
     try:
@@ -126,7 +126,7 @@ def episode(plan, digest, index, arm):
             if not key_value:
                 raise ValueError("no provider credential; task slot remains spent")
             learning = OnlineRuntime(
-                Lineage(root / "lineage"),
+                lineage,
                 key,
                 run / "online",
                 Path(plan["binary"]),
@@ -134,6 +134,7 @@ def episode(plan, digest, index, arm):
                 key_value,
                 total_secs=plan["inference_secs"],
                 research_secs=research_secs,
+                allocation=allocation,
             )
         runner.run(
             SimpleNamespace(
@@ -183,20 +184,41 @@ def episode(plan, digest, index, arm):
         raise RuntimeError(
             "invalid frozen canonical outcome; never convert to reward 0"
         )
+    grading_elapsed = time.monotonic() - started
+    learning_reward = None
     if arm == "adaptive":
-        Lineage(root / "lineage").reward(
+        terminal = summary["online_learning"]
+        research = terminal.get("research")
+        # Missing researcher timing is not free research. No attempted call means 0.
+        research_elapsed = (
+            research.get("elapsed_secs")
+            if research
+            else (None if learning.future is not None else 0)
+        )
+        trace = summary.get("native_notice_trace", {})
+        witnessed = trace.get("evidence", {}).get("status") == "observed"
+        learning_reward = lineage.reward(
             key,
             resolved=outcome["resolved"],
             total=outcome["total"],
             submission_sha256=outcome["submission_sha256"],
             evaluator_sha256=plan["pins_sha256"],
+            selection_evidence={
+                "native_secs": summary.get("elapsed_secs"),
+                "research_secs": research_elapsed,
+                "grading_secs": grading_elapsed,
+                "episode_secs": plan["episode_secs"],
+                **terminal["command_metrics"],
+                "input_witness": online.digest(trace) if witnessed else None,
+            },
         )
     result = {
         "task": task,
         "arm": arm,
         "episode": key,
         "outcome": outcome,
-        "grading_elapsed_secs": time.monotonic() - started,
+        "grading_elapsed_secs": grading_elapsed,
+        "learning_reward": learning_reward,
         "native_contract": summary.get("status"),
         "native_cost": summary.get("cost"),
         "online": summary.get("online_learning"),
@@ -281,7 +303,11 @@ def main():
     os.umask(0o077)
     if args.command == "prepare":
         result = plans.prepare(
-            args.root, args.source_registry, args.binary, args.prompt
+            args.root,
+            args.source_registry,
+            args.binary,
+            args.prompt,
+            comparison=args.comparison,
         )
     else:
         plan = plans.verify(args.plan, args.plan_sha256)

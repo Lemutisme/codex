@@ -107,6 +107,12 @@ class Lineage:
             parent = db.execute(
                 "SELECT value FROM state WHERE key='current'"
             ).fetchone()[0]
+            if db.execute(
+                "SELECT 1 FROM events WHERE key=?", (f"episode:{episode}",)
+            ).fetchone():
+                raise sqlite3.IntegrityError(
+                    "episode already reserved; cannot resample"
+                )
             chosen = selection.choose(db) if self.selection_scope else None
             if chosen:
                 parent = chosen["version"]
@@ -133,6 +139,13 @@ class Lineage:
             ).fetchone()
             if row is None:
                 raise ValueError("episode was not reserved")
+            if (
+                self.selection_scope
+                and db.execute(
+                    "SELECT 1 FROM events WHERE key=?", (f"trial:{episode}",)
+                ).fetchone()
+            ):
+                raise ValueError("closed episode cannot launch research")
             allocation = json.loads(row[0])
             if self.selection_scope and allocation["research_secs"] == 0:
                 raise ValueError("hold policy has no research authority")
@@ -183,10 +196,23 @@ class Lineage:
                             "credit",
                         }
                     }
-                    | {"utility": reward["selection"]["utility"]}
+                    | {
+                        k: reward["selection"][k]
+                        for k in (
+                            "utility",
+                            "cost_fraction",
+                            "mode",
+                            "prediction",
+                        )
+                    }
                     for reward in rewards
                 ]
-                while len(encoded(packet)) > PACKET_BYTES and packet["past_rewards"]:
+                if len(encoded(packet)) > PACKET_BYTES:
+                    packet["previous_trial"] = None
+                while (
+                    len(encoded(packet)) > PACKET_BYTES
+                    and len(packet["past_rewards"]) > 1
+                ):
                     packet["past_rewards"].pop()
             frozen = encoded(packet)
             if len(frozen) > PACKET_BYTES:

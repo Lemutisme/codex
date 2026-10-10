@@ -28,11 +28,21 @@ class OnlineRuntime:
         *,
         total_secs=18000,
         research_secs=900,
+        allocation=None,
     ):
         self.lineage, self.episode, self.root = lineage, episode, Path(root)
         self.binary, self.provider, self.credential = binary, provider, credential
-        self.allocation = lineage.begin(episode, total_secs, research_secs)
-        self.initial = lineage.current()
+        self.allocation = allocation or lineage.begin(
+            episode, total_secs, research_secs
+        )
+        if allocation is not None:
+            with lineage.transaction() as db:
+                reserved = db.execute(
+                    "SELECT body FROM events WHERE key=?", (f"episode:{episode}",)
+                ).fetchone()
+            if reserved is None or json.loads(reserved[0]) != allocation:
+                raise ValueError("runtime allocation differs from durable selection")
+        self.initial = lineage.version(self.allocation["parent"])
         if online.digest(self.initial) != self.allocation["parent"]:
             raise ValueError("initial program differs from reserved parent")
         self.trigger = harness.parse(online.encoded(self.initial["harness"]))
@@ -46,6 +56,7 @@ class OnlineRuntime:
         self.commands = []
         self.status = "observing"
         self.command_count = self.after_ack = 0
+        self.commands_with_exit = self.failed_commands = 0
         self.dispatch_recorded = False
         self.research_receipt = None
         self.error = None
@@ -73,6 +84,9 @@ class OnlineRuntime:
         if item.get("type") != "commandExecution":
             return
         self.command_count += 1
+        if type(item.get("exitCode")) is int:
+            self.commands_with_exit += 1
+            self.failed_commands += int(item["exitCode"] != 0)
         if self.dispatch_recorded and self.status == "experimental":
             self.after_ack += 1
         self.commands.append(
@@ -91,6 +105,8 @@ class OnlineRuntime:
                 "online learning requires an issued ProContract task contract"
             )
         if not status or not status.get("contract_id"):
+            return
+        if self.allocation["research_secs"] == 0:
             return
         remaining = self.allocation["executor_secs"] - elapsed_secs
         if self.cancel.is_set() or remaining <= 0:
@@ -125,6 +141,8 @@ class OnlineRuntime:
                 },
                 "commands": self.commands,
                 "command_completions": self.command_count,
+                "commands_with_exit": self.commands_with_exit,
+                "failed_commands": self.failed_commands,
                 "research_trigger": {"program": self.trigger.digest, "facts": facts},
                 "remaining_secs": int(remaining),
                 "scope": "observed_execution_not_hidden_reward",
@@ -225,6 +243,11 @@ class OnlineRuntime:
             "research": self.research_receipt,
             "dispatch": self.budget.summary() if self.budget else None,
             "command_completions_after_ack": self.after_ack,
+            "command_metrics": {
+                "commands": self.command_count,
+                "commands_with_exit": self.commands_with_exit,
+                "failed_commands": self.failed_commands,
+            },
             "claim": "experimental_dispatch_and_observed_activity_only; no stable adoption or causal gain",
         }
         reason = (self.error or "").encode()[:300].decode("utf-8", errors="ignore")

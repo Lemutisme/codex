@@ -11,6 +11,7 @@ import tomllib
 import procontract_benchmark_runner as runner
 import procontract_canonical as canonical
 import procontract_online as online
+from procontract_online_selection import PROFILE as SELECTION_PROFILE
 import procontract_native_trace_binding as trace
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -122,7 +123,7 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
     files.update({str(path): sha(path) for path in inputs.iterdir() if path.is_file()})
     plan = {
         "schema": 1,
-        "protocol": "online-program-learning-pilot-v1",
+        "protocol": "online-controller-bandit-pilot-v2",
         "root": str(root),
         "model": "gpt-5.6-luna",
         "effort": "max",
@@ -151,6 +152,7 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
         "prompt": str(inputs / "task-prompt.txt"),
         "files": files,
         "seed": online.seed(),
+        "selection_profile": SELECTION_PROFILE,
         "automatic_stable_adoption": False,
         "private_native_trace": TRACE_PROFILE,
         "exposure": "new empty lineage; historical operator exposure disclosed; not globally unseen",
@@ -160,7 +162,7 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
             if comparison == "paired"
             else "adaptive-only stream: operational closure and descriptive scores; no matched-budget net-gain claim"
         ),
-        "budget_note": "5h total per arm/instance: 4h inference including research, 1h frozen grading. Adaptive researcher reserves 15min of the 4h, even if concurrent. Actual tokens/cost may differ.",
+        "budget_note": "5h total per arm/instance: 4h inference including research, 1h frozen grading. Research mode reserves 15min of the 4h, even if concurrent; hold mode retains all 4h. Actual tokens/cost may differ.",
         "compliance_note": "Native ProContract provides within-evidence review, not an exhaustive syscall/dependency audit. Functional scores alone do not certify all submission constraints.",
         "unknown_policy": "stop on infrastructure unknown; preserve malformed/inactive proposals without same-task retry",
     }
@@ -178,7 +180,8 @@ def verify(path, expected):
         raise ValueError("pilot plan differs from operator pin")
     plan = json.loads(path.read_text())
     if (
-        plan["protocol"] != "online-program-learning-pilot-v1"
+        plan["protocol"] != "online-controller-bandit-pilot-v2"
+        or plan.get("selection_profile") != SELECTION_PROFILE
         or Path(plan["root"]) != path.resolve().parent
     ):
         raise ValueError("invalid pilot identity")

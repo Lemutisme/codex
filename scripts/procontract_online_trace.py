@@ -48,7 +48,7 @@ class OnlineTrace(trace.Observer):
         self.reader_limits = reader.Limits(max_response_id_chars=1024)
         self.bound = {
             "schema": 1,
-            "protocol": "online-program-learning-pilot-v1",
+            "protocol": "online-controller-bandit-pilot-v2",
             "plan_sha256": plan_sha256,
             "run": str(self.run),
             "profile": TRACE_PROFILE,

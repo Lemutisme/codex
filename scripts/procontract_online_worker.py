@@ -43,8 +43,19 @@ class Packet:
             raise ValueError("oversized research packet")
 
     def prompt(self):
+        measurement = (
+            "prediction must itself encode JSON with exactly metric, direction, threshold. "
+            "metric is canonical_fraction or command_failure_fraction; direction is at_least or at_most; "
+            "threshold is a number in [0,1]. No free-form prediction. "
+            "Use mixed-episode returns as real learning feedback, not isolated causal certification. "
+            "Explain a decision bottleneck, applicable state, changed action and stop/revert condition in mechanism. "
+            "Improve a specific behavior, not prose style. The host selector and reward cannot be changed. "
+            if "selection" in self.value
+            else ""
+        )
         return (
-            "Produce one experimental successor with execution, research, harness_json, mechanism, prediction. "
+            measurement
+            + "Produce one experimental successor with execution, research, harness_json, mechanism, prediction. "
             "execution and research must each fit 1600 UTF-8 bytes. Keep all text concise. "
             'harness_json must be JSON: {"schema":3,"action":"checkpoint","when":predicate}. '
             "Predicates: remaining_fraction_lte:[numerator,denominator], completed_turns_lte:integer, "

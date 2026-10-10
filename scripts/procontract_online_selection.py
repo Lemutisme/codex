@@ -9,6 +9,7 @@ import math
 import random
 import re
 
+import procontract_harness_program as harness
 from procontract_online import digest, encoded
 
 PROFILE = {
@@ -100,7 +101,9 @@ def choose(db):
 
 
 def prediction(text):
-    value = json.loads(text)
+    value = json.loads(
+        text, object_pairs_hook=harness._object, parse_constant=harness._invalid_number
+    )
     if (
         type(value) is not dict
         or value.keys() != {"metric", "direction", "threshold"}

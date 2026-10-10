@@ -109,3 +109,14 @@ Sampling may choose hold or revisit an old controller. Do not override the draw 
 manufacture recursion or spend another run because the pilot lacked a desired
 witness. Report actual stages reached. Genuine policy learning can occur without
 winning; a changed selection probability is not itself measured RSI benefit.
+
+## Context-size review
+
+P0 manual review: researcher input can exceed 1,000 tokens. Revision 2 keeps the
+7,000-byte snapshot cap and adds only a fixed ~600-byte measurement instruction to
+the existing fixed prefix. Prior outcomes are projected to two scalar receipts,
+including costs and prediction assessments. Old trial observations and then the
+older reward are omitted if needed; the latest real return is never silently lost; no full selector table, evaluator details,
+private trace or frozen-arm result enters context. Executor strategy stays at
+1,600 bytes plus fixed framing. Existing typed app-server input paths are reused;
+there is no core history rewrite or new unbounded model-visible fragment.

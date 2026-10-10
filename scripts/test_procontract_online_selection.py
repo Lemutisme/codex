@@ -109,6 +109,7 @@ class SelectionTests(unittest.TestCase):
         packet = self.lineage.claim("two", {})
         self.assertEqual(packet["program"], child)
         self.assertEqual(packet["past_rewards"][0]["resolved"], 4)
+        self.assertEqual(packet["past_rewards"][0]["prediction"]["actual"], 0.2)
         self.assertEqual(self.lineage.current(), online.seed())
 
     def test_ack_without_input_witness_never_admits_child(self):
@@ -175,6 +176,12 @@ class SelectionTests(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 selection.prediction(json.dumps(value))
+
+    def test_duplicate_prediction_keys_cannot_hide_a_threshold(self):
+        with self.assertRaises(ValueError):
+            selection.prediction(
+                '{"metric":"canonical_fraction","direction":"at_least","threshold":0.9,"threshold":0.0}'
+            )
 
     def test_selection_prefers_better_observed_controller_in_synthetic_environment(
         self,

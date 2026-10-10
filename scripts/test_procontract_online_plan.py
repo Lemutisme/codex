@@ -10,6 +10,17 @@ import procontract_online_plan as plans
 
 
 class PlanTests(unittest.TestCase):
+    def test_cli_does_not_silently_drop_paired_comparison(self):
+        import procontract_online_pilot as pilot
+
+        with (
+            mock.patch("sys.argv", ["pilot", "prepare", "--comparison", "paired"]),
+            mock.patch.object(plans, "prepare", return_value={}) as prepare,
+            mock.patch("builtins.print"),
+        ):
+            pilot.main()
+        self.assertEqual(prepare.call_args.kwargs, {"comparison": "paired"})
+
     def test_task_order_is_independent_of_input_order_and_scores(self):
         tasks = {"c": {"score": 100}, "a": {"score": 0}, "d": {}, "b": {}}
         selected = plans.select_tasks(tasks)
@@ -30,7 +41,8 @@ class PlanTests(unittest.TestCase):
             source.write_text("original")
             plan = {
                 "root": str(root),
-                "protocol": "online-program-learning-pilot-v1",
+                "protocol": "online-controller-bandit-pilot-v2",
+                "selection_profile": plans.SELECTION_PROFILE,
                 "files": {str(source): plans.sha(source)},
             }
             path = root / "online-plan.json"
@@ -132,7 +144,11 @@ class PlanTests(unittest.TestCase):
                 mock.patch.object(plans.subprocess, "check_output", side_effect=git),
             ):
                 result = plans.prepare(
-                    destination, registry_path, package / "bin/codex", prompt
+                    destination,
+                    registry_path,
+                    package / "bin/codex",
+                    prompt,
+                    comparison="paired",
                 )
             subset = json.loads(
                 (destination / "inputs/dependency-policy.json").read_text()
@@ -146,11 +162,11 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(
                 (sealed["arms"], sealed["limits"]),
                 (
-                    ["adaptive"],
+                    ["frozen", "adaptive"],
                     {
-                        "task_launches": 3,
+                        "task_launches": 6,
                         "learning_launches": 3,
-                        "allocated_seconds": 54000,
+                        "allocated_seconds": 108000,
                     },
                 ),
             )

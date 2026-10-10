@@ -21,7 +21,12 @@ from test_procodex_native import text_values
 class NativeResearchTests(unittest.TestCase):
     def test_installed_native_consumes_method_and_has_no_execution_tools(self):
         requests = []
-        program, final = candidate(online.seed(), "native")
+        program, raw = candidate(online.seed(), "native")
+        proposed = json.loads(raw)
+        proposed["prediction"] = json.dumps(
+            {"metric": "canonical_fraction", "direction": "at_least", "threshold": 0.6}
+        )
+        final = online.encoded(proposed)
 
         class Provider(http.server.BaseHTTPRequestHandler):
             def log_message(self, *_args):
@@ -84,7 +89,12 @@ class NativeResearchTests(unittest.TestCase):
                 result, receipt = worker.run(
                     Path(os.environ["PROCODEX_NATIVE_PACKAGE"]) / "bin/codex",
                     root,
-                    {"program": online.seed(), "observations": {}, "past_rewards": []},
+                    {
+                        "program": online.seed(),
+                        "observations": {},
+                        "past_rewards": [],
+                        "selection": {"mode": "research"},
+                    },
                     {
                         "base_url": f"http://127.0.0.1:{server.server_port}/v1",
                         "env_key": "FIXTURE_KEY",
@@ -107,6 +117,10 @@ class NativeResearchTests(unittest.TestCase):
                 )
                 self.assertIn(
                     online.seed()["research"], "\n".join(text_values(request["input"]))
+                )
+                self.assertIn(
+                    "prediction must itself encode JSON",
+                    "\n".join(text_values(request["input"])),
                 )
                 names = {v for v in text_values(request.get("tools", []))}
                 self.assertFalse(
