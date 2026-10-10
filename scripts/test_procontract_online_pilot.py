@@ -79,6 +79,8 @@ class PilotTests(unittest.TestCase):
                 return archive
 
             def grade(command, **_kwargs):
+                if command == ["preflight"]:
+                    return
                 run = Path(command[command.index("--output") + 1]).parent
                 archive = run / "submission.tar.gz"
                 self.assertTrue(archive.exists())
@@ -99,7 +101,11 @@ class PilotTests(unittest.TestCase):
                 mock.patch.object(pilot, "OnlineTrace"),
                 mock.patch.object(pilot.canonical, "configure", return_value=registry),
                 mock.patch.object(pilot.canonical, "bind_pins"),
-                mock.patch.object(pilot.canonical, "preflight"),
+                mock.patch.object(
+                    pilot.canonical,
+                    "preflight",
+                    side_effect=AssertionError("must use pinned evaluator subprocess"),
+                ),
                 mock.patch.object(
                     pilot.canonical, "package_submission", side_effect=package
                 ),

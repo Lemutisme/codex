@@ -41,7 +41,14 @@ def episode(plan, digest, index, arm):
     run = root / "runs" / key
     registry = canonical.configure(Path(plan["registry"]), plan["registry_sha256"])
     canonical.bind_pins(plan["pins_sha256"])
-    canonical.preflight()
+    # Benchmark dependencies belong to the registry-pinned evaluator interpreter,
+    # not the generic Codex/controller Python environment.
+    subprocess.run(
+        canonical.worker_command("preflight"),
+        env=canonical.evaluator_env(),
+        stdout=subprocess.DEVNULL,
+        check=True,
+    )
     research_secs = plan["research_secs"] if arm == "adaptive" else 0
     reservation = budgets.reserve(
         root / "budget.sqlite",
