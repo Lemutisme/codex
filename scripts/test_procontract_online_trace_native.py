@@ -60,7 +60,7 @@ class NativeTraceTests(unittest.TestCase):
                             }
                         ],
                     }
-                response = f"fixture-{number}"
+                response = f"fixture-{number}-" + "x" * 500
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Connection", "close")

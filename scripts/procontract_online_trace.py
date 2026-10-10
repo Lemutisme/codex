@@ -42,13 +42,17 @@ class OnlineTrace(trace.Observer):
             check=True,
         )
         self.initial_storage = trace.storage(self.run, empty=True)
+        # Provider response identifiers are opaque, unlike native UUIDs. This
+        # future profile admits bounded 505-character proxy IDs; legacy readers
+        # retain their original 128-character default and frozen verdicts.
+        self.reader_limits = reader.Limits(max_response_id_chars=1024)
         self.bound = {
             "schema": 1,
             "protocol": "online-program-learning-pilot-v1",
             "plan_sha256": plan_sha256,
             "run": str(self.run),
             "profile": TRACE_PROFILE,
-            "reader_limits": asdict(reader.Limits()),
+            "reader_limits": asdict(self.reader_limits),
         }
         publish(self.run / "online-trace-descriptor.json", self.bound)
         self.manifest = {

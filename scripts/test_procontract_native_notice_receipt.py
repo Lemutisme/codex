@@ -92,6 +92,36 @@ class NativeNoticeReceiptTests(unittest.TestCase):
         self.write_events(self.events[:4])
         self.reader = Reader(self.root.parent, thread_id=THREAD, turn_id=TURN)
 
+    def test_long_opaque_provider_ids_need_an_explicit_compatible_profile(self):
+        response_id = "resp_" + "x" * 500
+        self.put(
+            "payloads/4.json",
+            {"response_id": response_id, "output_items": [], "token_usage": {}},
+        )
+        for event in self.events:
+            payload = event["payload"]
+            if (
+                payload["type"] == "inference_completed"
+                and payload["inference_call_id"] == CALLS[1]
+            ):
+                payload["response_id"] = response_id
+        baseline = self.reader.before_steer(NOTICE)
+        self.write_events(self.events)
+        self.assertEqual(
+            self.reader.after_run(baseline, notice=NOTICE, accepted_turn_id=TURN),
+            {"status": "unknown", "reason": "invalid_identifier"},
+        )
+        compatible = Reader(
+            self.root.parent,
+            thread_id=THREAD,
+            turn_id=TURN,
+            limits=dataclasses.replace(Limits(), max_response_id_chars=1024),
+        )
+        result = compatible.after_run(baseline, notice=NOTICE, accepted_turn_id=TURN)
+        self.assertEqual(
+            (result["status"], result["response_id"]), ("observed", response_id)
+        )
+
     def put(self, relative, value):
         (self.root / relative).write_text(json.dumps(value), encoding="utf-8")
 

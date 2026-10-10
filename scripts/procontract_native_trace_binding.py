@@ -264,6 +264,7 @@ class Observer:
         self.observer_secs = 0.0
         self.attempted = False
         self.baseline_sha256 = None
+        self.reader_limits = native.Limits()
 
     def before_send(self, message):
         started = time.monotonic()
@@ -279,6 +280,7 @@ class Observer:
                 self.run / ROOT,
                 thread_id=self.thread_id,
                 turn_id=params["expectedTurnId"],
+                limits=self.reader_limits,
             )
             self.baseline = self.reader.before_steer(self.notice)
         except Exception:

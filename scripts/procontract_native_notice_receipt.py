@@ -29,6 +29,7 @@ class Limits:
     max_seconds: float = 2.0
     max_notice_bytes: int = 2048
     max_receipt_bytes: int = 8192
+    max_response_id_chars: int = 128
 
 
 @dataclass(frozen=True)
@@ -244,14 +245,14 @@ class Reader:
         self.limits = limits
         defaults = Limits()
         for key, value in vars(limits).items():
-            maximum = getattr(defaults, key)
+            maximum = 1024 if key == "max_response_id_chars" else getattr(defaults, key)
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
                 or not 0 < value <= maximum
             ):
                 raise ValueError(
-                    "reader limits must be positive and no larger than defaults"
+                    "reader limits must be positive and within supported bounds"
                 )
             if key != "max_seconds" and type(value) is not int:
                 raise ValueError("byte and count limits must be integers")
@@ -485,7 +486,12 @@ class Reader:
                     completed["payload"].get("response_payload"),
                     "inference_response",
                 )
-                response_id = _identifier(completed["payload"].get("response_id"))
+                response_id = completed["payload"].get("response_id")
+                _require(
+                    isinstance(response_id, str)
+                    and 0 < len(response_id) <= self.limits.max_response_id_chars,
+                    "invalid_identifier",
+                )
                 _require(
                     response.get("response_id") == response_id,
                     "response_identity_mismatch",
