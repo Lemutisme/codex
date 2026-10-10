@@ -286,6 +286,16 @@ class Lineage:
                 "SELECT body FROM events WHERE key=?", (f"dispatch:{episode}",)
             ).fetchone()
             effective = json.loads(dispatched[0]) if dispatched else None
+            produced = db.execute(
+                "SELECT body FROM events WHERE key=?", (f"proposal:{episode}",)
+            ).fetchone()
+            producer_method = (
+                json.loads(produced[0])["producer_method"]
+                if produced
+                and effective
+                and effective["receipt"]["outcome"] == "accepted"
+                else None
+            )
             value = {
                 "episode": episode,
                 "initial_version": parent,
@@ -296,6 +306,7 @@ class Lineage:
                 "total": total,
                 "submission_sha256": submission_sha256,
                 "evaluator_sha256": evaluator_sha256,
+                "producer_method": producer_method,
                 "credit": "episode_return_not_isolated_causal_effect",
             }
             self._event(db, f"reward:{episode}", "reward", value)

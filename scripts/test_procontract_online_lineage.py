@@ -49,6 +49,7 @@ class LineageTests(unittest.TestCase):
                 "total": 7,
                 "submission_sha256": "a" * 64,
                 "evaluator_sha256": "b" * 64,
+                "producer_method": online.digest(first["program"]["research"]),
                 "credit": "episode_return_not_isolated_causal_effect",
             },
         )
@@ -70,6 +71,16 @@ class LineageTests(unittest.TestCase):
         reopened.register("two", raw)
         reopened.dispatch("two", {"outcome": "accepted", "turn_id": "t2"})
         self.assertEqual(reopened.current(), next_program)
+        descendant_return = reopened.reward(
+            "two",
+            resolved=3,
+            total=7,
+            submission_sha256="c" * 64,
+            evaluator_sha256="b" * 64,
+        )
+        self.assertEqual(
+            descendant_return["producer_method"], online.digest(successor["research"])
+        )
         claims = [
             event["body"] for event in reopened.events() if event["kind"] == "claim"
         ]
