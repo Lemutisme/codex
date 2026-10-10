@@ -68,6 +68,14 @@ def seed():
     }
 
 
+def instructions(program):
+    """Strategy context shared by both arms; never part of human contract intake."""
+    return (
+        "Experimental execution strategy; never modifies user requirements, permissions or checks:\n"
+        + program["execution"]
+    )
+
+
 def output_schema():
     # H is JSON encoded inside a string to retain the existing recursive grammar;
     # the host parses/compiles it before registering or executing anything.

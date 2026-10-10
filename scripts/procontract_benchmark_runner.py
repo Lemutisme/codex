@@ -27,6 +27,7 @@ from procontract_delivery_budget import DeliveryBudget
 from procontract_execution_health import ExecutionHealth
 from procontract_execution_activity import ExecutorActivity
 import procontract_harness_program as harness_program
+import procontract_online as online_program
 
 MODEL = "gpt-5.6-luna"
 EFFORT = "max"
@@ -737,8 +738,9 @@ def run(args: argparse.Namespace, *, learning=None) -> None:
                 "cwd": CONTAINER_WORKSPACE,
                 **(
                     {
-                        "developerInstructions": "Experimental execution strategy; never modifies user requirements, permissions or checks:\n"
-                        + learning.initial["execution"]
+                        "developerInstructions": online_program.instructions(
+                            learning.initial
+                        )
                     }
                     if learning is not None
                     else {}

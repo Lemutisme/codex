@@ -199,7 +199,7 @@ def run(plan, digest, authorization):
     budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
     seed = root / "seed-policy"
     seed.mkdir()
-    (seed / "executor.md").write_text(plan["seed"]["execution"])
+    (seed / "executor.md").write_text(online.instructions(plan["seed"]))
     terminal = {"status": "running", "episodes": [], "restarts": 0}
     process = None
     try:

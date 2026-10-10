@@ -5,7 +5,7 @@ import unittest
 from unittest import mock
 
 import procontract_benchmark_runner as runner
-from test_procontract_delivery_runner import DeliveryRunnerTest
+import test_procontract_delivery_runner as delivery
 
 
 class OnlineRunnerTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class OnlineRunnerTests(unittest.TestCase):
             return actual(args, learning=learning)
 
         with mock.patch.object(runner, "run", side_effect=run):
-            return DeliveryRunnerTest().drive(reserve=0)
+            return delivery.DeliveryRunnerTest().drive(reserve=0)
 
     def learner(self):
         return SimpleNamespace(
