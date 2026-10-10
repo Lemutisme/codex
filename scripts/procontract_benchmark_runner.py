@@ -609,8 +609,13 @@ def current_key(environ: dict) -> str | None:
     return environ.get("OPENAI_API_KEY")
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace, *, learning=None) -> None:
     run_dir: Path = args.run_dir
+    if (
+        learning is not None
+        and args.deadline_secs != learning.allocation["executor_secs"]
+    ):
+        raise ValueError("online research must be deducted from executor allocation")
     manifest = json.loads((run_dir / "manifest.json").read_text())
     program = harness_program.load(run_dir / "policy")
     identity = (
@@ -621,6 +626,10 @@ def run(args: argparse.Namespace) -> None:
     if identity != manifest.get("harness_program"):
         raise ValueError("frozen harness program differs from its prepared identity")
     reserve = getattr(args, "delivery_reserve_secs", 0)
+    if learning is not None and (
+        program is not None or reserve or args.stop_after_issue
+    ):
+        raise ValueError("online controller cannot share legacy steering authority")
     if program is not None:
         if reserve:
             raise ValueError(
@@ -687,6 +696,8 @@ def run(args: argparse.Namespace) -> None:
             eof.set()
         else:
             turns.observe(message)
+            if learning is not None:
+                learning.observe(message, turns.thread_id)
             health.observe(message, turns.thread_id)
             activity.observe(
                 message,
@@ -732,6 +743,11 @@ def run(args: argparse.Namespace) -> None:
         if observer is not None:
             observer.thread_id = thread_id
         summary["thread_id"] = thread_id
+        if learning is not None:
+            prompt += (
+                "\nExperimental standing execution strategy:\n"
+                + learning.initial["execution"]
+            )
         server.request(
             "turn/start",
             {
@@ -797,6 +813,14 @@ def run(args: argparse.Namespace) -> None:
                         # The run is over either way; its status and cost are still worth recording.
                         summary["interrupt_unanswered"] = True
                 break
+            if learning is not None:
+                learning.poll(
+                    server,
+                    turns,
+                    status,
+                    handle,
+                    elapsed_secs=time.monotonic() - started,
+                )
             budget.maybe_steer(
                 server,
                 turns,
@@ -824,6 +848,8 @@ def run(args: argparse.Namespace) -> None:
         )
         raise
     finally:
+        if learning is not None:
+            summary["online_learning"] = learning.close()
         summary["execution_environment"] = health.summary()
         summary["execution_activity"] = activity.summary()
         summary["delivery_budget"] = budget.summary()

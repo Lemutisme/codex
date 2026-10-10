@@ -31,11 +31,17 @@ class DeliveryBudget:
         deadline_secs: int,
         reserve_secs: int = 0,
         program: Program | None = None,
+        policy_notice: str | None = None,
     ):
         if deadline_secs <= 0 or not 0 <= reserve_secs < deadline_secs:
             raise ValueError(
                 "delivery reserve must be nonnegative and below the deadline"
             )
+        if policy_notice is not None and (
+            not isinstance(policy_notice, str) or len(policy_notice.encode()) > 1600
+        ):
+            raise ValueError("online policy notice exceeds bound")
+        self.policy_notice = policy_notice
         self.deadline_secs = deadline_secs
         self.reserve_secs = reserve_secs
         self._attempt: dict | None = None
@@ -171,6 +177,11 @@ class DeliveryBudget:
         notice_text = notice(
             self.program.action if self.program else "converge", remaining
         )
+        if self.policy_notice is not None:
+            notice_text += (
+                "\nExperimental execution strategy (not new task requirements):\n"
+                + self.policy_notice
+            )
         attempt = {
             "turn_id": turn_id[:128],
             "remaining_secs": round(remaining, 3),
