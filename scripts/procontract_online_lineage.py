@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+import procontract_online_selection as selection
+
 from procontract_online import (
     OBSERVATION_BYTES,
     PACKET_BYTES,
@@ -22,7 +24,8 @@ class Lineage:
     rewriting feedback, clearing exposure, or obtaining additional inference budget.
     """
 
-    def __init__(self, root):
+    def __init__(self, root, *, selection_scope=None):
+        self.selection_scope = selection_scope
         self.root = Path(root).absolute()
         if any(path.is_symlink() for path in (self.root, *self.root.parents)):
             raise ValueError("redirected online lineage")
@@ -44,6 +47,8 @@ class Lineage:
             db.execute(
                 "INSERT OR IGNORE INTO state VALUES ('current',?)", (digest(value),)
             )
+
+            selection.initialize(db, selection_scope, digest(value))
 
     @contextmanager
     def transaction(self):
@@ -73,6 +78,14 @@ class Lineage:
                 ).fetchone()[0]
             )
 
+    def version(self, identity):
+        with self.transaction() as db:
+            return json.loads(
+                db.execute(
+                    "SELECT body FROM versions WHERE id=?", (identity,)
+                ).fetchone()[0]
+            )
+
     def events(self):
         with self.transaction() as db:
             return [
@@ -94,6 +107,11 @@ class Lineage:
             parent = db.execute(
                 "SELECT value FROM state WHERE key='current'"
             ).fetchone()[0]
+            chosen = selection.choose(db) if self.selection_scope else None
+            if chosen:
+                parent = chosen["version"]
+                if chosen["mode"] == "hold":
+                    research_secs = 0
             body = {
                 "episode": episode,
                 "parent": parent,
@@ -101,6 +119,8 @@ class Lineage:
                 "research_secs": research_secs,
                 "executor_secs": total_secs - research_secs,
             }
+            if chosen:
+                body["selection"] = chosen
             self._event(db, f"episode:{episode}", "episode", body)
         return body
 
@@ -113,8 +133,11 @@ class Lineage:
             ).fetchone()
             if row is None:
                 raise ValueError("episode was not reserved")
-            parent = json.loads(row[0])["parent"]
-            if (
+            allocation = json.loads(row[0])
+            if self.selection_scope and allocation["research_secs"] == 0:
+                raise ValueError("hold policy has no research authority")
+            parent = allocation["parent"]
+            if not self.selection_scope and (
                 db.execute("SELECT value FROM state WHERE key='current'").fetchone()[0]
                 != parent
             ):
@@ -140,6 +163,31 @@ class Lineage:
                 "past_rewards": rewards,
                 "previous_trial": json.loads(previous[0]) if previous else None,
             }
+            if self.selection_scope:
+                packet["selection"] = {
+                    "credit": selection.PROFILE["credit"],
+                    "mode": allocation["selection"]["mode"],
+                    "propensity": allocation["selection"]["probability"],
+                }
+                packet["past_rewards"] = [
+                    {
+                        k: v
+                        for k, v in reward.items()
+                        if k
+                        in {
+                            "initial_version",
+                            "experimental_version",
+                            "producer_method",
+                            "resolved",
+                            "total",
+                            "credit",
+                        }
+                    }
+                    | {"utility": reward["selection"]["utility"]}
+                    for reward in rewards
+                ]
+                while len(encoded(packet)) > PACKET_BYTES and packet["past_rewards"]:
+                    packet["past_rewards"].pop()
             frozen = encoded(packet)
             if len(frozen) > PACKET_BYTES:
                 raise ValueError("combined research packet exceeds bound")
@@ -159,6 +207,8 @@ class Lineage:
 
     def register(self, episode, raw):
         program, explanation = proposal(raw)
+        if self.selection_scope:
+            selection.prediction(explanation["prediction"])
         with self.transaction() as db:
             row = db.execute(
                 "SELECT body FROM events WHERE key=?", (f"claim:{episode}",)
@@ -206,7 +256,7 @@ class Lineage:
             current = db.execute(
                 "SELECT value FROM state WHERE key='current'"
             ).fetchone()[0]
-            if current != proposed["parent"]:
+            if not self.selection_scope and current != proposed["parent"]:
                 raise ValueError("stale publication parent")
             self._event(
                 db,
@@ -220,7 +270,7 @@ class Lineage:
             )
             # ACK allows experimental inheritance, not a performance claim. The
             # independent report still requires activity AFTER the dispatch.
-            if receipt["outcome"] == "accepted":
+            if receipt["outcome"] == "accepted" and not self.selection_scope:
                 db.execute(
                     "UPDATE state SET value=? WHERE key='current'",
                     (proposed["candidate"],),
@@ -264,7 +314,16 @@ class Lineage:
                 },
             )
 
-    def reward(self, episode, *, resolved, total, submission_sha256, evaluator_sha256):
+    def reward(
+        self,
+        episode,
+        *,
+        resolved,
+        total,
+        submission_sha256,
+        evaluator_sha256,
+        selection_evidence=None,
+    ):
         if (
             any(type(v) is not int for v in (resolved, total))
             or not 0 <= resolved <= total
@@ -312,5 +371,17 @@ class Lineage:
                 "producer_method": producer_method,
                 "credit": "episode_return_not_isolated_causal_effect",
             }
+            if self.selection_scope:
+                if not db.execute(
+                    "SELECT 1 FROM events WHERE key=?", (f"trial:{episode}",)
+                ).fetchone():
+                    raise ValueError("reward requires a closed runtime")
+                value["selection"] = selection.learn(
+                    db,
+                    json.loads(row[0]),
+                    value,
+                    selection_evidence,
+                    json.loads(produced[0]) if produced else None,
+                )
             self._event(db, f"reward:{episode}", "reward", value)
         return value
