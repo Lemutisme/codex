@@ -61,7 +61,7 @@ fn current_directory_prefixes_are_valid_fixture_paths() {
         raw(json!([{
             "id": "save-txt", "args": ["./contract-txt-out"],
             "dirs": ["./contract-txt-out"],
-            "files": [{"path": "././inputs/a.txt", "text": "hello", "repeat": 1}],
+            "files": [{"path": "././/inputs/a.txt", "text": "hello", "repeat": 1}],
         }])),
         /*max*/ 1,
     )
@@ -73,7 +73,7 @@ fn current_directory_prefixes_are_valid_fixture_paths() {
             args: vec!["./contract-txt-out".to_string()],
             dirs: vec!["./contract-txt-out".to_string()],
             files: vec![FixtureFile {
-                path: "././inputs/a.txt".to_string(),
+                path: "././/inputs/a.txt".to_string(),
                 text: "hello".to_string(),
                 repeat: 1
             }],
@@ -116,7 +116,7 @@ fn fixtures_cannot_leave_the_case_directory() {
         "././",
         "./../escape",
         "./a/../../b",
-        ".//etc/passwd",
+        "././../escape",
     ] {
         let message = malformed(json!([{
             "id": "c",

@@ -388,11 +388,11 @@ pub(crate) fn parse_observations(stdout: &str) -> Vec<Observation> {
 
 /// A fixture path as a relative path that cannot leave the case directory.
 pub(crate) fn safe_relative(path: &str) -> Option<&Path> {
-    // A leading current-directory segment is relative, not an escape. Strip only
-    // that identity prefix; empty paths, roots and parent components still fail.
-    let path = path.trim_start_matches("./");
+    // Normalize a leading current-directory component without reinterpreting
+    // duplicate separators as an absolute path. Roots and parents still fail.
     let candidate = Path::new(path);
-    let plain = !path.is_empty()
+    let candidate = candidate.strip_prefix(".").unwrap_or(candidate);
+    let plain = !candidate.as_os_str().is_empty()
         && candidate
             .components()
             .all(|component| matches!(component, std::path::Component::Normal(_)));

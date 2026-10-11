@@ -184,11 +184,11 @@ fn case_inputs_are_written_inside_their_directory() -> std::io::Result<()> {
     let inputs = DifferentialCase {
         stdin: Some("input".to_string()),
         files: vec![FixtureFile {
-            path: "./tree/a.txt".to_string(),
+            path: ".//tree/a.txt".to_string(),
             text: "ab".to_string(),
             repeat: 3,
         }],
-        dirs: vec!["././tree/empty".to_string()],
+        dirs: vec!["././/tree/empty".to_string()],
         env: [("NO_COLOR".to_string(), "1".to_string())].into(),
         ..case("c", &[])
     };
