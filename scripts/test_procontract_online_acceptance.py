@@ -2,6 +2,7 @@
 
 import copy
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ import unittest
 import procontract_online as online
 from procontract_online_lineage import Lineage
 from procontract_online_acceptance import assess
+from procontract_online_worker import Packet
 from test_procontract_online import candidate
 
 
@@ -60,6 +62,9 @@ def fixture():
                         "native_exit": 0,
                         "input_binding": {
                             "packet_sha256": online.digest(packet),
+                            "prompt_sha256": hashlib.sha256(
+                                Packet(packet).prompt().encode()
+                            ).hexdigest(),
                             "producer_method": online.digest(parent["research"]),
                         },
                     },
@@ -68,6 +73,7 @@ def fixture():
                         "candidate": online.digest(child["harness"]),
                         "facts": facts,
                         "parent_decision": True,
+                        "eligibility": {"eligible": True, "reason": "eligible"},
                         "candidate_decision": False,
                     },
                 )

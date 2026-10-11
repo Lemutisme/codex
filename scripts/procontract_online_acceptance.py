@@ -1,11 +1,13 @@
 """Read-only finite evidence gates. Never grants adoption, a retry, or a gain claim."""
 
 import json
+import hashlib
 from pathlib import Path
 import sqlite3
 
 from procontract_online import digest, encoded
 import procontract_harness_program as harness
+from procontract_online_worker import Packet
 
 
 def assess(plan, results, events, versions, *, evidence_kind):
@@ -58,6 +60,8 @@ def assess(plan, results, events, versions, *, evidence_kind):
             or type(worker.get("native_exit")) is not int
             or worker["native_exit"] != 0
             or binding.get("packet_sha256") != claim["packet_sha256"]
+            or binding.get("prompt_sha256")
+            != hashlib.sha256(Packet(claim["packet"]).prompt().encode()).hexdigest()
             or claim["packet_sha256"] != digest(claim["packet"])
             or binding.get("producer_method") != claim["producer_method"]
             or claim["producer_method"]
@@ -90,7 +94,9 @@ def assess(plan, results, events, versions, *, evidence_kind):
                 before = harness.parse(encoded(versions[parent]["harness"]))
                 after = harness.parse(encoded(versions[child]["harness"]))
                 if (
-                    changed["parent"] == before.digest
+                    changed.get("eligibility")
+                    == {"eligible": True, "reason": "eligible"}
+                    and changed["parent"] == before.digest
                     and changed["candidate"] == after.digest
                     and before.evaluate(changed["facts"]) == changed["parent_decision"]
                     and after.evaluate(changed["facts"])

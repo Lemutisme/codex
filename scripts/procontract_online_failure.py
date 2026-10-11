@@ -39,6 +39,10 @@ def contained_contract_failure(summary):
         or closed["returncode"] != 0
         or (summary.get("execution_environment") or {}).get("disconnect_observed")
         is not False
+        or ((summary.get("native_notice_trace") or {}).get("storage") or {}).get(
+            "exhausted"
+        )
+        is True
         or error not in (None, "ContractUnavailable")
         or any(
             learning.get(k) is not None for k in ("research", "candidate", "dispatch")

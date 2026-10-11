@@ -2,6 +2,12 @@
 
 import copy
 import unittest
+import sqlite3
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+import procontract_benchmark_runner as runner
 
 from procontract_online_failure import contained_contract_failure, ContractUnavailable
 
@@ -21,6 +27,32 @@ class FailureBoundaryTests(unittest.TestCase):
             "server_exited_early": True,
             "online_learning": {"research": None, "candidate": None, "dispatch": None},
         }
+
+    def test_status_poll_closes_sqlite_connections_including_query_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ledger.sqlite"
+            db = sqlite3.connect(path)
+            db.execute("CREATE TABLE records(kind TEXT,key TEXT,json TEXT)")
+            db.execute(
+                "INSERT INTO records VALUES ('status','t','{\"phase\":\"working\"}')"
+            )
+            db.commit()
+            db.close()
+            connect = sqlite3.connect
+            for broken in (False, True):
+                connection = connect(path)
+                if broken:
+                    connection.execute("DROP TABLE records")
+                    connection.commit()
+                with mock.patch.object(
+                    runner.sqlite3, "connect", return_value=connection
+                ):
+                    self.assertEqual(
+                        runner.read_status(path, "t"),
+                        None if broken else {"phase": "working"},
+                    )
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    connection.execute("SELECT 1")
 
     def test_guard_preserves_bounded_failure_data_not_an_invented_quality(self):
         error = ContractUnavailable({**self.summary["status"], "detail": "安全" * 500})
@@ -50,6 +82,7 @@ class FailureBoundaryTests(unittest.TestCase):
             {"native_process_exit": {"status": "exited", "returncode": 1}},
             {"execution_environment": {"disconnect_observed": True}},
             {"execution_environment": {}},
+            {"native_notice_trace": {"storage": {"exhausted": True}}},
             {"runner_error": "ValueError"},
             {"runner_error": None},
             {"status": {**self.summary["status"], "contract_id": "already-issued"}},

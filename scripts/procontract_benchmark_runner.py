@@ -10,6 +10,7 @@ it nor CODEX_HOME is ever mounted into a container.
 """
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -241,7 +242,9 @@ def read_status(ledger: Path, thread_id: str) -> dict | None:
     if not ledger.exists():
         return None
     try:
-        with sqlite3.connect(f"file:{ledger}?mode=ro", uri=True, timeout=5) as db:
+        with contextlib.closing(
+            sqlite3.connect(f"file:{ledger}?mode=ro", uri=True, timeout=5)
+        ) as db:
             row = db.execute(
                 "SELECT json FROM records WHERE kind = 'status' AND key = ?",
                 (thread_id,),

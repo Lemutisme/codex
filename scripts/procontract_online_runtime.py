@@ -220,6 +220,7 @@ class OnlineRuntime:
                         "facts": dict(facts),
                         "parent_decision": parent_decision,
                         "candidate_decision": activation["last_decision"],
+                        "eligibility": dict(activation["last_eligibility"]),
                         "scope": "different_decisions_on_same_eligible_observation_not_gain",
                     }
             attempt = self.budget.summary()["attempt"]
