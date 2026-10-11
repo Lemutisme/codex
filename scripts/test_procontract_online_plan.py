@@ -24,6 +24,21 @@ class PlanTests(unittest.TestCase):
             {"comparison": "paired", "selection_mode": "deployment"},
         )
 
+    def test_control_cannot_request_rsi_coverage(self):
+        for comparison in ("vanilla", "contract"):
+            with (
+                self.subTest(comparison=comparison),
+                self.assertRaisesRegex(ValueError, "non-learning controls"),
+            ):
+                plans.prepare(
+                    None,
+                    None,
+                    None,
+                    None,
+                    comparison=comparison,
+                    selection_mode="coverage",
+                )
+
     def test_task_order_is_independent_of_input_order_and_scores(self):
         tasks = {"c": {"score": 100}, "a": {"score": 0}, "d": {}, "b": {}}
         selected = plans.select_tasks(tasks)
@@ -95,6 +110,17 @@ class PlanTests(unittest.TestCase):
                     plans.authorize({"limits": limits}, "a" * 64, path)
 
     def test_preparation_subsets_dependency_inventory_without_changing_rules(self):
+        self.prepare_comparison("paired", ["frozen", "adaptive"], 3)
+
+    def test_vanilla_and_contract_controls_have_no_research_budget(self):
+        for mode, arms in (
+            ("vanilla", ["vanilla"]),
+            ("contract", ["vanilla", "frozen"]),
+        ):
+            with self.subTest(mode=mode):
+                self.prepare_comparison(mode, arms, 0)
+
+    def prepare_comparison(self, comparison, arms, research):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             scripts = root / "source/scripts"
@@ -157,7 +183,7 @@ class PlanTests(unittest.TestCase):
                     registry_path,
                     package / "bin/codex",
                     prompt,
-                    comparison="paired",
+                    comparison=comparison,
                 )
             subset = json.loads(
                 (destination / "inputs/dependency-policy.json").read_text()
@@ -171,11 +197,11 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(
                 (sealed["arms"], sealed["limits"]),
                 (
-                    ["frozen", "adaptive"],
+                    arms,
                     {
-                        "task_launches": 6,
-                        "learning_launches": 3,
-                        "allocated_seconds": 108000,
+                        "task_launches": 3 * len(arms),
+                        "learning_launches": research,
+                        "allocated_seconds": 54000 * len(arms),
                     },
                 ),
             )

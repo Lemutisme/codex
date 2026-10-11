@@ -68,10 +68,14 @@ def _plan(study, limits):
     if (
         type(limits) is not dict
         or limits.keys() != set(LIMIT_KEYS)
-        or not all(_positive(value) for value in limits.values())
+        or not all(
+            _positive(limits[key]) for key in ("task_launches", "allocated_seconds")
+        )
+        or type(limits["learning_launches"]) is not int
+        or not 0 <= limits["learning_launches"] <= MAX_INTEGER
     ):
         raise ValueError(
-            "budget limits must contain exactly three bounded positive integers"
+            "budget requires positive task/time caps and a nonnegative learning cap"
         )
 
 

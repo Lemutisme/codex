@@ -28,6 +28,7 @@ from procontract_online_trace import OnlineTrace
 import procontract_study_budget as budgets
 import procontract_owned_process as owned_process
 import procontract_online_acceptance as acceptance
+import procontract_control_acceptance as control_acceptance
 
 
 def episode(plan, digest, index, arm):
@@ -99,7 +100,7 @@ def episode(plan, digest, index, arm):
             {"episode": key, "one_attempt": True},
         )
     common = dict(
-        arm="on",
+        arm="off" if arm == "vanilla" else "on",
         run_dir=run,
         instance=task,
         image=registry.tasks[task]["image"],
@@ -196,7 +197,14 @@ def episode(plan, digest, index, arm):
         raise RuntimeError(
             "native execution infrastructure failed; no replacement task run"
         )
-    if not (summary.get("status") or {}).get("contract_id"):
+    if arm == "vanilla" and (
+        summary.get("status") is not None
+        or (summary.get("cost") or {}).get("worker_rollouts") != 0
+    ):
+        raise RuntimeError(
+            "vanilla control acquired contract state or internal workers"
+        )
+    if arm != "vanilla" and not (summary.get("status") or {}).get("contract_id"):
         raise RuntimeError("required ProContract task contract was never issued")
     archive = canonical.package_submission(run)
     started = time.monotonic()
@@ -259,6 +267,7 @@ def episode(plan, digest, index, arm):
         "learning_reward": learning_reward,
         "native_contract": summary.get("status"),
         "native_cost": summary.get("cost"),
+        "native_control": {"arm": common["arm"], "learning": learning is not None},
         "online": summary.get("online_learning"),
         "native_context_evidence": summary.get("native_notice_trace"),
         "claims": "descriptive functional outcome; no stable promotion or independent compliance proof",
@@ -333,7 +342,11 @@ def run(plan, digest, authorization):
             error={"type": type(error).__name__, "message": str(error)[:500]},
         )
     try:
-        evidence = acceptance.collect(plan)
+        evidence = (
+            control_acceptance.collect(plan)
+            if "vanilla" in plan["arms"]
+            else acceptance.collect(plan)
+        )
     except (ValueError, KeyError, TypeError, OSError, sqlite3.Error) as error:
         evidence = {
             "status": "FAIL",
@@ -341,7 +354,10 @@ def run(plan, digest, authorization):
             "scope": "acceptance evidence unavailable",
         }
     plans.publish(root / "acceptance.json", evidence)
-    terminal["mechanism_acceptance"] = evidence["status"]
+    verdict = (
+        "control_acceptance" if "vanilla" in plan["arms"] else "mechanism_acceptance"
+    )
+    terminal[verdict] = evidence["status"]
     terminal["budget"] = budgets.status(root / "budget.sqlite", digest, plan["limits"])
     plans.publish(root / "terminal.json", terminal)
     return terminal
@@ -354,7 +370,11 @@ def main():
     parser.add_argument("--source-registry", type=Path)
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--prompt", type=Path)
-    parser.add_argument("--comparison", choices=("stream", "paired"), default="stream")
+    parser.add_argument(
+        "--comparison",
+        choices=("stream", "paired", "vanilla", "contract"),
+        default="stream",
+    )
     parser.add_argument(
         "--selection-mode", choices=("deployment", "coverage"), default="deployment"
     )
@@ -362,7 +382,7 @@ def main():
     parser.add_argument("--plan-sha256")
     parser.add_argument("--authorization", type=Path)
     parser.add_argument("--index", type=int)
-    parser.add_argument("--arm", choices=("frozen", "adaptive"))
+    parser.add_argument("--arm", choices=("frozen", "adaptive", "vanilla"))
     args = parser.parse_args()
     os.umask(0o077)
     if args.command == "prepare":
@@ -393,6 +413,9 @@ def main():
     print(json.dumps(result, indent=2))
     if (
         result.get("status") in ("stopped", "completed_with_failures")
+        or args.command == "run"
+        and "vanilla" in plan["arms"]
+        and result.get("control_acceptance") != "PASS"
         or args.command == "run"
         and plan["selection_mode"] == "coverage"
         and result.get("mechanism_acceptance") != "PASS"

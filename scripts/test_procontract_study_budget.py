@@ -83,6 +83,19 @@ class StudyBudgetTest(unittest.TestCase):
             {"task_launches": 1, "learning_launches": 1, "allocated_seconds": 15},
         )
 
+    def test_control_budget_permits_tasks_but_no_learning_launch(self):
+        self.limits["learning_launches"] = 0
+        self.new_database("no-learning")
+        before = self.report()
+        with self.assertRaises(budget.BudgetExceeded):
+            self.reserve("forbidden-research", "learning", 1)
+        self.assertEqual(self.report(), before)
+        self.reserve("control-task")
+        self.assertEqual(
+            self.report()["reserved"],
+            {"task_launches": 1, "learning_launches": 0, "allocated_seconds": 10},
+        )
+
     def test_claim_is_not_a_repeatable_permission_even_with_equal_identity(self):
         self.reserve("once")
         before = self.report()
@@ -161,6 +174,7 @@ os._exit(23)
             {"limits": self.limits | {name: value}}
             for name in self.limits
             for value in (True, 0, -1)
+            if not (name == "learning_launches" and type(value) is int and value == 0)
         ]
         for request in requests:
             with self.subTest(request=request):

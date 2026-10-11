@@ -25,7 +25,24 @@ class PilotTests(unittest.TestCase):
     def test_contained_contract_failure_keeps_slots_spent_and_allows_next_task(self):
         self.drive(draw=0, researcher=1, execution=13500, unavailable=True)
 
-    def drive(self, *, draw, researcher, execution, unavailable=False):
+    def test_vanilla_is_scored_without_contract_or_learning_and_cannot_restart(self):
+        self.drive(draw=0.99, researcher=0, execution=14400, vanilla=True)
+
+    def test_vanilla_cannot_hide_an_internal_worker_as_a_valid_control(self):
+        self.drive(
+            draw=0.99, researcher=0, execution=14400, vanilla=True, control_leak=True
+        )
+
+    def drive(
+        self,
+        *,
+        draw,
+        researcher,
+        execution,
+        unavailable=False,
+        vanilla=False,
+        control_leak=False,
+    ):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binary = root / "codex"
@@ -56,6 +73,16 @@ class PilotTests(unittest.TestCase):
                 },
                 "seed": online.seed(),
             }
+            alternate = "vanilla" if vanilla else "adaptive"
+            if vanilla:
+                plan.update(
+                    tasks=["task-a"], arms=["frozen", "vanilla"], research_secs=0
+                )
+                plan["limits"] = {
+                    "task_launches": 2,
+                    "learning_launches": 0,
+                    "allocated_seconds": 36000,
+                }
             digest = "d" * 64
             budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
             plans.publish(root / "launch.json", {"plan_sha256": digest})
@@ -82,6 +109,11 @@ class PilotTests(unittest.TestCase):
                     "cost": {},
                     "elapsed_secs": 10,
                 }
+                if args.arm == "off":
+                    self.assertIsNone(learning)
+                    summary.update(
+                        status=None, cost={"worker_rollouts": int(control_leak)}
+                    )
                 if unavailable and args.run_dir.name == "0-adaptive":
                     status = {
                         "phase": "abstained",
@@ -154,12 +186,24 @@ class PilotTests(unittest.TestCase):
             ):
                 frozen = pilot.episode(plan, digest, 0, "frozen")
                 self.assertFalse((root / "lineage").exists())
-                adaptive = pilot.episode(plan, digest, 0, "adaptive")
+                if control_leak:
+                    with self.assertRaisesRegex(RuntimeError, "internal workers"):
+                        pilot.episode(plan, digest, 0, alternate)
+                    self.assertFalse((root / "runs/0-vanilla/result.json").exists())
+                    self.assertFalse((root / "runs/0-vanilla/eval").exists())
+                    self.assertEqual(
+                        budgets.status(root / "budget.sqlite", digest, plan["limits"])[
+                            "reserved"
+                        ],
+                        plan["limits"],
+                    )
+                    return
+                adaptive = pilot.episode(plan, digest, 0, alternate)
                 if unavailable:
                     next_result = pilot.episode(plan, digest, 1, "adaptive")
                     self.assertEqual(next_result["status"], "scored")
                 with self.assertRaises(budgets.AlreadyClaimed):
-                    pilot.episode(plan, digest, 0, "adaptive")
+                    pilot.episode(plan, digest, 0, alternate)
             self.assertEqual(
                 [
                     frozen["outcome"]["resolved"],
@@ -173,7 +217,20 @@ class PilotTests(unittest.TestCase):
             self.assertEqual(len(prepared), 3 if unavailable else 2)
             plans.publish(root / "terminal.json", {"status": "stopped"})
             with self.assertRaisesRegex(ValueError, "terminal pilot"):
-                pilot.episode(plan, digest, 1, "adaptive")
+                pilot.episode(plan, digest, 0, alternate)
+            if vanilla:
+                self.assertEqual([a.arm for a in prepared], ["on", "off"])
+                self.assertFalse((root / "lineage").exists())
+                self.assertEqual(
+                    pilot.control_acceptance.collect(plan)["status"], "PASS"
+                )
+                self.assertEqual(
+                    budgets.status(root / "budget.sqlite", digest, plan["limits"])[
+                        "reserved"
+                    ],
+                    plan["limits"],
+                )
+                return
             rewards = [
                 e["body"]
                 for e in Lineage(root / "lineage", selection_scope=digest).events()

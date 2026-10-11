@@ -58,9 +58,18 @@ def prepare(
     selection_mode="deployment",
 ):
     profile = selection_profile(selection_mode)
-    if comparison not in ("stream", "paired"):
-        raise ValueError("comparison must be stream or paired")
-    arms = ["adaptive"] if comparison == "stream" else ["frozen", "adaptive"]
+    comparisons = {
+        "stream": ["adaptive"],
+        "paired": ["frozen", "adaptive"],
+        "vanilla": ["vanilla"],
+        "contract": ["vanilla", "frozen"],
+    }
+    if comparison not in comparisons:
+        raise ValueError("unknown comparison mode")
+    arms = comparisons[comparison]
+    learning = "adaptive" in arms
+    if not learning and selection_mode != "deployment":
+        raise ValueError("non-learning controls cannot request research coverage")
     root, binary = root.resolve(), binary.resolve()
     inputs = root / "inputs"
     inputs.mkdir(parents=True)
@@ -147,14 +156,14 @@ def prepare(
         "order_rule": ORDER_RULE,
         "arms": arms,
         "task_attempts": 1,
-        "research_attempts_per_task": 1,
+        "research_attempts_per_task": int(learning),
         "episode_secs": 18000,
         "inference_secs": 14400,
         "grading_secs": 3600,
-        "research_secs": 900,
+        "research_secs": 900 if learning else 0,
         "limits": {
             "task_launches": len(tasks) * len(arms),
-            "learning_launches": len(tasks),
+            "learning_launches": len(tasks) if learning else 0,
             "allocated_seconds": 18000 * len(tasks) * len(arms),
         },
         "binary": str(binary),
@@ -175,7 +184,11 @@ def prepare(
         "exposure": "new empty lineage; historical operator exposure disclosed; not globally unseen",
         "comparison_mode": comparison,
         "comparison": (
-            "directed mechanism coverage; not a natural-deployment benefit estimate"
+            "same native binary and fixed seed strategy; ProContract OFF only; historical ON comparison must be disclosed"
+            if comparison == "vanilla"
+            else "same native binary and fixed seed strategy; ProContract ON/OFF ablation; no RSI or independent kernel certification"
+            if comparison == "contract"
+            else "directed mechanism coverage; not a natural-deployment benefit estimate"
             if selection_mode == "coverage"
             else "paired descriptive combined-program effect; no method-only causal attribution"
             if comparison == "paired"
