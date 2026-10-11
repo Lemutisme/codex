@@ -13,7 +13,7 @@ import procontract_harness_program as harness
 from procontract_online import digest, encoded
 
 PROFILE = {
-    "algorithm": "bounded-controller-exp3ix-v1",
+    "algorithm": "bounded-controller-exp3ix-v2",
     "eta": 0.3,
     "gamma": 0.05,
     "epsilon": 0.2,
@@ -23,9 +23,22 @@ PROFILE = {
 }
 
 
-def initialize(db, scope, seed):
+def profile(mode):
+    if mode not in ("deployment", "coverage"):
+        raise ValueError("unknown selection mode")
+    return {
+        **PROFILE,
+        "mode": mode,
+        "coverage_episodes": 2 if mode == "coverage" else 0,
+    }
+
+
+def initialize(db, scope, seed, mode):
+    expected = profile(mode)
     row = db.execute("SELECT value FROM state WHERE key='selection'").fetchone()
     if scope is None:
+        if mode != "deployment":
+            raise ValueError("coverage requires a scoped learning lineage")
         if row:
             raise ValueError("reward-driven lineage requires its original scope")
         return
@@ -33,12 +46,12 @@ def initialize(db, scope, seed):
         raise ValueError("selection scope must bind the frozen study")
     if row:
         state = json.loads(row[0])
-        if state["scope"] != scope or state["profile"] != PROFILE:
+        if state["scope"] != scope or state["profile"] != expected:
             raise ValueError("selection scope or algorithm changed")
     else:
         if db.execute("SELECT 1 FROM events LIMIT 1").fetchone():
             raise ValueError("cannot reinterpret a legacy lineage as reward learning")
-        state = {"scope": scope, "profile": PROFILE, "arms": []}
+        state = {"scope": scope, "profile": expected, "arms": []}
         admit(state, seed)
         db.execute(
             "INSERT INTO state VALUES ('selection',?)", (encoded(state).decode(),)
@@ -76,25 +89,64 @@ def distribution(state):
 def choose(db):
     if db.execute("""
         SELECT 1 FROM events e WHERE e.kind='episode' AND NOT EXISTS
-        (SELECT 1 FROM events r WHERE r.key='reward:' || json_extract(e.body,'$.episode'))
+        (SELECT 1 FROM events r WHERE r.key IN
+          ('reward:' || json_extract(e.body,'$.episode'),
+           'failure:' || json_extract(e.body,'$.episode')))
     """).fetchone():
-        raise ValueError("previous episode has no terminal reward; no resampling")
+        raise ValueError(
+            "previous episode has no terminal reward or contained failure; no resampling"
+        )
     state = json.loads(
         db.execute("SELECT value FROM state WHERE key='selection'").fetchone()[0]
     )
     alternatives = distribution(state)
-    draw = random.SystemRandom().random()
+    policy = alternatives
+    purpose = "policy"
+    previous = db.execute(
+        "SELECT body FROM events WHERE kind='episode' ORDER BY seq"
+    ).fetchall()
+    if len(previous) < state["profile"]["coverage_episodes"]:
+        target = state["arms"][0]["version"] if not previous else None
+        purpose = "coverage_seed" if not previous else "coverage_unavailable"
+        if previous:
+            reward = db.execute(
+                "SELECT body FROM events WHERE key=?",
+                (f"reward:{json.loads(previous[-1][0])['episode']}",),
+            ).fetchone()
+            if reward:
+                candidate = json.loads(reward[0])["experimental_version"]
+                if any(a["version"] == candidate for a in state["arms"]):
+                    target, purpose = candidate, "coverage_successor"
+        if target:
+            alternatives = [
+                {
+                    **a,
+                    "probability": float(
+                        a["version"] == target and a["mode"] == "research"
+                    ),
+                }
+                for a in policy
+            ]
+    # A forced probe is not sampled from the deployment distribution. Its true
+    # propensity is one; do not manufacture a random draw or a merit promotion.
+    draw = (
+        None
+        if purpose in ("coverage_seed", "coverage_successor")
+        else random.SystemRandom().random()
+    )
     cumulative = 0.0
     selected = alternatives[-1]
     for action in alternatives:
         cumulative += action["probability"]
-        if draw < cumulative:
+        if (0 if draw is None else draw) < cumulative:
             selected = action
             break
     return {
         **selected,
         "draw": draw,
         "alternatives": alternatives,
+        "policy_alternatives": policy,
+        "purpose": purpose,
         "state_sha256": digest(state),
         "scope": state["scope"],
     }

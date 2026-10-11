@@ -24,7 +24,7 @@ class Lineage:
     rewriting feedback, clearing exposure, or obtaining additional inference budget.
     """
 
-    def __init__(self, root, *, selection_scope=None):
+    def __init__(self, root, *, selection_scope=None, selection_mode="deployment"):
         self.selection_scope = selection_scope
         self.root = Path(root).absolute()
         if any(path.is_symlink() for path in (self.root, *self.root.parents)):
@@ -48,7 +48,7 @@ class Lineage:
                 "INSERT OR IGNORE INTO state VALUES ('current',?)", (digest(value),)
             )
 
-            selection.initialize(db, selection_scope, digest(value))
+            selection.initialize(db, selection_scope, digest(value), selection_mode)
 
     @contextmanager
     def transaction(self):
@@ -181,6 +181,7 @@ class Lineage:
                     "credit": selection.PROFILE["credit"],
                     "mode": allocation["selection"]["mode"],
                     "propensity": allocation["selection"]["probability"],
+                    "purpose": allocation["selection"]["purpose"],
                 }
                 packet["past_rewards"] = [
                     {
@@ -340,6 +341,66 @@ class Lineage:
                 },
             )
 
+    def fail_episode(self, episode, *, reason, summary_sha256, native_exit):
+        """Close a known no-contract failure, without reward, admission or refund.
+
+        Only the host calls this after runtime/trace cleanup and a known normal
+        native exit. Any research claim or missing lifetime evidence fails closed.
+        """
+        import re
+
+        if (
+            not self.selection_scope
+            or type(reason) is not str
+            or not reason
+            or len(reason.encode()) > 300
+            or type(summary_sha256) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", summary_sha256) is None
+            or not isinstance(native_exit, dict)
+            or native_exit.get("status") != "exited"
+            or type(native_exit.get("returncode")) is not int
+            or native_exit["returncode"] != 0
+        ):
+            raise ValueError(
+                "contained failure requires bounded host evidence and known clean exit"
+            )
+        with self.transaction() as db:
+            episode_row = db.execute(
+                "SELECT body FROM events WHERE key=?", (f"episode:{episode}",)
+            ).fetchone()
+            trial = db.execute(
+                "SELECT body FROM events WHERE key=?", (f"trial:{episode}",)
+            ).fetchone()
+            if episode_row is None or trial is None:
+                raise ValueError(
+                    "contained failure requires reserved episode and closed runtime"
+                )
+            for prefix in ("claim", "proposal", "dispatch", "reward", "failure"):
+                if db.execute(
+                    "SELECT 1 FROM events WHERE key=?", (f"{prefix}:{episode}",)
+                ).fetchone():
+                    raise ValueError(
+                        "cannot reclassify research or a terminal episode as no-contract failure"
+                    )
+            state = json.loads(
+                db.execute("SELECT value FROM state WHERE key='selection'").fetchone()[
+                    0
+                ]
+            )
+            if digest(state) != json.loads(episode_row[0])["selection"]["state_sha256"]:
+                raise ValueError("selection changed during failed episode")
+            value = {
+                "episode": episode,
+                "kind": "contract_unavailable",
+                "reason": reason,
+                "summary_sha256": summary_sha256,
+                "native_exit": native_exit,
+                "quality": None,
+                "scope": "contained_failure_not_quality_reward",
+            }
+            self._event(db, f"failure:{episode}", "episode_failure", value)
+        return value
+
     def reward(
         self,
         episode,
@@ -369,6 +430,10 @@ class Lineage:
             ).fetchone()
             if row is None:
                 raise ValueError("reward without episode")
+            if db.execute(
+                "SELECT 1 FROM events WHERE key=?", (f"failure:{episode}",)
+            ).fetchone():
+                raise ValueError("failed episode cannot later acquire a reward")
             parent = json.loads(row[0])["parent"]
             dispatched = db.execute(
                 "SELECT body FROM events WHERE key=?", (f"dispatch:{episode}",)
