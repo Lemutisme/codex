@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
@@ -26,6 +27,7 @@ from procontract_online_runtime import OnlineRuntime
 from procontract_online_trace import OnlineTrace
 import procontract_study_budget as budgets
 import procontract_owned_process as owned_process
+import procontract_online_acceptance as acceptance
 
 
 def episode(plan, digest, index, arm):
@@ -330,6 +332,16 @@ def run(plan, digest, authorization):
             status="stopped",
             error={"type": type(error).__name__, "message": str(error)[:500]},
         )
+    try:
+        evidence = acceptance.collect(plan)
+    except (ValueError, KeyError, TypeError, OSError, sqlite3.Error) as error:
+        evidence = {
+            "status": "FAIL",
+            "error": type(error).__name__,
+            "scope": "acceptance evidence unavailable",
+        }
+    plans.publish(root / "acceptance.json", evidence)
+    terminal["mechanism_acceptance"] = evidence["status"]
     terminal["budget"] = budgets.status(root / "budget.sqlite", digest, plan["limits"])
     plans.publish(root / "terminal.json", terminal)
     return terminal
@@ -379,7 +391,12 @@ def main():
             else episode(plan, args.plan_sha256, args.index, args.arm)
         )
     print(json.dumps(result, indent=2))
-    if result.get("status") in ("stopped", "completed_with_failures"):
+    if (
+        result.get("status") in ("stopped", "completed_with_failures")
+        or args.command == "run"
+        and plan["selection_mode"] == "coverage"
+        and result.get("mechanism_acceptance") != "PASS"
+    ):
         raise SystemExit(1)
 
 

@@ -1,6 +1,8 @@
 """One native, environment-less research turn; no task execution or grading authority."""
 
 import tomllib
+import hashlib
+import json
 
 from procodex_config import toml
 import procontract_fixed_auditor_native as native
@@ -38,7 +40,7 @@ class Packet:
     calls = 0
 
     def __init__(self, value):
-        self.value = value
+        self.value = json.loads(online.encoded(value))
         if len(online.encoded(value)) > online.PACKET_BYTES:
             raise ValueError("oversized research packet")
 
@@ -74,10 +76,17 @@ class Packet:
 
 
 def run(binary, root, packet, provider, credential, *, deadline_secs, cancellation):
-    return native.run(
+    service = Packet(packet)
+    binding = {
+        "packet_sha256": online.digest(service.value),
+        "producer_method": online.digest(service.value["program"]["research"]),
+        "prompt_sha256": hashlib.sha256(service.prompt().encode()).hexdigest(),
+        "scope": "native_turn_input_binding_not_attention_or_effect",
+    }
+    raw, receipt = native.run(
         binary,
         root,
-        Packet(packet),
+        service,
         provider,
         credential,
         deadline_secs=deadline_secs,
@@ -85,3 +94,4 @@ def run(binary, root, packet, provider, credential, *, deadline_secs, cancellati
         cancellation=cancellation,
         process_scope="inherited",
     )
+    return raw, {**receipt, "input_binding": binding}

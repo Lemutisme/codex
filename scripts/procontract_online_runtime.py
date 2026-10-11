@@ -59,6 +59,7 @@ class OnlineRuntime:
         self.command_count = self.after_ack = 0
         self.commands_with_exit = self.failed_commands = 0
         self.dispatch_recorded = False
+        self.harness_difference = None
         self.research_receipt = None
         self.error = None
         self._terminal = None
@@ -204,6 +205,23 @@ class OnlineRuntime:
                 elapsed_secs=elapsed_secs,
                 executor_command_completions_observed=self.command_count,
             )
+            activation = self.budget.activation
+            if (
+                self.harness_difference is None
+                and activation
+                and (activation.get("last_eligibility") or {}).get("eligible") is True
+            ):
+                facts = activation["last_input"]
+                parent_decision = self.trigger.evaluate(facts)
+                if parent_decision != activation["last_decision"]:
+                    self.harness_difference = {
+                        "parent": self.trigger.digest,
+                        "candidate": self.budget.program.digest,
+                        "facts": dict(facts),
+                        "parent_decision": parent_decision,
+                        "candidate_decision": activation["last_decision"],
+                        "scope": "different_decisions_on_same_eligible_observation_not_gain",
+                    }
             attempt = self.budget.summary()["attempt"]
             if attempt is not None:
                 # Persist failures too. No second request on lost ACK.
@@ -247,6 +265,7 @@ class OnlineRuntime:
             "candidate": online.digest(self.candidate) if self.candidate else None,
             "research": self.research_receipt,
             "dispatch": self.budget.summary() if self.budget else None,
+            "harness_decision_difference": self.harness_difference,
             "command_completions_after_ack": self.after_ack,
             "command_metrics": {
                 "commands": self.command_count,
