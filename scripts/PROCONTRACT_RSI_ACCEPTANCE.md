@@ -52,3 +52,26 @@ Native tests using a local scripted model provider validate transport and contro
 mechanics, not model competence or RSI benefit. Headless acceptance is not evidence
 that the installed interactive `procodex` entrypoint is complete. No default local
 installation is changed by this revision.
+
+## Executable local acceptance
+
+`test_procontract_online_cycle_native.py` exercises the production benchmark
+runner, real native ProContract contract issuance and checking/review lifecycle,
+Docker executor, no-tool native researcher, fenced steering, strict completed
+request witnesses, immutable fixture grading, and three durable learning episodes.
+Only routing/credentials and elapsed time at the research eligibility seam are
+substituted. The model provider is a localhost scripted server; the fixed fixture
+grader is not ProgramBench. Never report this as real-model improvement.
+
+```
+PROCODEX_NATIVE_PACKAGE=/path/to/existing/package \
+PROCODEX_TEST_IMAGE=sha256:<preinstalled-image> \
+PROCODEX_CYCLE_REPORT=/private/new-report.json \
+PYTHONPATH=scripts python3 -m unittest scripts/test_procontract_online_cycle_native.py -v
+```
+
+The optional report path must be fresh. It retains private raw request/trace
+archives next to the report. `acceptance.json` in new pilots separates matrix
+completion, recursive method handoff, executed H differences, external rewards,
+and post-feedback policy selection. It never upgrades a mechanism PASS into a
+benefit or interactive-product claim.
