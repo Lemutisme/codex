@@ -415,6 +415,15 @@ async fn multiline_intake_reaches_contract_issue_without_losing_the_tail() {
 }
 
 #[tokio::test]
+async fn benign_fixture_prefix_does_not_block_contract_issue() {
+    const DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_quote":"make answer.txt say done","inferred":false}],"out_of_scope":[],"differential_cases":[{"id":"save-txt","args":["./contract-txt-out"],"dirs":["./contract-txt-out"]}],"candidate_tests":false}"#;
+    let lane = reference_lane(FakePorts::new(DRAFT)).await;
+    lane.runtime.intake(INTAKE.to_string()).await;
+    let status = lane.wait_for("working").await;
+    assert!(lane.contract().await.is_some(), "{status:?}");
+}
+
+#[tokio::test]
 async fn host_source_ids_and_required_artifacts_reach_the_real_controller_review() {
     const DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"hindsight.json contains the explanation","source_id":"request:0","inferred":false}],"out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":false}"#;
     let lane = lane(

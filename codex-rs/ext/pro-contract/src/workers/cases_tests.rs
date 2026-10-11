@@ -56,6 +56,33 @@ fn a_full_case_becomes_a_differential_case() {
 }
 
 #[test]
+fn current_directory_prefixes_are_valid_fixture_paths() {
+    let cases = validate_cases(
+        raw(json!([{
+            "id": "save-txt", "args": ["./contract-txt-out"],
+            "dirs": ["./contract-txt-out"],
+            "files": [{"path": "././inputs/a.txt", "text": "hello", "repeat": 1}],
+        }])),
+        /*max*/ 1,
+    )
+    .expect("relative current-directory prefixes are contained");
+    assert_eq!(
+        cases,
+        vec![DifferentialCase {
+            id: "save-txt".to_string(),
+            args: vec!["./contract-txt-out".to_string()],
+            dirs: vec!["./contract-txt-out".to_string()],
+            files: vec![FixtureFile {
+                path: "././inputs/a.txt".to_string(),
+                text: "hello".to_string(),
+                repeat: 1
+            }],
+            ..Default::default()
+        }]
+    );
+}
+
+#[test]
 fn optional_fields_default_to_empty() {
     let cases =
         validate_cases(raw(json!([{"id": "help", "args": ["--help"]}])), 10).expect("valid");
@@ -80,7 +107,17 @@ fn ids_must_be_plain_and_unique() {
 
 #[test]
 fn fixtures_cannot_leave_the_case_directory() {
-    for path in ["../escape", "/etc/passwd", "a/../../b", ""] {
+    for path in [
+        "../escape",
+        "/etc/passwd",
+        "a/../../b",
+        "",
+        ".",
+        "././",
+        "./../escape",
+        "./a/../../b",
+        ".//etc/passwd",
+    ] {
         let message = malformed(json!([{
             "id": "c",
             "args": [],
