@@ -11,6 +11,7 @@ from pathlib import Path
 import threading
 
 from procontract_delivery_budget import DeliveryBudget
+from procontract_online_failure import ContractUnavailable
 import procontract_harness_program as harness
 import procontract_online as online
 import procontract_online_worker as researcher
@@ -101,6 +102,10 @@ class OnlineRuntime:
 
     def poll(self, server, turns, status, handle, *, elapsed_secs):
         if status and status.get("resting") is True and not status.get("contract_id"):
+            if status.get("phase") == "abstained":
+                error = ContractUnavailable(status)
+                self.error = str(error)
+                raise error
             raise RuntimeError(
                 "online learning requires an issued ProContract task contract"
             )

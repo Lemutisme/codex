@@ -9,13 +9,17 @@ import test_procontract_delivery_runner as delivery
 
 
 class OnlineRunnerTests(unittest.TestCase):
-    def drive(self, learning):
+    def drive(self, learning, *, expected_abort=None):
         actual = runner.run
         self.server = None
 
         def run(args):
             self.server = runner.AppServer.return_value
-            return actual(args, learning=learning)
+            if expected_abort is None:
+                return actual(args, learning=learning)
+            self.server.close.return_value = {"status": "exited", "returncode": 0}
+            with self.assertRaises(expected_abort):
+                actual(args, learning=learning)
 
         with mock.patch.object(runner, "run", side_effect=run):
             return delivery.DeliveryRunnerTest().drive(reserve=0)
@@ -42,6 +46,28 @@ class OnlineRunnerTests(unittest.TestCase):
             requests["thread/start"]["developerInstructions"],
         )
         self.assertEqual(summary["online_learning"], {"status": "observing"})
+        learning.close.assert_called_once()
+
+    def test_real_runner_persists_typed_contract_failure_after_native_cleanup(self):
+        from procontract_online_failure import (
+            ContractUnavailable,
+            contained_contract_failure,
+        )
+
+        status = {
+            "phase": "abstained",
+            "resting": True,
+            "contract_id": None,
+            "detail": "bad fixture",
+        }
+        learning = self.learner()
+        learning.poll.side_effect = ContractUnavailable(status)
+        summary, _ = self.drive(learning, expected_abort=ContractUnavailable)
+        self.assertEqual(
+            contained_contract_failure(summary),
+            {"kind": "contract_unavailable", "quality": None, "reason": "bad fixture"},
+        )
+        self.server.close.assert_called_once()
         learning.close.assert_called_once()
 
     def test_native_is_closed_even_when_learning_cleanup_raises(self):

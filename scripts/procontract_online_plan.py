@@ -11,8 +11,11 @@ import tomllib
 import procontract_benchmark_runner as runner
 import procontract_canonical as canonical
 import procontract_online as online
-from procontract_online_selection import PROFILE as SELECTION_PROFILE
+from procontract_online_selection import profile as selection_profile
+
 import procontract_native_trace_binding as trace
+
+PROTOCOL = "online-controller-pilot-v3"
 
 SCRIPTS = Path(__file__).resolve().parent
 ORDER_RULE = "sha256(online-pilot-v1:<instance>), ascending, first 3"
@@ -45,7 +48,16 @@ def select_tasks(tasks):
     )[:3]
 
 
-def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
+def prepare(
+    root,
+    source_registry,
+    binary,
+    prompt,
+    *,
+    comparison="stream",
+    selection_mode="deployment",
+):
+    profile = selection_profile(selection_mode)
     if comparison not in ("stream", "paired"):
         raise ValueError("comparison must be stream or paired")
     arms = ["adaptive"] if comparison == "stream" else ["frozen", "adaptive"]
@@ -54,6 +66,10 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
     inputs.mkdir(parents=True)
     source = json.loads(source_registry.read_text())
     tasks = select_tasks(source["tasks"])
+    if selection_mode == "coverage" and len(tasks) < 3:
+        raise ValueError(
+            "coverage requires three tasks: two probes and a policy episode"
+        )
     registry = {
         **source,
         "tasks": {task: source["tasks"][task] for task in tasks},
@@ -123,7 +139,7 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
     files.update({str(path): sha(path) for path in inputs.iterdir() if path.is_file()})
     plan = {
         "schema": 1,
-        "protocol": "online-controller-bandit-pilot-v2",
+        "protocol": PROTOCOL,
         "root": str(root),
         "model": "gpt-5.6-luna",
         "effort": "max",
@@ -152,19 +168,22 @@ def prepare(root, source_registry, binary, prompt, *, comparison="stream"):
         "prompt": str(inputs / "task-prompt.txt"),
         "files": files,
         "seed": online.seed(),
-        "selection_profile": SELECTION_PROFILE,
+        "selection_profile": profile,
+        "selection_mode": selection_mode,
         "automatic_stable_adoption": False,
         "private_native_trace": TRACE_PROFILE,
         "exposure": "new empty lineage; historical operator exposure disclosed; not globally unseen",
         "comparison_mode": comparison,
         "comparison": (
-            "paired descriptive combined-program effect; no method-only causal attribution"
+            "directed mechanism coverage; not a natural-deployment benefit estimate"
+            if selection_mode == "coverage"
+            else "paired descriptive combined-program effect; no method-only causal attribution"
             if comparison == "paired"
             else "adaptive-only stream: operational closure and descriptive scores; no matched-budget net-gain claim"
         ),
         "budget_note": "5h total per arm/instance: 4h inference including research, 1h frozen grading. Research mode reserves 15min of the 4h, even if concurrent; hold mode retains all 4h. Actual tokens/cost may differ.",
         "compliance_note": "Native ProContract provides within-evidence review, not an exhaustive syscall/dependency audit. Functional scores alone do not certify all submission constraints.",
-        "unknown_policy": "stop on infrastructure unknown; preserve malformed/inactive proposals without same-task retry",
+        "unknown_policy": "continue only bound clean no-contract failures; stop on integrity or lifetime unknown; no retry/refund",
     }
     publish(root / "online-plan.json", plan)
     return {
@@ -180,8 +199,9 @@ def verify(path, expected):
         raise ValueError("pilot plan differs from operator pin")
     plan = json.loads(path.read_text())
     if (
-        plan["protocol"] != "online-controller-bandit-pilot-v2"
-        or plan.get("selection_profile") != SELECTION_PROFILE
+        plan["protocol"] != PROTOCOL
+        or plan.get("selection_profile")
+        != selection_profile(plan.get("selection_mode"))
         or Path(plan["root"]) != path.resolve().parent
     ):
         raise ValueError("invalid pilot identity")

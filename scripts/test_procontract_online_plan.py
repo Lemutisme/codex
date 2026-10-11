@@ -19,7 +19,10 @@ class PlanTests(unittest.TestCase):
             mock.patch("builtins.print"),
         ):
             pilot.main()
-        self.assertEqual(prepare.call_args.kwargs, {"comparison": "paired"})
+        self.assertEqual(
+            prepare.call_args.kwargs,
+            {"comparison": "paired", "selection_mode": "deployment"},
+        )
 
     def test_task_order_is_independent_of_input_order_and_scores(self):
         tasks = {"c": {"score": 100}, "a": {"score": 0}, "d": {}, "b": {}}
@@ -41,14 +44,20 @@ class PlanTests(unittest.TestCase):
             source.write_text("original")
             plan = {
                 "root": str(root),
-                "protocol": "online-controller-bandit-pilot-v2",
-                "selection_profile": plans.SELECTION_PROFILE,
+                "protocol": plans.PROTOCOL,
+                "selection_mode": "deployment",
+                "selection_profile": plans.selection_profile("deployment"),
                 "files": {str(source): plans.sha(source)},
             }
             path = root / "online-plan.json"
             plans.publish(path, plan)
             digest = plans.sha(path)
             self.assertEqual(plans.verify(path, digest), plan)
+            wrong_mode = {**plan, "selection_mode": "coverage"}
+            other = root / "wrong-mode.json"
+            plans.publish(other, wrong_mode)
+            with self.assertRaisesRegex(ValueError, "invalid pilot identity"):
+                plans.verify(other, plans.sha(other))
             source.write_text("changed")
             with self.assertRaisesRegex(ValueError, "input drift"):
                 plans.verify(path, digest)

@@ -22,7 +22,10 @@ class PilotTests(unittest.TestCase):
     def test_hold_skips_research_reservation_and_restores_executor_capacity(self):
         self.drive(draw=0.99, researcher=0, execution=14400)
 
-    def drive(self, *, draw, researcher, execution):
+    def test_contained_contract_failure_keeps_slots_spent_and_allows_next_task(self):
+        self.drive(draw=0, researcher=1, execution=13500, unavailable=True)
+
+    def drive(self, *, draw, researcher, execution, unavailable=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             binary = root / "codex"
@@ -31,6 +34,7 @@ class PilotTests(unittest.TestCase):
             (root / "seed-policy/executor.md").write_text(online.seed()["execution"])
             plan = {
                 "root": str(root),
+                "selection_mode": "deployment",
                 "tasks": ["task-a", "task-b", "task-c"],
                 "arms": ["frozen", "adaptive"],
                 "model": "gpt-5.6-luna",
@@ -56,7 +60,7 @@ class PilotTests(unittest.TestCase):
             budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
             plans.publish(root / "launch.json", {"plan_sha256": digest})
             registry = SimpleNamespace(
-                tasks={"task-a": {"image": "pinned", "total": 5}}
+                tasks={t: {"image": "pinned", "total": 5} for t in ("task-a", "task-b")}
             )
             prepared = []
             deadlines = []
@@ -71,12 +75,31 @@ class PilotTests(unittest.TestCase):
                 deadlines.append(args.deadline_secs)
                 summary = {
                     "turn_statuses": ["completed"],
-                    "native_process_exit": {"status": "exited"},
+                    "native_process_exit": {"status": "exited", "returncode": 0},
+                    "execution_environment": {"disconnect_observed": False},
                     "server_exited_early": False,
                     "status": {"phase": "supported", "contract_id": "contract"},
                     "cost": {},
                     "elapsed_secs": 10,
                 }
+                if unavailable and args.run_dir.name == "0-adaptive":
+                    status = {
+                        "phase": "abstained",
+                        "resting": True,
+                        "contract_id": None,
+                        "detail": "fixture draft declined",
+                    }
+                    try:
+                        learning.poll(None, None, status, None, elapsed_secs=1)
+                    except pilot.ContractUnavailable as error:
+                        summary.update(
+                            status=error.contract_status,
+                            runner_error="ContractUnavailable",
+                            server_exited_early=True,
+                            online_learning=learning.close(),
+                        )
+                        (args.run_dir / "run.json").write_text(json.dumps(summary))
+                        raise
                 if learning is not None:
                     summary["online_learning"] = learning.close()
                 (args.run_dir / "run.json").write_text(json.dumps(summary))
@@ -132,13 +155,22 @@ class PilotTests(unittest.TestCase):
                 frozen = pilot.episode(plan, digest, 0, "frozen")
                 self.assertFalse((root / "lineage").exists())
                 adaptive = pilot.episode(plan, digest, 0, "adaptive")
+                if unavailable:
+                    next_result = pilot.episode(plan, digest, 1, "adaptive")
+                    self.assertEqual(next_result["status"], "scored")
                 with self.assertRaises(budgets.AlreadyClaimed):
                     pilot.episode(plan, digest, 0, "adaptive")
             self.assertEqual(
-                [frozen["outcome"]["resolved"], adaptive["outcome"]["resolved"]], [2, 2]
+                [
+                    frozen["outcome"]["resolved"],
+                    (adaptive["outcome"] or {}).get("resolved"),
+                ],
+                [2, None if unavailable else 2],
             )
-            self.assertEqual(deadlines, [14400, execution])
-            self.assertEqual(len(prepared), 2)
+            self.assertEqual(
+                deadlines, [14400, execution] + ([execution] if unavailable else [])
+            )
+            self.assertEqual(len(prepared), 3 if unavailable else 2)
             plans.publish(root / "terminal.json", {"status": "stopped"})
             with self.assertRaisesRegex(ValueError, "terminal pilot"):
                 pilot.episode(plan, digest, 1, "adaptive")
@@ -149,7 +181,7 @@ class PilotTests(unittest.TestCase):
             ]
             self.assertEqual(
                 [(r["episode"], r["resolved"], r["total"]) for r in rewards],
-                [("0-adaptive", 2, 5)],
+                [("1-adaptive" if unavailable else "0-adaptive", 2, 5)],
             )
             used = budgets.status(root / "budget.sqlite", digest, plan["limits"])[
                 "reserved"
@@ -157,9 +189,9 @@ class PilotTests(unittest.TestCase):
             self.assertEqual(
                 used,
                 {
-                    "task_launches": 2,
-                    "learning_launches": researcher,
-                    "allocated_seconds": 36000,
+                    "task_launches": 3 if unavailable else 2,
+                    "learning_launches": researcher + int(unavailable),
+                    "allocated_seconds": 54000 if unavailable else 36000,
                 },
             )
 

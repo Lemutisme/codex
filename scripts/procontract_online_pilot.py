@@ -20,6 +20,7 @@ import procontract_benchmark_runner as runner
 import procontract_canonical as canonical
 import procontract_online as online
 from procontract_online_lineage import Lineage
+from procontract_online_failure import ContractUnavailable, contained_contract_failure
 import procontract_online_plan as plans
 from procontract_online_runtime import OnlineRuntime
 from procontract_online_trace import OnlineTrace
@@ -56,7 +57,13 @@ def episode(plan, digest, index, arm):
     if run.exists():
         raise budgets.AlreadyClaimed("episode directory already exists; no restart")
     lineage = (
-        Lineage(root / "lineage", selection_scope=digest) if arm == "adaptive" else None
+        Lineage(
+            root / "lineage",
+            selection_scope=digest,
+            selection_mode=plan["selection_mode"],
+        )
+        if arm == "adaptive"
+        else None
     )
     allocation = (
         lineage.begin(key, plan["inference_secs"], plan["research_secs"])
@@ -143,6 +150,9 @@ def episode(plan, digest, index, arm):
             learning=learning,
             online_trace=observed,
         )
+    except ContractUnavailable:
+        # Classify only AFTER both runtime and trace cleanup have succeeded.
+        pass
     finally:
         try:
             if learning is not None:
@@ -150,9 +160,34 @@ def episode(plan, digest, index, arm):
         finally:
             observed.close()
     summary = json.loads((run / "run.json").read_text())
+    if failure := contained_contract_failure(summary):
+        bound = plans.sha(run / "run.json")
+        if lineage is not None:
+            lineage.fail_episode(
+                key,
+                reason=failure["reason"],
+                summary_sha256=bound,
+                native_exit=summary["native_process_exit"],
+            )
+        result = {
+            "task": task,
+            "arm": arm,
+            "episode": key,
+            "status": "failed",
+            "outcome": None,
+            "failure": failure,
+            "native_summary_sha256": bound,
+            "native_contract": summary["status"],
+            "online": summary.get("online_learning"),
+            "claims": "contained failure; no canonical score, reward or refund",
+        }
+        plans.publish(run / "result.json", result)
+        return result
     if (
         summary.get("runner_error")
         or summary.get("native_process_exit", {}).get("status") != "exited"
+        or type(summary.get("native_process_exit", {}).get("returncode")) is not int
+        or summary["native_process_exit"]["returncode"] != 0
         or summary.get("server_exited_early")
         or (summary.get("turn_statuses") or [None])[-1] == "failed"
     ):
@@ -216,6 +251,7 @@ def episode(plan, digest, index, arm):
         "task": task,
         "arm": arm,
         "episode": key,
+        "status": "scored",
         "outcome": outcome,
         "grading_elapsed_secs": grading_elapsed,
         "learning_reward": learning_reward,
@@ -273,9 +309,22 @@ def run(plan, digest, authorization):
                     )
                 if code != 0:
                     raise RuntimeError(f"{key} exited {code}; stop without replacement")
-                terminal["episodes"].append({"task": task, "episode": key})
+                result = json.loads((root / "runs" / key / "result.json").read_text())
+                if (result.get("task"), result.get("episode"), result.get("arm")) != (
+                    task,
+                    key,
+                    arm,
+                ) or result.get("status") not in ("scored", "failed"):
+                    raise RuntimeError("episode result identity or status is invalid")
+                terminal["episodes"].append(
+                    {"task": task, "episode": key, "status": result["status"]}
+                )
                 print(json.dumps(terminal["episodes"][-1]), flush=True)
-        terminal["status"] = "completed"
+        terminal["status"] = (
+            "completed_with_failures"
+            if any(e["status"] == "failed" for e in terminal["episodes"])
+            else "completed"
+        )
     except BaseException as error:
         terminal.update(
             status="stopped",
@@ -294,6 +343,9 @@ def main():
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--prompt", type=Path)
     parser.add_argument("--comparison", choices=("stream", "paired"), default="stream")
+    parser.add_argument(
+        "--selection-mode", choices=("deployment", "coverage"), default="deployment"
+    )
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--plan-sha256")
     parser.add_argument("--authorization", type=Path)
@@ -308,6 +360,7 @@ def main():
             args.binary,
             args.prompt,
             comparison=args.comparison,
+            selection_mode=args.selection_mode,
         )
     else:
         plan = plans.verify(args.plan, args.plan_sha256)
@@ -326,7 +379,7 @@ def main():
             else episode(plan, args.plan_sha256, args.index, args.arm)
         )
     print(json.dumps(result, indent=2))
-    if result.get("status") == "stopped":
+    if result.get("status") in ("stopped", "completed_with_failures"):
         raise SystemExit(1)
 
 

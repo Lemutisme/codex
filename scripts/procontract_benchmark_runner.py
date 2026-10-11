@@ -28,6 +28,7 @@ from procontract_execution_health import ExecutionHealth
 from procontract_execution_activity import ExecutorActivity
 import procontract_harness_program as harness_program
 import procontract_online as online_program
+from procontract_online_failure import ContractUnavailable
 
 MODEL = "gpt-5.6-luna"
 EFFORT = "max"
@@ -851,6 +852,8 @@ def run(args: argparse.Namespace, *, learning=None, online_trace=None) -> None:
             cost=rollout_costs(home),
         )
     except BaseException as error:
+        if isinstance(error, ContractUnavailable):
+            summary["status"] = error.contract_status
         # Partial output is not a successful execution, even if some files were written.
         summary.update(
             runner_error=type(error).__name__,
