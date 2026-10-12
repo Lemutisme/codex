@@ -2,6 +2,8 @@
 //! review → Support or Defeat → one repair. Every state change is written to the ledger's status
 //! record.
 
+mod recovery;
+
 use std::collections::HashSet;
 use std::future::Future;
 use std::path::Path;
@@ -99,6 +101,7 @@ enum Phase {
     Working,
     Verifying,
     Resting,
+    RecoveryBlocked,
 }
 
 struct ActiveContract {
@@ -136,6 +139,8 @@ struct Frozen {
 struct State {
     phase: Phase,
     contract: Option<ActiveContract>,
+    /// Retain the responsibility identity even when its execution data cannot be recovered.
+    recovered_contract_id: Option<ContractId>,
     frozen: Option<Frozen>,
     /// How the thread last came to rest; cleared when a turn starts.
     last_idle: Option<ThreadIdleCause>,
@@ -231,7 +236,9 @@ impl ThreadRuntime {
                 state
                     .contract
                     .as_ref()
-                    .map(|active| active.contract.id.0.clone()),
+                    .map(|active| active.contract.id.clone())
+                    .or_else(|| state.recovered_contract_id.clone())
+                    .map(|id| id.0),
             )
         };
         let status = StatusRecord {
@@ -654,9 +661,27 @@ impl ThreadRuntime {
 
     /// A new turn supersedes whatever the previous one froze.
     pub(crate) async fn turn_started(&self) {
-        let mut state = self.state.lock().await;
-        state.frozen = None;
-        state.last_idle = None;
+        let continuing = {
+            let mut state = self.state.lock().await;
+            let continuing = state.phase == Phase::Resting
+                && state.contract.as_ref().is_some_and(|active| {
+                    active.contract.standing == codex_pro_contract::Standing::Outstanding
+                });
+            if continuing {
+                state.phase = Phase::Working;
+            }
+            state.frozen = None;
+            state.last_idle = None;
+            continuing
+        };
+        if continuing {
+            self.record_status(
+                "working",
+                "continuing the existing responsibility",
+                /*resting*/ false,
+            )
+            .await;
+        }
     }
 
     /// Freezes the candidate at the turn-end boundary, before completion is emitted.

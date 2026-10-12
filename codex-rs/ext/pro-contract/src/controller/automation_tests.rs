@@ -40,6 +40,9 @@ use crate::controller::ports::Ports;
 use crate::controller::ports::WorkerIdentity;
 use crate::workers::runtime::WorkerTurn;
 
+#[path = "runtime_recovery_tests.rs"]
+mod recovery_tests;
+
 const INTAKE: &str = "Please make answer.txt say done.";
 const CONTRACT_DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_quote":"make answer.txt say done","inferred":false}],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;
 const DECLINED_DRAFT: &str = r#"{"decision":"none","reason":"a question, not a task","requirements":[],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;

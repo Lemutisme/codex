@@ -157,7 +157,7 @@ impl ProContractExtension {
         );
         input.thread_store.insert(runtime);
         if let Some(runtime) = runtime_of(input.thread_store) {
-            runtime.record_status("idle", "", /*resting*/ false).await;
+            runtime.restore().await;
         }
     }
 }
