@@ -1,0 +1,170 @@
+{
+  "schema": 1,
+  "as_of": "2026-10-12",
+  "repository": "https://github.com/Lemutisme/codex",
+  "recommendation": {
+    "branch": "procontract/recommended",
+    "runtime_code_base": "4669bf71cd897a9ce0e4bd3eb6f6fd23d0ded33a",
+    "mode": "ProContract enabled; automatic RSI disabled",
+    "fresh_ON_scores_for_resume_fix": null,
+    "scope": "recommended preview, not a proven global best or RSI gain"
+  },
+  "measured_frozen": {
+    "branch": "procontract/frozen-e2e-20261011",
+    "controller_commit": "dbc0b5241d7f9b5f2d4d6eadfc88259e4027a032",
+    "native_commit": "d434ba042f9391615abca9e16d103192a5e4ef93",
+    "native_sha256": "a770ff8b4db51341d7d562e2fdd94789a49d4b7e4e64c11a4425cdb0185473bf",
+    "rust_tree_identical_at_controller_commit": true
+  },
+  "milestone_refs": {
+    "codex-procontract-native-envelope": "7f0ffe58c86e09ff0f90413cd3430df71e5eaa60",
+    "codex-procontract-policy-split": "87f47b4e6c0a55d5194463ed1c277e87e8db551f",
+    "procontract-essential": "776164115f4b34d454599c51ae8ff4ac420c04c8",
+    "procontract-essential-impl": "95332dce91f4cdb0800a2b568453fa44e7f81f3d",
+    "procontract-rsi": "11262cad4fea696bcae54ced0422f462fc27a562",
+    "procontract-next": "8a7220d2168d530c7f73a5311279eb3296dd3c81",
+    "rsi/live-engine-20261008": "fc8c485494a669429cd919af4d1f613d8090085b",
+    "procodex-local/20261009": "03798072c09cf0edbf7f860bf057cc9506f063da",
+    "procodex-online/20261010": "3ff60ba241e66ee9d93a470ae5ba6459b28ee210",
+    "procodex-bandit/20261010": "d434ba042f9391615abca9e16d103192a5e4ef93",
+    "procodex-rsi-mechanism/20261011": "dbc0b5241d7f9b5f2d4d6eadfc88259e4027a032",
+    "procontract-resume-fix/20261012": "4669bf71cd897a9ce0e4bd3eb6f6fd23d0ded33a"
+  },
+  "paired_study": {
+    "artifact_root_basename": "procontract-rsi-coverage-more-20261011",
+    "plan_sha256": "5df087c1b51a3acfa10812ce7c1496f7f1c390dbac11ba378f2838236056a407",
+    "model": "gpt-5.6-luna",
+    "effort": "max",
+    "selection_mode": "coverage",
+    "episode_budget_secs": 18000,
+    "limits": {
+      "allocated_seconds": 108000,
+      "learning_launches": 3,
+      "task_launches": 6
+    },
+    "actual_research_calls": 2,
+    "rows": [
+      {
+        "instance": "chirlu__sox.42b3557",
+        "frozen": {
+          "quality": {
+            "pass_rate": 0.47575250836120403,
+            "resolved": 569,
+            "total": 1196
+          },
+          "contract_phase": "did_not_pass",
+          "native_secs": 5186,
+          "research_secs": 0,
+          "grading_secs": 379.49435431102756
+        },
+        "adaptive": {
+          "quality": {
+            "pass_rate": 0.3963210702341137,
+            "resolved": 474,
+            "total": 1196
+          },
+          "contract_phase": "did_not_pass",
+          "native_secs": 2866,
+          "research_secs": 90.215,
+          "grading_secs": 426.65089006896596
+        }
+      },
+      {
+        "instance": "peco__peco.4e58dad",
+        "frozen": {
+          "quality": {
+            "pass_rate": 0.7333333333333333,
+            "resolved": 891,
+            "total": 1215
+          },
+          "contract_phase": "did_not_pass",
+          "native_secs": 2323,
+          "research_secs": 0,
+          "grading_secs": 852.1491136989789
+        },
+        "adaptive": {
+          "quality": {
+            "pass_rate": 0.5152263374485597,
+            "resolved": 626,
+            "total": 1215
+          },
+          "contract_phase": "did_not_pass",
+          "native_secs": 1015,
+          "research_secs": 60.025,
+          "grading_secs": 955.2291296600015
+        }
+      },
+      {
+        "instance": "ggreer__the_silver_searcher.a61f178",
+        "frozen": {
+          "quality": {
+            "pass_rate": 0.7211155378486056,
+            "resolved": 724,
+            "total": 1004
+          },
+          "contract_phase": "did_not_pass",
+          "native_secs": 1767,
+          "research_secs": 0,
+          "grading_secs": 343.61994916800177
+        },
+        "adaptive": {
+          "quality": null,
+          "contract_phase": "abstained",
+          "native_secs": 312,
+          "research_secs": 0,
+          "grading_secs": null
+        }
+      }
+    ],
+    "acceptance_gates": {
+      "changed_harness_decision_executed": "FAIL",
+      "external_rewards": "PASS",
+      "planned_matrix_terminal": "PASS",
+      "two_recursive_method_generations": "PASS",
+      "unforced_selection_after_feedback": "FAIL"
+    },
+    "benefit": "NOT_ESTABLISHED",
+    "interpretation": "single paired trials; forced coverage prefix; no isolated P/M/H causal attribution; functional scores do not certify all constraints"
+  },
+  "vanilla_study": {
+    "artifact_root_basename": "procontract-vanilla-control-20261011",
+    "plan_sha256": "88b33ea0a24fdbfaa537de8bfa6f8d02f52038cc5b88ff8e06ab553d75ddd18d",
+    "status": "stopped",
+    "cause": "HTTP 401 expired provider credential during execution",
+    "first_instance": "chirlu__sox.42b3557",
+    "native_elapsed_secs": 2854,
+    "first_score": null,
+    "unlaunched_instances": [
+      "peco__peco.4e58dad",
+      "ggreer__the_silver_searcher.a61f178"
+    ],
+    "reserved": {
+      "allocated_seconds": 18000,
+      "learning_launches": 0,
+      "task_launches": 1
+    },
+    "remaining_not_reused": {
+      "allocated_seconds": 36000,
+      "learning_launches": 0,
+      "task_launches": 2
+    },
+    "valid_control_scores": 0
+  },
+  "validation": {
+    "resume_implementation_commit": "02fd04f89e",
+    "native_regression_commit": "4669bf71cd897a9ce0e4bd3eb6f6fd23d0ded33a",
+    "extension_tests_passed": 117,
+    "kernel_and_store_tests_passed": 74,
+    "control_python_tests_passed": 56,
+    "native_restart_fixture": "old binary FAIL; fixed binary PASS including next handoff",
+    "fixture_real_model_calls": 0
+  },
+  "exposure": "historical operator exposure disclosed; not globally unseen",
+  "publication_scope": "code, bounded public task metadata, aggregate outcomes and insights only; raw traces, credentials, reference programs and submissions remain private",
+  "known_open_items": [
+    "provider credential lifetime/rotation",
+    "drafter source-ID output reliability",
+    "budget/progress-aware continuation beyond one automatic repair",
+    "general RSI benefit and isolated method/harness ablations"
+  ]
+}

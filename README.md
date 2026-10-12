@@ -11,13 +11,18 @@ If you want Codex in your code editor (VS Code, Cursor, Windsurf), <a href="http
 
 ## Quickstart
 
-### ProContract RSI
+### ProContract fork: current recommendation
 
-This fork supports an online learning stream with independently confirmed version
-adoption. Experimental policies can explore; only an authorized ProContract
-settlement updates the incumbent. See the [workflow, setup and validation
-guide](scripts/PROCONTRACT_RSI.md) for the pinned-runtime policy-level implementation
-and its security boundaries.
+Use **ProContract with automatic RSI off** on `procontract/recommended`. This line
+includes the validated contract-resume fix. Its newer native revision has not been
+rebenchmarked ON: the better observed control results belong to the separately
+pinned frozen version, not a demonstrated RSI gain.
+
+Start with the [branch and evidence index](scripts/PROCONTRACT_BRANCHES_20261012.md),
+[development retrospective](scripts/PROCONTRACT_INSIGHTS_20261012.md), and
+[local ProCodex guide](scripts/PROCODEX.md). Earlier guarded-adoption research is
+retained in the [RSI design](scripts/PROCONTRACT_RSI.md); it is not the default mode.
+The upstream installation commands below install upstream Codex, not this fork.
 
 ### Installing and running Codex CLI
 
