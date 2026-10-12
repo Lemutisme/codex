@@ -10,6 +10,10 @@ import procontract_online_plan as plans
 
 
 class PlanTests(unittest.TestCase):
+    def test_parent_digest_alone_cannot_silently_prepare_a_fresh_study(self):
+        with self.assertRaisesRegex(ValueError, "both parent"):
+            plans.prepare(None, None, None, None, parent_sha256="a" * 64)
+
     def test_cli_does_not_silently_drop_paired_comparison(self):
         import procontract_online_pilot as pilot
 

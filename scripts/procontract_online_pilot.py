@@ -29,6 +29,8 @@ import procontract_study_budget as budgets
 import procontract_owned_process as owned_process
 import procontract_online_acceptance as acceptance
 import procontract_control_acceptance as control_acceptance
+import procontract_control_continuation as controls
+import procontract_credential_gate as credentials
 
 
 def episode(plan, digest, index, arm):
@@ -59,6 +61,21 @@ def episode(plan, digest, index, arm):
     )
     if run.exists():
         raise budgets.AlreadyClaimed("episode directory already exists; no restart")
+    credential = None
+    if plan.get("credential_preflight"):
+        if plan["credential_preflight"] != credentials.PROFILE:
+            raise ValueError("unknown credential admission policy")
+        credential = runner.current_key(os.environ)
+        receipt = credentials.inspect(
+            plan["provider"], credential, plan["episode_secs"]
+        )
+        plans.publish(root / f"{key}-credential.json", receipt)
+    database, scope, limits = controls.ledger(plan, digest)
+    reservation_key = (
+        f"{plan['continuation']['indices'][index]}-vanilla"
+        if plan.get("continuation")
+        else key
+    )
     lineage = (
         Lineage(
             root / "lineage",
@@ -75,17 +92,19 @@ def episode(plan, digest, index, arm):
     )
     research_secs = allocation["research_secs"] if allocation else 0
     reservation = budgets.reserve(
-        root / "budget.sqlite",
-        digest,
-        key,
+        database,
+        scope,
+        reservation_key,
         "task",
         plan["episode_secs"] - research_secs,
-        plan["limits"],
+        limits,
         {
             "task": task,
             "arm": arm,
             "model": plan["model"],
             "native": plans.sha(Path(plan["binary"])),
+            "consumer_plan": digest,
+            "consumer_episode": key,
         },
     )
     learning_reservation = None
@@ -132,7 +151,7 @@ def episode(plan, digest, index, arm):
     observed = OnlineTrace(run, digest)
     try:
         if arm == "adaptive":
-            key_value = runner.current_key(os.environ)
+            key_value = credential or runner.current_key(os.environ)
             if not key_value:
                 raise ValueError("no provider credential; task slot remains spent")
             learning = OnlineRuntime(
@@ -152,6 +171,7 @@ def episode(plan, digest, index, arm):
             ),
             learning=learning,
             online_trace=observed,
+            **({"credential": credential} if credential is not None else {}),
         )
     except ContractUnavailable:
         # Classify only AFTER both runtime and trace cleanup have succeeded.
@@ -288,7 +308,9 @@ def run(plan, digest, authorization):
             "restart": False,
         },
     )
-    budgets.initialize(root / "budget.sqlite", digest, plan["limits"])
+    database, scope, limits = controls.ledger(plan, digest)
+    if not plan.get("continuation"):
+        budgets.initialize(database, scope, limits)
     seed = root / "seed-policy"
     seed.mkdir()
     (seed / "executor.md").write_text(online.instructions(plan["seed"]))
@@ -299,6 +321,10 @@ def run(plan, digest, authorization):
             for arm in plan["arms"] if index % 2 == 0 else list(reversed(plan["arms"])):
                 key = f"{index}-{arm}"
                 plans.verify(root / "online-plan.json", digest)
+                (root / "STATUS.md").write_text(
+                    f"# Running: {key}\n\nTask: {task}\nPlan: {digest}\n"
+                    f"Completed slots: {len(terminal['episodes'])}. See the episode log for live details.\n"
+                )
                 command = [
                     sys.executable,
                     str(Path(__file__).resolve()),
@@ -358,8 +384,15 @@ def run(plan, digest, authorization):
         "control_acceptance" if "vanilla" in plan["arms"] else "mechanism_acceptance"
     )
     terminal[verdict] = evidence["status"]
-    terminal["budget"] = budgets.status(root / "budget.sqlite", digest, plan["limits"])
+    terminal["budget"] = budgets.status(database, scope, limits)
+    if plan.get("continuation"):
+        terminal["continuation"] = plan["continuation"]
     plans.publish(root / "terminal.json", terminal)
+    (root / "STATUS.md").write_text(
+        f"# {terminal['status']}\n\nNo further task launches by this supervisor.\n"
+        f"Completed slots: {len(terminal['episodes'])}. Acceptance: {evidence['status']}.\n"
+        f"Error: {terminal.get('error')}\nSee terminal.json and runs/ for exact evidence.\n"
+    )
     return terminal
 
 
@@ -370,6 +403,9 @@ def main():
     parser.add_argument("--source-registry", type=Path)
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--prompt", type=Path)
+    parser.add_argument("--continue-from", type=Path)
+    parser.add_argument("--parent-sha256")
+    parser.add_argument("--credential-preflight", action="store_true")
     parser.add_argument(
         "--comparison",
         choices=("stream", "paired", "vanilla", "contract"),
@@ -393,6 +429,15 @@ def main():
             args.prompt,
             comparison=args.comparison,
             selection_mode=args.selection_mode,
+            **(
+                {
+                    "continue_from": args.continue_from,
+                    "parent_sha256": args.parent_sha256,
+                }
+                if args.continue_from
+                else {}
+            ),
+            **({"credential_preflight": True} if args.credential_preflight else {}),
         )
     else:
         plan = plans.verify(args.plan, args.plan_sha256)

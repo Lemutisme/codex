@@ -16,6 +16,54 @@ import procontract_online_selection as selection
 
 
 class PilotTests(unittest.TestCase):
+    def test_expiring_credential_is_rejected_before_any_task_reservation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            digest = "d" * 64
+            limits = {
+                "task_launches": 1,
+                "learning_launches": 0,
+                "allocated_seconds": 18000,
+            }
+            budgets.initialize(root / "budget.sqlite", digest, limits)
+            plans.publish(root / "launch.json", {"plan_sha256": digest})
+            plan = {
+                "root": str(root),
+                "tasks": ["task"],
+                "arms": ["vanilla"],
+                "registry": str(root / "registry"),
+                "registry_sha256": "a" * 64,
+                "pins_sha256": "b" * 64,
+                "provider": {},
+                "episode_secs": 18000,
+                "credential_preflight": pilot.credentials.PROFILE,
+            }
+            with (
+                mock.patch.object(pilot.canonical, "configure"),
+                mock.patch.object(pilot.canonical, "bind_pins"),
+                mock.patch.object(
+                    pilot.canonical, "worker_command", return_value=["preflight"]
+                ),
+                mock.patch.object(pilot.canonical, "evaluator_env", return_value={}),
+                mock.patch.object(pilot.subprocess, "run"),
+                mock.patch.object(
+                    pilot.runner, "current_key", return_value="FIXTURE_KEY"
+                ),
+                mock.patch.object(
+                    pilot.credentials,
+                    "inspect",
+                    side_effect=ValueError("expires too soon"),
+                ),
+                mock.patch.object(pilot.runner, "prepare") as prepare,
+                self.assertRaisesRegex(ValueError, "expires too soon"),
+            ):
+                pilot.episode(plan, digest, 0, "vanilla")
+            prepare.assert_not_called()
+            self.assertEqual(
+                budgets.status(root / "budget.sqlite", digest, limits)["reserved"],
+                {"task_launches": 0, "learning_launches": 0, "allocated_seconds": 0},
+            )
+
     def test_research_charges_budget_and_only_adaptive_gets_its_reward(self):
         self.drive(draw=0, researcher=1, execution=13500)
 

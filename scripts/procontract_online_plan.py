@@ -56,7 +56,12 @@ def prepare(
     *,
     comparison="stream",
     selection_mode="deployment",
+    continue_from=None,
+    parent_sha256=None,
+    credential_preflight=False,
 ):
+    if (continue_from is None) != (parent_sha256 is None):
+        raise ValueError("continuation requires both parent plan and digest")
     profile = selection_profile(selection_mode)
     comparisons = {
         "stream": ["adaptive"],
@@ -74,7 +79,29 @@ def prepare(
     inputs = root / "inputs"
     inputs.mkdir(parents=True)
     source = json.loads(source_registry.read_text())
-    tasks = select_tasks(source["tasks"])
+    continuation = None
+    if continue_from is not None:
+        import procontract_control_continuation as controls
+
+        parent, continuation = controls.remaining(continue_from, parent_sha256)
+        if (
+            comparison != "vanilla"
+            or not credential_preflight
+            or any(
+                actual.resolve() != Path(parent[key]).resolve()
+                for actual, key in (
+                    (source_registry, "registry"),
+                    (binary, "binary"),
+                    (prompt, "prompt"),
+                )
+            )
+        ):
+            raise ValueError(
+                "continuation must preserve original control inputs and check credentials"
+            )
+        tasks = [parent["tasks"][i] for i in continuation["indices"]]
+    else:
+        tasks = select_tasks(source["tasks"])
     if selection_mode == "coverage" and len(tasks) < 3:
         raise ValueError(
             "coverage requires three tasks: two probes and a policy episode"
@@ -198,6 +225,11 @@ def prepare(
         "compliance_note": "Native ProContract provides within-evidence review, not an exhaustive syscall/dependency audit. Functional scores alone do not certify all submission constraints.",
         "unknown_policy": "continue only bound clean no-contract failures; stop on integrity or lifetime unknown; no retry/refund",
     }
+    if credential_preflight:
+        plan["credential_preflight"] = "provider-key-info-v1"
+    if continuation is not None:
+        plan["continuation"] = continuation
+        controls.ledger(plan, "0" * 64)
     publish(root / "online-plan.json", plan)
     return {
         "plan": str(root / "online-plan.json"),
