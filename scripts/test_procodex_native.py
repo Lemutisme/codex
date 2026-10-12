@@ -167,7 +167,7 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
-                        elif role == "review" and counts[role] == 1:
+                        elif role == "review" and counts[role] % 2 == 1:
                             items = [custom_call(body, review_code, "review-evidence")]
                             message = None
                         elif role == "review":

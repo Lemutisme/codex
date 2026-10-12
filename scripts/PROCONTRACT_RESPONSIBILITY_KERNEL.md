@@ -50,9 +50,12 @@ not model competence, universal correctness or general performance gains.
 - Source-reference validity does not prove that a model-generated contract covers
   every requirement. A numeric string such as `7` is not the issued `request:7` ID;
   the observed malformed draft correctly failed closed but harmed availability.
-- Runtime starts with an in-memory `State::default()`. Durable ledger recovery is
-  not itself evidence of correct end-to-end resumption of that runtime; native
-  restart/reconciliation needs its own acceptance test before claiming it works.
+- Runtime recovery replays accepted contract history, validates issued bindings,
+  and restores the original captured base and repair accounting. Resume itself
+  never repeats an interrupted worker or repair; a new turn continues the same
+  responsibility. Missing or inconsistent recovery evidence blocks automation
+  without erasing its known contract identity. Durable storage alone is not a
+  substitute for the native restart-and-next-handoff regression test.
 - The pure reducer checks declared authenticated roles. Authentication, truthful
   provenance/reach classification and verifier isolation remain Host obligations.
 
