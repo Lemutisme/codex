@@ -614,7 +614,9 @@ def current_key(environ: dict) -> str | None:
     return environ.get("OPENAI_API_KEY")
 
 
-def run(args: argparse.Namespace, *, learning=None, online_trace=None) -> None:
+def run(
+    args: argparse.Namespace, *, learning=None, online_trace=None, credential=None
+) -> None:
     run_dir: Path = args.run_dir
     if (
         learning is not None
@@ -655,7 +657,7 @@ def run(args: argparse.Namespace, *, learning=None, online_trace=None) -> None:
     model = manifest.get("model", MODEL)
     effort = manifest.get("effort", EFFORT)
     home = run_dir / "codex-home"
-    if key := current_key(os.environ):
+    if key := credential if credential is not None else current_key(os.environ):
         os.environ["OPENAI_API_KEY"] = key
     if "OPENAI_API_KEY" not in os.environ:
         sys.exit("OPENAI_API_KEY must be set in the runner's environment")

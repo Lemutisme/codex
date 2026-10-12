@@ -24,6 +24,7 @@ class VanillaNativeTests(unittest.TestCase):
     def test_off_executes_and_stops_without_contract_workers_or_learning(self):
         package = Path(os.environ["PROCODEX_NATIVE_PACKAGE"])
         fixture = FixtureProvider(online.seed())
+        fixture.provider["env_key"] = "OPENAI_API_KEY"
         self.addCleanup(fixture.close)
         fixture.more_commands.set()
         fixture.finish.set()
@@ -82,17 +83,19 @@ class VanillaNativeTests(unittest.TestCase):
             env = {
                 "PATH": os.environ["PATH"],
                 "FIXTURE_KEY": "LOCAL_FIXTURE_ONLY",
-                "OPENAI_API_KEY": "LOCAL_FIXTURE_ONLY",
+                "OPENAI_API_KEY": "EXPIRED_FIXTURE",
             }
             try:
                 with (
                     mock.patch.object(runner, "os", SimpleNamespace(environ=env)),
                     mock.patch.object(
-                        runner, "current_key", return_value="LOCAL_FIXTURE_ONLY"
+                        runner, "current_key", return_value="EXPIRED_FIXTURE"
                     ),
                     mock.patch("builtins.print"),
                 ):
-                    runner.run(args, online_trace=trace)
+                    runner.run(
+                        args, online_trace=trace, credential="LOCAL_FIXTURE_ONLY"
+                    )
             finally:
                 trace.close()
             summary = json.loads((run / "run.json").read_text())
