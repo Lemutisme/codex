@@ -1,6 +1,14 @@
 {
   "schema": 1,
   "as_of": "2026-10-12",
+  "snapshot_scope": "original handoff before the authorized continuation; vanilla_study is a stopping-time snapshot, not current remaining budget",
+  "followup": {
+    "branch": "procontract/vanilla-continuation-20261012",
+    "report": "PROCONTRACT_VANILLA_RESULTS_20261012.md",
+    "results": "procontract_vanilla_results_20261012.json",
+    "status": "two originally unlaunched slots completed; sox remains unscored; original shared budget exhausted",
+    "benefit": "NOT_ESTABLISHED"
+  },
   "repository": "https://github.com/Lemutisme/codex",
   "recommendation": {
     "branch": "procontract/recommended",

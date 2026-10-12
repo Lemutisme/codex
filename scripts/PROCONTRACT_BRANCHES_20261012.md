@@ -1,5 +1,10 @@
 # ProContract / ProCodex 分支与证据索引（2026-10-12）
 
+> **后续验证已完成：**原未启动的两个 vanilla 名额已有分数，peco 为 60.00%，
+> silver_searcher 为 89.24%。ProContract 一胜一负，两项有效配对宏平均低 1.90 pp；
+> sox 仍因鉴权失败缺失。见[最终 ON/OFF 报告](PROCONTRACT_VANILLA_RESULTS_20261012.md)。
+> 下文历史实验与最初交接快照保留，不将当时的零有效对照误当作当前状态。
+
 ## 先选哪个分支
 
 **日常试用和后续修复：`procontract/recommended`。**
@@ -10,7 +15,7 @@
 - 它不是“最新代码已经重新刷出最佳分数”的声明，也不声称已同步最新 upstream。
 - 本机安装的 native 发布版本仍标记 `4669bf71cd89`；文档提交不重标记旧二进制。
 
-**查看实测表现更好的冻结控制：`procontract/frozen-e2e-20261011`。**
+**查看相对实验 RSI 表现更好的冻结控制：`procontract/frozen-e2e-20261011`。**
 
 - 精确指向控制器 `dbc0b5241d7f9b5f2d4d6eadfc88259e4027a032`。
 - 实验 native 来源 `d434ba042f9391615abca9e16d103192a5e4ef93`；两者的 Rust 源码树相同。
@@ -22,6 +27,7 @@
 | 分支 | 固定提交 / 代码基线 | 用途与边界 |
 |---|---|---|
 | `procontract/recommended` | `4669bf71cd` + 交接文档 | 推荐使用入口；ProContract-only；不是新的收益认证 |
+| `procontract/vanilla-continuation-20261012` | `7ee8b66333` + 最终结果文档 | 凭据准入、共享预算续跑与最终 ON/OFF 证据；不替换实测 native |
 | `procontract/frozen-e2e-20261011` | `dbc0b5241d` | 这轮较好的实测固定策略控制，保留原实验版本 |
 | `procontract-resume-fix/20261012` | `4669bf71cd` | 精确恢复修复与原生回归版本 |
 | `procodex-rsi-mechanism/20261011` | `dbc0b5241d` | 递归方法、请求消费见证、coverage / deployment 区分；收益未成立 |
@@ -54,8 +60,9 @@
 - 前两题是预声明 coverage 探针，不是自然部署收益估计；没有证明 P/M/H 的独立因果收益。
 - 历史 dropbear 的一次本地 504/667（75.56%）在当时数值上超过公开最高
   502/667（75.26%）。该次选择 hold，没有 RSI 研究；不是官方榜单提交或 RSI 收益。
-- 后补 vanilla/OFF 首题运行 2854 秒后因凭据过期、HTTP 401 终止；后两题未启动。
-  没有有效 vanilla 对照分数，不能宣称已战胜裸 Codex。
+- **最初交接时**，后补 vanilla/OFF 首题运行 2854 秒后因凭据过期、HTTP 401 终止；
+  后两题尚未启动，没有有效 vanilla 分数。随后只续跑未启动名额；最终结果见页首链接，
+  仍不能宣称稳定战胜裸 Codex。
 
 ## 如何核查和继续
 
@@ -64,6 +71,7 @@
 - 学习定义：[reward selection](PROCONTRACT_REWARD_SELECTION.md) 与
   [finite acceptance](PROCONTRACT_RSI_ACCEPTANCE.md)。
 - 设计教训与下一步：[insights](PROCONTRACT_INSIGHTS_20261012.md)。
+- 后续最终验证：[ON/OFF results](PROCONTRACT_VANILLA_RESULTS_20261012.md)。
 - 原始运行根目录名、计划摘要与 native 摘要保留在机器索引中；原始轨迹和产物没有公开上传。
 
 主工作树中的未提交 UI/API 改动未被混入这些提交。本机保留了私有 WIP patch

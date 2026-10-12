@@ -1,0 +1,201 @@
+{
+  "schema": 1,
+  "as_of_utc": "2026-10-12T23:31:01.327512+00:00",
+  "continuation_plan_sha256": "8a377cf2de196fd9c6d0ca4ce0f232134356537a0d666e1cbe41ee1052993825",
+  "parent_plan_sha256": "88b33ea0a24fdbfaa537de8bfa6f8d02f52038cc5b88ff8e06ab553d75ddd18d",
+  "controller_commit": "7ee8b663331fa8ddc470ac1e13a82fd6d0c38d4e",
+  "native_commit": "d434ba042f9391615abca9e16d103192a5e4ef93",
+  "native_sha256": "a770ff8b4db51341d7d562e2fdd94789a49d4b7e4e64c11a4425cdb0185473bf",
+  "model": "gpt-5.6-luna",
+  "effort": "max",
+  "episode_secs": 18000,
+  "rows": [
+    {
+      "instance": "peco__peco.4e58dad",
+      "vanilla": {
+        "resolved": 729,
+        "total": 1215,
+        "fraction": 0.6,
+        "native_secs": 1471,
+        "grading_secs": 1784.624666971038,
+        "total_component_secs": 3255.624666971038,
+        "usage": {
+          "input_tokens": 22703398,
+          "cached_input_tokens": 22499167,
+          "output_tokens": 124569,
+          "reasoning_output_tokens": 38810,
+          "total_tokens": 22827967
+        },
+        "internal_worker_rollouts": 0,
+        "contract_phase": null,
+        "cost_adjusted_utility": 0.6199210875405503,
+        "result_sha256": "1d1dac8ddef9b4544dcf37c4e44130dbc17ac73011708f18627d37b2eae4f393",
+        "submission_sha256": "465b7382f1b04f7f0d2a21e97a20f3e8b7ac77ed07d143130a6eb4325c5261b0",
+        "eval_sha256": "badc289c5400601115328cc08ebec7e621ae13042e15c891ed895fb87e3ce965"
+      },
+      "procontract": {
+        "resolved": 891,
+        "total": 1215,
+        "fraction": 0.7333333333333333,
+        "native_secs": 2323,
+        "grading_secs": 852.1491136989789,
+        "total_component_secs": 3175.149113698979,
+        "usage": {
+          "input_tokens": 40558111,
+          "cached_input_tokens": 39868935,
+          "output_tokens": 240162,
+          "reasoning_output_tokens": 117096,
+          "total_tokens": 40798273
+        },
+        "internal_worker_rollouts": 2,
+        "contract_phase": "did_not_pass",
+        "cost_adjusted_utility": 0.7415396509409141,
+        "result_sha256": "378e6d657c376555f7d163e4d9e2b47be3e9b5eb2c7fddc957af2dd36ed5c0b7",
+        "submission_sha256": "ddbb8489368a938e10ec9561e6f93f663dad4625b50bc3c7759223c6f1775073",
+        "eval_sha256": "849313f4b8a68bc6431c83d6386f3621df4a55b5e068e61e097c03dbdc100bca"
+      },
+      "procontract_minus_vanilla_pp": 13.33333333333333
+    },
+    {
+      "instance": "ggreer__the_silver_searcher.a61f178",
+      "vanilla": {
+        "resolved": 896,
+        "total": 1004,
+        "fraction": 0.8924302788844621,
+        "native_secs": 2981,
+        "grading_secs": 243.95460893202107,
+        "total_component_secs": 3224.954608932021,
+        "usage": {
+          "input_tokens": 62379302,
+          "cached_input_tokens": 61248832,
+          "output_tokens": 233840,
+          "reasoning_output_tokens": 110861,
+          "total_tokens": 62613142
+        },
+        "internal_worker_rollouts": 0,
+        "contract_phase": null,
+        "cost_adjusted_utility": 0.8859216949003593,
+        "result_sha256": "3b60317b18c1698b629bed2695586d1aa99c2da6d3299950a605bbb76b965922",
+        "submission_sha256": "6f1a1daeb260158f30f6f47bbd63c0fb74dd4af193a4f1e5f359684e65921021",
+        "eval_sha256": "e99c5c6273041e5b1fb3dcb371d5a0e53fac3da5e94d61b0673fe5352a503054"
+      },
+      "procontract": {
+        "resolved": 724,
+        "total": 1004,
+        "fraction": 0.7211155378486056,
+        "native_secs": 1767,
+        "grading_secs": 343.61994916800177,
+        "total_component_secs": 2110.6199491680018,
+        "usage": {
+          "input_tokens": 37116039,
+          "cached_input_tokens": 36815626,
+          "output_tokens": 207504,
+          "reasoning_output_tokens": 103433,
+          "total_tokens": 37323543
+        },
+        "internal_worker_rollouts": 2,
+        "contract_phase": "did_not_pass",
+        "cost_adjusted_utility": 0.7358089740584899,
+        "result_sha256": "c43c433ceabb2f7e40dc235bacade3d1546e6aee5cbe856bc927c4ff026e3ba6",
+        "submission_sha256": "4e0bb1b52af248028a48881eef49d7fd36538c0a16dd7958c40cdb3c359f52f5",
+        "eval_sha256": "80455ee90cbf2b3201257b6c02ddd4e724dbbcd9dbc10f7a1ccd29a964f9a7e8"
+      },
+      "procontract_minus_vanilla_pp": -17.131474103585653
+    }
+  ],
+  "valid_pairs_only": {
+    "vanilla": {
+      "macro_fraction": 0.7462151394422311,
+      "resolved": 1625,
+      "tests": 2219,
+      "native_secs": 4452,
+      "grading_secs": 2028.5792759030592,
+      "mean_cost_adjusted_utility": 0.7529213912204549,
+      "pooled_fraction": 0.7323118521856692
+    },
+    "procontract": {
+      "macro_fraction": 0.7272244355909694,
+      "resolved": 1615,
+      "tests": 2219,
+      "native_secs": 4090,
+      "grading_secs": 1195.7690628669807,
+      "mean_cost_adjusted_utility": 0.738674312499702,
+      "pooled_fraction": 0.7278053177106805
+    }
+  },
+  "procontract_minus_vanilla_macro_pp": -1.899070385126167,
+  "procontract_minus_vanilla_pooled_pp": -0.45065344749887215,
+  "missing_pair": {
+    "instance": "chirlu__sox.42b3557",
+    "procontract_resolved": 569,
+    "total": 1196,
+    "vanilla_fraction": null,
+    "cause": "provider credential expired during the original attempt; no rerun or zero imputation"
+  },
+  "planned_three_task_macro_bounds": {
+    "procontract": 0.6434004598477142,
+    "vanilla_lower": 0.497476759628154,
+    "vanilla_upper": 0.8308100929614873,
+    "note": "mathematical bounds for missing result, not imputed scores"
+  },
+  "control_acceptance": {
+    "benefit": "NOT_ESTABLISHED",
+    "gates": {
+      "planned_matrix_scored": "PASS",
+      "procontract_off_observed": "PASS",
+      "research_disabled": "PASS"
+    },
+    "responsibility_kernel": "NOT_ESTABLISHED_BY_FUNCTIONAL_SCORES",
+    "scope": "functional ProContract ON/OFF ablation with fixed seed P, not stock upstream defaults",
+    "status": "PASS",
+    "terminal_episodes": 2,
+    "unreported_episodes": []
+  },
+  "budget": {
+    "limits": {
+      "allocated_seconds": 54000,
+      "learning_launches": 0,
+      "task_launches": 3
+    },
+    "remaining": {
+      "allocated_seconds": 0,
+      "learning_launches": 0,
+      "task_launches": 0
+    },
+    "reserved": {
+      "allocated_seconds": 54000,
+      "learning_launches": 0,
+      "task_launches": 3
+    },
+    "study_sha256": "88b33ea0a24fdbfaa537de8bfa6f8d02f52038cc5b88ff8e06ab553d75ddd18d"
+  },
+  "actual_task_attempts_across_scopes": 3,
+  "actual_rsi_calls": 0,
+  "original_terminal_sha256": "f4459e2e6a0758c6d5291d780ab2074c9f1e8717b2bf7e6abda6ab277479ee0c",
+  "comparison_scope": "cross-batch single trials; identical native binary/model/seed/tasks/evaluator and caps; expiry admission changed only in continuation; NOT an untouched-upstream-default comparison or an isolated kernel-vs-extra-compute ablation",
+  "claim": "mixed task effects; stable ProContract net benefit not established; function scores do not certify the responsibility kernel",
+  "baseline_ON_is_resume_fixed_build": false,
+  "utility_definition": {
+    "formula": "(q - 0.1 * min(1, (native_secs + research_secs + grading_secs) / 18000) + 0.1) / 1.1",
+    "q": "resolved / total",
+    "research_secs_in_compared_arms": 0,
+    "scope": "offline descriptive recomputation of the existing selector metric, not a new online learning update or monetary cost"
+  },
+  "control_acceptance_scope": "PASS covers the two authorized continuation slots only; the original sox attempt remains unscored",
+  "verification": {
+    "checked_at_utc": "2026-10-12T23:34:35.672240+00:00",
+    "status": "PASS",
+    "scope": "offline artifact consistency cross-check; no model or evaluator launches; not a full dependency/compliance audit",
+    "checks": [
+      "result and submission digests match",
+      "raw evaluator digests and eligible feedback counts agree",
+      "paired image, prompt, fixed P, native binary, model, effort and deadline match",
+      "recorded usage, elapsed components and aggregate arithmetic agree",
+      "original terminal digest unchanged",
+      "private trace archive digests match cleanup receipt"
+    ],
+    "paired_results_verified": 4,
+    "historical_sox_score_checked": true,
+    "cleanup_receipt_sha256": "4497572d25b30c3af4de4657225128ceb2bc32941cf5f66280cffaa414ee575e"
+  }
+}
