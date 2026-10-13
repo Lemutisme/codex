@@ -59,6 +59,28 @@ Interactive sessions do **not** automatically mutate/promote policies or launch
 background research. A local contract's support is evidence within reach, not
 independent benchmark gain or a claim that general-purpose RSI is complete.
 
+## Failure recovery through fresh sessions
+
+After a verified defeat, the launcher now permits up to **3 fresh executor
+sessions within 4 hours of the original task intake**. The same responsibility,
+verification policy, frozen evidence and durable budget survive each handoff.
+Successors receive the original task, current owner constraints and recent
+failures, rather than copying the failed execution transcript. They may repair
+or reimplement task-owned files; the host does not wipe the project or reset Git.
+
+```sh
+procodex --successor-sessions 2 --task-seconds 7200 --check 'your-test-command'
+procodex --successor-sessions 0  # legacy same-thread bounded repair
+```
+
+`procodex status` reports `succeeding` while a fresh executor runs. Its individual
+tool calls are not expanded in the current TUI. Extra permissions are never
+automatically approved; new owner input cancels and joins the successor.
+Exhausted grants, repeated unchanged failed artifacts, incomplete authorization
+or unknown evaluator/process state remain explicit failures, not success or
+unlimited retries. Old contracts without an intake-time grant do not gain one
+on resume. This is task-local recovery, not demonstrated general RSI benefit.
+
 ## Repairs included
 
 - Draft requirements select host-owned human-request IDs. Workspace documentation
@@ -66,7 +88,7 @@ independent benchmark gain or a claim that general-purpose RSI is complete.
 - Reviewers have a frozen, ID-only read capability, no execution environment, and
   no general filesystem access. Required artifacts are indexed first. They read
   the complete request/terms; support references are resolved by the host.
-- Worker context uses existing Core contextual fragments, at most 7,000 payload
+- Draft/probe/review context uses existing Core contextual fragments, at most 7,000 payload
   bytes per item and 96,000 bytes per packet. History is not rewritten.
 - The fixed research auditor supports host-issued citation handles. Unknown
   judgments, inventory coverage and adoption rules are not weakened.
