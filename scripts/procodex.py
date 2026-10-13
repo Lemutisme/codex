@@ -53,11 +53,25 @@ def main(argv=None):
     )
     parser.add_argument("--version", action="store_true")
     parser.add_argument(
+        "--successor-sessions",
+        type=int,
+        default=3,
+        help="fresh executor sessions after failed verification (0 disables; max 16)",
+    )
+    parser.add_argument(
+        "--task-seconds",
+        type=int,
+        default=14400,
+        help="original-intake wall-clock deadline for automatic succession; never reset by a new session",
+    )
+    parser.add_argument(
         "--container-only",
         action="store_true",
         help="explicitly use Docker as the execution sandbox, without nested bwrap; approvals remain on-request",
     )
     args, rest = parser.parse_known_args(argv)
+    if not 0 <= args.successor_sessions <= 16 or not 60 <= args.task_seconds <= 86400:
+        parser.error("succession requires 0..16 sessions and 60..86400 task seconds")
     if args.check is not None and (
         not args.check.strip() or len(args.check.encode()) > 4096
     ):
@@ -135,7 +149,15 @@ def main(argv=None):
                 )
             isolation = "container-only"
     home, config = configure(
-        package, workspace, root, source_home, image, args.check, isolation=isolation
+        package,
+        workspace,
+        root,
+        source_home,
+        image,
+        args.check,
+        isolation=isolation,
+        successor_sessions=args.successor_sessions,
+        task_seconds=args.task_seconds,
     )
     if rest and rest[0] in ("doctor", "status"):
         if rest[0] == "status":
@@ -163,6 +185,8 @@ def main(argv=None):
                     image=image,
                     pro_contract=True,
                     automatic_general_rsi=False,
+                    fresh_executor_sessions=args.successor_sessions,
+                    succession_task_seconds=args.task_seconds,
                     approval_policy=config["approval_policy"],
                     sandbox_mode=config["sandbox_mode"],
                     check=args.check,
@@ -216,6 +240,10 @@ def main(argv=None):
     )
     print(
         "[procodex] Native contracts enabled. No background benchmark or automatic general-task RSI.",
+        file=sys.stderr,
+    )
+    print(
+        f"[procodex] Failed verification can start up to {args.successor_sessions} fresh sessions within {args.task_seconds}s from original intake; no task/budget reset.",
         file=sys.stderr,
     )
     os.chdir(workspace)

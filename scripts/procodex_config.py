@@ -37,11 +37,24 @@ def atomic(path, content):
 
 
 def configure(
-    package, workspace, root, source_home, image, check, *, isolation="nested"
+    package,
+    workspace,
+    root,
+    source_home,
+    image,
+    check,
+    *,
+    isolation="nested",
+    successor_sessions=0,
+    task_seconds=14400,
 ):
     """Copy routing only; never carry hooks, MCP, global permissions or project trust over."""
     if isolation not in ("nested", "container-only"):
         raise ValueError("unknown execution isolation")
+    if not 0 <= successor_sessions <= 16 or not 60 <= task_seconds <= 86400:
+        raise ValueError(
+            "succession requires 0..16 sessions and 60..86400 task seconds"
+        )
     if any(c in str(workspace) for c in ("\n", "\0", ",")):
         raise ValueError("workspace path is not representable as a Docker bind mount")
     source = source_home / "config.toml"
@@ -162,6 +175,10 @@ def configure(
         repair_attempts=1,
         worker=dict(model=None, reasoning_effort=None, deadline_secs=900),
     )
+    if successor_sessions:
+        settings["succession"] = dict(
+            max_sessions=successor_sessions, total_secs=task_seconds
+        )
     atomic(home / "config.toml", toml(config))
     atomic(home / "environments.toml", env_text)
     atomic(home / "pro_contract/settings.json", json.dumps(settings, indent=2) + "\n")

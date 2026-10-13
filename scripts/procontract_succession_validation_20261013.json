@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "branch": "procontract/responsibility-succession-20261013",
+  "status": "MECHANISM_PASS",
+  "rust_scoped_tests": 162,
+  "python_configuration_and_install_tests": 7,
+  "native_succession_fixture": {
+    "provider": "localhost scripted fixture; no real model",
+    "accepted_commands": [
+      "issue",
+      "propose",
+      "defeat",
+      "propose",
+      "support"
+    ],
+    "fresh_successor_sessions": 1,
+    "original_contracts": 1,
+    "final_phase": "supported",
+    "context_is_new": true,
+    "budget_pending_after_shutdown": null,
+    "result_sha256": "bca2ac3dd480cb7ed4a3c71632e8083ad5f1b4f6f4a1b78136afddb7f3a4ebe5"
+  },
+  "native_restart_fixture": {
+    "restored_snapshot_identical": true,
+    "accepted_commands": [
+      "issue",
+      "propose",
+      "support",
+      "propose",
+      "support"
+    ],
+    "result_sha256": "82f5a058d94edc41f4a4694bf7d1c81ac227edf5e27a5d21cf0ff2ba3cf11bf1"
+  },
+  "controller_integration": [
+    "two fresh successor IDs retain failed-artifact lessons without reissuing",
+    "exhausted deadline/grant is not reset by restore or a later owner turn",
+    "owner input cancels and joins successor before workspace reuse"
+  ],
+  "tested_native_sha256": "c9f878ea5d492259cdaa64d114129925485c5605610fe32eaee9d30e094e227d",
+  "verification_order": "scoped and native tests before final Clippy/format; no test rerun after final lint-driven lock-scope cleanup and intake inlining",
+  "bazel_lock_update": "completed; no MODULE.bazel.lock drift",
+  "claims_not_made": [
+    "ProgramBench gain",
+    "general RSI gain",
+    "weight training",
+    "automatic discharge",
+    "unlimited retry",
+    "full successor trace in the TUI"
+  ],
+  "paid_model_calls": 0,
+  "new_programbench_runs": 0,
+  "historical_runs_or_budgets_rewritten": false,
+  "main_worktree_changes_included": false
+}

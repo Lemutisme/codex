@@ -12,6 +12,32 @@ import procodex_config as procodex
 
 @unittest.skipUnless(sys.platform == "linux", "Linux Docker launcher")
 class ConfigurationTests(unittest.TestCase):
+    def test_succession_is_an_explicit_finite_native_grant(self):
+        home, _ = procodex.configure(
+            self.root / "package",
+            self.workspace,
+            self.root / "procodex",
+            self.source,
+            "sha256:" + "a" * 64,
+            "true",
+            successor_sessions=3,
+            task_seconds=3600,
+        )
+        settings = json.loads((home / "pro_contract/settings.json").read_text())
+        self.assertEqual(
+            settings["succession"], {"max_sessions": 3, "total_secs": 3600}
+        )
+        with self.assertRaises(ValueError):
+            procodex.configure(
+                self.root / "package",
+                self.workspace,
+                self.root / "procodex",
+                self.source,
+                "unused",
+                "true",
+                successor_sessions=17,
+            )
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

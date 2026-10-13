@@ -70,6 +70,7 @@ def custom_call(body, code, name):
 )
 class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
+        succession = getattr(self, "succession_fixture", False)
         package = Path(os.environ["PROCODEX_NATIVE_PACKAGE"]).resolve()
         image = os.environ["PROCODEX_TEST_IMAGE"]
         with tempfile.TemporaryDirectory(prefix="procodex-native-") as temporary:
@@ -149,6 +150,10 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                             if "coverage" in props
                             else "executor"
                         )
+                        if role == "executor" and "pro_contract_successor" in "\n".join(
+                            text_values(body.get("input", []))
+                        ):
+                            role = "successor"
                         counts[role] = counts.get(role, 0) + 1
                         if role == "draft":
                             message = dict(
@@ -198,10 +203,17 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                                 residual="",
                             )
                         elif counts[role] == 1:
+                            answer = (
+                                "first failed"
+                                if succession and role == "executor"
+                                else "ready"
+                            )
                             items = [
                                 custom_call(
                                     body,
-                                    """const r = await tools.exec_command({cmd:"printf 'ready\\n' > answer.txt",yield_time_ms:1000,max_output_tokens:1000});text(r);""",
+                                    "const r = await tools.exec_command({cmd:"
+                                    + json.dumps(f"printf '{answer}\\n' > answer.txt")
+                                    + ",yield_time_ms:1000,max_output_tokens:1000});text(r);",
                                     "write-answer",
                                 )
                             ]
@@ -288,6 +300,8 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                 image,
                 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
                 isolation="container-only",
+                successor_sessions=2 if succession else 0,
+                task_seconds=3600,
             )
             env = {
                 **os.environ,
@@ -378,6 +392,54 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                 self.assertIsNotNone(status)
                 self.assertEqual(status["phase"], "supported", status)
                 self.assertGreaterEqual(counts.get("review", 0), 2)
+                if succession:
+                    self.assertEqual(counts.get("draft"), 1)
+                    self.assertEqual(counts.get("successor"), 2)
+                    successor_requests = [
+                        body
+                        for body in requests
+                        if "pro_contract_successor"
+                        in "\n".join(text_values(body.get("input", [])))
+                    ]
+                    first = successor_requests[0]
+                    original = next(
+                        body
+                        for body in requests
+                        if body.get("prompt_cache_key") == thread
+                    )
+                    self.assertNotEqual(
+                        first.get("prompt_cache_key"), original.get("prompt_cache_key")
+                    )
+                    self.assertFalse(
+                        any(
+                            item.get("type")
+                            in ("function_call_output", "custom_tool_call_output")
+                            for item in first["input"]
+                        )
+                    )
+                    self.assertIn(
+                        "original_task", "\n".join(text_values(first["input"]))
+                    )
+                    with contextlib.closing(
+                        sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
+                    ) as connection:
+                        commands = [
+                            json.loads(row[0])["command"]["type"]
+                            for row in connection.execute(
+                                "SELECT command_json FROM events ORDER BY seq"
+                            )
+                        ]
+                        budget = json.loads(
+                            connection.execute(
+                                "SELECT json FROM records WHERE kind='succession' AND key=?",
+                                (thread,),
+                            ).fetchone()[0]
+                        )
+                    self.assertEqual(
+                        commands, ["issue", "propose", "defeat", "propose", "support"]
+                    )
+                    self.assertEqual((budget["launches"], budget["pending"]), (1, None))
+                    self.assertNotEqual(budget["executors"], [thread])
             finally:
                 server.close()
                 server.process.stdout.close()

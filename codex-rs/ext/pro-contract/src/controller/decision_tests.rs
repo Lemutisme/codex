@@ -202,6 +202,29 @@ fn long_public_failures_do_not_push_out_the_sealed_line() {
 }
 
 #[test]
+fn verbose_repeated_symptoms_do_not_hide_other_failed_modes() {
+    let mut steps = (0..5)
+        .map(|i| {
+            step(
+                &format!("public:format-{i}"),
+                StepOutcome::Fail,
+                &"same output diff ".repeat(50),
+            )
+        })
+        .collect::<Vec<_>>();
+    steps.push(step("public:parallel", StepOutcome::Fail, "empty output"));
+    steps.push(step("public:stdin", StepOutcome::Fail, "wrong mode"));
+    let Verdict::Defeat { residual } = decide(&receipts(steps, true), None, &policy()) else {
+        panic!("defeat");
+    };
+    assert!(residual.contains("public:parallel"), "{residual}");
+    assert!(residual.contains("public:stdin"), "{residual}");
+    assert!(residual.contains("not the whole repair scope"));
+    assert!(residual.len() <= EXECUTOR_TEXT_CAP);
+    assert!(!residual.contains(SEALED_SECRET));
+}
+
+#[test]
 fn a_failed_build_defeats_without_a_sealed_line_even_if_the_review_would_support() {
     let mut steps = vec![step("build", StepOutcome::Fail, "error: no compile.sh")];
     steps.push(StepReceipt::new("public:D1", StepOutcome::Fail, ""));

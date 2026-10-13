@@ -223,6 +223,29 @@ fn residual(
             families.join(", ")
         ));
     }
+    // Preserve breadth before spending context on verbose diffs. The previous first-N
+    // rendering could show five instances of one symptom and hide every other failed mode.
+    let names: BTreeSet<String> = failures
+        .iter()
+        .map(|failure| {
+            let name = failure.step.as_str();
+            if name.len() <= 24 {
+                name.to_string()
+            } else {
+                format!("{}~", &name[..name.floor_char_boundary(/*index*/ 23)])
+            }
+        })
+        .collect();
+    let index = names
+        .iter()
+        .take(/*n*/ 40)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    residual.push_str(&format!(
+        "Failed checks ({} total; abbreviated IDs): {index}. Details below are only examples, not the whole repair scope. Preserve stdin/TTY/flag conditions; test neighboring modes before generalizing a fix.\n",
+        failures.len()
+    ));
     let mut shown = 0;
     for failure in failures {
         let entry = failure_entry(failure, policy, FAILURE_DETAIL_CAP);
@@ -260,7 +283,7 @@ fn failure_entry(failure: &StepReceipt, policy: &EvidencePolicy, detail_cap: usi
                 .stdin
                 .as_deref()
                 .map(|stdin| format!(" with stdin {:?}", bounded(stdin, 200)))
-                .unwrap_or_default();
+                .unwrap_or_else(|| " with no case-supplied stdin (not a TTY guarantee)".to_string());
             let fixtures: Vec<&str> = case
                 .files
                 .iter()
