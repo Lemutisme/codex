@@ -215,6 +215,46 @@ struct Status {
 }
 
 #[tokio::test]
+async fn record_claims_do_not_overwrite_a_competing_reservation() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let ledger = open(dir.path()).await;
+    let first = Status {
+        phase: "reserved-1".into(),
+    };
+    let second = Status {
+        phase: "reserved-2".into(),
+    };
+    assert!(
+        ledger
+            .compare_exchange_record("budget", "task", /*previous*/ None, &first)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !ledger
+            .compare_exchange_record("budget", "task", /*previous*/ None, &second)
+            .await
+            .unwrap()
+    );
+    assert!(
+        ledger
+            .compare_exchange_record("budget", "task", Some(&first), &second)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !ledger
+            .compare_exchange_record("budget", "task", Some(&first), &first)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        ledger.record::<Status>("budget", "task").await.unwrap(),
+        Some(second)
+    );
+}
+
+#[tokio::test]
 async fn records_upsert_and_read_back() {
     let dir = tempfile::tempdir().expect("tempdir");
     let ledger = open(dir.path()).await;

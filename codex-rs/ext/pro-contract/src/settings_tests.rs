@@ -68,6 +68,7 @@ fn an_evaluation_profile_loads_with_defaults() {
                 reference_command: Some("/workspace/executable".to_string()),
             }),
             repair_attempts: 1,
+            succession: None,
             worker: WorkerSettings {
                 model: None,
                 reasoning_effort: None,

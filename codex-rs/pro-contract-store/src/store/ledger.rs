@@ -282,6 +282,41 @@ impl Ledger {
             .map(|json| decode(&json))
             .transpose()
     }
+
+    /// Atomically claims or replaces a host record only at the observed value. A failed
+    /// comparison never rewrites another owner's reservation or restores spent allowance.
+    pub async fn compare_exchange_record<T: Serialize + Sync>(
+        &self,
+        kind: &str,
+        key: &str,
+        previous: Option<&T>,
+        next: &T,
+    ) -> Result<bool, LedgerError> {
+        let next = encode(next)?;
+        let result = match previous {
+            Some(previous) => {
+                sqlx::query("UPDATE records SET json = ? WHERE kind = ? AND key = ? AND json = ?")
+                    .bind(next)
+                    .bind(kind)
+                    .bind(key)
+                    .bind(encode(previous)?)
+                    .execute(&self.pool)
+                    .await
+            }
+            None => {
+                sqlx::query(
+                    "INSERT INTO records (kind, key, json) VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                )
+                .bind(kind)
+                .bind(key)
+                .bind(next)
+                .execute(&self.pool)
+                .await
+            }
+        }
+        .map_err(storage)?;
+        Ok(result.rows_affected() == 1)
+    }
 }
 
 /// Where a captured subject's manifest is stored and under which capture policy it was taken.

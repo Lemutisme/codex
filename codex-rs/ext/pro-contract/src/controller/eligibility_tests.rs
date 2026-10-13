@@ -29,6 +29,7 @@ fn settings() -> Settings {
             reference_command: None,
         }),
         repair_attempts: 1,
+        succession: None,
         worker: WorkerSettings::default(),
         evidence: Default::default(),
         policy: None,

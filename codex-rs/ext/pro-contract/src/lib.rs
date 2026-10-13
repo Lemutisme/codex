@@ -45,6 +45,7 @@ pub use settings::EvaluationProfile;
 pub use settings::EvidenceSettings;
 pub use settings::Settings;
 pub use settings::SettingsError;
+pub use settings::SuccessionSettings;
 pub use settings::WorkerSettings;
 pub use workers::WorkerError;
 

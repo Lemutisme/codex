@@ -5,6 +5,7 @@ pub(crate) mod eligibility;
 pub(crate) mod identity;
 pub(crate) mod ports;
 pub(crate) mod runtime;
+mod succession_budget;
 pub(crate) mod views;
 
 use std::sync::Arc;

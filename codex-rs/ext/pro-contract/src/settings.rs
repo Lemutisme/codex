@@ -17,6 +17,10 @@ pub struct Settings {
     /// Automatic repairs per work episode.
     #[serde(default = "default_repair_attempts")]
     pub repair_attempts: u32,
+    /// Opt-in fresh executor sessions under one intake-time grant. Legacy settings keep
+    /// same-thread repair behavior; a successor never issues a new contract or grant.
+    #[serde(default)]
+    pub succession: Option<SuccessionSettings>,
     #[serde(default)]
     pub worker: WorkerSettings,
     #[serde(default)]
@@ -25,6 +29,15 @@ pub struct Settings {
     /// replace the built-in worker instructions.
     #[serde(default)]
     pub policy: Option<PathBuf>,
+}
+
+/// An operator's finite grant for replacing failed executor contexts, not resetting a task.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SuccessionSettings {
+    pub max_sessions: u32,
+    /// Wall-clock lifetime from original intake, including the original executor.
+    pub total_secs: u64,
 }
 
 /// The sealed-evidence rules copied into every evidence policy at Issue.

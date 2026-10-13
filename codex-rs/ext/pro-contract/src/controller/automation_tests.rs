@@ -311,6 +311,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
     let settings = Settings {
         evaluation: Some(profile.clone()),
         repair_attempts: 1,
+        succession: None,
         worker: WorkerSettings::default(),
         evidence: EvidenceSettings {
             sealed_threshold_permille: 750,
