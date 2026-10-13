@@ -3,6 +3,7 @@
 //! record.
 
 mod recovery;
+mod succession;
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -81,7 +82,7 @@ pub struct StatusRecord {
     pub thread_id: String,
     pub contract_id: Option<String>,
     /// `abstained`, `idle`, `drafting`, `working`, `checking`, `repairing`, `supported`,
-    /// `did_not_pass` or `not_verified`.
+    /// `succeeding`, `did_not_pass` or `not_verified`.
     pub phase: String,
     pub detail: String,
     /// No further automation will happen without new human input.
@@ -102,6 +103,7 @@ enum Phase {
     Verifying,
     Resting,
     RecoveryBlocked,
+    Succeeding,
 }
 
 struct ActiveContract {
@@ -121,6 +123,7 @@ struct Base {
 
 /// Everything verification needs about one handoff.
 struct Handoff {
+    epoch: u64,
     contract: Contract,
     subject: Subject,
     turn_id: String,
@@ -148,6 +151,8 @@ struct State {
     repairs_used: u32,
     /// The note of the repair turn in flight; compaction drops the copy in history.
     repair_note: Option<String>,
+    epoch: u64,
+    successor: Option<succession::Control>,
 }
 
 /// Everything the automation lane needs for one thread.
@@ -215,6 +220,7 @@ impl ThreadRuntime {
 
     /// Cancels and joins background work at thread teardown.
     pub(crate) async fn stop(&self) {
+        self.cancel_successor().await;
         let mut tasks =
             std::mem::take(&mut *self.tasks.lock().unwrap_or_else(PoisonError::into_inner));
         tasks.shutdown().await;
@@ -318,6 +324,26 @@ impl ThreadRuntime {
                 return;
             }
             state.phase = Phase::Drafting;
+        }
+        if let Some(grant) = &self.settings.succession {
+            let budget = super::succession_budget::now_ms()
+                .and_then(|now| super::succession_budget::Budget::new(grant.clone(), now));
+            let admitted = match budget {
+                Ok(budget) => {
+                    budget
+                        .replace(
+                            &self.ledger,
+                            &self.thread_id.to_string(),
+                            /*previous*/ None,
+                        )
+                        .await
+                }
+                Err(reason) => Err(reason),
+            };
+            if let Err(reason) = admitted {
+                self.rest("abstained", &reason).await;
+                return;
+            }
         }
         let base = match self.capture_workspace().await {
             Ok(base) => base,
@@ -661,6 +687,7 @@ impl ThreadRuntime {
 
     /// A new turn supersedes whatever the previous one froze.
     pub(crate) async fn turn_started(&self) {
+        self.cancel_successor().await;
         let continuing = {
             let mut state = self.state.lock().await;
             let continuing = state.phase == Phase::Resting
@@ -709,6 +736,11 @@ impl ThreadRuntime {
             state.last_idle = Some(cause);
             state.phase
         };
+        if phase == Phase::Succeeding && cause != ThreadIdleCause::Completed {
+            self.cancel_successor().await;
+            self.executor_stopped(cause).await;
+            return;
+        }
         if phase != Phase::Working {
             return;
         }
@@ -732,6 +764,7 @@ impl ThreadRuntime {
                 (Some(frozen), _) if state.proposed_turns.contains(&frozen.turn_id) => return,
                 (Some(frozen), Some(active)) => {
                     let values = Handoff {
+                        epoch: state.epoch,
                         contract: active.contract.clone(),
                         subject: frozen.subject.clone(),
                         turn_id: frozen.turn_id.clone(),
@@ -817,6 +850,7 @@ impl ThreadRuntime {
 
     async fn verify(self: Arc<Self>, handoff: Handoff) {
         let Handoff {
+            epoch,
             contract,
             subject,
             turn_id,
@@ -896,13 +930,17 @@ impl ThreadRuntime {
             }),
         )
         .await;
+        if self.state.lock().await.epoch != epoch {
+            return; // Owner input superseded this frozen handoff; do not schedule stale work.
+        }
         match verdict {
             Verdict::Support => {
                 self.support(contract, &subject, base.subject, checks.ok(), review)
                     .await
             }
             Verdict::Defeat { residual } => {
-                self.defeat(contract, &subject, residual, turn_id).await
+                self.defeat(contract, &subject, residual, turn_id, epoch)
+                    .await
             }
             Verdict::NotVerified { class, reason } => self.not_verified(class, &reason).await,
         }
@@ -991,11 +1029,12 @@ impl ThreadRuntime {
     }
 
     async fn defeat(
-        &self,
+        self: Arc<Self>,
         contract: Contract,
         subject: &Subject,
         residual: String,
         turn_id: String,
+        epoch: u64,
     ) {
         let defeated = self
             .apply(
@@ -1018,6 +1057,10 @@ impl ThreadRuntime {
                 &format!("defeat failed: {error}"),
             )
             .await;
+            return;
+        }
+        if self.settings.succession.is_some() {
+            Box::pin(self.succeed(subject.subject_hash, residual, turn_id, epoch)).await;
             return;
         }
         let allowance_left = self.state.lock().await.repairs_used < self.settings.repair_attempts;

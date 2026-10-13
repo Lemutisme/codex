@@ -42,6 +42,8 @@ use crate::workers::runtime::WorkerTurn;
 
 #[path = "runtime_recovery_tests.rs"]
 mod recovery_tests;
+#[path = "succession_tests.rs"]
+mod succession_tests;
 
 const INTAKE: &str = "Please make answer.txt say done.";
 const CONTRACT_DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_quote":"make answer.txt say done","inferred":false}],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;
