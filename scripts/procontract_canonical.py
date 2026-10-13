@@ -373,6 +373,9 @@ def evaluator_env():
         "DOCKER_HOST",
         "DOCKER_CONTEXT",
         "XDG_RUNTIME_DIR",
+        "PROCONTRACT_SWEEP_ID",
+        "PROCONTRACT_SWEEP_EPISODE",
+        "PROGRAMBENCH_CONTAINER_PREFIX",
     )
     env = {key: os.environ[key] for key in keep if key in os.environ}
     env.update(
