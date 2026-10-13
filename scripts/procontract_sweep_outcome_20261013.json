@@ -1,0 +1,157 @@
+{
+  "schema": 1,
+  "kind": "retrospective_sanitized_outcome_not_a_new_run",
+  "study": "procontract-succession-full-20261013",
+  "recorded_date_utc": "2026-10-13",
+  "branch": "procontract/succession-full-eval-20261013",
+  "controller_source_commit": "d05e1f5a8e4a98b5c342528bf2d4181b4e63eab4",
+  "native_source_commit": "84f3f1e38b34ff18812c4cac11280288aa4ca38c",
+  "plan_sha256": "b30f3d8d44cdf067353a63d533f69ef5808a00465cbb8d82f77b332752498ace",
+  "model": "gpt-5.6-luna",
+  "effort": "max",
+  "arms": [
+    "successor"
+  ],
+  "terminal_status": "stopped",
+  "planned_tasks": 200,
+  "task_reservations": 5,
+  "unlaunched_tasks": 195,
+  "scored_tasks": 2,
+  "infrastructure_failed_tasks": 3,
+  "supported_contracts": 0,
+  "successor_reservations": 3,
+  "recorded_successor_rollouts": 0,
+  "research_reservations": 0,
+  "budget": {
+    "limits": {
+      "allocated_seconds": 3600000,
+      "learning_launches": 0,
+      "task_launches": 200
+    },
+    "reserved": {
+      "allocated_seconds": 90000,
+      "learning_launches": 0,
+      "task_launches": 5
+    },
+    "remaining": {
+      "allocated_seconds": 3510000,
+      "learning_launches": 0,
+      "task_launches": 195
+    }
+  },
+  "budget_unit_note": "allocated seconds are neither measured elapsed time nor billed cost",
+  "cleanup_errors": [],
+  "results": [
+    {
+      "instance": "bensadeh__tailspin.6278437",
+      "episode": "0-successor",
+      "status": "infrastructure_failed",
+      "resolved": null,
+      "total": null,
+      "fraction": null,
+      "contract_phase": "not_verified",
+      "successor_sessions_reserved": 1,
+      "successor_rollouts_recorded": 0
+    },
+    {
+      "instance": "jonas__tig.8334123",
+      "episode": "1-successor",
+      "status": "infrastructure_failed",
+      "resolved": null,
+      "total": null,
+      "fraction": null,
+      "contract_phase": "not_verified",
+      "successor_sessions_reserved": 1,
+      "successor_rollouts_recorded": 0
+    },
+    {
+      "instance": "sharkdp__hexyl.2e26437",
+      "episode": "2-successor",
+      "status": "scored",
+      "resolved": 884,
+      "total": 906,
+      "fraction": 0.9757174392935982,
+      "contract_phase": "not_verified",
+      "successor_sessions_reserved": 0,
+      "successor_rollouts_recorded": 0
+    },
+    {
+      "instance": "rs__jplot.2a54bcc",
+      "episode": "3-successor",
+      "status": "scored",
+      "resolved": 400,
+      "total": 583,
+      "fraction": 0.6861063464837049,
+      "contract_phase": "not_verified",
+      "successor_sessions_reserved": 0,
+      "successor_rollouts_recorded": 0
+    },
+    {
+      "instance": "ogham__dog.721440b",
+      "episode": "4-successor",
+      "status": "infrastructure_failed",
+      "resolved": null,
+      "total": null,
+      "fraction": null,
+      "contract_phase": "not_verified",
+      "successor_sessions_reserved": 1,
+      "successor_rollouts_recorded": 0
+    }
+  ],
+  "diagnosis": {
+    "shared_successor_error": "owner instructions are incomplete; cannot authorize a fresh executor",
+    "task_message_bytes": 4501,
+    "retained_excerpt_bytes_observed_in_tailspin": 3600,
+    "tailspin_retained_message_complete": false,
+    "tig_and_dog_failed_without_compaction": true,
+    "zero_qualified_sealed_checks_in_both_scored_tasks": true,
+    "zero_checks_root_cause": "not yet localized; do not claim an implemented evidence-generation fix",
+    "repair_status": "not implemented by this record"
+  },
+  "historical_preflight": {
+    "combined_python": {
+      "total": 93,
+      "passed": 87,
+      "setup_errors": 6,
+      "setup_error_scope": "test_procontract_study_launch: absent worktree debug pro-contract-store; assertions did not execute"
+    },
+    "real_native_successor_accounting": {
+      "passed": 1,
+      "provider_model_calls": 0,
+      "transport": "localhost scripted fixture"
+    },
+    "coverage_limit": "native fixture used a short task; real-length instruction handoff was not covered"
+  },
+  "claims_not_made": [
+    "full-matrix completion or mean",
+    "successful real successor execution",
+    "responsibility discharged",
+    "causal successor or RSI benefit",
+    "globally unseen evaluation",
+    "infrastructure failures scored as zero"
+  ],
+  "publication_scope": "task IDs, aggregate scores, error classification, versions and private evidence digests only; no credentials, raw traces, submissions, reference or test contents",
+  "evidence_sha256": {
+    "plan.json": "b30f3d8d44cdf067353a63d533f69ef5808a00465cbb8d82f77b332752498ace",
+    "terminal.json": "53ea7013915e3c9a3798752f006f87a6fae311e81f279e01919de40d1495a251",
+    "SUMMARY.json": "c02fcecdc66bb5cd2e43db7c6679699c861e5fb249b967e0df1d13f214ae3ff3",
+    "diagnosis-20261013.json": "296b19f712db698835cd2e3d358aadf576c9d3986037367f3b281fc92ab0579b",
+    "runs/0-successor/run.json": "2a10d3e25aa38b62dba706e07e999093b05a072d5cc0d3acd2f8b0d982cc5374",
+    "runs/0-successor/result.json": "32e2a23d2bef7eb348b1d982121789eb3f981e1efa01035370fa9ef57687b7f5",
+    "runs/1-successor/run.json": "1485989fbdde98dffa58b09c372210fa8cb0e3be456e1fc205a240dd9931f25c",
+    "runs/1-successor/result.json": "0c4ee459bea24be8dc1b572679545e723fc739638f35077ff775311fece739e0",
+    "runs/2-successor/run.json": "afa1bb356924d2ec5cdb9220062ca955fcffe81bf89615663be2b7ed2adafd36",
+    "runs/2-successor/result.json": "c5e2beff9a9cdc091d6c5b170cdf4f4759f429b3c17c707285cdacf8f8f87a3b",
+    "runs/3-successor/run.json": "5171d06978cd2748db6ef28f43b26878ad9444eb2b418081ac948514b9317c62",
+    "runs/3-successor/result.json": "d83de98b5d6e0f3442c8e0b4697dd30e8c76aaeb78ade74ea3b20134b5f4ab49",
+    "runs/4-successor/run.json": "fe9a351937c1b2a83efd3814d323e1ddb6f2b2059cd6cddf9ae57216a0afb5cf",
+    "runs/4-successor/result.json": "41dbdf22a7631e6a395a468ee4872fc3ec4257a7fce65eb200e1ca8f744a5dcd"
+  },
+  "preflight_validation_receipt_sha256": "10df85355998f1092ea6352d019f5d6b1a32e71010b5ffb489ecd139bb511ad2",
+  "documentation_change": {
+    "new_model_calls": 0,
+    "frozen_controller_modified": false,
+    "native_modified": false,
+    "historical_outcomes_or_budget_rewritten": false
+  }
+}
