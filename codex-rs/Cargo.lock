@@ -4287,6 +4287,7 @@ dependencies = [
  "codex-core",
  "codex-extension-api",
  "codex-features",
+ "codex-history",
  "codex-pro-contract",
  "codex-pro-contract-store",
  "codex-protocol",

@@ -71,6 +71,10 @@ struct FakePorts {
     checked: Mutex<Vec<String>>,
     /// (residual, previous turn id) of each repair submission.
     repairs: Mutex<Vec<(String, String)>>,
+    successor_workspace: Mutex<Option<std::path::PathBuf>>,
+    successor_answers: Mutex<VecDeque<String>>,
+    successor_packets: Mutex<Vec<(ThreadId, String)>>,
+    successor_gate: Option<Arc<Notify>>,
 }
 
 impl FakePorts {
@@ -89,6 +93,10 @@ impl FakePorts {
             worker_model: "model-a",
             checked: Mutex::new(Vec::new()),
             repairs: Mutex::new(Vec::new()),
+            successor_workspace: Mutex::new(None),
+            successor_answers: Mutex::new(VecDeque::new()),
+            successor_packets: Mutex::new(Vec::new()),
+            successor_gate: None,
         }
     }
 
@@ -104,6 +112,42 @@ impl FakePorts {
 }
 
 impl Ports for FakePorts {
+    fn run_successor(
+        &self,
+        mut turn: crate::controller::successor::SuccessorTurn,
+    ) -> PortFuture<'_, Result<crate::controller::successor::SuccessorExit, String>> {
+        Box::pin(async move {
+            use crate::controller::successor::SuccessorExit;
+            use crate::controller::successor::SuccessorHandoff;
+            self.successor_packets
+                .lock()
+                .unwrap()
+                .push((turn.id, turn.packet));
+            if let Some(gate) = &self.successor_gate {
+                tokio::select! {
+                    _ = gate.notified() => {},
+                    _ = turn.cancel.changed() => return Ok(SuccessorExit::Stopped("cancelled".into())),
+                }
+            }
+            let answer = self
+                .successor_answers
+                .lock()
+                .unwrap()
+                .pop_front()
+                .ok_or("no scripted successor")?;
+            let workspace = self
+                .successor_workspace
+                .lock()
+                .unwrap()
+                .clone()
+                .ok_or("no workspace")?;
+            std::fs::write(workspace.join("answer.txt"), &answer).map_err(|e| e.to_string())?;
+            Ok(SuccessorExit::Handoff(SuccessorHandoff {
+                turn_id: "fresh-turn".into(),
+                summary: format!("executor claims: {answer}"),
+            }))
+        })
+    }
     fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>> {
         Box::pin(async move {
             match turn.trigger {

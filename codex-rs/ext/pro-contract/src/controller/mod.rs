@@ -6,6 +6,7 @@ pub(crate) mod identity;
 pub(crate) mod ports;
 pub(crate) mod runtime;
 mod succession_budget;
+mod successor;
 pub(crate) mod views;
 
 use std::sync::Arc;

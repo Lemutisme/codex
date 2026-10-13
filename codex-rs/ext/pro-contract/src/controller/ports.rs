@@ -40,6 +40,11 @@ pub(crate) struct WorkerIdentity {
 }
 
 pub(crate) trait Ports: Send + Sync {
+    /// Runs a fresh executor under the parent's authority; returns only after its shutdown.
+    fn run_successor(
+        &self,
+        turn: super::successor::SuccessorTurn,
+    ) -> PortFuture<'_, Result<super::successor::SuccessorExit, String>>;
     /// Runs one strict-JSON turn on a hidden worker and returns its final message.
     fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>>;
 
@@ -82,6 +87,15 @@ pub(crate) struct CodexPorts {
 }
 
 impl Ports for CodexPorts {
+    fn run_successor(
+        &self,
+        turn: super::successor::SuccessorTurn,
+    ) -> PortFuture<'_, Result<super::successor::SuccessorExit, String>> {
+        Box::pin(async move {
+            let manager = self.manager.upgrade().ok_or("thread manager is gone")?;
+            super::successor::run(&manager, self.thread_id, self.config.clone(), turn).await
+        })
+    }
     fn run_worker(&self, turn: WorkerTurn) -> PortFuture<'_, Result<String, WorkerError>> {
         Box::pin(async move {
             let manager = self
