@@ -136,6 +136,11 @@ def episode(plan, digest, index, arm):
         stop_after_issue=False,
         delivery_reserve_secs=0,
     )
+    if arm == "successor":
+        common.update(
+            successor_sessions=plan["succession"]["max_sessions"],
+            successor_seconds=plan["succession"]["total_secs"],
+        )
     # Both arms receive the same seed P. Adaptive successors are additionally
     # supplied through the recorded runtime input, never copied into the evaluator.
     policy = root / "seed-policy"
@@ -201,6 +206,8 @@ def episode(plan, digest, index, arm):
             "failure": failure,
             "native_summary_sha256": bound,
             "native_contract": summary["status"],
+            "native_cost": summary.get("cost"),
+            "native_succession": summary.get("succession"),
             "online": summary.get("online_learning"),
             "claims": "contained failure; no canonical score, reward or refund",
         }
@@ -226,6 +233,31 @@ def episode(plan, digest, index, arm):
         )
     if arm != "vanilla" and not (summary.get("status") or {}).get("contract_id"):
         raise RuntimeError("required ProContract task contract was never issued")
+    if arm == "successor":
+        observed_succession = summary.get("succession") or {}
+        controlled_stop = (
+            summary.get("deadline_hit")
+            or (summary.get("status") or {}).get("detail")
+            == "successor reached the original task deadline"
+        )
+        if (
+            summary.get("succession_error")
+            or observed_succession.get("observed") is not True
+            or observed_succession.get("configured") != plan["succession"]
+            or observed_succession.get("issue_count") != 1
+            or observed_succession.get("pending") is not None
+            or (
+                summary.get("cost", {}).get("successors_included_in_workers") or {}
+            ).get("rollouts")
+            != observed_succession.get("launches")
+            or (
+                (summary.get("status") or {}).get("class") == "no_handoff"
+                and not controlled_stop
+            )
+        ):
+            raise RuntimeError(
+                "successor execution or grant unverified; no partial-error submission is graded"
+            )
     archive = canonical.package_submission(run)
     started = time.monotonic()
     command = canonical.worker_command(
@@ -290,6 +322,12 @@ def episode(plan, digest, index, arm):
         "native_control": {"arm": common["arm"], "learning": learning is not None},
         "online": summary.get("online_learning"),
         "native_context_evidence": summary.get("native_notice_trace"),
+        "native_succession": summary.get("succession"),
+        "native_budget_stop": bool(
+            summary.get("deadline_hit")
+            or (summary.get("status") or {}).get("detail")
+            == "successor reached the original task deadline"
+        ),
         "claims": "descriptive functional outcome; no stable promotion or independent compliance proof",
     }
     plans.publish(run / "result.json", result)

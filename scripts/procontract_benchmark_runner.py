@@ -29,6 +29,7 @@ from procontract_execution_health import ExecutionHealth
 from procontract_execution_activity import ExecutorActivity
 import procontract_harness_program as harness_program
 import procontract_online as online_program
+import procontract_succession_binding as succession_binding
 from procontract_online_failure import ContractUnavailable
 
 MODEL = "gpt-5.6-luna"
@@ -138,6 +139,7 @@ def settings(
     *,
     model: str = MODEL,
     effort: str = EFFORT,
+    succession: dict | None = None,
 ) -> dict:
     """The evaluation grant. Without a reference the lane has nothing to build or compare and
     decides from review alone; a policy bundle replaces the built-in worker instructions."""
@@ -167,6 +169,8 @@ def settings(
         result["evaluation"]["check"]["candidate_command"] = None
     if policy is not None:
         result["policy"] = str(policy)
+    if succession is not None:
+        result["succession"] = succession
     return result
 
 
@@ -181,6 +185,7 @@ def write_codex_home(
     *,
     model: str = MODEL,
     effort: str = EFFORT,
+    succession: dict | None = None,
 ) -> None:
     (home / "pro_contract").mkdir(parents=True, exist_ok=True)
     (home / "config.toml").write_text(
@@ -191,7 +196,15 @@ def write_codex_home(
     )
     (home / "pro_contract" / "settings.json").write_text(
         json.dumps(
-            settings(workspace, image, reference, policy, model=model, effort=effort),
+            settings(
+                workspace,
+                image,
+                reference,
+                policy,
+                model=model,
+                effort=effort,
+                succession=succession,
+            ),
             indent=2,
         )
         + "\n"
@@ -325,7 +338,7 @@ def lane_silent(
     )
 
 
-def rollout_costs(codex_home: Path) -> dict:
+def rollout_costs(codex_home: Path, *, successor_ids=None) -> dict:
     keys = (
         "input_tokens",
         "cached_input_tokens",
@@ -338,8 +351,13 @@ def rollout_costs(codex_home: Path) -> dict:
         "workers": dict.fromkeys(keys, 0),
         "worker_rollouts": 0,
     }
+    if successor_ids is not None:
+        totals["successors_included_in_workers"] = {
+            "rollouts": 0,
+            "usage": dict.fromkeys(keys, 0),
+        }
     for path in sorted((codex_home / "sessions").rglob("rollout-*.jsonl")):
-        source, usage = None, None
+        source, usage, thread = None, None, None
         for line in path.read_text().splitlines():
             try:
                 record = json.loads(line)
@@ -348,6 +366,7 @@ def rollout_costs(codex_home: Path) -> dict:
             payload = record.get("payload", {})
             if record.get("type") == "session_meta":
                 source = payload.get("source")
+                thread = payload.get("id")
             elif (
                 record.get("type") == "event_msg"
                 and payload.get("type") == "token_count"
@@ -362,6 +381,15 @@ def rollout_costs(codex_home: Path) -> dict:
             totals["workers" if worker else "executor"][key] += (usage or {}).get(
                 key, 0
             )
+        if successor_ids is not None and thread in successor_ids:
+            if not worker:
+                raise ValueError(
+                    "successor did not use the isolated internal-session source"
+                )
+            part = totals["successors_included_in_workers"]
+            part["rollouts"] += 1
+            for key in keys:
+                part["usage"][key] += (usage or {}).get(key, 0)
     return totals
 
 
@@ -509,6 +537,11 @@ def prepare(args: argparse.Namespace) -> None:
     import procontract_study_launch as study_launch
 
     study = study_launch.prepare(args)
+    succession = succession_binding.grant(
+        getattr(args, "successor_sessions", 0),
+        getattr(args, "successor_seconds", 14400),
+        args.arm,
+    )
     run_dir: Path = args.run_dir
     if run_dir.exists() and any(run_dir.iterdir()):
         sys.exit(f"{run_dir} is not empty; choose a fresh run directory")
@@ -575,6 +608,7 @@ def prepare(args: argparse.Namespace) -> None:
         developer_instructions=instructions,
         model=args.model,
         effort=args.effort,
+        succession=succession,
     )
     prompt = args.prompt.read_bytes()
     (run_dir / "prompt.txt").write_bytes(prompt)
@@ -589,6 +623,11 @@ def prepare(args: argparse.Namespace) -> None:
         "effort": args.effort,
         "instructions": getattr(args, "instructions", "executor.md"),
     }
+    if succession is not None:
+        manifest["succession"] = succession
+        manifest["settings_sha256"] = hashlib.sha256(
+            (run_dir / "codex-home/pro_contract/settings.json").read_bytes()
+        ).hexdigest()
     if program is not None:
         manifest["harness_program"] = {
             "sha256": program.digest,
@@ -657,6 +696,10 @@ def run(
     model = manifest.get("model", MODEL)
     effort = manifest.get("effort", EFFORT)
     home = run_dir / "codex-home"
+    if manifest.get("succession") is not None:
+        if learning is not None:
+            raise ValueError("successor experiment does not authorize RSI research")
+        succession_binding.validate(run_dir, manifest)
     if key := credential if credential is not None else current_key(os.environ):
         os.environ["OPENAI_API_KEY"] = key
     if "OPENAI_API_KEY" not in os.environ:
@@ -883,6 +926,18 @@ def run(
             if isinstance(closed, dict)
             else {"status": "unknown", "returncode": None, "shutdown": "stdin_closed"}
         )
+        if manifest.get("succession") is not None:
+            summary["cost"] = rollout_costs(home)
+            try:
+                summary["succession"] = succession_binding.snapshot(
+                    home, summary.get("thread_id"), manifest["succession"]
+                )
+                if summary["succession"].get("observed"):
+                    summary["cost"] = rollout_costs(
+                        home, successor_ids=summary["succession"]["executors"]
+                    )
+            except (OSError, sqlite3.Error, ValueError, KeyError, TypeError) as error:
+                summary["succession_error"] = type(error).__name__
         if observer is not None:
             delivery = (
                 learning.budget.summary()
@@ -940,6 +995,8 @@ def main() -> None:
     parser.add_argument("--study-manifest", type=Path)
     parser.add_argument("--study-sha256")
     parser.add_argument("--deadline-secs", type=int, default=5 * 3600)
+    parser.add_argument("--successor-sessions", type=int, default=0)
+    parser.add_argument("--successor-seconds", type=int, default=14400)
     parser.add_argument(
         "--delivery-reserve-secs",
         type=int,

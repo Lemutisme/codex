@@ -440,6 +440,34 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                     )
                     self.assertEqual((budget["launches"], budget["pending"]), (1, None))
                     self.assertNotEqual(budget["executors"], [thread])
+                    if getattr(self, "benchmark_binding_fixture", False):
+                        import procontract_benchmark_runner as runner
+                        import procontract_succession_binding as binding
+
+                        audit = binding.snapshot(
+                            home, thread, {"max_sessions": 2, "total_secs": 3600}
+                        )
+                        cost = runner.rollout_costs(
+                            home, successor_ids=audit["executors"]
+                        )
+                        self.assertEqual(
+                            (audit["issue_count"], audit["launches"], audit["pending"]),
+                            (1, 1, None),
+                        )
+                        self.assertEqual(
+                            cost["successors_included_in_workers"]["rollouts"], 1
+                        )
+                        self.assertEqual(
+                            cost["successors_included_in_workers"]["usage"][
+                                "total_tokens"
+                            ],
+                            counts["successor"] * 20,
+                        )
+                        self.assertEqual(
+                            cost["executor"]["total_tokens"]
+                            + cost["workers"]["total_tokens"],
+                            len(requests) * 20,
+                        )
             finally:
                 server.close()
                 server.process.stdout.close()
