@@ -10,6 +10,7 @@ use serde_json::Value;
 use serde_json::json;
 
 use super::PROMPT_EVIDENCE_CAP;
+use super::WORKER_PACKET_CAP;
 use super::WorkerError;
 use super::bounded;
 use super::cases;
@@ -59,6 +60,13 @@ pub(crate) struct Probe {
     pub cases: Vec<DifferentialCase>,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("{stage}: {source}")]
+pub(crate) struct ProbeFailure {
+    pub stage: &'static str,
+    pub source: WorkerError,
+}
+
 /// The built-in instructions: version 0 of this part of a policy bundle.
 pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/prober.md");
 
@@ -76,35 +84,65 @@ fn instructions(policy: &str, turn: &str) -> String {
     )
 }
 
-fn context(input: &ProbeInput<'_>) -> String {
-    format!(
-        "<human_request>\n{}\n</human_request>\n\n<documentation>\n{}\n</documentation>\n\n<reference_help>\n{}\n</reference_help>\n",
-        bounded(input.intake_text, PROMPT_EVIDENCE_CAP / 6),
-        bounded(input.base_view, BASE_VIEW.cap),
-        bounded(input.reference_help, REFERENCE_HELP_CAP),
-    )
+fn prompt(input: &ProbeInput<'_>, turn: &str, observations: &str) -> Result<String, WorkerError> {
+    let policy = instructions(input.instructions, turn);
+    let render = |parts: &[String]| {
+        format!(
+            "{policy}\n\n<human_request>\n{}\n</human_request>\n\n<documentation>\n{}\n</documentation>\n\n<reference_help>\n{}\n</reference_help>\n\n<reference_observations>\n{}\n</reference_observations>\n",
+            parts[0], parts[1], parts[2], parts[3],
+        )
+    };
+    let mut parts = vec![String::new(); 4];
+    let mut available = WORKER_PACKET_CAP
+        .checked_sub(render(&parts).len())
+        .ok_or_else(|| {
+            WorkerError::InputBudget("prober policy and framing exceed the packet budget".into())
+        })?;
+    let sources = [
+        input.intake_text,
+        input.base_view,
+        input.reference_help,
+        observations,
+    ];
+    let mut budgets = [
+        PROMPT_EVIDENCE_CAP / 6,
+        BASE_VIEW.cap,
+        REFERENCE_HELP_CAP,
+        OBSERVATIONS_CAP,
+    ];
+    for (budget, source) in budgets.iter_mut().zip(sources) {
+        *budget = (*budget).min(source.len());
+    }
+    // Preserve the request's own allowance before sharing the remaining budget
+    // among evidence sections, including UTF-8 omission markers.
+    parts[0] = bounded(sources[0], budgets[0].min(available));
+    available -= parts[0].len();
+    let requested: usize = budgets[1..].iter().sum();
+    for index in 1..parts.len() {
+        let cap = if requested > available {
+            budgets[index] * available / requested
+        } else {
+            budgets[index]
+        };
+        parts[index] = bounded(sources[index], cap);
+    }
+    Ok(render(&parts))
 }
 
-pub(crate) fn explore_prompt(input: &ProbeInput<'_>) -> String {
-    format!(
-        "{}\n\n{}",
-        instructions(input.instructions, EXPLORE),
-        context(input)
-    )
+pub(crate) fn explore_prompt(input: &ProbeInput<'_>) -> Result<String, WorkerError> {
+    prompt(input, EXPLORE, "")
 }
 
-pub(crate) fn write_prompt(input: &ProbeInput<'_>, observations: &str) -> String {
-    format!(
-        "{}\n\n{}\n<reference_observations>\n{}\n</reference_observations>\n",
-        instructions(input.instructions, WRITE),
-        context(input),
-        bounded(observations, OBSERVATIONS_CAP),
-    )
+pub(crate) fn write_prompt(
+    input: &ProbeInput<'_>,
+    observations: &str,
+) -> Result<String, WorkerError> {
+    prompt(input, WRITE, observations)
 }
 
 pub(crate) fn explore_schema() -> Value {
     strict_object(json!({
-        "cases": {"type": "array", "items": cases::case_schema()},
+        "cases": {"type": "array", "maxItems": MAX_EXPLORATION_CASES, "items": cases::case_schema()},
     }))
 }
 
@@ -115,7 +153,7 @@ pub(crate) fn write_schema() -> Value {
             "surface": {"type": "string"},
             "description": {"type": "string"},
         }))},
-        "cases": {"type": "array", "items": cases::case_schema()},
+        "cases": {"type": "array", "maxItems": MAX_SEALED_CASES, "items": cases::case_schema()},
     }))
 }
 
@@ -129,6 +167,10 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             explore_schema(),
             write_schema(),
             BASE_VIEW,
+            WORKER_PACKET_CAP,
+            super::WORKER_PACKET_PART_CAP,
+            REFERENCE_HELP_CAP,
+            OBSERVATIONS_CAP,
         ),
     )
 }

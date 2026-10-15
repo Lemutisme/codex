@@ -522,6 +522,10 @@ impl ContextManager {
             if let Some(source) =
                 self.record_item_with_metadata(&envelope.item, envelope.metadata.as_ref(), policy)
             {
+                envelope
+                    .metadata
+                    .get_or_insert_default()
+                    .original_user_text_sha256 = self.original_user_text_digest(&source);
                 envelope.metadata.get_or_insert_default().retained_source = Some(source);
             }
         }
@@ -588,6 +592,10 @@ impl ContextManager {
             user_authorization::RetainedMessageSource::Original,
         );
         if let Some(source) = &source {
+            processed
+                .metadata
+                .get_or_insert_default()
+                .original_user_text_sha256 = self.original_user_text_digest(source);
             processed.metadata.get_or_insert_default().retained_source = Some(source.clone());
         }
         Arc::make_mut(&mut self.items).push(processed);

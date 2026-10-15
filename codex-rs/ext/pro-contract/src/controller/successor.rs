@@ -43,6 +43,8 @@ pub(crate) struct SuccessorHandoff {
 }
 
 pub(crate) enum SuccessorExit {
+    /// Admission failed before a child existed; safe to clear the pending reservation.
+    Rejected(String),
     Handoff(SuccessorHandoff),
     Stopped(String),
 }
@@ -54,80 +56,94 @@ pub(super) async fn run(
     mut config: Config,
     mut turn: SuccessorTurn,
 ) -> Result<SuccessorExit, String> {
-    let remaining_ms = turn
-        .deadline_ms
-        .checked_sub(super::succession_budget::now_ms()?)
-        .filter(|ms| *ms > 0)
-        .ok_or("original executor deadline exhausted before startup")?;
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(remaining_ms);
-    if *turn.cancel.borrow() {
-        return Err("successor cancelled before startup".into());
-    }
-    let parent = manager
-        .get_thread(parent_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    let environments = parent.environment_selections().await;
-    if environments.len() != 1 || environments[0].environment_id != turn.environment_id {
-        return Err(
-            "owner environment changed; explicit responsibility reconciliation required".into(),
-        );
-    }
-    let history = parent.conversation_history_snapshot().await;
-    let retained = history
-        .retained_context()
-        .ok_or("current owner instructions unavailable")?;
-    if !retained.user_messages_complete() || !retained.verified_answers_complete() {
-        return Err("owner instructions are incomplete; cannot authorize a fresh executor".into());
-    }
-    let user_context: Vec<_> = retained.ordered_entries().map(|(_, entry)| match entry {
-        RetainedContextEntry::UserMessage(message) => serde_json::json!({"role":"user", "text":message.text}),
-        RetainedContextEntry::VerifiedAnswer(answer) => serde_json::json!({"role":"verified_user_answer", "scope":"original questions only; not a new grant", "answer":answer}),
-        RetainedContextEntry::AssistantMessage(message) => serde_json::json!({"role":"untrusted_assistant_context", "text":message.text}),
-    }).collect();
-    let mut context: serde_json::Value =
-        serde_json::from_str(&turn.packet).map_err(|e| e.to_string())?;
-    context["current_owner_instructions"] = serde_json::json!(user_context);
-    let request = packet(&serde_json::to_string(&context).map_err(|e| e.to_string())?)?;
-    let current = parent.config_snapshot().await;
-    config
-        .permissions
-        .set_permission_profile(current.permission_profile)
-        .map_err(|e| e.to_string())?;
-    config.model = Some(current.model);
-    config.model_reasoning_effort = current.reasoning_effort;
-    config.memories.use_memories = false;
-    config.memories.dedicated_tools = false;
-    config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
-    // No recursive agents, contract issuers or out-of-container hooks. Permissions and the
-    // tool runtime otherwise remain the executor's, not the tool-less reviewer's.
-    for feature in [
-        Feature::ProContract,
-        Feature::Collab,
-        Feature::MultiAgentV2,
-        Feature::CodexHooks,
-    ] {
-        config
-            .features
-            .disable(feature)
+    let admission = async {
+        let remaining_ms = turn
+            .deadline_ms
+            .checked_sub(super::succession_budget::now_ms()?)
+            .filter(|ms| *ms > 0)
+            .ok_or("original executor deadline exhausted before startup")?;
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(remaining_ms);
+        if *turn.cancel.borrow() {
+            return Err("successor cancelled before startup".into());
+        }
+        let parent = manager
+            .get_thread(parent_id)
+            .await
             .map_err(|e| e.to_string())?;
+        let environments = parent.environment_selections().await;
+        if environments.len() != 1 || environments[0].environment_id != turn.environment_id {
+            return Err(
+                "owner environment changed; explicit responsibility reconciliation required".into(),
+            );
+        }
+        let history = parent.conversation_history_snapshot().await;
+        let authorization_revision = history.user_message_revision();
+        let retained = history
+            .retained_context()
+            .ok_or("current owner instructions unavailable")?;
+        let user_context = owner_context(retained)?;
+        let mut context: serde_json::Value =
+            serde_json::from_str(&turn.packet).map_err(|e| e.to_string())?;
+        context["current_owner_instructions"] = serde_json::json!(user_context);
+        context["owner_authorization_revision"] = serde_json::json!(authorization_revision);
+        let request = packet(&serde_json::to_string(&context).map_err(|e| e.to_string())?)?;
+        let current = parent.config_snapshot().await;
+        config
+            .permissions
+            .set_permission_profile(current.permission_profile)
+            .map_err(|e| e.to_string())?;
+        config.model = Some(current.model);
+        config.model_reasoning_effort = current.reasoning_effort;
+        config.memories.use_memories = false;
+        config.memories.dedicated_tools = false;
+        config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
+        // No recursive agents, contract issuers or out-of-container hooks. Permissions and the
+        // tool runtime otherwise remain the executor's, not the tool-less reviewer's.
+        for feature in [
+            Feature::ProContract,
+            Feature::Collab,
+            Feature::MultiAgentV2,
+            Feature::CodexHooks,
+        ] {
+            config
+                .features
+                .disable(feature)
+                .map_err(|e| e.to_string())?;
+        }
+        let mut options = StartThreadOptions::new(config);
+        options.reserved_thread_id = Some(turn.id);
+        options.session_source = Some(SessionSource::Internal(
+            InternalSessionSource::ExtensionWorker,
+        ));
+        options.thread_source = Some(ThreadSource::Feature("pro_contract_successor".into()));
+        options.environments = Some(environments);
+        options
+            .thread_extension_init
+            .insert(SessionIsolation::Isolated);
+        if *turn.cancel.borrow()
+            || parent
+                .conversation_history_snapshot()
+                .await
+                .user_message_revision()
+                != authorization_revision
+        {
+            return Err("owner authorization changed during successor admission".into());
+        }
+        Ok::<_, String>((options, parent, authorization_revision, deadline, request))
     }
-    let mut options = StartThreadOptions::new(config);
-    options.reserved_thread_id = Some(turn.id);
-    options.session_source = Some(SessionSource::Internal(
-        InternalSessionSource::ExtensionWorker,
-    ));
-    options.thread_source = Some(ThreadSource::Feature("pro_contract_successor".into()));
-    options.environments = Some(environments);
-    options
-        .thread_extension_init
-        .insert(SessionIsolation::Isolated);
+    .await;
+    let (options, parent, authorization_revision, deadline, request) = match admission {
+        Ok(prepared) => prepared,
+        Err(reason) => return Ok(SuccessorExit::Rejected(reason)),
+    };
     let child = manager
         .spawn_internal_session(parent_id, options)
         .await
         .map_err(|e| e.to_string())?;
     let result = async {
-        if tokio::time::Instant::now() >= deadline || *turn.cancel.borrow() {
+        if tokio::time::Instant::now() >= deadline || *turn.cancel.borrow()
+            || parent.conversation_history_snapshot().await.user_message_revision() != authorization_revision
+        {
             return Err("original deadline or owner cancellation during startup".into());
         }
         let turn_id = match child.thread.start_turn_if_idle(request).await.map_err(|e| e.to_string())? {
@@ -173,6 +189,28 @@ pub(super) async fn run(
         Ok(handoff) => SuccessorExit::Handoff(handoff),
         Err(reason) => SuccessorExit::Stopped(reason),
     })
+}
+
+fn owner_context(
+    retained: &codex_history::RetainedContext,
+) -> Result<Vec<serde_json::Value>, String> {
+    if !retained.user_authorization_complete()
+        || !retained.verified_answers_complete()
+        || !retained
+            .ordered_entries()
+            .any(|(_, entry)| matches!(entry, RetainedContextEntry::UserMessage(_)))
+    {
+        return Err("owner instructions are incomplete; cannot authorize a fresh executor".into());
+    }
+    retained.ordered_entries().map(|(_, entry)| Ok(match entry {
+        RetainedContextEntry::UserMessage(message) => serde_json::json!({
+            "role": "user", "text": retained.original_user_text(message)
+                .ok_or("complete original user text unavailable")?,
+            "source": retained.source(entry), "origin": message.origin,
+        }),
+        RetainedContextEntry::VerifiedAnswer(answer) => serde_json::json!({"role":"verified_user_answer", "scope":"original questions only; not a new grant", "answer":answer}),
+        RetainedContextEntry::AssistantMessage(message) => serde_json::json!({"role":"untrusted_assistant_context", "text":message.text}),
+    })).collect()
 }
 
 pub(super) fn packet(text: &str) -> Result<TurnInputRequest, String> {

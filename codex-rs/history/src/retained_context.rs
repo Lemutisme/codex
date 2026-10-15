@@ -94,8 +94,12 @@ impl std::fmt::Debug for RetainedUserMessage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 struct Ordered<T> {
+    /// Complete host-captured text before reviewer truncation. It shares this
+    /// source's identity, ordering, checkpoint and rollback lifetime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    original_text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     revision: Option<codex_protocol::ResponseItemId>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -104,6 +108,19 @@ struct Ordered<T> {
     order: u64,
     #[serde(flatten)]
     value: T,
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Ordered<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Ordered")
+            .field("has_original_text", &self.original_text.is_some())
+            .field("revision", &self.revision)
+            .field("inherited", &self.inherited)
+            .field("order", &self.order)
+            .field("value", &self.value)
+            .finish()
+    }
 }
 
 impl<T> Ordered<T> {
@@ -259,6 +276,7 @@ impl RetainedContext {
         messages.bound();
         let order = self.record_order(metadata.user_input_order);
         self.sender_deliveries.push_back(Ordered {
+            original_text: None,
             revision: None,
             inherited: false,
             order,
@@ -299,6 +317,29 @@ impl RetainedContext {
                 .user_messages
                 .iter()
                 .all(|message| message.value.complete)
+    }
+
+    /// Complete authorization is independent of the reviewer's excerpt budget.
+    /// Lost records and legacy excerpts still fail closed.
+    pub fn user_authorization_complete(&self) -> bool {
+        !self.has_missing_user_messages()
+            && self
+                .user_messages
+                .iter()
+                .all(|entry| entry.value.complete || entry.original_text.is_some())
+    }
+
+    /// Resolves only an entry in this exact snapshot, never arbitrary matching text.
+    pub fn original_user_text(&self, message: &RetainedUserMessage) -> Option<&str> {
+        let entry = self
+            .user_messages
+            .iter()
+            .find(|entry| std::ptr::eq(&entry.value, message))?;
+        if entry.value.complete {
+            Some(&entry.value.text)
+        } else {
+            entry.original_text.as_deref()
+        }
     }
 
     /// Whether instruction records were lost or omitted by legacy capture.
@@ -353,10 +394,26 @@ impl RetainedContext {
     /// Returns the captured source for the original envelope, independently of buffer eviction.
     pub fn record_user_message(
         &mut self,
-        mut message: RetainedUserMessage,
+        message: RetainedUserMessage,
         source: RetainedInputSource,
     ) -> Option<RetainedSource> {
+        self.record_user_message_with_original(message, source, None)
+    }
+
+    /// The host may attach a complete original only at first-hand text capture,
+    /// before reviewer truncation. Checkpoint excerpts must never synthesize one.
+    pub fn record_user_message_with_original(
+        &mut self,
+        mut message: RetainedUserMessage,
+        source: RetainedInputSource,
+        original_text: Option<String>,
+    ) -> Option<RetainedSource> {
         message.bound();
+        let original_text = original_text.filter(|text| {
+            source != RetainedInputSource::Inherited
+                && message.message_id.is_some()
+                && serde_json::to_vec(text).is_ok_and(|bytes| bytes.len() <= MAX_RECORD_BYTES)
+        });
         let inherited = source == RetainedInputSource::Inherited;
         // An unchanged invocation is not a new instruction. Keep the original
         // acceptance order; compare only the latest version of this automation,
@@ -391,6 +448,7 @@ impl RetainedContext {
         }) {
             if self.user_messages[index].value == message
                 && self.user_messages[index].inherited == inherited
+                && self.user_messages[index].original_text == original_text
             {
                 return self.user_messages[index].source(RetainedSourceRole::User);
             }
@@ -408,6 +466,7 @@ impl RetainedContext {
             .as_ref()
             .map(|_| codex_protocol::ResponseItemId::new("retained"));
         let entry = Ordered {
+            original_text,
             revision,
             inherited,
             order,
@@ -458,6 +517,7 @@ impl RetainedContext {
                 }
                 let order = self.record_order(acceptance_order);
                 self.verified_answers.push_back(Ordered {
+                    original_text: None,
                     revision: None,
                     inherited: false,
                     order,
@@ -516,6 +576,13 @@ impl RetainedContext {
             .chain(&mut self.assistant_messages)
         {
             entry.value.bound();
+            if entry.inherited
+                || entry.original_text.as_ref().is_some_and(|text| {
+                    serde_json::to_vec(text).map_or(true, |bytes| bytes.len() > MAX_RECORD_BYTES)
+                })
+            {
+                entry.original_text = None;
+            }
             // Also repair checkpoints written before adoption recorded the answer gap.
             self.verified_answers_incomplete |= entry.inherited;
             if !entry.inherited {

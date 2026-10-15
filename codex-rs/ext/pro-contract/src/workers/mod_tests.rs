@@ -17,3 +17,15 @@ fn head_and_tail_survive_and_the_omission_is_stated() {
 fn short_text_is_unchanged() {
     assert_eq!(bounded_head_tail("short", 40), "short");
 }
+
+#[test]
+fn truncation_marker_and_unicode_fit_inside_the_requested_budget() {
+    let text = "中文🦀".repeat(500);
+    for cap in 0..=text.len() + 1 {
+        let result = super::bounded(&text, cap);
+        assert!(result.len() <= cap);
+        if cap >= text.len() {
+            assert_eq!(result, text);
+        }
+    }
+}

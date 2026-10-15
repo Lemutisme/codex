@@ -446,6 +446,17 @@ impl ThreadRuntime {
                 terms,
                 evidence_policy,
             }) => {
+                let sealed = match sealed {
+                    Ok(cases) => cases,
+                    Err(error) => {
+                        self.rest(
+                            "abstained",
+                            &format!("evidence preparation failed: {error}"),
+                        )
+                        .await;
+                        return;
+                    }
+                };
                 let evidence = self.settings.evidence;
                 let policy = EvidencePolicy {
                     sealed,
@@ -506,17 +517,19 @@ impl ThreadRuntime {
         }
     }
 
-    /// The prober's sealed cases; none without a reference or when the prober fails. Either way
-    /// the attempt is recorded.
+    /// A failed prober is not an empty successful suite. Preserve the failure up to Issue.
     async fn probe(
         &self,
         text: &str,
         base: &Subject,
         base_dir: &Path,
         reference_help: Option<&str>,
-    ) -> Vec<DifferentialCase> {
-        let Some(reference) = self.profile.reference_command.as_deref() else {
-            return Vec::new();
+    ) -> Result<Vec<DifferentialCase>, prober::ProbeFailure> {
+        let (Some(reference), Some(_)) = (
+            self.profile.reference_command.as_deref(),
+            self.profile.check.candidate_command.as_deref(),
+        ) else {
+            return Ok(Vec::new());
         };
         let base_view = workspace_view(base, &self.store, prober::BASE_VIEW);
         let input = prober::ProbeInput {
@@ -535,11 +548,13 @@ impl ThreadRuntime {
                 "coverage_plan": probe.coverage_plan,
                 "cases": probe.cases,
             }),
-            Err(error) => json!({"thread_id": thread_id, "error": error}),
+            Err(error) => {
+                json!({"thread_id": thread_id, "stage": error.stage, "error": error.to_string()})
+            }
         };
         self.record_event(ExperimentKind::Probe, /*check_pipeline*/ None, body)
             .await;
-        outcome.map(|(_, _, probe)| probe.cases).unwrap_or_default()
+        outcome.map(|(_, _, probe)| probe.cases)
     }
 
     /// Explores the reference, then writes the sealed suite knowing how it behaves.
@@ -548,36 +563,94 @@ impl ThreadRuntime {
         input: &prober::ProbeInput<'_>,
         base_dir: &Path,
         reference: &str,
-    ) -> Result<(Vec<DifferentialCase>, Vec<Observation>, prober::Probe), String> {
-        let message = self
-            .run_worker(
-                prober::explore_prompt(input),
-                prober::explore_schema(),
-                "pro_contract_explore",
-            )
-            .await
-            .map_err(|error| format!("exploration failed: {error}"))?;
-        let exploration = prober::parse_exploration(&message)
-            .map_err(|error| format!("exploration rejected: {error}"))?;
-        // Without observations the prober still writes from the documentation.
+    ) -> Result<(Vec<DifferentialCase>, Vec<Observation>, prober::Probe), prober::ProbeFailure>
+    {
+        let exploration = self
+            .probe_stage(input, None, prober::parse_exploration)
+            .await?;
+        // An intentionally empty exploration can write from documentation. A
+        // failed reference execution is a different state and must stay visible.
         let observations = self
             .ports
             .observe(&self.profile.check, base_dir, reference, &exploration)
             .await
-            .unwrap_or_default();
+            .map_err(|error| prober::ProbeFailure {
+                stage: "reference_observation",
+                source: crate::WorkerError::Failed(error.to_string()),
+            })?;
         let observed =
             cases::render_observations(&exploration, &observations, prober::OBSERVATIONS_CAP);
-        let message = self
-            .run_worker(
-                prober::write_prompt(input, &observed),
-                prober::write_schema(),
-                "pro_contract_probe",
-            )
-            .await
-            .map_err(|error| format!("probe failed: {error}"))?;
-        let probe =
-            prober::parse_probe(&message).map_err(|error| format!("probe rejected: {error}"))?;
+        let minimum = self.settings.evidence.min_sealed_qualified as usize;
+        let probe = self
+            .probe_stage(input, Some(&observed), |message| {
+                let probe = prober::parse_probe(message)?;
+                if probe.cases.len() < minimum {
+                    return Err(crate::WorkerError::Malformed(format!(
+                        "sealed suite has {} cases; at least {minimum} are required before Issue",
+                        probe.cases.len(),
+                    )));
+                }
+                Ok(probe)
+            })
+            .await?;
         Ok((exploration, observations, probe))
+    }
+
+    /// One correction turn for malformed structured output. Transport, timeout and
+    /// input-budget failures are terminal; retries never grow the execution grant.
+    async fn probe_stage<T>(
+        &self,
+        input: &prober::ProbeInput<'_>,
+        observations: Option<&str>,
+        parse: impl Fn(&str) -> Result<T, crate::WorkerError>,
+    ) -> Result<T, prober::ProbeFailure> {
+        let stage = if observations.is_some() {
+            "sealed"
+        } else {
+            "exploration"
+        };
+        let mut correction = String::new();
+        for attempt in 1..=2 {
+            let instructions = format!("{}\n{correction}", input.instructions);
+            let corrected = prober::ProbeInput {
+                instructions: &instructions,
+                ..*input
+            };
+            let prompt = match observations {
+                Some(observed) => prober::write_prompt(&corrected, observed),
+                None => prober::explore_prompt(&corrected),
+            }
+            .map_err(|source| prober::ProbeFailure { stage, source })?;
+            let (schema, trigger) = if observations.is_some() {
+                (prober::write_schema(), "pro_contract_probe")
+            } else {
+                (prober::explore_schema(), "pro_contract_explore")
+            };
+            let outcome = self
+                .run_worker(prompt, schema, trigger)
+                .await
+                .and_then(|message| parse(&message));
+            match outcome {
+                Ok(value) => return Ok(value),
+                Err(error @ crate::WorkerError::Malformed(_)) if attempt == 1 => {
+                    self.record_event(
+                        ExperimentKind::Probe,
+                        None,
+                        json!({
+                            "thread_id": self.thread_id.to_string(), "phase": "correction",
+                            "stage": stage, "attempt": attempt, "error": error.to_string(),
+                        }),
+                    )
+                    .await;
+                    correction = format!(
+                        "The previous {stage} response was rejected: {}. Correct that error and return only this stage's JSON; do not produce the other stage's cases.",
+                        crate::workers::bounded(&error.to_string(), 1200),
+                    );
+                }
+                Err(source) => return Err(prober::ProbeFailure { stage, source }),
+            }
+        }
+        unreachable!("the final attempt returns its outcome")
     }
 
     async fn run_worker(
@@ -598,6 +671,16 @@ impl ThreadRuntime {
     }
 
     async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy, base: Base) {
+        if policy.reference_command.is_some()
+            && policy.candidate_command.is_some()
+            && policy.sealed.len() < policy.min_sealed_qualified as usize
+        {
+            self.rest("abstained", &format!(
+                "infeasible evidence policy: {} sealed cases cannot provide {} qualified receipts",
+                policy.sealed.len(), policy.min_sealed_qualified,
+            )).await;
+            return;
+        }
         let contract_id = self.contract_id();
         let bindings = Bindings {
             terms_hash: digest_of("terms", &terms),

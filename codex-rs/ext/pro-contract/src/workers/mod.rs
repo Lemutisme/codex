@@ -17,9 +17,15 @@ mod tests;
 /// Evidence cap for drafting/probing. Worker packets are split into bounded context items;
 /// reviewers obtain candidate evidence through the separate read-only catalog.
 pub(crate) const PROMPT_EVIDENCE_CAP: usize = 60_000;
+pub(crate) const WORKER_PACKET_CAP: usize = 96_000;
+/// AdditionalContext truncates values at 1,000 approximate tokens (4KB).
+/// Keep margin, and exercise its actual renderer in packet_tests.
+pub(crate) const WORKER_PACKET_PART_CAP: usize = 3_500;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerError {
+    #[error("worker input exceeds its byte budget: {0}")]
+    InputBudget(String),
     #[error("worker thread could not start: {0}")]
     Start(String),
     #[error("worker turn did not start: {0}")]
@@ -39,7 +45,12 @@ pub(crate) fn bounded(text: &str, cap: usize) -> String {
     if text.len() <= cap {
         return text.to_string();
     }
-    let end = text.floor_char_boundary(cap);
+    // Reserve the marker before slicing; the marker itself consumes packet bytes.
+    let marker = format!("\n[... {} bytes omitted ...]", text.len());
+    if cap < marker.len() {
+        return "[omitted]"[..cap.min(9)].to_string();
+    }
+    let end = text.floor_char_boundary(cap - marker.len());
     format!(
         "{}\n[... {} bytes omitted ...]",
         &text[..end],

@@ -127,7 +127,13 @@ impl ThreadRuntime {
             /*check_pipeline*/ None,
             json!({
                 "thread_id": self.thread_id.to_string(), "executor_thread_id": id.to_string(),
-                "phase": "successor_returned", "shutdown_confirmed": result.is_ok(),
+                "phase": if matches!(&result, Ok(SuccessorExit::Rejected(_))) { "successor_rejected" } else { "successor_returned" },
+                "shutdown_confirmed": result.is_ok(),
+                "admission_rejected": matches!(&result, Ok(SuccessorExit::Rejected(_))),
+                "reason": match &result {
+                    Ok(SuccessorExit::Rejected(reason) | SuccessorExit::Stopped(reason)) => Some(reason),
+                    _ => None,
+                },
                 "error": result.as_ref().err(),
             }),
         )
@@ -156,6 +162,11 @@ impl ThreadRuntime {
         }
         let handoff = match result {
             Ok(SuccessorExit::Handoff(handoff)) => handoff,
+            Ok(SuccessorExit::Rejected(reason)) => {
+                self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                    .await;
+                return;
+            }
             Ok(SuccessorExit::Stopped(reason)) | Err(reason) => {
                 self.not_verified(NotVerifiedClass::NoHandoff, &reason)
                     .await;

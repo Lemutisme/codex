@@ -33,6 +33,7 @@ tokio = { workspace = true, features = ["fs", "macros", "process", "rt", "sync",
 tracing = { workspace = true }
 
 [dev-dependencies]
+codex-context-fragments = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
 pretty_assertions = { workspace = true }
 sqlx = { workspace = true }

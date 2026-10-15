@@ -20,6 +20,12 @@ use codex_history::RetainedUserMessage;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
+use sha2::Digest;
+use sha2::Sha256;
+
+fn text_digest(text: &str) -> [u8; 32] {
+    Sha256::digest(text.as_bytes()).into()
+}
 
 /// Checkpoint items may have been shortened while preserving their original metadata.
 pub(super) enum RetainedMessageSource {
@@ -28,6 +34,27 @@ pub(super) enum RetainedMessageSource {
 }
 
 impl ContextManager {
+    pub(super) fn original_user_text_digest(
+        &self,
+        source: &codex_history::RetainedSource,
+    ) -> Option<[u8; 32]> {
+        if source.complete {
+            return None;
+        }
+        self.retained_context
+            .ordered_entries()
+            .find_map(|(_, entry)| {
+                let codex_history::RetainedContextEntry::UserMessage(message) = entry else {
+                    return None;
+                };
+                if self.retained_context.source(entry).as_ref() != Some(source) {
+                    return None;
+                }
+                self.retained_context
+                    .original_user_text(message)
+                    .map(text_digest)
+            })
+    }
     pub(super) fn has_legacy_user_messages(&self) -> bool {
         ReconciledRetainedContext::new(Some(&self.retained_context), std::iter::empty())
             .unmatched_user_messages(self.legacy_user_messages())
@@ -167,9 +194,6 @@ impl ContextManager {
                                         && kind.0 != UserGoalUpdate::OMITTED_OBJECTIVE_KIND
                                 })
                         }));
-            complete &= metadata
-                .and_then(|metadata| metadata.retained_source.as_ref())
-                .is_none_or(|source| source.complete);
             let text = content
                 .iter()
                 .filter_map(|content| match content {
@@ -183,10 +207,23 @@ impl ContextManager {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
+            complete &= metadata
+                .and_then(|metadata| metadata.retained_source.as_ref())
+                .is_none_or(|source| {
+                    source.complete
+                        || (!is_assistant
+                            && metadata.and_then(|m| m.original_user_text_sha256)
+                                == Some(text_digest(&text)))
+                });
             // Keep the same bounded text that child reviewers receive before
             // compaction, instead of letting storage discard a large source.
             // Local instruction sections still omit incomplete originals whole.
+            // An excerpt's completeness is a rendering property. Preserve a complete
+            // host-observed original under the same source/order for executor succession.
+            // Legacy checkpoint text and inherited copies cannot establish it.
+            let original_text = (!is_assistant && !inherited && complete).then(|| text.clone());
             let (text, truncated) = guardian_truncate_text(&text, GUARDIAN_MAX_ROOT_MESSAGE_TOKENS);
+            let original_text = original_text.filter(|_| truncated);
             complete &= !truncated;
             let message = RetainedUserMessage {
                 phase: phase.clone(),
@@ -200,7 +237,7 @@ impl ContextManager {
             captured = if is_assistant {
                 retained.record_assistant_message(message, metadata.into())
             } else {
-                retained.record_user_message(message, metadata.into())
+                retained.record_user_message_with_original(message, metadata.into(), original_text)
             };
         }
         if !is_assistant {

@@ -81,6 +81,11 @@ pub struct CodexHarnessMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retained_source: Option<RetainedSource>,
 
+    /// Host proof that the persisted user text is the complete original, even
+    /// when its separate reviewer excerpt is incomplete. Never model-authored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_user_text_sha256: Option<[u8; 32]>,
+
     /// Whether a developer message was supplied by an app-server client.
     #[serde(default)]
     pub client_authored: bool,
@@ -153,6 +158,7 @@ where
 impl CodexHarnessMetadata {
     /// Shortened messages no longer prove complete instruction or review delivery.
     pub fn mark_retained_sources_incomplete(&mut self) {
+        self.original_user_text_sha256 = None;
         self.guardian_review_ids.clear();
         self.guardian_source_order_guidance = false;
         self.guardian_retained_omissions = None;

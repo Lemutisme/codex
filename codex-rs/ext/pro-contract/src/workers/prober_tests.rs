@@ -57,16 +57,16 @@ fn both_schemas_are_strict() {
 #[test]
 fn the_prompts_carry_the_request_the_documentation_and_the_help() {
     for prompt in [
-        explore_prompt(&input()),
-        write_prompt(&input(), "$ executable -s .\n[exit status 0]\n"),
+        explore_prompt(&input()).unwrap(),
+        write_prompt(&input(), "$ executable -s .\n[exit status 0]\n").unwrap(),
     ] {
         assert!(prompt.contains(input().intake_text), "{prompt}");
         assert!(prompt.contains("# dutree"), "{prompt}");
         assert!(prompt.contains("Usage: dutree"), "{prompt}");
         assert!(prompt.contains("never see that implementation"), "{prompt}");
     }
-    assert!(explore_prompt(&input()).contains("Turn 1 of 2"));
-    let write = write_prompt(&input(), "$ executable -s .\n[exit status 0]\n");
+    assert!(explore_prompt(&input()).unwrap().contains("Turn 1 of 2"));
+    let write = write_prompt(&input(), "$ executable -s .\n[exit status 0]\n").unwrap();
     assert!(write.contains("Turn 2 of 2"), "{write}");
     assert!(
         write.contains("<reference_observations>\n$ executable -s ."),
@@ -76,15 +76,46 @@ fn the_prompts_carry_the_request_the_documentation_and_the_help() {
 
 #[test]
 fn the_prompts_stay_bounded() {
-    let huge = "y".repeat(1_000_000);
+    let huge = "文档🦀".repeat(200_000);
     let input = ProbeInput {
         instructions: super::DEFAULT_INSTRUCTIONS,
         intake_text: &huge,
         base_view: &huge,
         reference_help: &huge,
     };
-    let prompt = write_prompt(&input, &huge);
-    assert!(prompt.len() < 210_000, "prompt is {} bytes", prompt.len());
+    for prompt in [
+        explore_prompt(&input).unwrap(),
+        write_prompt(&input, &huge).unwrap(),
+    ] {
+        assert!(
+            prompt.len() <= super::WORKER_PACKET_CAP,
+            "prompt is {} bytes",
+            prompt.len()
+        );
+        super::super::packet::request(&prompt).expect("prober output fits the actual transport");
+        assert!(prompt.ends_with("</reference_observations>\n"));
+        assert!(prompt.contains("bytes omitted"));
+    }
+}
+
+#[test]
+fn oversized_policy_is_an_input_failure_and_schemas_bound_case_counts() {
+    let policy = "p".repeat(super::WORKER_PACKET_CAP);
+    assert!(matches!(
+        explore_prompt(&ProbeInput {
+            instructions: &policy,
+            ..input()
+        }),
+        Err(WorkerError::InputBudget(_))
+    ));
+    assert_eq!(
+        explore_schema()["properties"]["cases"]["maxItems"],
+        MAX_EXPLORATION_CASES
+    );
+    assert_eq!(
+        write_schema()["properties"]["cases"]["maxItems"],
+        super::MAX_SEALED_CASES
+    );
 }
 
 #[test]

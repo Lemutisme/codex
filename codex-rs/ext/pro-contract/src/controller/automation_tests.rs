@@ -60,6 +60,10 @@ struct FakePorts {
     draft_prompts: Mutex<Vec<String>>,
     /// The prober's second turn; `None` makes the prober fail.
     probe: Option<&'static str>,
+    exploration_responses: Mutex<VecDeque<String>>,
+    probe_responses: Mutex<VecDeque<String>>,
+    probe_calls: Mutex<Vec<&'static str>>,
+    observation_error: bool,
     /// How many sealed cases pass in each check run; the rest fail.
     sealed_passing: usize,
     /// The sealed cases each check run received.
@@ -77,6 +81,7 @@ struct FakePorts {
     successor_answers: Mutex<VecDeque<String>>,
     successor_packets: Mutex<Vec<(ThreadId, String)>>,
     successor_gate: Option<Arc<Notify>>,
+    successor_rejection: Option<String>,
 }
 
 impl FakePorts {
@@ -86,6 +91,10 @@ impl FakePorts {
             draft_gate: None,
             draft_prompts: Mutex::new(Vec::new()),
             probe: Some(PROBE),
+            exploration_responses: Mutex::default(),
+            probe_responses: Mutex::default(),
+            probe_calls: Mutex::default(),
+            observation_error: false,
             sealed_passing: usize::MAX,
             sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
@@ -99,6 +108,7 @@ impl FakePorts {
             successor_answers: Mutex::new(VecDeque::new()),
             successor_packets: Mutex::new(Vec::new()),
             successor_gate: None,
+            successor_rejection: None,
         }
     }
 
@@ -121,6 +131,9 @@ impl Ports for FakePorts {
         Box::pin(async move {
             use crate::controller::successor::SuccessorExit;
             use crate::controller::successor::SuccessorHandoff;
+            if let Some(reason) = &self.successor_rejection {
+                return Ok(SuccessorExit::Rejected(reason.clone()));
+            }
             self.successor_packets
                 .lock()
                 .unwrap()
@@ -160,11 +173,24 @@ impl Ports for FakePorts {
                     }
                     Ok(self.draft.to_string())
                 }
-                "pro_contract_explore" => Ok(EXPLORATION.to_string()),
-                "pro_contract_probe" => self
-                    .probe
-                    .map(str::to_string)
-                    .ok_or_else(|| WorkerError::Failed("the prober failed".to_string())),
+                "pro_contract_explore" => {
+                    self.probe_calls.lock().unwrap().push(turn.trigger);
+                    Ok(self
+                        .exploration_responses
+                        .lock()
+                        .unwrap()
+                        .pop_front()
+                        .unwrap_or_else(|| EXPLORATION.to_string()))
+                }
+                "pro_contract_probe" => {
+                    self.probe_calls.lock().unwrap().push(turn.trigger);
+                    self.probe_responses
+                        .lock()
+                        .unwrap()
+                        .pop_front()
+                        .or_else(|| self.probe.map(str::to_string))
+                        .ok_or_else(|| WorkerError::Failed("the prober failed".to_string()))
+                }
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);
                     if let Some(mut evidence) = turn.evidence {
@@ -217,6 +243,9 @@ impl Ports for FakePorts {
         cases: &'a [DifferentialCase],
     ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>> {
         Box::pin(async move {
+            if self.observation_error {
+                return Err(CheckError::TimedOut);
+            }
             assert!(
                 base.join("answer.txt").exists(),
                 "observations run over the base"
@@ -806,7 +835,7 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
 }
 
 #[tokio::test]
-async fn a_failed_prober_still_issues_but_cannot_support() {
+async fn a_failed_prober_preserves_the_failure_and_never_issues() {
     let mut ports = FakePorts::new(CONTRACT_DRAFT)
         .checks(&[StepOutcome::Pass])
         .reviews(&[SUPPORT_REVIEW]);
@@ -814,15 +843,26 @@ async fn a_failed_prober_still_issues_but_cannot_support() {
     let lane = reference_lane(ports).await;
 
     lane.runtime.intake(INTAKE.to_string()).await;
-    lane.wait_for("working").await;
+    let status = lane.wait_for("abstained").await;
     lane.executor_turn("turn-1", "done").await;
-    let status = lane.wait_for("not_verified").await;
-
-    assert_eq!(status.class, "insufficient_evidence");
-    assert!(status.detail.contains("0 of 0 qualified"), "{status:?}");
-    // The mechanical evidence decided; the reviewer was never asked.
+    assert!(
+        status.detail.contains("evidence preparation failed"),
+        "{status:?}"
+    );
+    assert!(lane.contract().await.is_none());
+    assert!(lane.ports.checked.lock().unwrap().is_empty());
     assert_eq!(lane.ports.reviews.lock().unwrap().len(), 1);
     let events = lane.ledger.experiments().await.expect("events");
+    assert!(
+        !events
+            .iter()
+            .any(|row| row.event.kind == ExperimentKind::Issue)
+    );
+    assert_eq!(
+        lane.ports.probe_calls.lock().unwrap().len(),
+        2,
+        "transport failures are not retried"
+    );
     let probe = events
         .iter()
         .find(|record| record.event.kind == ExperimentKind::Probe)
@@ -834,6 +874,95 @@ async fn a_failed_prober_still_issues_but_cannot_support() {
         "{:?}",
         probe.event.body
     );
+}
+
+#[tokio::test]
+async fn overproduced_exploration_recovers_once_before_freezing_the_suite() {
+    for count in [89, 125] {
+        let ports = FakePorts::new(CONTRACT_DRAFT);
+        ports.exploration_responses.lock().unwrap().push_back(serde_json::json!({
+            "cases": (0..count).map(|i| serde_json::json!({"id":format!("e{i}"),"args":[]})).collect::<Vec<_>>()
+        }).to_string());
+        let lane = reference_lane(ports).await;
+        lane.runtime.intake(INTAKE.into()).await;
+        lane.wait_for("working").await;
+        assert_eq!(
+            *lane.ports.probe_calls.lock().unwrap(),
+            [
+                "pro_contract_explore",
+                "pro_contract_explore",
+                "pro_contract_probe"
+            ]
+        );
+        let events = lane.ledger.experiments().await.unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .filter(|r| r.event.kind == ExperimentKind::Issue)
+                .count(),
+            1
+        );
+        assert!(events.iter().any(|r| r.event.body["phase"] == "correction"));
+    }
+}
+
+#[tokio::test]
+async fn insufficient_suite_cannot_issue_and_correction_is_bounded() {
+    for insufficient in ["{\"coverage_plan\":[],\"cases\":[]}", "malformed"] {
+        let mut ports = FakePorts::new(CONTRACT_DRAFT);
+        ports.probe = Some(insufficient);
+        let lane = reference_lane(ports).await;
+        lane.runtime.intake(INTAKE.into()).await;
+        lane.wait_for("abstained").await;
+        assert!(lane.contract().await.is_none());
+        assert_eq!(
+            *lane.ports.probe_calls.lock().unwrap(),
+            [
+                "pro_contract_explore",
+                "pro_contract_probe",
+                "pro_contract_probe"
+            ]
+        );
+        assert!(
+            !lane
+                .ledger
+                .experiments()
+                .await
+                .unwrap()
+                .iter()
+                .any(|r| r.event.kind == ExperimentKind::Issue)
+        );
+    }
+}
+
+#[tokio::test]
+async fn failed_reference_observation_is_not_an_empty_successful_observation() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT);
+    ports.observation_error = true;
+    let lane = reference_lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    let status = lane.wait_for("abstained").await;
+    assert!(status.detail.contains("reference_observation"));
+    assert!(lane.contract().await.is_none());
+    assert_eq!(
+        *lane.ports.probe_calls.lock().unwrap(),
+        ["pro_contract_explore"]
+    );
+}
+
+#[tokio::test]
+async fn reference_only_review_does_not_require_a_differential_suite() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT);
+    ports.probe = None;
+    let mut lane = reference_lane(ports).await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .profile
+        .check
+        .candidate_command = None;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    assert!(lane.ports.probe_calls.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

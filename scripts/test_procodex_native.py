@@ -71,6 +71,8 @@ def custom_call(body, code, name):
 class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
         succession = getattr(self, "succession_fixture", False)
+        probe_fixture = getattr(self, "probe_fixture", False)
+        task_text = getattr(self, "task_text", "Make answer.txt contain ready.")
         package = Path(os.environ["PROCODEX_NATIVE_PACKAGE"]).resolve()
         image = os.environ["PROCODEX_TEST_IMAGE"]
         with tempfile.TemporaryDirectory(prefix="procodex-native-") as temporary:
@@ -78,9 +80,14 @@ class NativeEvidenceTest(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             (workspace / "answer.txt").write_text("not ready\n")
+            if probe_fixture:
+                documentation = "Documented interface: return ready. 文档\n" * 2700
+                self.assertTrue(96_000 < len(documentation.encode()) < 119_000)
+                (workspace / "README.md").write_text(documentation)
             source = root / "source"
             source.mkdir()
             counts = {}
+            worker_keys = {}
             requests = []
             errors = []
             review_code = r"""
@@ -137,7 +144,7 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                             raise AssertionError("request bound")
                         body = json.loads(self.rfile.read(length))
                         requests.append(body)
-                        if len(requests) > 16:
+                        if len(requests) > 32:
                             raise AssertionError("fixture request budget")
                         schema = (
                             body.get("text", {}).get("format", {}).get("schema", {})
@@ -148,6 +155,10 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                             if "differential_cases" in props
                             else "review"
                             if "coverage" in props
+                            else "probe"
+                            if "coverage_plan" in props
+                            else "explore"
+                            if "cases" in props
                             else "executor"
                         )
                         if role == "executor" and "pro_contract_successor" in "\n".join(
@@ -155,6 +166,7 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                         ):
                             role = "successor"
                         counts[role] = counts.get(role, 0) + 1
+                        worker_keys.setdefault(role, set()).add(body.get("prompt_cache_key"))
                         if role == "draft":
                             message = dict(
                                 decision="contract",
@@ -172,6 +184,33 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
+                        elif role in ("explore", "probe"):
+                            packet_parts = {}
+                            for text in text_values(body.get("input", [])):
+                                if "<external_pro_contract_packet_" in text and "tokens truncated" in text:
+                                    raise AssertionError("worker packet was truncated by the transport")
+                                for match in re.finditer(
+                                    r"<external_pro_contract_packet_(\d+)>(.*?)</external_pro_contract_packet_\1>",
+                                    text,
+                                    re.DOTALL,
+                                ):
+                                    packet_parts[int(match.group(1))] = match.group(2)
+                            packet_text = "".join(packet_parts[key] for key in sorted(packet_parts))
+                            if not 95_000 <= len(packet_text.encode()) <= 96_000:
+                                raise AssertionError("large probe fixture must reach the transport intact within its budget")
+                            count = 4
+                            if role == "explore":
+                                count = 125 if len(worker_keys[role]) == 1 else 1
+                            message = dict(
+                                cases=[
+                                    dict(id=f"c{i}", family="answer", args=["ready"])
+                                    for i in range(count)
+                                ]
+                            )
+                            if role == "probe":
+                                message["coverage_plan"] = [
+                                    dict(family="answer", surface="stdout", description="ready")
+                                ]
                         elif role == "review" and counts[role] % 2 == 1:
                             items = [custom_call(body, review_code, "review-evidence")]
                             message = None
@@ -303,6 +342,17 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                 successor_sessions=2 if succession else 0,
                 task_seconds=3600,
             )
+            if probe_fixture:
+                settings_path = home / "pro_contract/settings.json"
+                settings = json.loads(settings_path.read_text())
+                settings["evaluation"]["reference_command"] = "/bin/echo"
+                settings["evaluation"]["check"]["candidate_command"] = "/bin/echo"
+                settings["evidence"] = dict(
+                    min_sealed_qualified=4,
+                    min_success_permille=500,
+                    sealed_threshold_permille=750,
+                )
+                settings_path.write_text(json.dumps(settings))
             env = {
                 **os.environ,
                 "CODEX_HOME": str(home),
@@ -361,7 +411,7 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                         input=[
                             dict(
                                 type="text",
-                                text="Make answer.txt contain ready.",
+                                text=task_text,
                                 text_elements=[],
                             )
                         ],
@@ -392,8 +442,11 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                 self.assertIsNotNone(status)
                 self.assertEqual(status["phase"], "supported", status)
                 self.assertGreaterEqual(counts.get("review", 0), 2)
+                if probe_fixture:
+                    self.assertEqual(len(worker_keys.get("explore", set())), 2)
+                    self.assertEqual(len(worker_keys.get("probe", set())), 1)
                 if succession:
-                    self.assertEqual(counts.get("draft"), 1)
+                    self.assertEqual(len(worker_keys.get("draft", set())), 1)
                     self.assertEqual(counts.get("successor"), 2)
                     successor_requests = [
                         body
@@ -420,6 +473,24 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                     self.assertIn(
                         "original_task", "\n".join(text_values(first["input"]))
                     )
+                    # Field names can straddle the 768-byte context parts. Check
+                    # the reconstructed packet, not a substring of its wrappers.
+                    parts = {}
+                    for text in text_values(first["input"]):
+                        for match in re.finditer(
+                            r"<external_pro_contract_successor_(\d+)>(.*?)</external_pro_contract_successor_\1>",
+                            text,
+                            re.DOTALL,
+                        ):
+                            parts[int(match.group(1))] = match.group(2)
+                    self.assertEqual(sorted(parts), list(range(len(parts))))
+                    packet = json.loads("".join(parts[index] for index in sorted(parts)))
+                    self.assertGreater(packet["owner_authorization_revision"], 0)
+                    self.assertEqual(packet["original_task"], task_text)
+                    self.assertIn(task_text, [
+                        entry["text"] for entry in packet["current_owner_instructions"]
+                        if entry["role"] == "user"
+                    ])
                     with contextlib.closing(
                         sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
                     ) as connection:
@@ -487,7 +558,10 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                             dict(
                                 status=status,
                                 counts=counts,
+                                worker_keys={key: sorted(value) for key, value in worker_keys.items()},
                                 errors=errors,
+                                task_bytes=len(task_text.encode()),
+                                probe_fixture=probe_fixture,
                                 real_provider_calls=0,
                             ),
                             indent=2,
@@ -496,6 +570,13 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                     (destination / "requests.json").write_text(
                         json.dumps(requests, indent=2)
                     )
+                    database = home / "pro_contract/ledger_1.sqlite"
+                    if database.exists():
+                        with contextlib.closing(sqlite3.connect(database)) as source_db:
+                            with contextlib.closing(
+                                sqlite3.connect(destination / "ledger.sqlite")
+                            ) as target_db:
+                                source_db.backup(target_db)
 
 
 if __name__ == "__main__":

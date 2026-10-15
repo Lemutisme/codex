@@ -10,8 +10,8 @@ use codex_protocol::protocol::AdditionalContextKind;
 use std::collections::BTreeMap;
 
 pub(super) fn request(prompt: &str) -> Result<TurnInputRequest, WorkerError> {
-    if prompt.len() > 96_000 {
-        return Err(WorkerError::Malformed(
+    if prompt.len() > super::WORKER_PACKET_CAP {
+        return Err(WorkerError::InputBudget(
             "worker packet exceeds its fixed byte budget".to_string(),
         ));
     }
@@ -21,7 +21,8 @@ pub(super) fn request(prompt: &str) -> Result<TurnInputRequest, WorkerError> {
     } else {
         let mut remaining = prompt;
         while !remaining.is_empty() {
-            let end = remaining.floor_char_boundary(7000.min(remaining.len()));
+            let end =
+                remaining.floor_char_boundary(super::WORKER_PACKET_PART_CAP.min(remaining.len()));
             context.insert(
                 format!("pro_contract_packet_{:04}", context.len()),
                 AdditionalContextEntry {

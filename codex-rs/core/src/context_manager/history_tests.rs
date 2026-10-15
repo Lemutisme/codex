@@ -121,6 +121,74 @@ fn root_history() -> ContextManager {
     )
 }
 
+#[test]
+fn complete_authorization_survives_excerpting_compaction_and_checkpoint_restore() {
+    let original = format!(
+        "{}Never change unrelated files.",
+        "task detail ".repeat(500)
+    );
+    let mut history = root_history();
+    let mut message = user_input_text_msg(&original);
+    if let ResponseItem::Message {
+        id,
+        internal_chat_message_metadata_passthrough,
+        ..
+    } = &mut message
+    {
+        *id = Some(ResponseItemId::with_suffix("msg", "original"));
+        *internal_chat_message_metadata_passthrough =
+            Some(InternalChatMessageMetadataPassthrough {
+                content_item_kinds: Some(vec![ContentItemKind("user.input_text".into())]),
+                ..Default::default()
+            });
+    }
+    let mut envelopes = [ResponseItemEnvelope::new(message)];
+    history.record_annotated_items(&mut envelopes, TruncationPolicy::Tokens(10_000));
+    let mut replayed = root_history();
+    replayed.replay_annotated_item(&envelopes[0], TruncationPolicy::Tokens(10_000));
+    assert!(replayed.retained_context().user_authorization_complete());
+    // A shortened copy retaining the source ID and old hash is not the original.
+    let mut shortened = envelopes[0].clone();
+    if let ResponseItem::Message { content, .. } = &mut shortened.item {
+        *content = vec![ContentItem::InputText {
+            text: "shortened copy".into(),
+        }];
+    }
+    let mut copied = root_history();
+    copied.replay_annotated_item(&shortened, TruncationPolicy::Tokens(10_000));
+    assert!(!copied.retained_context().user_authorization_complete());
+    assert!(
+        !history.retained_context().user_messages_complete(),
+        "review still sees a bounded excerpt"
+    );
+    assert!(history.retained_context().user_authorization_complete());
+    let revision = history
+        .conversation_history_snapshot()
+        .user_message_revision();
+    history.replace_compacted(Vec::new(), None);
+    assert_eq!(
+        history
+            .conversation_history_snapshot()
+            .user_message_revision(),
+        revision
+    );
+    let checkpoint =
+        serde_json::from_str(&serde_json::to_string(history.retained_context()).unwrap()).unwrap();
+    let mut restored = root_history();
+    restored.restore_retained_context(Some(&checkpoint));
+    let retained = restored.retained_context();
+    assert!(retained.user_authorization_complete());
+    let (_, codex_history::RetainedContextEntry::UserMessage(message)) =
+        retained.ordered_entries().next().unwrap()
+    else {
+        panic!("user evidence")
+    };
+    assert_eq!(
+        retained.original_user_text(message),
+        Some(original.as_str())
+    );
+}
+
 fn create_history_with_items(items: Vec<ResponseItem>) -> ContextManager {
     let mut h = ContextManager::new();
     // Use a generous but fixed token budget; tests only rely on truncation

@@ -75,6 +75,7 @@ impl RetainedContext {
             .as_ref()
             .map(|_| codex_protocol::ResponseItemId::new("retained"));
         let entry = Ordered {
+            original_text: None,
             revision,
             inherited,
             order,

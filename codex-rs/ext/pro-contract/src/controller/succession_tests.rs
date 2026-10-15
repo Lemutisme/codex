@@ -148,3 +148,31 @@ async fn owner_input_joins_the_successor_before_reusing_the_workspace() {
         .unwrap();
     assert_eq!((budget.launches, budget.pending), (1, None));
 }
+
+#[tokio::test]
+async fn rejected_admission_clears_pending_without_refunding_or_claiming_a_rollout() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail]);
+    ports.successor_rejection = Some("owner authorization incomplete".into());
+    let lane = successors(ports, 2, &[]).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "failed").await;
+    let status = lane.wait_for("not_verified").await;
+    assert_eq!(status.class, "infrastructure");
+    assert!(lane.ports.successor_packets.lock().unwrap().is_empty());
+    let budget: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((budget.launches, budget.pending), (1, None));
+    assert!(
+        lane.ledger
+            .experiments()
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.event.body["phase"] == "successor_rejected")
+    );
+}

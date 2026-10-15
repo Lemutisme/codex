@@ -33,6 +33,115 @@ fn delivered_message(id: &str, text: &str, acceptance_order: u64) -> RetainedCon
 }
 
 #[test]
+fn complete_originals_keep_source_order_and_follow_checkpoint_and_rollback() {
+    let mut context = RetainedContext::default();
+    let message = RetainedUserMessage {
+        turn_id: "task".into(),
+        message_id: Some("task-message".into()),
+        text: "bounded excerpt".into(),
+        complete: false,
+        origin: crate::UserInputOrigin::User,
+        phase: None,
+    };
+    let original = "task instructions ".repeat(300);
+    let first = context
+        .record_user_message_with_original(
+            message.clone(),
+            RetainedInputSource::Local(Some(0)),
+            Some(original.clone()),
+        )
+        .unwrap();
+    assert!(!context.user_messages_complete());
+    assert!(context.user_authorization_complete());
+    context.record(&publish_answer());
+    context.record_user_message(
+        RetainedUserMessage {
+            message_id: Some("restriction".into()),
+            text: "Do not publish.".into(),
+            complete: true,
+            ..message.clone()
+        },
+        RetainedInputSource::Local(Some(2)),
+    );
+    let checkpoint = serde_json::from_str(&serde_json::to_string(&context).unwrap()).unwrap();
+    let mut restored = RetainedContext::default();
+    restored.restore(Some(&checkpoint), &[]);
+    let texts = restored
+        .ordered_entries()
+        .filter_map(|(_, entry)| match entry {
+            RetainedContextEntry::UserMessage(m) => restored.original_user_text(m),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(texts, [original.as_str(), "Do not publish."]);
+    restored.rollback(
+        &[],
+        Some("restriction"),
+        RetainedInputSource::Local(Some(2)),
+    );
+    assert!(restored.user_authorization_complete());
+    assert_eq!(restored.user_messages.len(), 1);
+    assert_eq!(
+        restored.user_messages[0].source(RetainedSourceRole::User),
+        Some(first.clone())
+    );
+    // Same displayed excerpt with changed original text is a different source version.
+    let changed = restored
+        .record_user_message_with_original(
+            message,
+            RetainedInputSource::Local(Some(3)),
+            Some(format!("{original} Cancel deployment.")),
+        )
+        .unwrap();
+    assert_ne!(changed.revision, first.revision);
+    restored.rollback(
+        &[],
+        Some("task-message"),
+        RetainedInputSource::Local(Some(3)),
+    );
+    assert!(restored.user_messages.is_empty());
+}
+
+#[test]
+fn missing_legacy_inherited_and_overflowed_originals_do_not_authorize() {
+    let message = RetainedUserMessage {
+        turn_id: "task".into(),
+        message_id: Some("task-message".into()),
+        text: "excerpt".into(),
+        complete: false,
+        origin: crate::UserInputOrigin::User,
+        phase: None,
+    };
+    for (source, original) in [
+        (RetainedInputSource::Local(Some(0)), None),
+        (RetainedInputSource::Inherited, Some("original".into())),
+        (
+            RetainedInputSource::Local(Some(0)),
+            Some("x".repeat(MAX_RECORD_BYTES + 1)),
+        ),
+    ] {
+        let mut context = RetainedContext::default();
+        context.record_user_message_with_original(message.clone(), source, original);
+        assert!(!context.user_authorization_complete());
+    }
+    let mut context = RetainedContext::default();
+    for i in 0..=MAX_FAMILY_RECORDS {
+        context.record_user_message_with_original(
+            RetainedUserMessage {
+                message_id: Some(format!("m{i}")),
+                ..message.clone()
+            },
+            RetainedInputSource::Local(Some(i as u64)),
+            Some("complete original".into()),
+        );
+    }
+    assert!(
+        !context.user_authorization_complete(),
+        "a lost earlier restriction cannot be ignored"
+    );
+}
+
+#[test]
 fn retained_evidence_preserves_order_through_recovery_checkpoint_and_rollback() {
     let mut context = RetainedContext::default();
     let first = publish_answer();
