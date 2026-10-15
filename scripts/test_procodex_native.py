@@ -120,6 +120,33 @@ for (let offset = 0; offset < 50;) {
 const artifact = decode(await tools.read_evidence({op:"read",source_id:id,offset:0}));
 text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
 """
+            successor_recall = r"""
+function decode(x) {
+ if (typeof x === "string") { try { return decode(JSON.parse(x)); } catch (_) { return x; } }
+ if (Array.isArray(x)) return decode(x[0]);
+ if (x && (x.entries !== undefined || x.handle !== undefined)) return x;
+ if (x && x.text !== undefined) return decode(x.text);
+ if (x && x.content !== undefined) return decode(x.content);
+ if (x && x.content_items !== undefined) return decode(x.content_items);
+ if (x && x.output !== undefined) return decode(x.output);
+ return x;
+}
+const frontier = decode(await tools.contract_read_evidence({op:"frontier"}));
+if (!frontier.entries?.some(x => x.step === "build")) throw new Error("missing prior build counterexample");
+const handle = frontier.entries.find(x => x.step === "build").evidence;
+let offset = 0, evidence = "";
+for (let i = 0; i < 100; i++) {
+ const page = decode(await tools.contract_read_evidence({op:"read", handle, offset}));
+ evidence += page.text;
+ if (page.eof) break;
+ if (!(page.next_offset > offset)) throw new Error("recall made no progress");
+ offset = page.next_offset;
+}
+const record = JSON.parse(evidence);
+if (!record.checks.some(x => x.receipt.step === "build" && x.receipt.outcome === "fail")) throw new Error("wrong evidence");
+if (record.checks.some(x => x.receipt.step.startsWith("sealed:"))) throw new Error("sealed disclosure");
+text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
+"""
 
             class Provider(http.server.BaseHTTPRequestHandler):
                 protocol_version = "HTTP/1.1"
@@ -250,7 +277,8 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                             items = [
                                 custom_call(
                                     body,
-                                    "const r = await tools.exec_command({cmd:"
+                                    (successor_recall if role == "successor" else "")
+                                    + "const r = await tools.exec_command({cmd:"
                                     + json.dumps(f"printf '{answer}\\n' > answer.txt")
                                     + ",yield_time_ms:1000,max_output_tokens:1000});text(r);",
                                     "write-answer",
@@ -446,6 +474,11 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                     self.assertEqual(len(worker_keys.get("explore", set())), 2)
                     self.assertEqual(len(worker_keys.get("probe", set())), 1)
                 if succession:
+                    self.assertTrue(any("publicEvidenceRecall" in text and "true" in text
+                        for request in requests for item in request.get("input", [])
+                        if item.get("type") in ("custom_tool_call_output", "function_call_output")
+                        for text in text_values(item)),
+                        "the real successor must consume retained public evidence before repairing")
                     self.assertEqual(len(worker_keys.get("draft", set())), 1)
                     self.assertEqual(counts.get("successor"), 2)
                     successor_requests = [
@@ -577,6 +610,16 @@ text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
                                 sqlite3.connect(destination / "ledger.sqlite")
                             ) as target_db:
                                 source_db.backup(target_db)
+                            public = destination / "public-evidence"
+                            for (raw,) in source_db.execute("SELECT event_json FROM experiment_events"):
+                                event = json.loads(raw)
+                                handle = event.get("body", {}).get("public_evidence")
+                                if event.get("kind") != "verification" or not isinstance(handle, str):
+                                    continue
+                                blob = home / "pro_contract/blobs" / handle[:2] / handle
+                                if blob.is_file():
+                                    public.mkdir(exist_ok=True)
+                                    shutil.copy2(blob, public / handle)
 
 
 if __name__ == "__main__":

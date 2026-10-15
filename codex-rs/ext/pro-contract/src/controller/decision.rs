@@ -30,7 +30,7 @@ const OMITTED_LINE_RESERVE: usize = 60;
 const RESIDUAL_FAMILIES: usize = 12;
 
 /// Why no judgment could be formed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum NotVerifiedClass {
     /// The checks or the lane's own machinery failed.
@@ -63,12 +63,21 @@ pub(crate) enum Verdict {
     /// A frozen requirement failed; the residual is shown to the executor on repair.
     Defeat {
         residual: String,
+        /// A counterexample does not make the evidence-production path usable. Preserve both
+        /// facts and let the host repair the evidence boundary before scheduling another solver.
+        blocker: Option<EvidenceBlocker>,
     },
     /// No judgment could be formed; nothing is shown to the executor.
     NotVerified {
         class: NotVerifiedClass,
         reason: String,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub(crate) struct EvidenceBlocker {
+    pub class: NotVerifiedClass,
+    pub reason: String,
 }
 
 fn not_verified(class: NotVerifiedClass, reason: impl Into<String>) -> Verdict {
@@ -84,6 +93,8 @@ pub(crate) struct SealedTally {
     pub qualified: u32,
     pub passed: u32,
     pub unqualified: u32,
+    /// Cases not executed because the candidate failed its build prerequisite.
+    pub blocked: u32,
     /// Qualified cases on which the reference exited zero.
     pub succeeded: u32,
     pub failing_families: BTreeSet<String>,
@@ -96,6 +107,7 @@ impl SealedTally {
             let id = step.step.trim_start_matches(SEALED).trim_start_matches(':');
             match step.outcome {
                 StepOutcome::Unqualified => tally.unqualified += 1,
+                StepOutcome::Blocked => tally.blocked += 1,
                 StepOutcome::Pass | StepOutcome::Fail => {
                     tally.qualified += 1;
                     if step.reference_exit == Some(0) {
@@ -120,10 +132,18 @@ impl SealedTally {
     }
 
     fn line(&self) -> String {
-        format!(
+        let line = format!(
             "{} of {} qualified sealed checks agree with the reference ({} unqualified)",
             self.passed, self.qualified, self.unqualified
-        )
+        );
+        if self.blocked == 0 {
+            line
+        } else {
+            format!(
+                "{line}; {} not executed after candidate build failure",
+                self.blocked
+            )
+        }
     }
 }
 
@@ -166,24 +186,34 @@ pub(crate) fn mechanical_verdict(
         .filter(|step| step.outcome == StepOutcome::Fail && !step.step.starts_with(SEALED))
         .collect();
     let tally = SealedTally::of(receipts, policy);
+    // Missing observations downstream of a failed build can be obtained after a candidate
+    // repair. Only an independently insufficient evidence path blocks that repair. Even the
+    // optimistic case below grants continuation only, never evidential support.
+    let after_build = SealedTally {
+        qualified: tally.qualified + tally.blocked,
+        succeeded: tally.succeeded + tally.blocked,
+        ..tally.clone()
+    };
+    let blocked_by_build = failures.iter().any(|step| step.step == "build")
+        && tally.blocked > 0
+        && sufficient(&after_build, policy);
+    let blocker = (sealed_applies(policy) && !sufficient(&tally, policy) && !blocked_by_build).then(|| EvidenceBlocker {
+        class: NotVerifiedClass::InsufficientEvidence,
+        reason: format!(
+            "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
+            tally.line(), tally.succeeded, policy.min_sealed_qualified, policy.min_success_permille
+        ),
+    });
     let sealed_defeat =
         sealed_applies(policy) && sufficient(&tally, policy) && below_threshold(&tally, policy);
     if !failures.is_empty() || sealed_defeat {
         return Some(Verdict::Defeat {
             residual: residual(&failures, sealed_defeat.then_some(&tally), policy),
+            blocker,
         });
     }
-    if sealed_applies(policy) && !sufficient(&tally, policy) {
-        return Some(not_verified(
-            NotVerifiedClass::InsufficientEvidence,
-            format!(
-                "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
-                tally.line(),
-                tally.succeeded,
-                policy.min_sealed_qualified,
-                policy.min_success_permille
-            ),
-        ));
+    if let Some(blocker) = blocker {
+        return Some(not_verified(blocker.class, blocker.reason));
     }
     None
 }
@@ -354,6 +384,7 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
             }
             Verdict::Defeat {
                 residual: bounded(&text, EXECUTOR_TEXT_CAP),
+                blocker: None,
             }
         }
         ReviewVerdict::CannotJudge { missing } => not_verified(

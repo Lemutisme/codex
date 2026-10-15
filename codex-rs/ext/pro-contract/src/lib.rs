@@ -63,5 +63,8 @@ pub fn install(
     registry.thread_lifecycle_contributor(extension.clone());
     registry.turn_lifecycle_contributor(extension.clone());
     registry.turn_input_contributor(extension.clone());
+    registry.tool_contributor(std::sync::Arc::new(
+        controller::evidence_tool::EvidenceTools,
+    ));
     registry.prompt_contributor(extension);
 }

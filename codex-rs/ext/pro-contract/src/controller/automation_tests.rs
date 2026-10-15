@@ -44,6 +44,8 @@ use crate::workers::runtime::WorkerTurn;
 mod recovery_tests;
 #[path = "succession_tests.rs"]
 mod succession_tests;
+#[path = "work_tests.rs"]
+mod work_tests;
 
 const INTAKE: &str = "Please make answer.txt say done.";
 const CONTRACT_DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_quote":"make answer.txt say done","inferred":false}],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;
@@ -66,6 +68,8 @@ struct FakePorts {
     observation_error: bool,
     /// How many sealed cases pass in each check run; the rest fail.
     sealed_passing: usize,
+    sealed_qualified: usize,
+    public_steps: Mutex<VecDeque<Vec<StepReceipt>>>,
     /// The sealed cases each check run received.
     sealed_checked: Mutex<Vec<Vec<DifferentialCase>>>,
     reviews: Mutex<VecDeque<&'static str>>,
@@ -96,6 +100,8 @@ impl FakePorts {
             probe_calls: Mutex::default(),
             observation_error: false,
             sealed_passing: usize::MAX,
+            sealed_qualified: usize::MAX,
+            public_steps: Mutex::default(),
             sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
             review_prompts: Mutex::new(Vec::new()),
@@ -126,11 +132,11 @@ impl FakePorts {
 impl Ports for FakePorts {
     fn run_successor(
         &self,
-        mut turn: crate::controller::successor::SuccessorTurn,
-    ) -> PortFuture<'_, Result<crate::controller::successor::SuccessorExit, String>> {
+        mut turn: crate::controller::ports::SuccessorTurn,
+    ) -> PortFuture<'_, Result<crate::controller::ports::SuccessorExit, String>> {
         Box::pin(async move {
-            use crate::controller::successor::SuccessorExit;
-            use crate::controller::successor::SuccessorHandoff;
+            use crate::controller::ports::SuccessorExit;
+            use crate::controller::ports::SuccessorHandoff;
             if let Some(reason) = &self.successor_rejection {
                 return Ok(SuccessorExit::Rejected(reason.clone()));
             }
@@ -290,11 +296,20 @@ impl Ports for FakePorts {
                 .ok_or(CheckError::TimedOut)?;
             let detail = match outcome {
                 StepOutcome::Fail => "answer.txt does not say done".to_string(),
-                StepOutcome::Pass | StepOutcome::Unqualified => String::new(),
+                StepOutcome::Pass | StepOutcome::Unqualified | StepOutcome::Blocked => {
+                    String::new()
+                }
             };
-            let mut steps = vec![StepReceipt::new("build", outcome, detail)];
+            let mut steps = self
+                .public_steps
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_else(|| vec![StepReceipt::new("build", outcome, detail)]);
             steps.extend(policy.sealed.iter().enumerate().map(|(index, case)| {
-                let outcome = if index < self.sealed_passing {
+                let outcome = if index >= self.sealed_qualified {
+                    StepOutcome::Unqualified
+                } else if index < self.sealed_passing {
                     StepOutcome::Pass
                 } else {
                     StepOutcome::Fail

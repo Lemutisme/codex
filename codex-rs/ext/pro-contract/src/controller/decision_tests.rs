@@ -117,6 +117,34 @@ fn support() -> Result<Review, WorkerError> {
     })
 }
 
+#[test]
+fn candidate_build_blockage_allows_repair_but_does_not_claim_qualified_evidence() {
+    let mut checks = with_sealed(&[StepOutcome::Blocked; 4]);
+    let receipts = checks.as_mut().unwrap();
+    receipts.steps[0].outcome = StepOutcome::Fail;
+    receipts.steps[1].outcome = StepOutcome::Blocked;
+    for receipt in &mut receipts.steps {
+        receipt.reference_exit = None;
+    }
+    let tally = super::sealed_tally(receipts, &policy());
+    assert_eq!((tally.qualified, tally.blocked), (0, 4));
+    assert!(matches!(
+        decide(&checks, None, &policy()),
+        Verdict::Defeat { blocker: None, .. }
+    ));
+
+    // Repairing the build cannot recover observations already known to be independently
+    // unqualified: even the optimistic candidate repair falls below this frozen minimum.
+    checks.as_mut().unwrap().steps[2].outcome = StepOutcome::Unqualified;
+    assert!(matches!(
+        decide(&checks, None, &policy()),
+        Verdict::Defeat {
+            blocker: Some(_),
+            ..
+        }
+    ));
+}
+
 fn class(verdict: &Verdict) -> Option<NotVerifiedClass> {
     match verdict {
         Verdict::NotVerified { class, .. } => Some(*class),
@@ -149,7 +177,7 @@ fn a_failed_public_case_defeats_with_its_invocation_and_diff() {
         ],
         true,
     );
-    let Verdict::Defeat { residual } = decide(&checks, None, &policy()) else {
+    let Verdict::Defeat { residual, .. } = decide(&checks, None, &policy()) else {
         panic!("expected a defeat");
     };
     assert!(residual.contains("--delimiter"), "{residual}");
@@ -181,7 +209,8 @@ fn long_public_failures_do_not_push_out_the_sealed_line() {
         .enumerate()
         .map(|(index, outcome)| step(&format!("sealed:S{index}"), *outcome, "")),
     );
-    let Verdict::Defeat { residual } = decide(&receipts(steps, true), Some(&support()), &policy())
+    let Verdict::Defeat { residual, .. } =
+        decide(&receipts(steps, true), Some(&support()), &policy())
     else {
         panic!("expected a defeat");
     };
@@ -214,7 +243,7 @@ fn verbose_repeated_symptoms_do_not_hide_other_failed_modes() {
         .collect::<Vec<_>>();
     steps.push(step("public:parallel", StepOutcome::Fail, "empty output"));
     steps.push(step("public:stdin", StepOutcome::Fail, "wrong mode"));
-    let Verdict::Defeat { residual } = decide(&receipts(steps, true), None, &policy()) else {
+    let Verdict::Defeat { residual, .. } = decide(&receipts(steps, true), None, &policy()) else {
         panic!("defeat");
     };
     assert!(residual.contains("public:parallel"), "{residual}");
@@ -231,7 +260,8 @@ fn a_failed_build_defeats_without_a_sealed_line_even_if_the_review_would_support
     steps.extend(
         (0..4).map(|index| StepReceipt::new(format!("sealed:S{index}"), StepOutcome::Fail, "")),
     );
-    let Verdict::Defeat { residual } = decide(&receipts(steps, true), Some(&support()), &policy())
+    let Verdict::Defeat { residual, .. } =
+        decide(&receipts(steps, true), Some(&support()), &policy())
     else {
         panic!("expected a defeat");
     };
@@ -302,7 +332,7 @@ fn a_sealed_pass_rate_below_threshold_defeats_with_aggregates_only() {
         Some(&support()),
         &policy(),
     );
-    let Verdict::Defeat { residual } = verdict else {
+    let Verdict::Defeat { residual, .. } = verdict else {
         panic!("expected a defeat, got {verdict:?}");
     };
     assert!(
@@ -382,7 +412,7 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
         },
         terms_gap: vec![],
     });
-    let Verdict::Defeat { residual } = decide(&passing(), Some(&defeat), &policy()) else {
+    let Verdict::Defeat { residual, .. } = decide(&passing(), Some(&defeat), &policy()) else {
         panic!("expected a defeat");
     };
     assert!(

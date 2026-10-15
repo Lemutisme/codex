@@ -380,7 +380,7 @@ async fn a_real_container_run_judges_every_channel() {
 }
 
 #[tokio::test]
-async fn a_failed_build_fails_every_case_without_running_it() {
+async fn a_failed_build_blocks_cases_without_claiming_they_ran() {
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
     };
@@ -401,10 +401,11 @@ async fn a_failed_build_fails_every_case_without_running_it() {
 
     assert!(receipts.complete);
     assert!(
-        receipts
-            .steps
-            .iter()
-            .all(|step| step.outcome == StepOutcome::Fail),
+        receipts.steps.iter().all(|step| if step.step == "build" {
+            step.outcome == StepOutcome::Fail
+        } else {
+            step.outcome == StepOutcome::Blocked && step.reference_exit.is_none()
+        }),
         "{receipts:?}"
     );
 }

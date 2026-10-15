@@ -14,13 +14,13 @@ use super::Frozen;
 use super::Phase;
 use super::ThreadRuntime;
 use crate::controller::decision::NotVerifiedClass;
+use crate::controller::ports::SuccessorExit;
+use crate::controller::ports::SuccessorTurn;
 use crate::controller::succession_budget::Budget;
 use crate::controller::succession_budget::KIND;
 use crate::controller::succession_budget::Lesson;
 use crate::controller::succession_budget::now_ms;
 use crate::controller::successor;
-use crate::controller::successor::SuccessorExit;
-use crate::controller::successor::SuccessorTurn;
 
 pub(super) struct Control {
     cancel: watch::Sender<bool>,
@@ -120,6 +120,7 @@ impl ThreadRuntime {
                 packet,
                 deadline_ms,
                 cancel: cancel_rx,
+                evidence: self.evidence_access(),
             })
             .await;
         self.record_event(
@@ -255,7 +256,8 @@ impl ThreadRuntime {
             "remaining_failures_and_prior_failed_artifacts": reserved.lessons,
             "previous_executor_claim_untrusted": reserved.previous_executor_claim,
             "executor_deadline_ms": deadline_ms,
-            "strategy": "Use the observed failures to choose a new discriminating experiment. Continue a sound approach or reimplement task-owned files if its assumptions are wrong. A fresh context does not justify repeating an unchanged approach. Preserve unrelated work; historical candidates and the original base remain frozen in the host ledger."
+            "public_evidence": "Use contract_read_evidence: frontier for open public checks, index for the complete retained verification history, read for exact available details. Recent failure summaries are an index, not the full evidence. Preserve unrelated work and runnable probes in the workspace.",
+            "strategy": super::super::work::METHOD
             })).map_err(|e| e.to_string())?
         };
         successor::packet(&packet)?; // Validate all context bounds before spending a launch.

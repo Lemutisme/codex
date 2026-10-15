@@ -27,27 +27,8 @@ use codex_protocol::protocol::InternalSessionSource;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::ThreadSource;
-use tokio::sync::watch;
 
-pub(crate) struct SuccessorTurn {
-    pub id: ThreadId,
-    pub environment_id: String,
-    pub packet: String,
-    pub deadline_ms: u64,
-    pub cancel: watch::Receiver<bool>,
-}
-
-pub(crate) struct SuccessorHandoff {
-    pub turn_id: String,
-    pub summary: String,
-}
-
-pub(crate) enum SuccessorExit {
-    /// Admission failed before a child existed; safe to clear the pending reservation.
-    Rejected(String),
-    Handoff(SuccessorHandoff),
-    Stopped(String),
-}
+use super::ports::{SuccessorExit, SuccessorHandoff, SuccessorTurn};
 
 /// No caller may abandon this future: cancellation is signalled and shutdown is awaited.
 pub(super) async fn run(
@@ -120,6 +101,14 @@ pub(super) async fn run(
         options
             .thread_extension_init
             .insert(SessionIsolation::Isolated);
+        options.thread_extension_init.insert(turn.evidence.clone());
+        let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
+        extensions.tool_contributor(std::sync::Arc::new(super::evidence_tool::EvidenceTools));
+        options
+            .thread_extension_init
+            .insert(codex_extension_api::IsolatedSessionExtensions(
+                std::sync::Arc::new(extensions.build()),
+            ));
         if *turn.cancel.borrow()
             || parent
                 .conversation_history_snapshot()

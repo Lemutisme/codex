@@ -1,13 +1,17 @@
 //! The ProContract automation lane, installed as host-side thread and turn contributors.
 
+pub(crate) mod archive;
 pub(crate) mod decision;
 pub(crate) mod eligibility;
+pub(crate) mod evidence_tool;
 pub(crate) mod identity;
+mod native;
 pub(crate) mod ports;
 pub(crate) mod runtime;
 mod succession_budget;
 mod successor;
 pub(crate) mod views;
+mod work;
 
 use std::sync::Arc;
 use std::sync::Weak;
@@ -143,7 +147,7 @@ impl ProContractExtension {
             },
             None => Policies::default(),
         };
-        let ports = Arc::new(ports::CodexPorts {
+        let ports = Arc::new(native::CodexPorts {
             thread_id,
             manager: Weak::clone(&self.thread_manager),
             config: config.clone(),
@@ -157,6 +161,7 @@ impl ProContractExtension {
             runtime::Stores { dir, ledger, store },
             ports,
         );
+        input.thread_store.insert(runtime.evidence_access());
         input.thread_store.insert(runtime);
         if let Some(runtime) = runtime_of(input.thread_store) {
             runtime.restore().await;
@@ -271,11 +276,21 @@ impl ContextContributor for ProContractExtension {
             let Some(runtime) = runtime_of(input.thread_store) else {
                 return Vec::new();
             };
-            runtime
-                .outstanding_repair()
-                .await
-                .map(|note| vec![repair_fragment(&note)])
-                .unwrap_or_default()
+            if runtime.brief().await.is_none() {
+                return Vec::new();
+            }
+            let mut context = vec![PromptFragment::developer_policy(
+                work::METHOD.to_string(),
+                ContentItemKind("pro_contract.work_method".into()),
+            )];
+            context.extend(
+                runtime
+                    .outstanding_repair()
+                    .await
+                    .map(|note| vec![repair_fragment(&note)])
+                    .unwrap_or_default(),
+            );
+            context
         })
     }
 

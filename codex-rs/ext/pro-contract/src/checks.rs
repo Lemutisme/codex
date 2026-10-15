@@ -40,6 +40,8 @@ const PIPELINE_MOUNT: &str = "/pc";
 pub enum StepOutcome {
     Pass,
     Fail,
+    /// The candidate did not build, so this case was not executed on either program.
+    Blocked,
     /// The reference disagreed with itself on its exit status or timed out: no evidence.
     Unqualified,
 }
@@ -191,7 +193,7 @@ judge() {
 }
 run_case() {
   step_name=$1; input=$2; d=$3; shift 3
-  if [ \"$built\" != 1 ]; then emit \"$step_name\" fail; return; fi
+  if [ \"$built\" != 1 ]; then emit \"$step_name\" blocked; return; fi
   run_side \"$input\" \"$REFERENCE\" \"$d/r1\" \"$@\"
   if [ \"$hangs\" -ge \"$HANG_BREAKER\" ]; then
     mkdir -p \"$d/c\"; echo 124 > \"$d/c/rc\"; : > \"$d/c/out\"; : > \"$d/c/err\"; : > \"$d/c/files\"
@@ -329,6 +331,7 @@ pub(crate) fn parse_output(
             let outcome = match fields.next() {
                 Some("pass") => StepOutcome::Pass,
                 Some("unqualified") => StepOutcome::Unqualified,
+                Some("blocked") => StepOutcome::Blocked,
                 _ => StepOutcome::Fail,
             };
             let stable = fields
