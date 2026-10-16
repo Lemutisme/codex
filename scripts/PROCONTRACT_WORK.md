@@ -136,6 +136,9 @@ including stdin, fixture contents, environment and terminal input. Per-case byte
 allowances and explicit omission markers keep large examples from hiding later
 ones. Request catalogs also state their mechanical completeness and consecutive
 span count; a sentence crossing span boundaries does not mean text is missing.
+The final worker packet preserves short evidence sections in full before sharing
+remaining space among large sections, so retaining more documentation does not
+truncate a small, otherwise complete observation.
 
 Differential invocations use a common isolated Python standard-library supervisor
 for actual pipes and PTYs (the check image must provide Python 3.9 or newer).

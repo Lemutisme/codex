@@ -22,6 +22,25 @@ fn input() -> ProbeInput<'static> {
     }
 }
 
+#[test]
+fn large_documentation_does_not_truncate_small_observed_inputs_or_help() {
+    let documentation = "Documented interface 文档\n".repeat(6000);
+    let observed = "Case example\n{\"stdin\":\"input\",\"env\":{\"TERM\":\"xterm\"},\"terminal\":{\"cols\":97,\"rows\":31,\"input\":\"q\"}}\n[exit status 0]\n";
+    let help = "reference help with a decisive final option: --required-mode\n";
+    let input = ProbeInput {
+        base_view: &documentation,
+        reference_help: help,
+        ..input()
+    };
+    let packet = write_prompt(&input, observed).unwrap();
+    assert!(packet.len() <= super::WORKER_PACKET_CAP);
+    assert!(packet.contains(observed) && packet.contains(help));
+    assert!(
+        packet.contains("bytes omitted"),
+        "the large documentation, not the small observation, consumes the remaining allowance"
+    );
+}
+
 fn assert_strict(value: &Value) {
     if let Some(object) = value.as_object() {
         if object.get("type") == Some(&json!("object")) {

@@ -117,14 +117,31 @@ fn prompt(input: &ProbeInput<'_>, turn: &str, observations: &str) -> Result<Stri
     // among evidence sections, including UTF-8 omission markers.
     parts[0] = bounded(sources[0], budgets[0].min(available));
     available -= parts[0].len();
-    let requested: usize = budgets[1..].iter().sum();
+    // Preserve small evidence sections in full before sharing the remaining allowance.
+    // Proportional scaling used to truncate even a short successful invocation just to
+    // retain more of a very large documentation section.
+    let mut pending = vec![1, 2, 3];
+    while !pending.is_empty() {
+        let share = available / pending.len();
+        let complete: Vec<_> = pending
+            .iter()
+            .copied()
+            .filter(|index| budgets[*index] <= share)
+            .collect();
+        if complete.is_empty() {
+            let remainder = available % pending.len();
+            for (position, index) in pending.iter().copied().enumerate() {
+                budgets[index] = share + usize::from(position < remainder);
+            }
+            break;
+        }
+        for index in complete {
+            available -= budgets[index];
+            pending.retain(|other| *other != index);
+        }
+    }
     for index in 1..parts.len() {
-        let cap = if requested > available {
-            budgets[index] * available / requested
-        } else {
-            budgets[index]
-        };
-        parts[index] = bounded(sources[index], cap);
+        parts[index] = bounded(sources[index], budgets[index]);
     }
     Ok(render(&parts))
 }
@@ -172,6 +189,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             REFERENCE_HELP_CAP,
             OBSERVATIONS_CAP,
             cases::OBSERVATION_FORMAT,
+            "request-first-max-min-evidence-allocation-v2",
         ),
     )
 }
