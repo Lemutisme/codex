@@ -244,7 +244,14 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
                 .collect(),
         },
         evidence_policy: Box::new(EvidencePolicy {
-            class: EvidenceClass::ChecksAndReview,
+            class: if input.build_command.is_none()
+                && !raw.candidate_tests
+                && !(input.reference_command.is_some() && input.candidate_command.is_some())
+            {
+                EvidenceClass::ReviewOnly
+            } else {
+                EvidenceClass::ChecksAndReview
+            },
             build_command: input.build_command.map(str::to_string),
             candidate_command: input.candidate_command.map(str::to_string),
             candidate_tests: raw.candidate_tests,

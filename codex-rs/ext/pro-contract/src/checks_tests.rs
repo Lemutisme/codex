@@ -62,11 +62,18 @@ async fn artifact_review_does_not_require_a_program_or_container() {
     let mut env = test_env("unused".into(), 1);
     env.docker = "/nonexistent/container-runtime".into();
     let root = tempfile::tempdir().unwrap();
-    let receipts = super::run(&env, root.path(), root.path(), &policy)
-        .await
-        .unwrap();
-    assert!(receipts.complete && receipts.steps.is_empty());
-    assert!(receipts.environment[0].contains("no program or container executed"));
+    for class in [EvidenceClass::ReviewOnly, EvidenceClass::ChecksAndReview] {
+        // Older frozen policies used ChecksAndReview even with no declared checks.
+        let policy = EvidencePolicy {
+            class,
+            ..policy.clone()
+        };
+        let receipts = super::run(&env, root.path(), root.path(), &policy)
+            .await
+            .unwrap();
+        assert!(receipts.complete && receipts.steps.is_empty());
+        assert!(receipts.environment[0].contains("no program or container executed"));
+    }
 }
 
 #[tokio::test]

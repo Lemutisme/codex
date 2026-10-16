@@ -32,6 +32,39 @@ fn input() -> DraftInput<'static> {
     }
 }
 
+#[test]
+fn artifact_only_obligations_are_reviewed_without_inventing_executable_checks() {
+    let input = DraftInput {
+        intake_text: "Prove the claim.",
+        reference_command: None,
+        reference_observations: None,
+        build_command: None,
+        candidate_command: None,
+        ..input()
+    };
+    let response = json!({"decision":"contract","reason":"", "requirements":[{
+        "id":"R1","text":"Prove the claim.","source_id":"request:0","inferred":false}],
+        "out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":false});
+    let Draft::Contract {
+        evidence_policy, ..
+    } = parse(&response.to_string(), &input).unwrap()
+    else {
+        panic!("contract");
+    };
+    assert_eq!(evidence_policy.class, EvidenceClass::ReviewOnly);
+    let input = DraftInput {
+        build_command: Some("./check-proof"),
+        ..input
+    };
+    let Draft::Contract {
+        evidence_policy, ..
+    } = parse(&response.to_string(), &input).unwrap()
+    else {
+        panic!("contract");
+    };
+    assert_eq!(evidence_policy.class, EvidenceClass::ChecksAndReview);
+}
+
 /// Every object in a strict schema must list all of its properties as required and forbid
 /// additional properties.
 fn assert_strict(value: &Value) {

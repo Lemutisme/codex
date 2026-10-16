@@ -575,7 +575,7 @@ pub async fn run(
 ) -> Result<CheckReceipts, CheckError> {
     // A proof/document review has no executable checks. Its evidence is the frozen artifact
     // catalog; starting a build container would add a false infrastructure dependency.
-    if policy.class == crate::EvidenceClass::ReviewOnly && expected_steps(policy).is_empty() {
+    if expected_steps(policy).is_empty() {
         let environment =
             vec!["artifact review only; no program or container executed".to_string()];
         return Ok(CheckReceipts {
