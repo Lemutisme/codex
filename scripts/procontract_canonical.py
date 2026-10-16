@@ -629,7 +629,7 @@ def canonical_score_subprocess(task, eval_json, output):
     return json.loads(Path(output).read_text())
 
 
-def package_submission(run_dir):
+def package_submission(run_dir, *, workspace=None):
     """Only canonical submissions use this atomic publication and explicit completeness receipt."""
     archive, receipt = (
         run_dir / "submission.tar.gz",
@@ -646,7 +646,7 @@ def package_submission(run_dir):
     if receipt.exists():
         raise RuntimeError("canonical submission receipt has no archive")
     recovery.atomic_artifact(
-        archive, lambda target: packaging.package(run_dir / "workspace", target)
+        archive, lambda target: packaging.package(run_dir / "workspace" if workspace is None else workspace, target)
     )
     recovery.atomic_artifact(
         receipt,

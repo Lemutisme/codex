@@ -64,20 +64,46 @@ checks still lack a complete passing replay. This is a necessary consistency
 condition, not a claim that registered checks cover the task.
 
 Candidate judgment and evidence readiness are distinct. A failed public check
-can defeat the candidate while the sealed reference observations are insufficient.
-The Defeat is retained, and the evidence blockage is recorded separately; the
-controller does not spend another executor repairing an evidence-production
-failure. Existing authority, cancellation, confirmed shutdown and intake-time
-budget rules still govern any continuation.
+can defeat the candidate while sealed reference observations are insufficient.
+The Defeat and the evidence blockage are retained separately. The controller may
+repair the observed candidate failure under its existing finite grant; the blocker
+still forbids Support after that repair. A blocker without an actionable Defeat
+does not schedule another solver. Authority, cancellation, confirmed shutdown and
+intake-time budgets govern every continuation.
 
 The native long-input regression exposed a necessary dependency distinction:
 cases skipped after a failed build previously appeared as failed, qualified
 observations even though neither program ran. They now report `blocked`. They
-neither support nor defeat a behavioral claim. A build repair may continue when
-the blocked checks could restore the frozen evidence minimum; an independently
-insufficient reference path still blocks continuation. This optimistic feasibility
-test authorizes only a bounded repair, never Support. Original failed fixtures
-are retained separately from the final successful validation.
+neither support nor defeat a behavioral claim. The same rule applies after the
+candidate timeout guard: skipped cases are blocked, not fabricated executions.
+Build repair and evidence sufficiency require no optimistic dependency heuristic;
+they are independently recorded facts. Original failed fixtures are retained
+separately from successful validation.
+
+Task admission is an immutable intake receipt committed before model-authored
+terms. Completed executions commit task-scoped artifact deliveries even if a
+drafter declines or evidence preparation fails. Deliveries bind the original
+intake, exact subject, turn and execution epoch; later appends from an older epoch
+cannot replace a newer handoff. Recovery restores admission without redrafting or
+renewing a grant. The benchmark adapter can materialize these delivered bytes for
+external grading independently of internal judgment, while retaining process exit,
+successor accounting and original authorization checks.
+
+Issue freezes both terms and the actual evidence basis. Preparation failure is
+an explicit optional field in the hashed policy, never an empty successful suite.
+Before Issue, the host executes the sealed invocations against the reference and
+records calibration counts. An inadequate or unretained calibration forbids Support
+without discarding the task. Runtime checks still establish their own evidence;
+calibration does not establish coverage or make a later check unnecessary.
+
+Invocations can explicitly request a controlling PTY with fixed dimensions and
+terminal input. Text stdin stays a separate file stream; null stdin attaches it
+to the terminal. Terminal stdout/stderr are one raw byte stream, with no terminal
+emulation or normalization. This adapter cannot express arbitrary timed interaction
+or terminal query/reply protocols. Pipe mode is unchanged. Adapter errors and
+incomplete reference receipts fail closed. A proof/document ReviewOnly policy with
+no executable checks uses its frozen evidence catalog without starting a container;
+its receipts explicitly state that no program was executed.
 
 The fixed working method is supplied to the original executor after admission
 and to fresh successors. It asks the executor to retain runnable probes and live
@@ -109,7 +135,8 @@ The regression suite exercises retained evidence beyond residual bounds and
 three summaries, Unicode and NUL round trips, restart, task scoping, sealed
 non-disclosure, damaged evidence, a late old verifier, and an unrelated green
 batch that must not erase an earlier counterexample. It also verifies that a
-candidate Defeat with an evidence blockage does not schedule another executor.
+candidate Defeat can receive a bounded repair while its independent evidence
+blockage persists and continues to forbid Support.
 
 The native succession fixture requires an actual isolated Codex successor to
 call `contract_read_evidence`, recover the original failed build receipt, repair

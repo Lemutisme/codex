@@ -2,6 +2,8 @@
 //! review → judgment and evidence readiness → bounded continuation. Authority is kernel-owned;
 //! public working evidence is retained independently of executor history and status summaries.
 
+mod delivery;
+mod preparation;
 mod recovery;
 mod succession;
 mod verification;
@@ -125,6 +127,7 @@ struct Handoff {
 }
 
 /// The workspace frozen at the end of the executor's last turn.
+#[derive(Clone)]
 struct Frozen {
     turn_id: String,
     subject: Subject,
@@ -133,6 +136,9 @@ struct Frozen {
 #[derive(Default)]
 struct State {
     phase: Phase,
+    /// Durable original intake, independent of optional model-authored contract terms.
+    admission: Option<Digest>,
+    delivered_turns: HashSet<String>,
     contract: Option<ActiveContract>,
     /// Retain the responsibility identity even when its execution data cannot be recovered.
     recovered_contract_id: Option<ContractId>,
@@ -353,17 +359,29 @@ impl ThreadRuntime {
                 return;
             }
         };
-        self.record_event(
-            ExperimentKind::Intake,
-            /*check_pipeline*/ None,
-            json!({
-                "thread_id": self.thread_id.to_string(),
-                "text": text,
-                "base_subject": base.subject_hash,
-                "capture_policy": digest_of("capture_policy", &self.capture_policy),
-            }),
-        )
-        .await;
+        let admitted = self
+            .append_event(
+                ExperimentKind::Intake,
+                /*check_pipeline*/ None,
+                json!({
+                    "thread_id": self.thread_id.to_string(),
+                    "text": text,
+                    "base_subject": base.subject_hash,
+                    "capture_policy": digest_of("capture_policy", &self.capture_policy),
+                }),
+            )
+            .await;
+        match admitted {
+            Ok(receipt) => self.state.lock().await.admission = Some(receipt),
+            Err(reason) => {
+                self.not_verified(
+                    NotVerifiedClass::Infrastructure,
+                    &format!("task intake was not committed: {reason}"),
+                )
+                .await;
+                return;
+            }
+        }
         self.record_status("drafting", "", /*resting*/ false).await;
         let runtime = Arc::clone(self);
         self.spawn(async move { runtime.draft(text, base).await });
@@ -459,25 +477,25 @@ impl ThreadRuntime {
                 terms,
                 evidence_policy,
             }) => {
-                let sealed = match sealed {
-                    Ok(cases) => cases,
-                    Err(error) => {
-                        self.rest(
-                            "abstained",
-                            &format!("evidence preparation failed: {error}"),
-                        )
-                        .await;
-                        return;
-                    }
+                let (sealed, preparation_failure) = match sealed {
+                    Ok(cases) => (cases, None),
+                    Err(error) => (
+                        Vec::new(),
+                        Some(format!("evidence preparation failed: {error}")),
+                    ),
                 };
                 let evidence = self.settings.evidence;
-                let policy = EvidencePolicy {
+                let mut policy = EvidencePolicy {
                     sealed,
+                    preparation_failure,
                     sealed_threshold_permille: evidence.sealed_threshold_permille,
                     min_sealed_qualified: evidence.min_sealed_qualified,
                     min_success_permille: evidence.min_success_permille,
                     ..*evidence_policy
                 };
+                if policy.preparation_failure.is_none() {
+                    policy.preparation_failure = self.calibrate(&policy, &base_dir).await;
+                }
                 let base = Base {
                     dir: base_dir,
                     subject: base.subject_hash,
@@ -530,7 +548,7 @@ impl ThreadRuntime {
         }
     }
 
-    /// A failed prober is not an empty successful suite. Preserve the failure up to Issue.
+    /// A failed prober is not an empty successful suite. Preserve its failure in the policy.
     async fn probe(
         &self,
         text: &str,
@@ -684,16 +702,8 @@ impl ThreadRuntime {
     }
 
     async fn issue(self: Arc<Self>, terms: Terms, policy: EvidencePolicy, base: Base) {
-        if policy.reference_command.is_some()
-            && policy.candidate_command.is_some()
-            && policy.sealed.len() < policy.min_sealed_qualified as usize
-        {
-            self.rest("abstained", &format!(
-                "infeasible evidence policy: {} sealed cases cannot provide {} qualified receipts",
-                policy.sealed.len(), policy.min_sealed_qualified,
-            )).await;
-            return;
-        }
+        // Issue freezes the obligation and its actual evidential limits. It does not assert
+        // that preparation succeeded; an explicit preparation failure can never grant Support.
         let contract_id = self.contract_id();
         let bindings = Bindings {
             terms_hash: digest_of("terms", &terms),
@@ -722,17 +732,27 @@ impl ThreadRuntime {
                 return;
             }
         };
-        self.record_event(
-            ExperimentKind::Issue,
-            /*check_pipeline*/ None,
-            json!({
-                "contract_id": contract_id.0,
-                "terms": terms,
-                "evidence_policy": policy,
-                "capture_policy": digest_of("capture_policy", &self.capture_policy),
-            }),
-        )
-        .await;
+        let committed = self
+            .append_event(
+                ExperimentKind::Issue,
+                /*check_pipeline*/ None,
+                json!({
+                    "contract_id": contract_id.0,
+                    "terms": terms,
+                    "evidence_policy": policy,
+                    "capture_policy": digest_of("capture_policy", &self.capture_policy),
+                }),
+            )
+            .await;
+        if let Err(reason) = committed {
+            self.state.lock().await.recovered_contract_id = Some(contract_id);
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("issued terms were not committed: {reason}"),
+            )
+            .await;
+            return;
+        }
         let brief = brief_text(&contract_id.0, contract.revision, &terms, &policy);
         let last_idle = {
             let mut state = self.state.lock().await;
@@ -772,6 +792,10 @@ impl ThreadRuntime {
         })
     }
 
+    pub(crate) async fn admitted(&self) -> bool {
+        self.state.lock().await.admission.is_some()
+    }
+
     /// The repair note the executor has not yet answered with a handoff.
     pub(crate) async fn outstanding_repair(&self) -> Option<String> {
         let state = self.state.lock().await;
@@ -809,12 +833,15 @@ impl ThreadRuntime {
 
     /// Freezes the candidate at the turn-end boundary, before completion is emitted.
     pub(crate) async fn turn_stopped(&self, turn_id: String) {
-        if !matches!(
-            self.state.lock().await.phase,
-            Phase::Drafting | Phase::Working
-        ) {
-            return;
-        }
+        let epoch = {
+            let state = self.state.lock().await;
+            if state.admission.is_none()
+                || matches!(state.phase, Phase::RecoveryBlocked | Phase::Succeeding)
+            {
+                return;
+            }
+            state.epoch
+        };
         let frozen = match self.capture_workspace().await {
             Ok(subject) => Some(Frozen { turn_id, subject }),
             Err(error) => {
@@ -822,11 +849,21 @@ impl ThreadRuntime {
                 None
             }
         };
-        self.state.lock().await.frozen = frozen;
+        let mut state = self.state.lock().await;
+        if state.epoch == epoch {
+            state.frozen = frozen;
+        }
     }
 
     /// The thread came to rest: a completed turn is the executor's handoff.
     pub(crate) async fn thread_idle(self: &Arc<Self>, cause: ThreadIdleCause) {
+        if cause == ThreadIdleCause::Completed
+            && let Err(reason) = self.commit_delivery().await
+        {
+            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                .await;
+            return;
+        }
         let phase = {
             let mut state = self.state.lock().await;
             state.last_idle = Some(cause);

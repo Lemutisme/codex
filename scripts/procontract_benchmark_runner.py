@@ -30,6 +30,7 @@ from procontract_execution_activity import ExecutorActivity
 import procontract_harness_program as harness_program
 import procontract_online as online_program
 import procontract_succession_binding as succession_binding
+import procontract_delivery as task_delivery
 from procontract_online_failure import ContractUnavailable
 
 MODEL = "gpt-5.6-luna"
@@ -926,6 +927,11 @@ def run(
             if isinstance(closed, dict)
             else {"status": "unknown", "returncode": None, "shutdown": "stdin_closed"}
         )
+        if args.arm == "on" and summary["native_process_exit"].get("status") == "exited":
+            try:
+                summary["native_delivery"] = task_delivery.snapshot(run_dir, summary.get("thread_id"))
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
+                summary["native_delivery_error"] = str(error)
         if manifest.get("succession") is not None:
             summary["cost"] = rollout_costs(home)
             try:

@@ -69,6 +69,19 @@ pub struct DifferentialCase {
     /// Coverage tag; the only detail of a sealed case an executor may see.
     #[serde(default)]
     pub family: String,
+    /// A controlling terminal for interactive programs. None preserves ordinary pipe/file I/O.
+    /// With a terminal, `stdin: None` attaches fd 0 to it; explicit stdin remains a pipe/file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<Terminal>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Terminal {
+    pub rows: u16,
+    pub cols: u16,
+    /// Bytes supplied as UTF-8 to the controlling terminal, independently of piped stdin.
+    pub input: String,
 }
 
 /// A fixture file whose content is `text` repeated `repeat` times.
@@ -127,6 +140,10 @@ pub struct EvidencePolicy {
     /// Smallest share, in permille, of qualified sealed cases whose reference run succeeds.
     #[serde(default = "default_min_success_permille")]
     pub min_success_permille: u16,
+    /// A preparation failure is part of the frozen basis, never an empty successful suite.
+    /// It forbids Support but does not erase the task or prevent repair of public failures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparation_failure: Option<String>,
 }
 
 pub fn default_sealed_threshold_permille() -> u16 {

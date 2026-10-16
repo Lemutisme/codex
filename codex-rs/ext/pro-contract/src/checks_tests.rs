@@ -43,6 +43,49 @@ fn policy() -> EvidencePolicy {
         sealed_threshold_permille: 950,
         min_sealed_qualified: 100,
         min_success_permille: 500,
+        preparation_failure: None,
+    }
+}
+
+#[tokio::test]
+async fn artifact_review_does_not_require_a_program_or_container() {
+    let policy = EvidencePolicy {
+        class: EvidenceClass::ReviewOnly,
+        build_command: None,
+        candidate_command: None,
+        reference_command: None,
+        candidate_tests: false,
+        differential: Vec::new(),
+        sealed: Vec::new(),
+        ..policy()
+    };
+    let mut env = test_env("unused".into(), 1);
+    env.docker = "/nonexistent/container-runtime".into();
+    let root = tempfile::tempdir().unwrap();
+    let receipts = super::run(&env, root.path(), root.path(), &policy)
+        .await
+        .unwrap();
+    assert!(receipts.complete && receipts.steps.is_empty());
+    assert!(receipts.environment[0].contains("no program or container executed"));
+}
+
+#[tokio::test]
+async fn reference_adapter_rejects_failed_containers_and_incomplete_observations() {
+    let root = tempfile::tempdir().unwrap();
+    let executable = root.path().join("container-adapter");
+    let mut env = test_env("fixture".into(), 2);
+    env.docker = executable.display().to_string();
+    for (output, exit) in [("@@OBS a 0 stable", 90), ("@@OBS unrelated 0 stable", 0)] {
+        write_executable(
+            &executable,
+            &format!("#!/bin/sh\nprintf '%s\\n' '{output}'\nexit {exit}\n"),
+        )
+        .unwrap();
+        let result = super::observe(&env, root.path(), "/reference", &[case("a", &[])]).await;
+        assert!(
+            matches!(result, Err(super::CheckError::Launch(_))),
+            "{result:?}"
+        );
     }
 }
 
@@ -307,6 +350,7 @@ async fn a_real_container_run_judges_every_channel() {
         sealed_threshold_permille: 950,
         min_sealed_qualified: 1,
         min_success_permille: 0,
+        preparation_failure: None,
     };
 
     let receipts = super::run(&test_env(image, 300), &candidate, &base, &policy)
@@ -411,6 +455,115 @@ async fn a_failed_build_blocks_cases_without_claiming_they_ran() {
 }
 
 #[tokio::test]
+async fn a_real_terminal_pipeline_preserves_pipe_and_tty_semantics_and_detects_mismatch() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let dirs = tempfile::tempdir().unwrap();
+    let base = dirs.path().join("base");
+    let candidate = dirs.path().join("candidate");
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&candidate).unwrap();
+    let program = "#!/usr/bin/env python3\nimport os,sys\nassert os.isatty(1) and os.isatty(2)\nwith open('/dev/tty','rb',buffering=0) as f: key=f.read(1)\nprint('reference',os.isatty(0),tuple(os.get_terminal_size(1)),key)\nif not os.isatty(0): print(sys.stdin.read(),end='')\n";
+    write_executable(&base.join("reference.py"), program).unwrap();
+    write_executable(&candidate.join("executable"), program).unwrap();
+    let terminal = Some(crate::Terminal {
+        rows: 31,
+        cols: 97,
+        input: "q".into(),
+    });
+    let cases = vec![
+        DifferentialCase {
+            terminal: terminal.clone(),
+            ..case("tty", &[])
+        },
+        DifferentialCase {
+            terminal,
+            stdin: Some("piped input\n".into()),
+            ..case("pipe-and-tty", &[])
+        },
+    ];
+    let policy = EvidencePolicy {
+        build_command: None,
+        candidate_tests: false,
+        reference_command: Some("/pc-base/reference.py".into()),
+        differential: cases.clone(),
+        sealed: vec![],
+        ..policy()
+    };
+    let env = test_env(image, 120);
+    let observations = super::observe(&env, &base, "/pc-base/reference.py", &cases)
+        .await
+        .unwrap();
+    assert!(observations.iter().all(|o| o.exit == Some(0) && o.stable));
+    assert!(observations[0].stdout.contains("True (97, 31)"));
+    assert!(observations[1].stdout.contains("False (97, 31)"));
+    assert!(observations[1].stdout.contains("piped input"));
+    let receipts = super::run(&env, &candidate, &base, &policy).await.unwrap();
+    assert!(
+        receipts.complete
+            && receipts
+                .steps
+                .iter()
+                .all(|s| s.outcome == StepOutcome::Pass)
+    );
+    write_executable(
+        &candidate.join("executable"),
+        &program.replace("'reference'", "'wrong'"),
+    )
+    .unwrap();
+    let receipts = super::run(&env, &candidate, &base, &policy).await.unwrap();
+    assert!(
+        receipts.complete
+            && receipts
+                .steps
+                .iter()
+                .all(|s| s.outcome == StepOutcome::Fail)
+    );
+}
+
+#[tokio::test]
+async fn timeout_guard_marks_unexecuted_cases_blocked_instead_of_fabricating_failures() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let dirs = tempfile::tempdir().unwrap();
+    let base = dirs.path().join("base");
+    let candidate = dirs.path().join("candidate");
+    let pipeline = dirs.path().join("pipeline");
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&candidate).unwrap();
+    write_executable(&candidate.join("executable"), "#!/bin/sh\nsleep 30\n").unwrap();
+    let policy = EvidencePolicy {
+        build_command: None,
+        candidate_tests: false,
+        reference_command: Some("/bin/echo".into()),
+        differential: vec![case("first", &[]), case("not-run", &[])],
+        sealed: vec![],
+        ..policy()
+    };
+    let script = pipeline_script(&policy, "/candidate", 5)
+        .replace("HANG_BREAKER=5", "HANG_BREAKER=1")
+        .replace("CASE_TIMEOUT=10", "CASE_TIMEOUT=1");
+    super::write_pipeline(&pipeline, &script, policy.differential.clone())
+        .await
+        .unwrap();
+    let stdout = super::run_container(
+        &test_env(image, 30),
+        &pipeline,
+        &[(&base, "/pc-base"), (&candidate, "/candidate")],
+        std::time::Duration::from_secs(30),
+    )
+    .await
+    .unwrap();
+    let (steps, _, complete) = parse_output(&stdout, &policy);
+    assert!(complete);
+    assert_eq!(steps[0].outcome, StepOutcome::Fail);
+    assert_eq!(steps[1].outcome, StepOutcome::Blocked);
+    assert_eq!(steps[1].reference_exit, None);
+}
+
+#[tokio::test]
 async fn observing_runs_the_reference_twice_over_the_base() {
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
@@ -473,6 +626,7 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
         sealed_threshold_permille: 950,
         min_sealed_qualified: 100,
         min_success_permille: 500,
+        preparation_failure: None,
     };
     // Each step gets a sixth of the container budget: 10 s here.
     let receipts = super::run(&test_env(image, 60), &candidate, &base, &policy)

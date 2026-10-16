@@ -31,6 +31,7 @@ import procontract_online_acceptance as acceptance
 import procontract_control_acceptance as control_acceptance
 import procontract_control_continuation as controls
 import procontract_credential_gate as credentials
+import procontract_delivery as task_delivery
 
 
 def episode(plan, digest, index, arm):
@@ -215,6 +216,7 @@ def episode(plan, digest, index, arm):
         return result
     if (
         summary.get("runner_error")
+        or summary.get("native_delivery_error")
         or summary.get("native_process_exit", {}).get("status") != "exited"
         or type(summary.get("native_process_exit", {}).get("returncode")) is not int
         or summary["native_process_exit"]["returncode"] != 0
@@ -231,7 +233,8 @@ def episode(plan, digest, index, arm):
         raise RuntimeError(
             "vanilla control acquired contract state or internal workers"
         )
-    if arm != "vanilla" and not (summary.get("status") or {}).get("contract_id"):
+    delivery = summary.get("native_delivery")
+    if arm != "vanilla" and not delivery and not (summary.get("status") or {}).get("contract_id"):
         raise RuntimeError("required ProContract task contract was never issued")
     if arm == "successor":
         observed_succession = summary.get("succession") or {}
@@ -244,7 +247,8 @@ def episode(plan, digest, index, arm):
             summary.get("succession_error")
             or observed_succession.get("observed") is not True
             or observed_succession.get("configured") != plan["succession"]
-            or observed_succession.get("issue_count") != 1
+            or observed_succession.get("issue_count") not in ([0, 1] if delivery else [1])
+            or (observed_succession.get("issue_count") == 0 and observed_succession.get("launches") != 0)
             or observed_succession.get("pending") is not None
             or (
                 summary.get("cost", {}).get("successors_included_in_workers") or {}
@@ -258,7 +262,10 @@ def episode(plan, digest, index, arm):
             raise RuntimeError(
                 "successor execution or grant unverified; no partial-error submission is graded"
             )
-    archive = canonical.package_submission(run)
+    archive = (
+        canonical.package_submission(run, workspace=task_delivery.materialize(run, delivery))
+        if delivery else canonical.package_submission(run)
+    )
     started = time.monotonic()
     command = canonical.worker_command(
         "evaluate", "--task", task, "--archive", archive, "--output", run / "eval"

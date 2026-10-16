@@ -35,6 +35,7 @@ pub use codex_pro_contract_store::OutOfScope;
 pub use codex_pro_contract_store::ProcessConstraint;
 pub use codex_pro_contract_store::Requirement;
 pub use codex_pro_contract_store::Subject;
+pub use codex_pro_contract_store::Terminal;
 pub use codex_pro_contract_store::Terms;
 pub use codex_pro_contract_store::capture;
 pub use codex_pro_contract_store::digest_of;

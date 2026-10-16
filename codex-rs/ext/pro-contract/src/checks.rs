@@ -21,7 +21,7 @@ use crate::digest_of;
 
 /// Seconds each run of one case may take.
 const CASE_TIMEOUT_SECS: u64 = 10;
-/// Candidate timeouts after which the remaining cases fail without running the candidate.
+/// Candidate timeouts after which the remaining cases are blocked without inventing results.
 const HANG_BREAKER: u32 = 5;
 /// Bytes of log kept per step.
 const STEP_DETAIL_CAP: usize = 4000;
@@ -34,13 +34,14 @@ const WORK_DIR: &str = "/tmp/pc-work";
 const BASE_MOUNT: &str = "/pc-base";
 /// Where the pipeline script and the case inputs are mounted, read-only.
 const PIPELINE_MOUNT: &str = "/pc";
+const TERMINAL_RUNNER: &str = include_str!("terminal.py");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StepOutcome {
     Pass,
     Fail,
-    /// The candidate did not build, so this case was not executed on either program.
+    /// A failed build or repeated timeout prevented this case from executing.
     Blocked,
     /// The reference disagreed with itself on its exit status or timed out: no evidence.
     Unqualified,
@@ -155,66 +156,7 @@ export CARGO_NET_OFFLINE=true
 /// workspace and the case's fixtures, points the program path at PROGRAM and runs it with the
 /// case's environment and stdin, recording exit status, stdout, stderr and the resulting files.
 /// `run_case STEP INPUT RESULTS ARGS...` runs reference, candidate, reference and judges.
-const CASE_RUNNER: &str = "mkdir -p /tmp/pc-bin /tmp/pc-diff
-hangs=0
-run_side() {
-  input=$1; program=$2; out=$3; shift 3
-  rm -rf /tmp/pc-case /tmp/pc-home && mkdir -p /tmp/pc-case /tmp/pc-home \"$out\" || return 90
-  if [ -d /pc-base ]; then cp -R /pc-base/. /tmp/pc-case/ 2>/dev/null; fi
-  if [ -d \"$input/fixture\" ]; then cp -R \"$input/fixture/.\" /tmp/pc-case/; fi
-  ln -sfn \"$program\" /tmp/pc-bin/executable
-  envs=(); if [ -s \"$input/env\" ]; then mapfile -t envs < \"$input/env\"; fi
-  (cd /tmp/pc-case && env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 TZ=UTC HOME=/tmp/pc-home ${envs[@]+\"${envs[@]}\"} timeout -k 2 \"$CASE_TIMEOUT\" /tmp/pc-bin/executable \"$@\" < \"$input/stdin\" > \"$out/out\" 2> \"$out/err\"; echo $? > \"$out/rc\")
-  (cd /tmp/pc-case && find . -type f -print0 | sort -z | xargs -0 -r sha256sum) > \"$out/files\" 2>/dev/null
-}
-judge() {
-  d=$2; rrc=$(cat \"$d/r1/rc\")
-  if [ \"$rrc\" = 124 ] || [ \"$rrc\" = 137 ] || ! cmp -s \"$d/r1/rc\" \"$d/r2/rc\"; then printf '@@PC %s unqualified - %s\\n' \"$1\" \"$rrc\"; return; fi
-  stable=''; failed=''
-  for ch in rc out err files; do
-    if cmp -s \"$d/r1/$ch\" \"$d/r2/$ch\"; then
-      stable=\"$stable${stable:+,}$ch\"
-      cmp -s \"$d/r1/$ch\" \"$d/c/$ch\" || failed=\"$failed $ch\"
-    fi
-  done
-  if [ -z \"$failed\" ]; then printf '@@PC %s pass %s %s\\n' \"$1\" \"$stable\" \"$rrc\"; return; fi
-  {
-    echo \"differing channels:$failed\"
-    echo \"exit status: reference $rrc, candidate $(cat \"$d/c/rc\")\"
-    for ch in $failed; do
-      case $ch in
-        out|err) echo \"--- $ch (< reference, > candidate)\"; diff \"$d/r1/$ch\" \"$d/c/$ch\" | head -c 1500; echo ;;
-        files) echo '--- files (< reference, > candidate)'; diff \"$d/r1/files\" \"$d/c/files\" | head -c 1000; echo ;;
-      esac
-    done
-  } > \"$d/report\"
-  log \"$1\" \"$d/report\"
-  printf '@@PC %s fail %s %s\\n' \"$1\" \"$stable\" \"$rrc\"
-}
-run_case() {
-  step_name=$1; input=$2; d=$3; shift 3
-  if [ \"$built\" != 1 ]; then emit \"$step_name\" blocked; return; fi
-  run_side \"$input\" \"$REFERENCE\" \"$d/r1\" \"$@\"
-  if [ \"$hangs\" -ge \"$HANG_BREAKER\" ]; then
-    mkdir -p \"$d/c\"; echo 124 > \"$d/c/rc\"; : > \"$d/c/out\"; : > \"$d/c/err\"; : > \"$d/c/files\"
-  else
-    run_side \"$input\" \"$CANDIDATE\" \"$d/c\" \"$@\"
-    case $(cat \"$d/c/rc\") in 124|137) hangs=$((hangs + 1)) ;; esac
-  fi
-  run_side \"$input\" \"$REFERENCE\" \"$d/r2\" \"$@\"
-  judge \"$step_name\" \"$d\"
-}
-obs() { size=$(wc -c < \"$2\"); if [ \"$size\" -le \"$OBSERVATION_CAP\" ]; then cat \"$2\"; else head -c \"$((OBSERVATION_CAP / 2))\" \"$2\"; printf '\\n[... %s bytes omitted ...]\\n' \"$((size - OBSERVATION_CAP))\"; tail -c \"$((OBSERVATION_CAP / 2))\" \"$2\"; fi | awk -v prefix=\"$1\" '{ print prefix $0 }'; }
-observe_case() {
-  id=$1; input=$2; d=$3; shift 3
-  run_side \"$input\" \"$REFERENCE\" \"$d/r1\" \"$@\"
-  run_side \"$input\" \"$REFERENCE\" \"$d/r2\" \"$@\"
-  agree=stable; for ch in rc out err files; do cmp -s \"$d/r1/$ch\" \"$d/r2/$ch\" || agree=unstable; done
-  obs \"@@OUT $id \" \"$d/r1/out\"
-  obs \"@@ERR $id \" \"$d/r1/err\"
-  printf '@@OBS %s %s %s\\n' \"$id\" \"$(cat \"$d/r1/rc\")\" \"$agree\"
-}
-";
+const CASE_RUNNER: &str = include_str!("case_runner.sh");
 
 /// The invocation of one case in the pipeline: `FUNCTION NAME INPUT RESULTS ARGS...`.
 fn case_line(function: &str, name: &str, index: usize, case: &DifferentialCase) -> String {
@@ -416,6 +358,10 @@ fn write_case_inputs(dir: &Path, case: &DifferentialCase) -> std::io::Result<()>
     let fixture = dir.join("fixture");
     std::fs::create_dir_all(&fixture)?;
     std::fs::write(dir.join("stdin"), case.stdin.as_deref().unwrap_or(""))?;
+    if let Some(terminal) = &case.terminal {
+        let config = serde_json::json!({"terminal": terminal, "piped_stdin": case.stdin.is_some()});
+        std::fs::write(dir.join("terminal.json"), serde_json::to_vec(&config)?)?;
+    }
     let env: String = case
         .env
         .iter()
@@ -449,6 +395,7 @@ async fn write_pipeline(
         let _ = std::fs::remove_dir_all(&pipeline_dir);
         std::fs::create_dir_all(&pipeline_dir)?;
         std::fs::write(pipeline_dir.join("pipeline.sh"), script)?;
+        std::fs::write(pipeline_dir.join("terminal.py"), TERMINAL_RUNNER)?;
         for (index, case) in cases.iter().enumerate() {
             write_case_inputs(&pipeline_dir.join("cases").join(index.to_string()), case)?;
         }
@@ -548,6 +495,16 @@ async fn run_container(
     match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(output) => {
             let output = output.map_err(|error| CheckError::Launch(error.to_string()))?;
+            if !output.status.success() {
+                return Err(CheckError::Launch(format!(
+                    "pipeline exited {}: {}",
+                    output.status,
+                    crate::workers::bounded(
+                        &String::from_utf8_lossy(&output.stderr),
+                        STEP_DETAIL_CAP
+                    ),
+                )));
+            }
             Ok(String::from_utf8_lossy(&output.stdout).into_owned())
         }
         Err(_) => {
@@ -580,7 +537,17 @@ pub async fn observe(
     )
     .await;
     let _ = tokio::fs::remove_dir_all(&pipeline_dir).await;
-    Ok(parse_observations(&stdout?))
+    let observations = parse_observations(&stdout?);
+    if !observations
+        .iter()
+        .map(|o| &o.id)
+        .eq(cases.iter().map(|c| &c.id))
+    {
+        return Err(CheckError::Launch(
+            "reference observation pipeline did not report exactly the requested cases".into(),
+        ));
+    }
+    Ok(observations)
 }
 
 /// A sibling directory of `dir` for one container run's script and case inputs.
@@ -606,8 +573,21 @@ pub async fn run(
     base_dir: &Path,
     policy: &EvidencePolicy,
 ) -> Result<CheckReceipts, CheckError> {
+    // A proof/document review has no executable checks. Its evidence is the frozen artifact
+    // catalog; starting a build container would add a false infrastructure dependency.
+    if policy.class == crate::EvidenceClass::ReviewOnly && expected_steps(policy).is_empty() {
+        let environment =
+            vec!["artifact review only; no program or container executed".to_string()];
+        return Ok(CheckReceipts {
+            steps: Vec::new(),
+            environment_digest: digest_of("artifact_review_environment", &environment),
+            evaluator_digest: digest_of("artifact_review_checks", &policy),
+            environment,
+            complete: true,
+        });
+    }
     let script = pipeline_script(policy, &env.candidate_mount, step_timeout_secs(env));
-    let evaluator_digest = digest_of("check_pipeline", &(&script, &env.image));
+    let evaluator_digest = digest_of("check_pipeline", &(&script, TERMINAL_RUNNER, &env.image));
     let image_id = command_output(
         &env.docker,
         &["image", "inspect", "--format", "{{.Id}}", &env.image],

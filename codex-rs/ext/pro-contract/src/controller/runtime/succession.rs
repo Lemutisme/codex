@@ -194,6 +194,11 @@ impl ThreadRuntime {
             state.last_idle = Some(ThreadIdleCause::Completed);
             state.phase = Phase::Working;
         }
+        if let Err(reason) = self.commit_delivery().await {
+            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                .await;
+            return;
+        }
         Box::pin(self.promote()).await;
     }
 

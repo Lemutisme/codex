@@ -276,7 +276,7 @@ impl ContextContributor for ProContractExtension {
             let Some(runtime) = runtime_of(input.thread_store) else {
                 return Vec::new();
             };
-            if runtime.brief().await.is_none() {
+            if !runtime.admitted().await {
                 return Vec::new();
             }
             let mut context = vec![PromptFragment::developer_policy(

@@ -66,6 +66,7 @@ struct FakePorts {
     probe_responses: Mutex<VecDeque<String>>,
     probe_calls: Mutex<Vec<&'static str>>,
     observation_error: bool,
+    observation_exit: i32,
     /// How many sealed cases pass in each check run; the rest fail.
     sealed_passing: usize,
     sealed_qualified: usize,
@@ -99,6 +100,7 @@ impl FakePorts {
             probe_responses: Mutex::default(),
             probe_calls: Mutex::default(),
             observation_error: false,
+            observation_exit: 0,
             sealed_passing: usize::MAX,
             sealed_qualified: usize::MAX,
             public_steps: Mutex::default(),
@@ -260,7 +262,7 @@ impl Ports for FakePorts {
                 .iter()
                 .map(|case| Observation {
                     id: case.id.clone(),
-                    exit: Some(0),
+                    exit: Some(self.observation_exit),
                     stable: true,
                     stdout: "usage: reference\n".to_string(),
                     stderr: String::new(),
@@ -726,10 +728,11 @@ async fn a_verification_is_an_immutable_event_with_identities() {
             ExperimentKind::Intake,
             ExperimentKind::Draft,
             ExperimentKind::Issue,
+            ExperimentKind::Capture,
             ExperimentKind::Verification
         ]
     );
-    let verification = &events[3].event;
+    let verification = &events[4].event;
     assert_eq!(verification.body["verdict"], "support");
     assert_eq!(verification.identities.model.as_deref(), Some("model-a"));
     assert!(verification.identities.policies.contains_key("reviewer"));
@@ -822,17 +825,19 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
             ExperimentKind::Intake,
             ExperimentKind::Probe,
             ExperimentKind::Draft,
+            ExperimentKind::Probe,
             ExperimentKind::Issue,
+            ExperimentKind::Capture,
             ExperimentKind::Verification
         ]
     );
-    let issue = &events[3].event.body;
+    let issue = &events[4].event.body;
     assert_eq!(
         issue["evidence_policy"]["sealed"].as_array().map(Vec::len),
         Some(4)
     );
     assert_eq!(issue["evidence_policy"]["sealed_threshold_permille"], 750);
-    let verification = &events[4].event;
+    let verification = &events[6].event;
     assert_eq!(verification.body["sealed"]["qualified"], 4);
     assert!(verification.identities.policies.contains_key("prober"));
     let default = crate::workers::policies::Policies::default();
@@ -850,7 +855,7 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
 }
 
 #[tokio::test]
-async fn a_failed_prober_preserves_the_failure_and_never_issues() {
+async fn a_failed_prober_preserves_the_task_and_blocks_support_without_losing_delivery() {
     let mut ports = FakePorts::new(CONTRACT_DRAFT)
         .checks(&[StepOutcome::Pass])
         .reviews(&[SUPPORT_REVIEW]);
@@ -858,18 +863,19 @@ async fn a_failed_prober_preserves_the_failure_and_never_issues() {
     let lane = reference_lane(ports).await;
 
     lane.runtime.intake(INTAKE.to_string()).await;
-    let status = lane.wait_for("abstained").await;
+    lane.wait_for("working").await;
     lane.executor_turn("turn-1", "done").await;
+    let status = lane.wait_for("not_verified").await;
     assert!(
         status.detail.contains("evidence preparation failed"),
         "{status:?}"
     );
-    assert!(lane.contract().await.is_none());
-    assert!(lane.ports.checked.lock().unwrap().is_empty());
+    assert!(lane.contract().await.unwrap().support.is_none());
+    assert_eq!(lane.ports.checked.lock().unwrap().len(), 1);
     assert_eq!(lane.ports.reviews.lock().unwrap().len(), 1);
     let events = lane.ledger.experiments().await.expect("events");
     assert!(
-        !events
+        events
             .iter()
             .any(|row| row.event.kind == ExperimentKind::Issue)
     );
@@ -922,14 +928,26 @@ async fn overproduced_exploration_recovers_once_before_freezing_the_suite() {
 }
 
 #[tokio::test]
-async fn insufficient_suite_cannot_issue_and_correction_is_bounded() {
+async fn insufficient_suite_is_explicitly_blocked_and_correction_is_bounded() {
     for insufficient in ["{\"coverage_plan\":[],\"cases\":[]}", "malformed"] {
         let mut ports = FakePorts::new(CONTRACT_DRAFT);
         ports.probe = Some(insufficient);
         let lane = reference_lane(ports).await;
         lane.runtime.intake(INTAKE.into()).await;
-        lane.wait_for("abstained").await;
-        assert!(lane.contract().await.is_none());
+        lane.wait_for("working").await;
+        assert!(lane.contract().await.unwrap().support.is_none());
+        assert!(
+            lane.runtime
+                .state
+                .lock()
+                .await
+                .contract
+                .as_ref()
+                .unwrap()
+                .policy
+                .preparation_failure
+                .is_some()
+        );
         assert_eq!(
             *lane.ports.probe_calls.lock().unwrap(),
             [
@@ -939,8 +957,7 @@ async fn insufficient_suite_cannot_issue_and_correction_is_bounded() {
             ]
         );
         assert!(
-            !lane
-                .ledger
+            lane.ledger
                 .experiments()
                 .await
                 .unwrap()
@@ -956,9 +973,22 @@ async fn failed_reference_observation_is_not_an_empty_successful_observation() {
     ports.observation_error = true;
     let lane = reference_lane(ports).await;
     lane.runtime.intake(INTAKE.into()).await;
-    let status = lane.wait_for("abstained").await;
-    assert!(status.detail.contains("reference_observation"));
-    assert!(lane.contract().await.is_none());
+    lane.wait_for("working").await;
+    assert!(
+        lane.runtime
+            .state
+            .lock()
+            .await
+            .contract
+            .as_ref()
+            .unwrap()
+            .policy
+            .preparation_failure
+            .as_ref()
+            .unwrap()
+            .contains("reference_observation")
+    );
+    assert!(lane.contract().await.unwrap().support.is_none());
     assert_eq!(
         *lane.ports.probe_calls.lock().unwrap(),
         ["pro_contract_explore"]

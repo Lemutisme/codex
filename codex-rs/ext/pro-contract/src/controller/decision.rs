@@ -63,8 +63,8 @@ pub(crate) enum Verdict {
     /// A frozen requirement failed; the residual is shown to the executor on repair.
     Defeat {
         residual: String,
-        /// A counterexample does not make the evidence-production path usable. Preserve both
-        /// facts and let the host repair the evidence boundary before scheduling another solver.
+        /// Evidence readiness limits Support, not repair of an observed candidate failure.
+        /// Preserve the blocker while continuing under the original bounded repair grant.
         blocker: Option<EvidenceBlocker>,
     },
     /// No judgment could be formed; nothing is shown to the executor.
@@ -93,7 +93,7 @@ pub(crate) struct SealedTally {
     pub qualified: u32,
     pub passed: u32,
     pub unqualified: u32,
-    /// Cases not executed because the candidate failed its build prerequisite.
+    /// Cases not executed after a failed prerequisite or repeated candidate timeouts.
     pub blocked: u32,
     /// Qualified cases on which the reference exited zero.
     pub succeeded: u32,
@@ -140,7 +140,7 @@ impl SealedTally {
             line
         } else {
             format!(
-                "{line}; {} not executed after candidate build failure",
+                "{line}; {} not executed after a failed prerequisite or timeout limit",
                 self.blocked
             )
         }
@@ -186,24 +186,16 @@ pub(crate) fn mechanical_verdict(
         .filter(|step| step.outcome == StepOutcome::Fail && !step.step.starts_with(SEALED))
         .collect();
     let tally = SealedTally::of(receipts, policy);
-    // Missing observations downstream of a failed build can be obtained after a candidate
-    // repair. Only an independently insufficient evidence path blocks that repair. Even the
-    // optimistic case below grants continuation only, never evidential support.
-    let after_build = SealedTally {
-        qualified: tally.qualified + tally.blocked,
-        succeeded: tally.succeeded + tally.blocked,
-        ..tally.clone()
-    };
-    let blocked_by_build = failures.iter().any(|step| step.step == "build")
-        && tally.blocked > 0
-        && sufficient(&after_build, policy);
-    let blocker = (sealed_applies(policy) && !sufficient(&tally, policy) && !blocked_by_build).then(|| EvidenceBlocker {
+    let blocker = policy.preparation_failure.as_ref().map(|reason| EvidenceBlocker {
+        class: NotVerifiedClass::InsufficientEvidence,
+        reason: reason.clone(),
+    }).or_else(|| (sealed_applies(policy) && !sufficient(&tally, policy)).then(|| EvidenceBlocker {
         class: NotVerifiedClass::InsufficientEvidence,
         reason: format!(
             "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
             tally.line(), tally.succeeded, policy.min_sealed_qualified, policy.min_success_permille
         ),
-    });
+    }));
     let sealed_defeat =
         sealed_applies(policy) && sufficient(&tally, policy) && below_threshold(&tally, policy);
     if !failures.is_empty() || sealed_defeat {
@@ -447,6 +439,9 @@ pub(crate) fn brief_text(
         brief_header(contract_id, revision),
         evidence_line(policy)
     );
+    if policy.preparation_failure.is_some() {
+        text.push_str("Evidence preparation is blocked. The obligation and bounded repairs remain active, but delivery does not certify acceptance.\n");
+    }
     if !terms.process_constraints.is_empty() {
         text.push_str("Work constraints:\n");
         for constraint in &terms.process_constraints {

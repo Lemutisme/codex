@@ -255,6 +255,7 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
             ),
             min_sealed_qualified: codex_pro_contract_store::default_min_sealed_qualified(),
             min_success_permille: codex_pro_contract_store::default_min_success_permille(),
+            preparation_failure: None,
         }),
     })
 }

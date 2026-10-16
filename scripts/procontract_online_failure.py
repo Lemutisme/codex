@@ -26,6 +26,8 @@ class ContractUnavailable(RuntimeError):
 
 def contained_contract_failure(summary):
     """None means ordinary processing or fatal handling, NEVER permission to ignore it."""
+    if (summary.get("native_delivery") or {}).get("verified") is True and not summary.get("runner_error"):
+        return None
     status = summary.get("status") or {}
     closed = summary.get("native_process_exit") or {}
     learning = summary.get("online_learning") or {}

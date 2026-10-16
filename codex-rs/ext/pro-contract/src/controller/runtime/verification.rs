@@ -324,19 +324,17 @@ impl ThreadRuntime {
             .await;
             return;
         }
-        if let Some(blocker) = blocker {
-            self.not_verified(
-                blocker.class,
-                &format!(
-                    "candidate defeated; continuation blocked: {}",
-                    blocker.reason
-                ),
+        // A usable counterexample and an incomplete acceptance basis are independent facts.
+        // Fixing the former spends the existing grant; it never clears the latter or grants
+        // Support. No fresh solver is scheduled for a blocker without a candidate Defeat.
+        let blockage = blocker.map_or_else(String::new, |blocker| {
+            format!(
+                "\nAcceptance remains blocked ({}): {}. Repair the observed candidate failures; do not claim that this restores missing evidence.",
+                blocker.class.as_str(), blocker.reason
             )
-            .await;
-            return;
-        }
+        });
         let residual = format!(
-            "{residual}\nRecover prior public checks and exact retained details with contract_read_evidence; earlier counterexamples remain in the archive."
+            "{residual}{blockage}\nRecover prior public checks and exact retained details with contract_read_evidence; earlier counterexamples remain in the archive."
         );
         if self.settings.succession.is_some() {
             Box::pin(self.succeed(subject.subject_hash, residual, turn_id, epoch)).await;

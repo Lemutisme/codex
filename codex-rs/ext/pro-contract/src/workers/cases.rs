@@ -14,6 +14,7 @@ use super::strict_object;
 use crate::DifferentialCase;
 use crate::FixtureFile;
 use crate::Observation;
+use crate::Terminal;
 use crate::checks::safe_relative;
 
 /// Largest stdin a case may carry.
@@ -34,7 +35,11 @@ status, standard output, standard error and the files left in the case directory
 id (letters, digits, '-', '_', '.'), a short family tag naming the behavior it exercises, args (the argument vector \
 after the program name), stdin (text up to 64 KiB, or null), files (path relative to the case directory, text, and \
 repeat: the content is text repeated that many times; at most 256 KiB per case), dirs (empty directories), and env \
-(name/value pairs). Never use the reference program itself as an input.";
+(name/value pairs). Set terminal to null for ordinary file/pipe execution, or to {rows, cols, input} \
+for a controlling PTY with stdout and stderr merged into terminal output. With a PTY, null stdin attaches \
+stdin to the terminal; text stdin supplies that text separately while terminal.input feeds /dev/tty. \
+Choose TERM and dimensions from the documented interface. Terminal input is sent once at startup; \
+this is not a timed interaction script. Never use the reference program itself as an input.";
 
 pub(crate) fn case_schema() -> Value {
     strict_object(json!({
@@ -52,6 +57,11 @@ pub(crate) fn case_schema() -> Value {
             "name": {"type": "string"},
             "value": {"type": "string"},
         }))},
+        "terminal": {"anyOf": [{"type": "null"}, strict_object(json!({
+            "rows": {"type": "integer", "minimum": 1, "maximum": 500},
+            "cols": {"type": "integer", "minimum": 1, "maximum": 1000},
+            "input": {"type": "string"},
+        }))]},
     }))
 }
 
@@ -70,6 +80,8 @@ pub(crate) struct RawCase {
     dirs: Vec<String>,
     #[serde(default)]
     env: Vec<RawEnv>,
+    #[serde(default)]
+    terminal: Option<Terminal>,
 }
 
 #[derive(Deserialize)]
@@ -163,6 +175,15 @@ pub(crate) fn validate_cases(
         if case.family.len() > MAX_FAMILY_BYTES || case.family.contains('\n') {
             return malformed(format!("case {id} family is not a short tag"));
         }
+        if let Some(terminal) = &case.terminal
+            && (!(1..=500).contains(&terminal.rows)
+                || !(1..=1000).contains(&terminal.cols)
+                || terminal.input.len() > MAX_STDIN_BYTES)
+        {
+            return malformed(format!(
+                "case {id} has invalid terminal dimensions or input"
+            ));
+        }
         cases.push(DifferentialCase {
             id,
             args: case.args,
@@ -171,6 +192,7 @@ pub(crate) fn validate_cases(
             dirs: case.dirs,
             env,
             family: case.family,
+            terminal: case.terminal,
         });
     }
     Ok(cases)
@@ -192,6 +214,9 @@ pub(crate) fn render_observations(
         text.push_str(&format!("$ executable {}", shell_words(&case.args)));
         if case.stdin.is_some() {
             text.push_str(" < stdin");
+        }
+        if let Some(terminal) = &case.terminal {
+            text.push_str(&format!(" [PTY {}x{}]", terminal.cols, terminal.rows));
         }
         text.push('\n');
         let fixtures: Vec<&str> = case

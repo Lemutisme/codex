@@ -40,6 +40,7 @@ fn a_full_case_becomes_a_differential_case() {
     assert_eq!(
         cases,
         vec![DifferentialCase {
+            terminal: None,
             id: "sizes.nested-1".to_string(),
             args: vec!["-s".to_string(), "tree".to_string()],
             stdin: None,

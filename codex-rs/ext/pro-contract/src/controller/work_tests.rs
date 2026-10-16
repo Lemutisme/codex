@@ -113,17 +113,17 @@ async fn unrelated_green_check_cannot_erase_a_retained_counterexample_or_authori
 }
 
 #[tokio::test]
-async fn candidate_defeat_and_evidence_blockage_do_not_schedule_another_executor() {
-    let mut ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail]);
+async fn candidate_repair_continues_without_erasing_independent_evidence_blockage() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail, StepOutcome::Pass]);
     ports.sealed_qualified = 0;
     let lane = reference_lane(ports).await;
     lane.runtime.intake(INTAKE.into()).await;
     lane.wait_for("working").await;
     lane.executor_turn("failed-without-evidence", "failed")
         .await;
-    let status = lane.wait_for("not_verified").await;
-    assert_eq!(status.class, "insufficient_evidence");
-    assert!(lane.ports.repairs.lock().unwrap().is_empty());
+    let status = lane.wait_for("repairing").await;
+    assert!(status.detail.contains("Acceptance remains blocked"));
+    assert_eq!(lane.ports.repairs.lock().unwrap().len(), 1);
     assert!(lane.ports.successor_packets.lock().unwrap().is_empty());
     let events = lane.ledger.events().await.unwrap();
     assert!(events.iter().any(|e| matches!(
@@ -141,6 +141,82 @@ async fn candidate_defeat_and_evidence_blockage_do_not_schedule_another_executor
         "insufficient_evidence"
     );
     assert!(events.iter().any(|e| matches!(e.command.command, codex_pro_contract::Command::Defeat { defeater, .. } if defeater == verification.hash)));
+    lane.executor_turn("candidate-repaired", "done").await;
+    assert_eq!(
+        lane.wait_for("not_verified").await.class,
+        "insufficient_evidence"
+    );
+    assert!(lane.contract().await.unwrap().support.is_none());
+    assert_eq!(lane.ports.repairs.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn admission_and_delivery_survive_a_declined_draft_and_restart() {
+    let lane = lane(FakePorts::new(DECLINED_DRAFT)).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("abstained").await;
+    lane.executor_turn("delivered-without-contract", "done")
+        .await;
+    let events = lane.ledger.experiments().await.unwrap();
+    let intake = events
+        .iter()
+        .find(|e| e.event.kind == ExperimentKind::Intake)
+        .unwrap();
+    let deliveries: Vec<_> = events
+        .iter()
+        .filter(|e| e.event.body["phase"] == "task_delivery")
+        .collect();
+    assert_eq!(deliveries.len(), 1);
+    assert_eq!(deliveries[0].event.body["intake"], json!(intake.hash));
+    assert!(lane.contract().await.is_none());
+    lane.runtime.restore().await;
+    lane.runtime.restore().await;
+    lane.runtime
+        .intake("must not renew the original admission".into())
+        .await;
+    lane.executor_turn("second-delivery", "revised").await;
+    let events = lane.ledger.experiments().await.unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.event.kind == ExperimentKind::Intake)
+            .count(),
+        1
+    );
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.event.body["phase"] == "task_delivery")
+            .count(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn calibration_failure_cannot_be_erased_by_later_green_candidate_checks() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    ports.observation_exit = 2;
+    let lane = reference_lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("green-but-uncalibrated", "done").await;
+    let status = lane.wait_for("not_verified").await;
+    assert!(status.detail.contains("0 successful"));
+    assert!(lane.contract().await.unwrap().support.is_none());
+    assert_eq!(lane.ports.reviews.lock().unwrap().len(), 1);
+    let events = lane.ledger.experiments().await.unwrap();
+    let calibration = events
+        .iter()
+        .find(|e| e.event.body["phase"] == "calibration")
+        .unwrap();
+    let issued = events
+        .iter()
+        .find(|e| e.event.kind == ExperimentKind::Issue)
+        .unwrap();
+    assert!(calibration.seq < issued.seq);
+    assert!(issued.event.body["evidence_policy"]["preparation_failure"].is_string());
 }
 
 #[tokio::test]

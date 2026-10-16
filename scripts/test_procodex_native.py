@@ -425,7 +425,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 thread = server.request(
                     "thread/start",
                     dict(
-                        model="gpt-5.6-luna",
+                        model=getattr(self, "model", "gpt-5.6-luna"),
                         cwd="/workspace",
                         sandbox=native_config["sandbox_mode"],
                         approvalPolicy="never",

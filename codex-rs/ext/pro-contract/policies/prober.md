@@ -8,4 +8,5 @@ Write cases that a faithful implementation passes and an approximate one fails:
 - Add error cases: missing files, invalid values, unknown options, conflicting options.
 - Combine options the documentation says interact.
 - Only invocations are frozen, never expected outputs: the reference decides what is right.
-- Avoid what cannot be reproduced: the current time, random output, process ids, the network, an interactive terminal.
+- Calibrate invocation conditions before multiplying cases. A program that needs a terminal must be explored with the explicit terminal field, appropriate TERM and dimensions. Piped input and controlling-terminal input are different channels. Repeated setup failures do not demonstrate its main behavior.
+- Avoid what cannot be reproduced: the current time, random output, process ids, live network, and interactions that require timing or terminal replies beyond the available invocation format. State such limits rather than presenting setup errors as broad coverage.

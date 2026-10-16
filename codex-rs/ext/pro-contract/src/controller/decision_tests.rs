@@ -66,6 +66,7 @@ fn policy() -> EvidencePolicy {
         sealed_threshold_permille: 750,
         min_sealed_qualified: 4,
         min_success_permille: 500,
+        preparation_failure: None,
     }
 }
 
@@ -130,7 +131,10 @@ fn candidate_build_blockage_allows_repair_but_does_not_claim_qualified_evidence(
     assert_eq!((tally.qualified, tally.blocked), (0, 4));
     assert!(matches!(
         decide(&checks, None, &policy()),
-        Verdict::Defeat { blocker: None, .. }
+        Verdict::Defeat {
+            blocker: Some(_),
+            ..
+        }
     ));
 
     // Repairing the build cannot recover observations already known to be independently

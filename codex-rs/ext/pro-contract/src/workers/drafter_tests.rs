@@ -179,6 +179,7 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 candidate_command: Some("./executable".to_string()),
                 candidate_tests: true,
                 differential: vec![DifferentialCase {
+                    terminal: None,
                     id: "D1".to_string(),
                     args: vec!["--help".to_string()],
                     stdin: None,
@@ -196,6 +197,7 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 sealed_threshold_permille: 950,
                 min_sealed_qualified: 100,
                 min_success_permille: 500,
+                preparation_failure: None,
             }),
         }
     );

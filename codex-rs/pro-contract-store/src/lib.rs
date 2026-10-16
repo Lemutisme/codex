@@ -37,6 +37,7 @@ pub use terms::FixtureFile;
 pub use terms::OutOfScope;
 pub use terms::ProcessConstraint;
 pub use terms::Requirement;
+pub use terms::Terminal;
 pub use terms::Terms;
 pub use terms::default_min_sealed_qualified;
 pub use terms::default_min_success_permille;

@@ -72,7 +72,17 @@ impl ThreadRuntime {
                 self.state.lock().await.recovered_contract_id = Some(id.clone());
             }
         }
+        self.restore_admission().await?;
         let Some(contract) = contract else {
+            if self.state.lock().await.admission.is_some()
+                && previous.as_ref().is_none_or(|s| s.contract_id.is_none())
+            {
+                self.state.lock().await.phase = Phase::Resting;
+                if previous.as_ref().is_none_or(|s| !s.resting) {
+                    self.write_status("not_verified", "no_handoff", "admitted task restored without acceptance terms; no worker or grant replayed", true).await;
+                }
+                return Ok(());
+            }
             match previous {
                 None => {
                     {
