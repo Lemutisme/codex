@@ -132,10 +132,35 @@ fn a_terms_gap_is_kept_beside_the_verdict() {
     assert_eq!(
         review.terms_gap,
         vec![TermsGap {
+            affected_requirements: None,
             element: "error messages".to_string(),
             reason: "requested but not a requirement".to_string()
         }]
     );
+}
+
+#[test]
+fn scoped_terms_gaps_validate_ids_and_leave_only_unaffected_findings_actionable() {
+    let mut value = review("defeat");
+    value["findings"] = json!([
+        {"requirement_id":"R1","location":"a","counterexample":"real mismatch"},
+        {"requirement_id":"R2","location":"b","counterexample":"disputed demand"}
+    ]);
+    value["terms_gap"] = json!([{"element":"widened scope","reason":"not requested","affected_requirements":["R2"]}]);
+    let parsed = parse(&message(value.clone()), &terms()).unwrap();
+    assert_eq!(
+        parsed
+            .actionable_findings()
+            .iter()
+            .map(|f| f.requirement_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["R1"]
+    );
+    value["terms_gap"][0]["affected_requirements"] = json!(["R9"]);
+    assert!(matches!(
+        parse(&message(value), &terms()),
+        Err(WorkerError::Malformed(_))
+    ));
 }
 
 #[test]

@@ -20,7 +20,6 @@ use crate::StepOutcome;
 use crate::StepReceipt;
 use crate::workers::reviewer::Finding;
 use crate::workers::reviewer::Review;
-use crate::workers::reviewer::ReviewVerdict;
 
 pub(super) const METHOD: &str = "Use consequential unresolved observations to choose the next discriminating experiment or supported repair. Preserve the exact invocation, input/state, available outputs and incomplete-capture boundaries. Replay the motivating case and affected passing controls after each coherent edit. Keep runnable probes and unfinished hypotheses in task-owned workspace files so the frozen candidate carries them forward. Use contract_read_evidence to recover public verification facts omitted from summaries; its frontier covers registered public checks, not every task requirement. A local passing batch cannot erase an older actionable difference. Submit when the remaining uncertainty is explicit and no material observed mismatch has an authorized useful next action within the original budget. Independent support and authorized settlement remain host decisions.";
 
@@ -79,13 +78,11 @@ impl PublicEvidence {
                 })
             })
             .collect();
-        let findings = match review {
-            Some(Review {
-                verdict: ReviewVerdict::Defeat { findings, .. },
-                terms_gap,
-            }) if terms_gap.is_empty() => findings.clone(),
-            _ => Vec::new(),
-        };
+        let findings = review
+            .into_iter()
+            .flat_map(Review::actionable_findings)
+            .cloned()
+            .collect();
         let blocker = match verdict {
             Verdict::Defeat { blocker, .. } => blocker.clone(),
             Verdict::NotVerified { class, reason } => Some(EvidenceBlocker {

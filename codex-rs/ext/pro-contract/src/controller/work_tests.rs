@@ -220,6 +220,31 @@ async fn calibration_failure_cannot_be_erased_by_later_green_candidate_checks() 
 }
 
 #[tokio::test]
+async fn scoped_review_defeat_repairs_only_the_unaffected_requirement_and_never_settles_the_gap() {
+    const DRAFT: &str = r#"{"decision":"contract","reason":"","requirements":[{"id":"R1","text":"answer.txt says done","source_quote":"make answer.txt say done","inferred":false},{"id":"R2","text":"preserve an extra evidence file","source_quote":"make answer.txt say done","inferred":true}],"out_of_scope":[],"differential_cases":[],"candidate_tests":false}"#;
+    const DEFEAT: &str = r#"{"verdict":"defeat","coverage":[],"findings":[{"requirement_id":"R1","location":"answer.txt","counterexample":"says failed instead of done"}],"terms_gap":[{"element":"extra preservation","reason":"not requested","affected_requirements":["R2"]}],"missing":"","residual":"also invent an extra preservation requirement"}"#;
+    const GREEN_WITH_GAP: &str = r#"{"verdict":"support","coverage":[{"requirement_id":"R1","evidence":"answer.txt"},{"requirement_id":"R2","evidence":"answer.txt"}],"findings":[],"terms_gap":[{"element":"extra preservation","reason":"not requested","affected_requirements":["R2"]}],"missing":"","residual":""}"#;
+    let lane = lane(
+        FakePorts::new(DRAFT)
+            .checks(&[StepOutcome::Pass, StepOutcome::Pass])
+            .reviews(&[DEFEAT, GREEN_WITH_GAP]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let terms = lane.contract().await.unwrap().bindings.terms_hash;
+    lane.executor_turn("failed", "failed").await;
+    let status = lane.wait_for("repairing").await;
+    assert!(status.detail.contains("R1") && !status.detail.contains("also invent"));
+    assert_eq!(lane.ports.repairs.lock().unwrap().len(), 1);
+    lane.executor_turn("repaired", "done").await;
+    assert_eq!(lane.wait_for("not_verified").await.class, "terms_gap");
+    let contract = lane.contract().await.unwrap();
+    assert_eq!(contract.bindings.terms_hash, terms);
+    assert!(contract.support.is_none());
+}
+
+#[tokio::test]
 async fn evidence_reader_excludes_sealed_cases_and_rejects_foreign_or_arbitrary_blobs() {
     let lane = reference_lane(FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail])).await;
     lane.runtime.intake(INTAKE.into()).await;

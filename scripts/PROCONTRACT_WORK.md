@@ -71,6 +71,13 @@ still forbids Support after that repair. A blocker without an actionable Defeat
 does not schedule another solver. Authority, cancellation, confirmed shutdown and
 intake-time budgets govern every continuation.
 
+Review scope disputes identify affected requirement IDs. An unaffected finding
+can direct repair while the dispute still blocks Support; a disputed finding
+cannot. The host renders only individually bound findings when scope is disputed,
+excluding the reviewer's unstructured residual. Legacy unscoped disputes retain
+their conservative stop behavior. The controller never silently edits terms to
+remove a dispute or treats an omitted requirement as new repair authority.
+
 The native long-input regression exposed a necessary dependency distinction:
 cases skipped after a failed build previously appeared as failed, qualified
 observations even though neither program ran. They now report `blocked`. They

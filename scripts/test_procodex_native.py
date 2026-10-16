@@ -72,6 +72,7 @@ class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
         succession = getattr(self, "succession_fixture", False)
         probe_fixture = getattr(self, "probe_fixture", False)
+        scoped_review = getattr(self, "scoped_review_fixture", False)
         task_text = getattr(self, "task_text", "Make answer.txt contain ready.")
         package = Path(os.environ["PROCODEX_NATIVE_PACKAGE"]).resolve()
         image = os.environ["PROCODEX_TEST_IMAGE"]
@@ -211,6 +212,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
+                            if scoped_review:
+                                message["requirements"].append(dict(id="R2", text="Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
                         elif role in ("explore", "probe"):
                             packet_parts = {}
                             for text in text_values(body.get("input", [])):
@@ -268,10 +271,16 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 missing="",
                                 residual="",
                             )
-                        elif counts[role] == 1:
+                            if scoped_review:
+                                message["terms_gap"] = [dict(element="extra artifact", reason="not requested", affected_requirements=["R2"])]
+                                if counts[role] == 2:
+                                    message.update(verdict="defeat", coverage=[], findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains first failed instead of ready")],residual="invent an unrequested extra artifact")
+                                else:
+                                    message["coverage"].append(dict(requirement_id="R2",evidence=candidates[-1]))
+                        elif counts[role] == 1 or (scoped_review and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
-                                if succession and role == "executor"
+                                if (succession or scoped_review) and role == "executor" and counts[role] == 1
                                 else "ready"
                             )
                             items = [
@@ -365,7 +374,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 root / "state",
                 source,
                 image,
-                'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
+                None if scoped_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
                 task_seconds=3600,
@@ -468,8 +477,15 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 self.assertEqual(errors, [])
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
-                self.assertEqual(status["phase"], "supported", status)
+                self.assertEqual(status["phase"], "not_verified" if scoped_review else "supported", status)
                 self.assertGreaterEqual(counts.get("review", 0), 2)
+                if scoped_review:
+                    self.assertEqual(status["class"], "terms_gap")
+                    self.assertEqual(counts.get("review"), 4)
+                    self.assertEqual(status["repairs_used"], 1)
+                    with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
+                        commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events WHERE contract_id=? ORDER BY seq",(thread+".1",))]
+                    self.assertEqual(commands,["issue","propose","defeat","propose"])
                 if probe_fixture:
                     self.assertEqual(len(worker_keys.get("explore", set())), 2)
                     self.assertEqual(len(worker_keys.get("probe", set())), 1)

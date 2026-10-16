@@ -9,6 +9,7 @@ use super::decide;
 use super::is_current_brief;
 use super::mechanical_verdict;
 use super::review_summary;
+use super::review_verdict;
 use crate::CheckError;
 use crate::CheckReceipts;
 use crate::DifferentialCase;
@@ -425,6 +426,7 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
     );
     let gap = Ok(Review {
         terms_gap: vec![TermsGap {
+            affected_requirements: None,
             element: "error messages".to_string(),
             reason: "not covered".to_string(),
         }],
@@ -438,6 +440,48 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
         reason.contains("termsGap") && reason.contains("error messages"),
         "{reason}"
     );
+}
+
+#[test]
+fn a_scope_dispute_blocks_acceptance_without_blocking_an_unaffected_repair() {
+    let review = Review {
+        verdict: ReviewVerdict::Defeat {
+            findings: vec![Finding {
+                requirement_id: "R1".into(),
+                location: "parser.py".into(),
+                counterexample: "malformed JSON escapes the required error type".into(),
+            }],
+            residual: "invent unrequested scope".into(),
+        },
+        terms_gap: vec![TermsGap {
+            element: "unrequested extra work".into(),
+            reason: "widened".into(),
+            affected_requirements: Some(vec!["R2".into()]),
+        }],
+    };
+    let Verdict::Defeat {
+        residual,
+        blocker: Some(blocker),
+    } = review_verdict(Some(&Ok(review.clone())))
+    else {
+        panic!("scoped repair");
+    };
+    assert_eq!(blocker.class, NotVerifiedClass::TermsGap);
+    assert!(residual.contains("R1") && !residual.contains("invent unrequested"));
+    let unscoped = Review {
+        terms_gap: vec![TermsGap {
+            affected_requirements: None,
+            ..review.terms_gap[0].clone()
+        }],
+        ..review
+    };
+    assert!(matches!(
+        review_verdict(Some(&Ok(unscoped))),
+        Verdict::NotVerified {
+            class: NotVerifiedClass::TermsGap,
+            ..
+        }
+    ));
 }
 
 #[test]

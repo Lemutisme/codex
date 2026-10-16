@@ -344,23 +344,27 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
         }
         Some(Ok(review)) => review,
     };
-    if !review.terms_gap.is_empty() {
-        return not_verified(
-            NotVerifiedClass::TermsGap,
-            format!(
-                "termsGap: the contract may have missed {}",
-                review
-                    .terms_gap
-                    .iter()
-                    .map(|gap| gap.element.as_str())
-                    .collect::<Vec<_>>()
-                    .join("; ")
-            ),
-        );
+    let blocker = (!review.terms_gap.is_empty()).then(|| EvidenceBlocker {
+        class: NotVerifiedClass::TermsGap,
+        reason: format!(
+            "termsGap: contract scope is disputed for {}",
+            review
+                .terms_gap
+                .iter()
+                .map(|gap| gap.element.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        ),
+    });
+    let findings = review.actionable_findings();
+    if let Some(blocker) = &blocker
+        && findings.is_empty()
+    {
+        return not_verified(blocker.class, &blocker.reason);
     }
     match &review.verdict {
         ReviewVerdict::Support { .. } => Verdict::Support,
-        ReviewVerdict::Defeat { findings, residual } => {
+        ReviewVerdict::Defeat { residual, .. } => {
             let mut text = String::from(
                 "Independent review of your handoff found unmet requirements. Fix them, then end your turn:\n",
             );
@@ -370,13 +374,15 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
                     finding.requirement_id, finding.location, finding.counterexample
                 ));
             }
-            if !residual.trim().is_empty() {
+            // An unstructured residual might include a disputed requirement. When scope is
+            // disputed, render only the individually bound, unaffected findings above.
+            if blocker.is_none() && !residual.trim().is_empty() {
                 text.push_str(residual.trim());
                 text.push('\n');
             }
             Verdict::Defeat {
                 residual: bounded(&text, EXECUTOR_TEXT_CAP),
-                blocker: None,
+                blocker,
             }
         }
         ReviewVerdict::CannotJudge { missing } => not_verified(

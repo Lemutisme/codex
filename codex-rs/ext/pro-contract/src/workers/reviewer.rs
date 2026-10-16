@@ -28,6 +28,10 @@ pub struct Finding {
 pub struct TermsGap {
     pub element: String,
     pub reason: String,
+    /// Existing requirements whose authority/scope is disputed. An empty list identifies an
+    /// omitted request element; None is an older unscoped gap and conservatively blocks repair.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affected_requirements: Option<Vec<String>>,
 }
 
 /// The reviewer's judgment of the candidate against the terms.
@@ -53,6 +57,25 @@ pub struct Review {
     pub verdict: ReviewVerdict,
     /// Where the terms may have missed, widened or weakened part of the human request.
     pub terms_gap: Vec<TermsGap>,
+}
+
+impl Review {
+    /// Only findings outside explicitly identified scope disputes can direct a bounded repair.
+    pub(crate) fn actionable_findings(&self) -> Vec<&Finding> {
+        let ReviewVerdict::Defeat { findings, .. } = &self.verdict else {
+            return Vec::new();
+        };
+        findings
+            .iter()
+            .filter(|finding| {
+                self.terms_gap.iter().all(|gap| {
+                    gap.affected_requirements
+                        .as_ref()
+                        .is_some_and(|ids| !ids.contains(&finding.requirement_id))
+                })
+            })
+            .collect()
+    }
 }
 
 /// The built-in instructions: version 0 of this part of a policy bundle.
@@ -86,6 +109,7 @@ pub(crate) fn schema() -> Value {
         "terms_gap": {"type": "array", "items": strict_object(json!({
             "element": {"type": "string"},
             "reason": {"type": "string"},
+            "affected_requirements": {"type": "array", "items": {"type": "string"}},
         }))},
         "missing": {"type": "string"},
         "residual": {"type": "string"},
@@ -96,6 +120,16 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
     let raw: RawReview = serde_json::from_str(message.trim())
         .map_err(|error| WorkerError::Malformed(error.to_string()))?;
     let terms_gap = raw.terms_gap.clone();
+    if let Some(id) = terms_gap
+        .iter()
+        .filter_map(|gap| gap.affected_requirements.as_ref())
+        .flatten()
+        .find(|id| !terms.requirements.iter().any(|r| &r.id == *id))
+    {
+        return Err(WorkerError::Malformed(format!(
+            "terms gap names unknown requirement {id}"
+        )));
+    }
     Ok(Review {
         verdict: verdict(raw, terms)?,
         terms_gap,
