@@ -23,7 +23,7 @@ impl ThreadRuntime {
             Ok(observations) => {
                 let qualified = observations
                     .iter()
-                    .filter(|o| o.stable && o.exit.is_some_and(|rc| !matches!(rc, 124 | 137)))
+                    .filter(|o| o.stable && o.exit.is_some())
                     .count();
                 let succeeded = observations
                     .iter()

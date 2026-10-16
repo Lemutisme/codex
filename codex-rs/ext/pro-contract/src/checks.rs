@@ -34,7 +34,16 @@ const WORK_DIR: &str = "/tmp/pc-work";
 const BASE_MOUNT: &str = "/pc-base";
 /// Where the pipeline script and the case inputs are mounted, read-only.
 const PIPELINE_MOUNT: &str = "/pc";
-const TERMINAL_RUNNER: &str = include_str!("terminal.py");
+const INVOCATION_RUNNER: &str = include_str!("invocation.py");
+const PROGRAM_ENV: &[(&str, &str)] = &[
+    (
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    ),
+    ("LANG", "C.UTF-8"),
+    ("TZ", "UTC"),
+    ("HOME", "/tmp/pc-home"),
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -89,7 +98,7 @@ pub struct CheckReceipts {
 pub struct Observation {
     pub id: String,
     pub exit: Option<i32>,
-    /// Whether the two runs agreed on every channel.
+    /// Whether both invocations completed and agreed on every channel.
     pub stable: bool,
     pub stdout: String,
     pub stderr: String,
@@ -362,8 +371,12 @@ fn write_case_inputs(dir: &Path, case: &DifferentialCase) -> std::io::Result<()>
         let config = serde_json::json!({"terminal": terminal, "piped_stdin": case.stdin.is_some()});
         std::fs::write(dir.join("terminal.json"), serde_json::to_vec(&config)?)?;
     }
-    let env: String = case
-        .env
+    let mut program_env: std::collections::BTreeMap<String, String> = PROGRAM_ENV
+        .iter()
+        .map(|(key, value)| (key.to_string(), value.to_string()))
+        .collect();
+    program_env.extend(case.env.clone());
+    let env: String = program_env
         .iter()
         .map(|(key, value)| format!("{key}={value}\n"))
         .collect();
@@ -395,7 +408,7 @@ async fn write_pipeline(
         let _ = std::fs::remove_dir_all(&pipeline_dir);
         std::fs::create_dir_all(&pipeline_dir)?;
         std::fs::write(pipeline_dir.join("pipeline.sh"), script)?;
-        std::fs::write(pipeline_dir.join("terminal.py"), TERMINAL_RUNNER)?;
+        std::fs::write(pipeline_dir.join("invocation.py"), INVOCATION_RUNNER)?;
         for (index, case) in cases.iter().enumerate() {
             write_case_inputs(&pipeline_dir.join("cases").join(index.to_string()), case)?;
         }
@@ -587,7 +600,10 @@ pub async fn run(
         });
     }
     let script = pipeline_script(policy, &env.candidate_mount, step_timeout_secs(env));
-    let evaluator_digest = digest_of("check_pipeline", &(&script, TERMINAL_RUNNER, &env.image));
+    let evaluator_digest = digest_of(
+        "check_pipeline",
+        &(&script, INVOCATION_RUNNER, PROGRAM_ENV, &env.image),
+    );
     let image_id = command_output(
         &env.docker,
         &["image", "inspect", "--format", "{{.Id}}", &env.image],

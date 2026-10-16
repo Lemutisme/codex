@@ -228,6 +228,11 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             packet_text = "".join(packet_parts[key] for key in sorted(packet_parts))
                             if not 95_000 <= len(packet_text.encode()) <= 96_000:
                                 raise AssertionError("large probe fixture must reach the transport intact within its budget")
+                            if role == "probe":
+                                invocations = [json.loads(value) for value in re.findall(r"Invocation JSON[^\n]*\n(\{[^\n]*\})\n\[stdout\]", packet_text)]
+                                observed = next((value for value in invocations if value.get("id") == "c0"), None)
+                                if not observed or observed.get("env", {}).get("PC_PROBE_STATE") != "kept" or observed.get("stdin") != "\x00probe input" or observed.get("terminal", {}).get("cols") != 97 or observed.get("files", [{}])[0].get("text") != "probe fixture":
+                                    raise AssertionError("reference input state did not reach the fresh suite-writing worker")
                             count = 4
                             if role == "explore":
                                 count = 125 if len(worker_keys[role]) == 1 else 1
@@ -237,6 +242,11 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     for i in range(count)
                                 ]
                             )
+                            if role == "explore":
+                                for case in message["cases"]:
+                                    case.update(stdin="\x00probe input",env=[dict(name="PC_PROBE_STATE",value="kept")],
+                                                files=[dict(path="probe-input.txt",text="probe fixture",repeat=1)],
+                                                terminal=dict(rows=31,cols=97,input="q"))
                             if role == "probe":
                                 message["coverage_plan"] = [
                                     dict(family="answer", surface="stdout", description="ready")

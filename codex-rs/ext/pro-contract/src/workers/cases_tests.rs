@@ -189,6 +189,17 @@ fn observations_show_the_invocation_fixtures_streams_and_stability() {
         args: vec!["-s".to_string(), "two words".to_string()],
         stdin: Some("in".to_string()),
         dirs: vec!["tree".to_string()],
+        env: [("TERM_PROGRAM".into(), "iTerm.app".into())].into(),
+        files: vec![FixtureFile {
+            path: "input.dat".into(),
+            text: "quoted \"data\"\n\u{0}尾".into(),
+            repeat: 2,
+        }],
+        terminal: Some(crate::Terminal {
+            rows: 31,
+            cols: 97,
+            input: "q\n".into(),
+        }),
         ..Default::default()
     }];
     let observations = vec![Observation {
@@ -201,9 +212,53 @@ fn observations_show_the_invocation_fixtures_streams_and_stability() {
 
     let text = render_observations(&cases, &observations, 10_000);
 
+    let invocation = text
+        .split_once("not defaults):\n")
+        .unwrap()
+        .1
+        .split_once("\n[stdout]\n")
+        .unwrap()
+        .0;
     assert_eq!(
-        text,
-        "$ executable -s 'two words' < stdin\n[fixtures: tree]\nout\n[stderr]\nwarning\n[exit status 2, differs between two runs]\n\n"
+        serde_json::from_str::<Value>(invocation).unwrap(),
+        json!(cases[0])
     );
-    assert!(render_observations(&cases, &observations, 20).len() < 60);
+    assert!(text.contains("out\n") && text.contains("warning\n"));
+    assert!(text.contains("[exit status 2, no stable completed observation]"));
+    assert!(render_observations(&cases, &observations, 20).len() <= 20);
+}
+
+#[test]
+fn bounded_observations_keep_later_invocations_and_make_missing_bytes_explicit() {
+    let cases: Vec<_> = (0..30)
+        .map(|i| DifferentialCase {
+            id: format!("case-{i}"),
+            args: vec!["same-command".into()],
+            stdin: Some(format!("different input {i}")),
+            env: [("CASE".into(), i.to_string())].into(),
+            ..Default::default()
+        })
+        .collect();
+    let observations: Vec<_> = cases
+        .iter()
+        .map(|case| Observation {
+            id: case.id.clone(),
+            exit: Some(0),
+            stable: true,
+            stdout: "large output 尾\n".repeat(1000),
+            stderr: String::new(),
+        })
+        .collect();
+    let text = render_observations(&cases, &observations, 12_000);
+    assert!(text.len() <= 12_000 && text.contains("bytes omitted"));
+    for case in &cases {
+        assert!(
+            text.contains(&format!("Case {}\n", case.id)),
+            "missing {}",
+            case.id
+        );
+    }
+    for cap in [0, 1, 20, 200, 4096] {
+        assert!(render_observations(&cases, &observations, cap).len() <= cap);
+    }
 }

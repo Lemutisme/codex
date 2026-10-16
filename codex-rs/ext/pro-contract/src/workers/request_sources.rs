@@ -5,6 +5,7 @@ use super::WorkerError;
 const MAX_BYTES: usize = 10_000;
 const MAX_SOURCES: usize = 64;
 const CHUNK_BYTES: usize = 512;
+pub(crate) const FORMAT: &str = "explicit-completeness-consecutive-request-catalog-v2";
 
 pub(super) struct RequestSources<'a> {
     spans: Vec<&'a str>,
@@ -38,7 +39,11 @@ impl<'a> RequestSources<'a> {
     }
 
     pub(super) fn render(&self) -> String {
-        let mut output = String::new();
+        let mut output = format!(
+            "[Host catalog metadata: complete={}; spans={}. The spans are consecutive; a sentence may continue in the next span. Boundaries are not omissions.]\n",
+            self.complete,
+            self.spans.len()
+        );
         for (index, text) in self.spans.iter().enumerate() {
             output.push_str(&format!("[request:{index}]\n{text}\n"));
         }

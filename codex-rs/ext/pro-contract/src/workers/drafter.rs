@@ -77,7 +77,15 @@ pub(crate) fn prompt(input: &DraftInput<'_>) -> String {
 
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
-    crate::digest_of("drafter_policy", &(instructions(policy), schema()))
+    crate::digest_of(
+        "drafter_policy",
+        &(
+            instructions(policy),
+            schema(),
+            cases::OBSERVATION_FORMAT,
+            super::request_sources::FORMAT,
+        ),
+    )
 }
 
 pub(crate) fn schema() -> Value {

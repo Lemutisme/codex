@@ -10,6 +10,7 @@ use serde_json::json;
 
 use super::WorkerError;
 use super::bounded;
+use super::bounded_head_tail;
 use super::strict_object;
 use crate::DifferentialCase;
 use crate::FixtureFile;
@@ -26,6 +27,7 @@ const MAX_ARGS: usize = 64;
 const MAX_ENV: usize = 16;
 const MAX_ENV_VALUE_BYTES: usize = 1024;
 const MAX_FAMILY_BYTES: usize = 64;
+pub(crate) const OBSERVATION_FORMAT: &str = "paired-normalized-invocation-and-reference-output-v2";
 
 /// The instructions every case-writing worker shares.
 pub(crate) const CASE_RULES: &str = "Each case runs in a fresh copy of the base workspace (so relative paths to its \
@@ -198,69 +200,65 @@ pub(crate) fn validate_cases(
     Ok(cases)
 }
 
-/// Observations of the reference, one block per case, bounded to `cap` bytes; each stream gets an
-/// equal share so one long output cannot crowd out the rest.
+/// Pair every observation with its normalized invocation. The writer is a fresh worker: it
+/// cannot recover stdin, fixture contents, environment or terminal input from an argv summary.
+/// Each case has its own byte allowance, so a large early example cannot hide later cases.
 pub(crate) fn render_observations(
     cases: &[DifferentialCase],
     observations: &[Observation],
     cap: usize,
 ) -> String {
-    let per_stream = (cap / (2 * observations.len().max(1))).max(400);
+    let per_case = cap / observations.len().max(1);
     let mut text = String::new();
     for observation in observations {
         let Some(case) = cases.iter().find(|case| case.id == observation.id) else {
             continue;
         };
-        text.push_str(&format!("$ executable {}", shell_words(&case.args)));
-        if case.stdin.is_some() {
-            text.push_str(" < stdin");
-        }
-        if let Some(terminal) = &case.terminal {
-            text.push_str(&format!(" [PTY {}x{}]", terminal.cols, terminal.rows));
-        }
-        text.push('\n');
-        let fixtures: Vec<&str> = case
-            .files
-            .iter()
-            .map(|file| file.path.as_str())
-            .chain(case.dirs.iter().map(String::as_str))
-            .collect();
-        if !fixtures.is_empty() {
-            text.push_str(&format!("[fixtures: {}]\n", fixtures.join(", ")));
-        }
-        text.push_str(&bounded(&observation.stdout, per_stream));
-        if !observation.stderr.is_empty() {
-            text.push_str("[stderr]\n");
-            text.push_str(&bounded(&observation.stderr, per_stream));
-        }
         let exit = observation
             .exit
             .map_or_else(|| "unknown".to_string(), |exit| exit.to_string());
         let stability = if observation.stable {
             ""
         } else {
-            ", differs between two runs"
+            ", no stable completed observation"
         };
-        text.push_str(&format!("[exit status {exit}{stability}]\n\n"));
+        let heading = format!(
+            "Case {}\nInvocation JSON (omission markers mean unknown input, not defaults):\n",
+            case.id
+        );
+        let ending = format!("\n[exit status {exit}{stability}]\n\n");
+        let overhead = heading.len() + ending.len() + "\n[stdout]\n\n[stderr]\n".len();
+        let Some(available) = per_case.checked_sub(overhead) else {
+            return bounded(
+                "[Reference observations omitted: insufficient budget for paired input/output framing]",
+                cap,
+            );
+        };
+        let input_cap = available
+            - observation.stdout.len().min(available / 4)
+            - observation.stderr.len().min(available / 4);
+        let invocation = observation_fragment(&json!(case).to_string(), input_cap);
+        let remaining = available - invocation.len();
+        let out_cap = remaining - observation.stderr.len().min(remaining / 2);
+        let stdout = observation_fragment(&observation.stdout, out_cap);
+        let stderr = observation_fragment(&observation.stderr, remaining - stdout.len());
+        text.push_str(&format!(
+            "{heading}{invocation}\n[stdout]\n{stdout}\n[stderr]\n{stderr}{ending}"
+        ));
     }
     bounded(&text, cap)
 }
 
-fn shell_words(args: &[String]) -> String {
-    args.iter()
-        .map(|arg| {
-            if !arg.is_empty()
-                && arg
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "-_./=:,+@%".contains(c))
-            {
-                arg.clone()
-            } else {
-                crate::checks::shell_quote(arg)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+fn observation_fragment(value: &str, cap: usize) -> String {
+    if value.len() <= cap {
+        value.to_string()
+    } else if cap < 64 {
+        bounded(value, cap)
+    } else {
+        // The existing head/tail helper's marker is additional to its data allowance.
+        // Reserve more than its maximum usize-length marker before allocating data bytes.
+        bounded_head_tail(value, cap - 64)
+    }
 }
 
 #[cfg(test)]

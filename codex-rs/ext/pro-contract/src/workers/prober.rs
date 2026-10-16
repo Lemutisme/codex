@@ -171,6 +171,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             super::WORKER_PACKET_PART_CAP,
             REFERENCE_HELP_CAP,
             OBSERVATIONS_CAP,
+            cases::OBSERVATION_FORMAT,
         ),
     )
 }

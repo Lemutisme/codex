@@ -131,6 +131,20 @@ experiments or derivations may still advance a consequential unresolved claim.
 These are execution instructions, not a mechanical certificate of coverage or
 novelty, and their own digest is recorded alongside the worker policies.
 
+The reference-observation handoff preserves the normalized invocation JSON,
+including stdin, fixture contents, environment and terminal input. Per-case byte
+allowances and explicit omission markers keep large examples from hiding later
+ones. Request catalogs also state their mechanical completeness and consecutive
+span count; a sentence crossing span boundaries does not mean text is missing.
+
+Differential invocations use a common isolated Python standard-library supervisor
+for actual pipes and PTYs (the check image must provide Python 3.9 or newer).
+Only the target receives case environment variables. Timeout and exec failure
+are observed independently of the target's exit status; 124 and 137 are not magic
+timeout codes. Process groups are closed at invocation end. These later input and
+invocation changes are validated separately from experiments frozen at 24e14c2c9;
+those experiments and their performance labels are not rewritten.
+
 ## Deliberate boundaries
 
 - The public archive preserves the checker's available receipts, not arbitrary

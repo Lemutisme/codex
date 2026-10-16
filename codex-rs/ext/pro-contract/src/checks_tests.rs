@@ -96,6 +96,127 @@ async fn reference_adapter_rejects_failed_containers_and_incomplete_observations
     }
 }
 
+#[tokio::test]
+async fn case_environment_cannot_replace_the_timeout_or_terminal_interpreter() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let base = tempfile::tempdir().unwrap();
+    let environment = [
+        ("PATH".into(), String::new()),
+        ("PYTHONHOME".into(), "/missing/python-home".into()),
+    ]
+    .into();
+    let pipe = DifferentialCase {
+        env: environment,
+        ..case("pipe", &["ready"])
+    };
+    let terminal = DifferentialCase {
+        id: "terminal".into(),
+        terminal: Some(crate::Terminal {
+            rows: 24,
+            cols: 80,
+            input: String::new(),
+        }),
+        ..pipe.clone()
+    };
+    let observed = super::observe(
+        &test_env(image, 30),
+        base.path(),
+        "/bin/echo",
+        &[pipe, terminal],
+    )
+    .await
+    .unwrap();
+    assert_eq!(observed.len(), 2);
+    for value in observed {
+        assert_eq!(
+            (
+                value.exit,
+                value.stdout.as_str(),
+                value.stderr.as_str(),
+                value.stable
+            ),
+            (Some(0), "ready\n", "", true)
+        );
+    }
+}
+
+#[tokio::test]
+async fn completed_special_exit_codes_qualify_and_an_actual_timeout_cannot_match_them() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let root = tempfile::tempdir().unwrap();
+    let base = root.path().join("base");
+    let candidate = root.path().join("candidate");
+    std::fs::create_dir_all(&base).unwrap();
+    std::fs::create_dir_all(&candidate).unwrap();
+    let invocations = vec![
+        case("pipe", &[]),
+        DifferentialCase {
+            terminal: Some(crate::Terminal {
+                rows: 24,
+                cols: 80,
+                input: String::new(),
+            }),
+            ..case("pty", &[])
+        },
+    ];
+    let policy = EvidencePolicy {
+        build_command: None,
+        candidate_tests: false,
+        differential: invocations.clone(),
+        sealed: vec![],
+        reference_command: Some("/pc-base/reference".into()),
+        ..policy()
+    };
+    let env = test_env(image, 30);
+    for code in [124, 137] {
+        let program = format!("#!/bin/sh\nexit {code}\n");
+        write_executable(&base.join("reference"), &program).unwrap();
+        write_executable(&candidate.join("executable"), &program).unwrap();
+        let observations = super::observe(&env, &base, "/pc-base/reference", &invocations)
+            .await
+            .unwrap();
+        assert!(
+            observations
+                .iter()
+                .all(|o| o.stable && o.exit == Some(code))
+        );
+        let receipts = super::run(&env, &candidate, &base, &policy).await.unwrap();
+        assert!(
+            receipts.complete
+                && receipts
+                    .steps
+                    .iter()
+                    .all(|s| s.outcome == StepOutcome::Pass)
+        );
+    }
+    write_executable(&candidate.join("executable"), "#!/bin/sh\nsleep 30\n").unwrap();
+    let pipeline = root.path().join("pipeline-timeout");
+    let script =
+        pipeline_script(&policy, "/candidate", 5).replace("CASE_TIMEOUT=10", "CASE_TIMEOUT=0.2");
+    super::write_pipeline(&pipeline, &script, invocations)
+        .await
+        .unwrap();
+    let out = super::run_container(
+        &env,
+        &pipeline,
+        &[(&base, "/pc-base"), (&candidate, "/candidate")],
+        std::time::Duration::from_secs(30),
+    )
+    .await
+    .unwrap();
+    let (steps, _, complete) = parse_output(&out, &policy);
+    assert!(
+        complete
+            && steps.iter().all(|s| s.outcome == StepOutcome::Fail
+                && s.reference_exit == Some(137)
+                && s.detail.contains("timed_out"))
+    );
+}
+
 #[test]
 fn shell_quote_survives_spaces_and_single_quotes() {
     assert_eq!(shell_quote("plain"), "'plain'");
@@ -244,10 +365,10 @@ fn case_inputs_are_written_inside_their_directory() -> std::io::Result<()> {
     };
     write_case_inputs(dir.path(), &inputs)?;
     assert_eq!(std::fs::read_to_string(dir.path().join("stdin"))?, "input");
-    assert_eq!(
-        std::fs::read_to_string(dir.path().join("env"))?,
-        "NO_COLOR=1\n"
-    );
+    let environment = std::fs::read_to_string(dir.path().join("env"))?;
+    assert_eq!(environment.lines().count(), 5);
+    assert!(environment.lines().any(|line| line == "NO_COLOR=1"));
+    assert!(environment.lines().any(|line| line == "HOME=/tmp/pc-home"));
     assert_eq!(
         std::fs::read_to_string(dir.path().join("fixture/tree/a.txt"))?,
         "ababab"

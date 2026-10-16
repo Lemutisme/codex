@@ -24,6 +24,11 @@ fn long_unicode_requests_are_chunked_without_changing_content() {
         .map(|index| sources.resolve(&format!("request:{index}")).unwrap())
         .collect();
     assert_eq!(restored, text);
+    assert!(
+        sources
+            .render()
+            .starts_with("[Host catalog metadata: complete=true;")
+    );
 }
 
 #[test]
@@ -31,6 +36,11 @@ fn incomplete_catalog_never_authorizes_partial_request_terms() {
     for text in ["a".repeat(20_000), "line\n".repeat(4_000)] {
         let sources = RequestSources::new(&text);
         assert!(sources.render().len() < 12_000);
+        assert!(
+            sources
+                .render()
+                .starts_with("[Host catalog metadata: complete=false;")
+        );
         assert!(sources.resolve("request:0").is_err());
     }
 }
