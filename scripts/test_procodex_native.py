@@ -73,6 +73,11 @@ class NativeEvidenceTest(unittest.TestCase):
         succession = getattr(self, "succession_fixture", False)
         probe_fixture = getattr(self, "probe_fixture", False)
         scoped_review = getattr(self, "scoped_review_fixture", False)
+        partial_review = getattr(self, "partial_review_fixture", False)
+        computation = getattr(self, "computation_fixture", False)
+        dialogue_probe = getattr(self, "dialogue_probe_fixture", False)
+        partial_checks = getattr(self, "partial_checks_fixture", False)
+        repair_review = scoped_review or partial_review
         task_text = getattr(self, "task_text", "Make answer.txt contain ready.")
         package = Path(os.environ["PROCODEX_NATIVE_PACKAGE"]).resolve()
         image = os.environ["PROCODEX_TEST_IMAGE"]
@@ -81,6 +86,30 @@ class NativeEvidenceTest(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             (workspace / "answer.txt").write_text("not ready\n")
+            if computation:
+                import io, struct, zipfile
+                header=b"{'descr': '<f8', 'fortran_order': False, 'shape': (3,), }\n"
+                output=io.BytesIO()
+                with zipfile.ZipFile(output,"w") as archive:
+                    archive.writestr("x.npy",b"\x93NUMPY\x01\x00"+struct.pack("<H",len(header))+header+struct.pack("<3d",1.,2.,3.))
+                (workspace/"numbers.npz").write_bytes(output.getvalue())
+            if partial_review:
+                (workspace/"numeric-attachment.bin").write_bytes(b"\x00\xffunknown-format")
+            if dialogue_probe:
+                program = '''#!/usr/local/bin/python3
+import os,sys,time
+from pathlib import Path
+if '--help' in sys.argv:
+ print('bounded dialog reference');sys.exit(0)
+with open('/dev/tty','r+b',buffering=0) as tty:
+ for query,reply in [(b'CAP?',b'supported\\n'),(b'PIXELS?',b'800x240\\n')]:
+  tty.write(query)
+  assert tty.readline()==reply
+if 'block' in sys.argv:time.sleep(30)
+print(VALUE)
+'''
+                for name, value in [('reference.py',"'ready'"),('candidate.py',"Path(__file__).resolve().with_name('answer.txt').read_text().strip()")]:
+                    (workspace/name).write_text(program.replace('VALUE',value));(workspace/name).chmod(0o755)
             if probe_fixture:
                 documentation = "Documented interface: return ready. 文档\n" * 2700
                 self.assertTrue(96_000 < len(documentation.encode()) < 119_000)
@@ -121,6 +150,28 @@ for (let offset = 0; offset < 50;) {
 const artifact = decode(await tools.read_evidence({op:"read",source_id:id,offset:0}));
 text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
 """
+            if computation:
+                review_code = review_code.replace('text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});',r'''
+let binary;
+for (let offset=0; offset<50;) {
+ const page=decode(await tools.read_evidence({op:"index",source_id:"",offset}));
+ if (page.entry?.path==="numbers.npz") {binary=page.entry.source_id;break;}
+ if(page.eof)break;offset=page.next_offset;
+}
+if(!binary)throw new Error("binary source missing");
+const code="import struct,zipfile\nfrom pathlib import Path\nassert Path('/evidence/"+id.replace(":","-")+"').read_text().strip()=='ready'\ndata=zipfile.ZipFile('/evidence/"+binary.replace(":","-")+"').read('x.npy')\nn=struct.unpack('<H',data[8:10])[0]\nassert struct.unpack('<3d',data[10+n:])==(1.,2.,3.)\nprint('ready: frozen numeric sum is 6')\n";
+const computation=decode(await tools.inspect_evidence({source_ids:[id,binary],requirements:["R1"],python:code}));
+if(computation.execution_state!=="completed")throw new Error(JSON.stringify(computation));
+let result="", citation;
+for(let offset=0,i=0;i<100;i++) {
+ const page=decode(await tools.read_evidence({op:"read",source_id:computation.source_id,offset}));
+ result+=page.text;citation=page.citation_id;
+ if(page.eof)break;offset=page.next_offset;
+}
+const checked=JSON.parse(result);
+if(!checked.stdout.includes("sum is 6"))throw new Error("wrong frozen data");
+text({fixtureCitation:citation,artifact:artifact.text,denied,frozenComputation:true,computation:checked});
+''')
             successor_recall = r"""
 function decode(x) {
  if (typeof x === "string") { try { return decode(JSON.parse(x)); } catch (_) { return x; } }
@@ -148,6 +199,15 @@ if (!record.checks.some(x => x.receipt.step === "build" && x.receipt.outcome ===
 if (record.checks.some(x => x.receipt.step.startsWith("sealed:"))) throw new Error("sealed disclosure");
 text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
 """
+            if partial_checks:
+                successor_recall=successor_recall.replace('"build"','"public:D1"')
+
+            def dialog_case(id, args):
+                return dict(id=id,family="answer",args=args,stdin="\x00probe input",
+                    env=[dict(name="PC_PROBE_STATE",value="kept")],
+                    files=[dict(path="probe-input.txt",text="probe fixture",repeat=1)],
+                    terminal=dict(rows=31,cols=97,input="",dialogue=[
+                        dict(expect="CAP?",send="supported\n"),dict(expect="PIXELS?",send="800x240\n")]))
 
             class Provider(http.server.BaseHTTPRequestHandler):
                 protocol_version = "HTTP/1.1"
@@ -212,8 +272,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
-                            if scoped_review:
-                                message["requirements"].append(dict(id="R2", text="Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
+                            if repair_review:
+                                message["requirements"].append(dict(id="R2", text="Check the numerical attachment" if partial_review else "Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
+                            if partial_checks:
+                                message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
                         elif role in ("explore", "probe"):
                             packet_parts = {}
                             for text in text_values(body.get("input", [])):
@@ -233,6 +295,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 observed = next((value for value in invocations if value.get("id") == "c0"), None)
                                 if not observed or observed.get("env", {}).get("PC_PROBE_STATE") != "kept" or observed.get("stdin") != "\x00probe input" or observed.get("terminal", {}).get("cols") != 97 or observed.get("files", [{}])[0].get("text") != "probe fixture":
                                     raise AssertionError("reference input state did not reach the fresh suite-writing worker")
+                                if dialogue_probe and observed.get("terminal",{}).get("dialogue",[])!=dialog_case("x",[])["terminal"]["dialogue"]:
+                                    raise AssertionError("terminal dialogue lost in observation handoff")
                             count = 4
                             if role == "explore":
                                 count = 125 if len(worker_keys[role]) == 1 else 1
@@ -251,7 +315,12 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["coverage_plan"] = [
                                     dict(family="answer", surface="stdout", description="ready")
                                 ]
+                            if dialogue_probe:
+                                message["cases"]=[dialog_case(case["id"],case["args"]) for case in message["cases"]]
                         elif role == "review" and counts[role] % 2 == 1:
+                            if computation:
+                                # A mutable workspace change must not change inspected bytes.
+                                (workspace/"numbers.npz").write_bytes(b"changed after candidate capture")
                             items = [custom_call(body, review_code, "review-evidence")]
                             message = None
                         elif role == "review":
@@ -287,10 +356,14 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     message.update(verdict="defeat", coverage=[], findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains first failed instead of ready")],residual="invent an unrequested extra artifact")
                                 else:
                                     message["coverage"].append(dict(requirement_id="R2",evidence=candidates[-1]))
-                        elif counts[role] == 1 or (scoped_review and role == "executor" and counts[role] == 3):
+                            if partial_review:
+                                message.update(verdict="partial",gaps=[dict(requirement_id="R2",reason="numeric format is not yet assessable")])
+                                if counts[role]==2:
+                                    message.update(coverage=[],findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains first failed instead of ready")])
+                        elif counts[role] == 1 or (repair_review and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
-                                if (succession or scoped_review) and role == "executor" and counts[role] == 1
+                                if (succession or repair_review) and role == "executor" and counts[role] == 1
                                 else "ready"
                             )
                             items = [
@@ -384,7 +457,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 root / "state",
                 source,
                 image,
-                None if scoped_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
+                None if repair_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
                 task_seconds=3600,
@@ -399,6 +472,17 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                     min_success_permille=500,
                     sealed_threshold_permille=750,
                 )
+                settings_path.write_text(json.dumps(settings))
+            if computation or dialogue_probe:
+                settings_path=home/"pro_contract/settings.json"
+                settings=json.loads(settings_path.read_text())
+                if computation:settings["review_execution"]=dict(max_calls=2,timeout_secs=10,max_output_bytes=8192)
+                if dialogue_probe:
+                    settings["evaluation"]["reference_command"]="/pc-base/reference.py"
+                    settings["evaluation"]["check"]["candidate_command"]="./candidate.py"
+                if partial_checks:
+                    settings["evaluation"]["check"]["build_command"]="chmod +x ./candidate.py"
+                    settings["evaluation"]["check"]["timeout_secs"]=4
                 settings_path.write_text(json.dumps(settings))
             env = {
                 **os.environ,
@@ -487,10 +571,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 self.assertEqual(errors, [])
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
-                self.assertEqual(status["phase"], "not_verified" if scoped_review else "supported", status)
-                self.assertGreaterEqual(counts.get("review", 0), 2)
-                if scoped_review:
-                    self.assertEqual(status["class"], "terms_gap")
+                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks else "supported", status)
+                if not partial_checks:self.assertGreaterEqual(counts.get("review", 0), 2)
+                if repair_review:
+                    self.assertEqual(status["class"], "reviewer_unable" if partial_review else "terms_gap")
                     self.assertEqual(counts.get("review"), 4)
                     self.assertEqual(status["repairs_used"], 1)
                     with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
@@ -565,39 +649,60 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 (thread,),
                             ).fetchone()[0]
                         )
-                    self.assertEqual(
-                        commands, ["issue", "propose", "defeat", "propose", "support"]
-                    )
+                    self.assertEqual(commands, ["issue", "propose", "defeat", "propose"] + ([] if partial_checks else ["support"]))
                     self.assertEqual((budget["launches"], budget["pending"]), (1, None))
                     self.assertNotEqual(budget["executors"], [thread])
-                    if getattr(self, "benchmark_binding_fixture", False):
-                        import procontract_benchmark_runner as runner
-                        import procontract_succession_binding as binding
+                    if partial_checks:
+                        self.assertEqual(status["class"],"infrastructure")
+                        self.assertEqual(counts.get("review",0),0)
+                        with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
+                            verifications=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='verification' ORDER BY seq")]
+                        self.assertEqual([r["verdict"] for r in verifications],["defeat","not_verified"])
+                        self.assertTrue(all(not r["receipts"]["complete"] for r in verifications))
+                        self.assertTrue(all(r["receipts"]["execution"]["shutdown_confirmed"] for r in verifications))
+                        self.assertEqual([next(s["outcome"] for s in r["receipts"]["steps"] if s["step"]=="public:D1") for r in verifications],["fail","pass"])
+                if computation:
+                    self.assertTrue(any("frozenComputation" in text and "true" in text
+                        for request in requests for item in request.get("input",[])
+                        if item.get("type") in ("custom_tool_call_output","function_call_output") for text in text_values(item)))
+                    with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
+                        verified=json.loads(connection.execute("SELECT event_json FROM experiment_events WHERE kind='verification' ORDER BY seq DESC LIMIT 1").fetchone()[0])["body"]
+                    def blob(handle):
+                        return json.loads((home/"pro_contract/blobs"/handle[:2]/handle).read_text())
+                    public=blob(verified["public_evidence"])
+                    self.assertEqual(len(public["inspections"]),1)
+                    retained=blob(public["inspections"][0])
+                    self.assertEqual(retained["subject_hash"],public["subject_hash"])
+                    self.assertEqual(retained["execution"]["state"],"completed")
+                    self.assertEqual(len(retained["inputs"]),2)
+                if succession and getattr(self, "benchmark_binding_fixture", False):
+                    import procontract_benchmark_runner as runner
+                    import procontract_succession_binding as binding
 
-                        audit = binding.snapshot(
-                            home, thread, {"max_sessions": 2, "total_secs": 3600}
-                        )
-                        cost = runner.rollout_costs(
-                            home, successor_ids=audit["executors"]
-                        )
-                        self.assertEqual(
-                            (audit["issue_count"], audit["launches"], audit["pending"]),
-                            (1, 1, None),
-                        )
-                        self.assertEqual(
-                            cost["successors_included_in_workers"]["rollouts"], 1
-                        )
-                        self.assertEqual(
-                            cost["successors_included_in_workers"]["usage"][
-                                "total_tokens"
-                            ],
-                            counts["successor"] * 20,
-                        )
-                        self.assertEqual(
-                            cost["executor"]["total_tokens"]
-                            + cost["workers"]["total_tokens"],
-                            len(requests) * 20,
-                        )
+                    audit = binding.snapshot(
+                        home, thread, {"max_sessions": 2, "total_secs": 3600}
+                    )
+                    cost = runner.rollout_costs(
+                        home, successor_ids=audit["executors"]
+                    )
+                    self.assertEqual(
+                        (audit["issue_count"], audit["launches"], audit["pending"]),
+                        (1, 1, None),
+                    )
+                    self.assertEqual(
+                        cost["successors_included_in_workers"]["rollouts"], 1
+                    )
+                    self.assertEqual(
+                        cost["successors_included_in_workers"]["usage"][
+                            "total_tokens"
+                        ],
+                        counts["successor"] * 20,
+                    )
+                    self.assertEqual(
+                        cost["executor"]["total_tokens"]
+                        + cost["workers"]["total_tokens"],
+                        len(requests) * 20,
+                    )
             finally:
                 server.close()
                 server.process.stdout.close()
@@ -621,6 +726,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 errors=errors,
                                 task_bytes=len(task_text.encode()),
                                 probe_fixture=probe_fixture,
+                                computation_fixture=computation,partial_review_fixture=partial_review,
+                                dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
                                 real_provider_calls=0,
                             ),
                             indent=2,
@@ -629,6 +736,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                     (destination / "requests.json").write_text(
                         json.dumps(requests, indent=2)
                     )
+                    if computation or partial_checks or dialogue_probe:
+                        shutil.copytree(home/"pro_contract/work",destination/"work",dirs_exist_ok=True,symlinks=True)
                     database = home / "pro_contract/ledger_1.sqlite"
                     if database.exists():
                         with contextlib.closing(sqlite3.connect(database)) as source_db:

@@ -29,6 +29,161 @@ async fn read(lane: &Lane, handle: Digest) -> String {
 }
 
 #[tokio::test]
+async fn unresolved_inspection_blocks_support_and_repair_while_retaining_the_local_review() {
+    const DEFEAT: &str = r#"{"verdict":"defeat","coverage":[],"findings":[{"requirement_id":"R1","location":"answer.txt","counterexample":"wrong answer"}],"terms_gap":[],"missing":"","residual":"fix answer.txt"}"#;
+    for (review, corrupt) in [(SUPPORT_REVIEW, false), (DEFEAT, false), (DEFEAT, true)] {
+        let gate = Arc::new(Notify::new());
+        let mut ports = FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[review]);
+        ports.review_gate = Some(gate.clone());
+        let mut lane = lane(ports).await;
+        Arc::get_mut(&mut lane.runtime)
+            .unwrap()
+            .settings
+            .review_execution = Some(crate::ReviewExecution {
+            max_calls: 2,
+            timeout_secs: 10,
+            max_output_bytes: 4096,
+        });
+        lane.runtime.intake(INTAKE.into()).await;
+        lane.wait_for("working").await;
+        lane.executor_turn("first", "done").await;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while lane.ports.review_prompts.lock().unwrap().is_empty() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let contract = lane.contract().await.unwrap();
+        let grant = lane
+            ._dirs
+            .path()
+            .join("pro_contract/work")
+            .join(contract.id.0.replace(['/', '.'], "_"))
+            .join(contract.generation.to_string())
+            .join("candidate.review");
+        assert!(grant.join("grant.json").exists());
+        let action = grant.join("call-0/action");
+        std::fs::create_dir_all(&action).unwrap();
+        let receipt = crate::ExecutionReceipt {
+            run_id: "interrupted-inspection".into(),
+            binding: Digest::of(b"interrupted action"),
+            state: crate::ExecutionState::Running,
+            started_ms: 1,
+            finished_ms: None,
+            exit_code: None,
+            shutdown_confirmed: false,
+            stdout_digest: None,
+            stderr_digest: None,
+            truncated: false,
+            detail: String::new(),
+        };
+        std::fs::write(
+            action.join("execution.json"),
+            if corrupt {
+                b"broken journal".to_vec()
+            } else {
+                serde_json::to_vec(&receipt).unwrap()
+            },
+        )
+        .unwrap();
+        gate.notify_one();
+        let status = lane.wait_for("not_verified").await;
+        assert_eq!(status.class, "infrastructure");
+        assert!(lane.ports.repairs.lock().unwrap().is_empty());
+        assert!(lane.contract().await.unwrap().support.is_none());
+        let index = query(&lane, Operation::Index, None, 0).await;
+        let handle = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+        let public: Value = serde_json::from_str(&read(&lane, handle).await).unwrap();
+        assert!(public["review"].is_object());
+        if !corrupt {
+            assert_eq!(public["inspection_actions"][0]["run_id"], receipt.run_id);
+            assert_eq!(public["inspection_actions"][0]["shutdown_confirmed"], false);
+        }
+    }
+}
+
+#[tokio::test]
+async fn computations_are_retained_with_the_task_but_unlinked_or_foreign_blobs_are_not_readable() {
+    let lane = lane(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("first", "done").await;
+    lane.wait_for("supported").await;
+    let index = query(&lane, Operation::Index, None, 0).await;
+    let handle: Digest = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+    let mut record: crate::controller::work::PublicEvidence =
+        serde_json::from_str(&read(&lane, handle).await).unwrap();
+    let document =
+        json!({"subject_hash":record.subject_hash,"stdout":"checked frozen numeric data"})
+            .to_string();
+    let computed = lane.runtime.store.put(document.as_bytes()).unwrap();
+    let foreign = lane
+        .runtime
+        .store
+        .put(
+            json!({"subject_hash":Digest::of(b"foreign subject"),"stdout":"foreign"})
+                .to_string()
+                .as_bytes(),
+        )
+        .unwrap();
+    record.inspections = vec![computed, foreign];
+    let public = lane
+        .runtime
+        .store
+        .put(&serde_json::to_vec(&record).unwrap())
+        .unwrap();
+    lane.runtime.append_event(ExperimentKind::Verification,None,json!({"contract_id":record.contract_id.0,
+        "generation":record.generation,"subject_hash":record.subject_hash,"public_evidence":public})).await.unwrap();
+    assert_eq!(read(&lane, computed).await, document);
+    lane.runtime.restore().await;
+    assert_eq!(read(&lane, computed).await, document);
+    let access = lane.runtime.evidence_access();
+    assert!(
+        access
+            .read(
+                Query {
+                    op: Operation::Read,
+                    handle: Some(foreign),
+                    offset: 0
+                },
+                4096
+            )
+            .await
+            .is_err()
+    );
+    let unlinked = lane
+        .runtime
+        .store
+        .put(
+            json!({"subject_hash":record.subject_hash,"stdout":"not linked"})
+                .to_string()
+                .as_bytes(),
+        )
+        .unwrap();
+    assert!(
+        access
+            .read(
+                Query {
+                    op: Operation::Read,
+                    handle: Some(unlinked),
+                    offset: 0
+                },
+                4096
+            )
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
 async fn public_evidence_survives_summary_bounds_restart_and_later_verifications() {
     let ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail; 5]);
     let detail = format!(

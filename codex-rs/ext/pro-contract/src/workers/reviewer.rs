@@ -25,6 +25,13 @@ pub struct Finding {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissingEvidence {
+    pub requirement_id: String,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TermsGap {
     pub element: String,
     pub reason: String,
@@ -48,6 +55,13 @@ pub enum ReviewVerdict {
     CannotJudge {
         missing: String,
     },
+    /// Local judgments survive independently of other requirements' evidence gaps.
+    Partial {
+        coverage: Vec<Coverage>,
+        findings: Vec<Finding>,
+        missing: Vec<MissingEvidence>,
+        unscoped_missing: String,
+    },
 }
 
 /// A validated review: the verdict, and separately whether the terms are faithful to the request.
@@ -62,8 +76,11 @@ pub struct Review {
 impl Review {
     /// Only findings outside explicitly identified scope disputes can direct a bounded repair.
     pub(crate) fn actionable_findings(&self) -> Vec<&Finding> {
-        let ReviewVerdict::Defeat { findings, .. } = &self.verdict else {
-            return Vec::new();
+        let findings = match &self.verdict {
+            ReviewVerdict::Defeat { findings, .. } | ReviewVerdict::Partial { findings, .. } => {
+                findings
+            }
+            _ => return Vec::new(),
         };
         findings
             .iter()
@@ -96,7 +113,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
 
 pub(crate) fn schema() -> Value {
     strict_object(json!({
-        "verdict": {"type": "string", "enum": ["support", "defeat", "cannot_judge"]},
+        "verdict": {"type": "string", "enum": ["support", "defeat", "cannot_judge", "partial"]},
         "coverage": {"type": "array", "items": strict_object(json!({
             "requirement_id": {"type": "string"},
             "evidence": {"type": "string"},
@@ -112,6 +129,9 @@ pub(crate) fn schema() -> Value {
             "affected_requirements": {"type": "array", "items": {"type": "string"}},
         }))},
         "missing": {"type": "string"},
+        "gaps": {"type":"array", "items": strict_object(json!({
+            "requirement_id":{"type":"string"}, "reason":{"type":"string"},
+        }))},
         "residual": {"type": "string"},
     }))
 }
@@ -137,12 +157,92 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
 }
 
 fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> {
+    if !matches!(
+        raw.verdict.as_str(),
+        "support" | "defeat" | "cannot_judge" | "partial"
+    ) {
+        return Err(WorkerError::Malformed(format!(
+            "unknown verdict {}",
+            raw.verdict
+        )));
+    }
     let known = |id: &str| {
         terms
             .requirements
             .iter()
             .any(|requirement| requirement.id == id)
     };
+    // New structured partial judgments also preserve mixed legacy responses. The host,
+    // not the model's headline verdict, determines whether every obligation is supported.
+    let mixed = raw.verdict == "partial"
+        || !raw.gaps.is_empty()
+        || (raw.verdict == "support"
+            && (!raw.findings.is_empty()
+                || terms
+                    .requirements
+                    .iter()
+                    .any(|r| !raw.coverage.iter().any(|c| c.requirement_id == r.id))))
+        || (raw.verdict != "support" && !raw.coverage.is_empty())
+        || (raw.verdict == "cannot_judge" && !raw.findings.is_empty())
+        || (!raw.missing.trim().is_empty()
+            && (!raw.coverage.is_empty() || !raw.findings.is_empty()));
+    if mixed {
+        let mut missing = raw.gaps;
+        let mut supported = std::collections::BTreeSet::new();
+        for row in &raw.coverage {
+            if !known(&row.requirement_id) || !supported.insert(&row.requirement_id) {
+                return Err(WorkerError::Malformed(
+                    "unknown or duplicate coverage requirement".into(),
+                ));
+            }
+        }
+        for id in raw
+            .findings
+            .iter()
+            .map(|r| &r.requirement_id)
+            .chain(missing.iter().map(|r| &r.requirement_id))
+        {
+            if !known(id) || supported.contains(id) {
+                return Err(WorkerError::Malformed(
+                    "unknown or contradictory requirement judgment".into(),
+                ));
+            }
+        }
+        if missing.iter().any(|gap| gap.reason.trim().is_empty()) {
+            return Err(WorkerError::Malformed(
+                "a scoped evidence gap must give its reason".into(),
+            ));
+        }
+        for requirement in &terms.requirements {
+            if !supported.contains(&requirement.id)
+                && !raw
+                    .findings
+                    .iter()
+                    .any(|f| f.requirement_id == requirement.id)
+                && !missing.iter().any(|g| g.requirement_id == requirement.id)
+            {
+                missing.push(MissingEvidence {
+                    requirement_id: requirement.id.clone(),
+                    reason: if raw.missing.trim().is_empty() {
+                        "not assessed".into()
+                    } else {
+                        raw.missing.clone()
+                    },
+                });
+            }
+        }
+        if raw.findings.is_empty() && missing.is_empty() && raw.missing.trim().is_empty() {
+            return Ok(ReviewVerdict::Support {
+                coverage: raw.coverage,
+            });
+        }
+        return Ok(ReviewVerdict::Partial {
+            coverage: raw.coverage,
+            findings: raw.findings,
+            missing,
+            unscoped_missing: raw.missing,
+        });
+    }
     match raw.verdict.as_str() {
         "support" => {
             if let Some(unknown) = raw
@@ -211,6 +311,8 @@ struct RawReview {
     findings: Vec<Finding>,
     terms_gap: Vec<TermsGap>,
     missing: String,
+    #[serde(default)]
+    gaps: Vec<MissingEvidence>,
     residual: String,
 }
 

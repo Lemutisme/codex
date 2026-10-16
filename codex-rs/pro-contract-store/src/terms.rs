@@ -75,13 +75,24 @@ pub struct DifferentialCase {
     pub terminal: Option<Terminal>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Terminal {
     pub rows: u16,
     pub cols: u16,
     /// Bytes supplied as UTF-8 to the controlling terminal, independently of piped stdin.
     pub input: String,
+    /// Ordered, literal output triggers and replies. Each trigger is consumed once, including
+    /// across read boundaries. Empty preserves the historical startup-only invocation/hash.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dialogue: Vec<TerminalExchange>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalExchange {
+    pub expect: String,
+    pub send: String,
 }
 
 /// A fixture file whose content is `text` repeated `repeat` times.

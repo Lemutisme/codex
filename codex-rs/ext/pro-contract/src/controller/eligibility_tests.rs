@@ -12,6 +12,7 @@ use crate::WorkerSettings;
 
 fn settings() -> Settings {
     Settings {
+        review_execution: None,
         evaluation: Some(EvaluationProfile {
             environment_id: "cleanroom".to_string(),
             workspace_container_root: "/workspace".to_string(),
@@ -78,6 +79,7 @@ fn a_disabled_feature_or_an_internal_thread_is_inactive() {
 #[test]
 fn without_the_evaluation_grant_the_thread_abstains() {
     let settings = Settings {
+        review_execution: None,
         evaluation: None,
         ..settings()
     };

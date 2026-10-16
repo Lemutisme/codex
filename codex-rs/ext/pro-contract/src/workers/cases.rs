@@ -37,11 +37,14 @@ status, standard output, standard error and the files left in the case directory
 id (letters, digits, '-', '_', '.'), a short family tag naming the behavior it exercises, args (the argument vector \
 after the program name), stdin (text up to 64 KiB, or null), files (path relative to the case directory, text, and \
 repeat: the content is text repeated that many times; at most 256 KiB per case), dirs (empty directories), and env \
-(name/value pairs). Set terminal to null for ordinary file/pipe execution, or to {rows, cols, input} \
+(name/value pairs). Set terminal to null for ordinary pipe execution, or to {rows, cols, input, dialogue} \
 for a controlling PTY with stdout and stderr merged into terminal output. With a PTY, null stdin attaches \
 stdin to the terminal; text stdin supplies that text separately while terminal.input feeds /dev/tty. \
-Choose TERM and dimensions from the documented interface. Terminal input is sent once at startup; \
-this is not a timed interaction script. Never use the reference program itself as an input.";
+Choose TERM and dimensions from the documented interface. input is sent once at startup. dialogue is an \
+ordered array of {expect, send}: wait for the literal expect bytes in terminal output, then send the reply. \
+Each trigger is consumed once; all declared exchanges must complete for the invocation to qualify. \
+Use an empty array when no dialogue is needed. At most 64 exchanges and 64 KiB total input. \
+Calibrate a representative successful invocation before expanding variants. Never use the reference program itself as an input.";
 
 pub(crate) fn case_schema() -> Value {
     strict_object(json!({
@@ -63,6 +66,10 @@ pub(crate) fn case_schema() -> Value {
             "rows": {"type": "integer", "minimum": 1, "maximum": 500},
             "cols": {"type": "integer", "minimum": 1, "maximum": 1000},
             "input": {"type": "string"},
+            "dialogue": {"type": "array", "maxItems":64, "items": strict_object(json!({
+                "expect": {"type":"string", "minLength":1, "maxLength":1024},
+                "send": {"type":"string"},
+            }))},
         }))]},
     }))
 }
@@ -180,7 +187,16 @@ pub(crate) fn validate_cases(
         if let Some(terminal) = &case.terminal
             && (!(1..=500).contains(&terminal.rows)
                 || !(1..=1000).contains(&terminal.cols)
-                || terminal.input.len() > MAX_STDIN_BYTES)
+                || terminal.dialogue.len() > 64
+                || terminal
+                    .dialogue
+                    .iter()
+                    .any(|e| e.expect.is_empty() || e.expect.len() > 1024)
+                || terminal
+                    .dialogue
+                    .iter()
+                    .fold(terminal.input.len(), |n, e| n.saturating_add(e.send.len()))
+                    > MAX_STDIN_BYTES)
         {
             return malformed(format!(
                 "case {id} has invalid terminal dimensions or input"

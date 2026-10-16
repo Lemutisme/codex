@@ -47,6 +47,26 @@ preview issues a contract for the first substantive request in a session; use
 `/new` for a different task. Large workspaces or excluded dependencies may exceed
 capture/check capabilities; an abstention/unknown is not success.
 
+For binary or numerical attachments, opt into bounded review computations:
+
+```sh
+procodex --container-only --review-compute
+```
+
+The reviewer can run Python over selected frozen files in a separate offline,
+read-only container with writable `/tmp`. The configured image must already
+provide Python and the required libraries. The default grant is 8 calls, 30 seconds
+per computation and 64 KiB of reported output, within the original review deadline.
+Calls and the deadline survive restart; this flag preserves the existing task home
+and succession history. Input hashes, program, output and execution receipts become
+task evidence. A numerical check does not establish an unrestricted theorem.
+
+Partial review keeps supported requirements, counterexamples and scoped evidence
+gaps together. An independent counterexample may direct a bounded repair while
+the gap continues to forbid full Support. Unknown process shutdown prevents
+further automatic execution. See [PROCONTRACT_WORK.md](PROCONTRACT_WORK.md) for
+the evidence and lifecycle boundaries.
+
 ```sh
 procodex --version
 procodex doctor
@@ -85,9 +105,10 @@ on resume. This is task-local recovery, not demonstrated general RSI benefit.
 
 - Draft requirements select host-owned human-request IDs. Workspace documentation
   does not silently acquire the authority of a user requirement.
-- Reviewers have a frozen, ID-only read capability, no execution environment, and
-  no general filesystem access. Required artifacts are indexed first. They read
-  the complete request/terms; support references are resolved by the host.
+- Reviewers use frozen, ID-only evidence capabilities without general host
+  filesystem access. Bounded computation requires `--review-compute`. Required
+  artifacts are indexed first. Reviewers read the complete request/terms;
+  positive references are resolved by the host, including partial judgments.
 - Draft/probe/review context uses existing Core contextual fragments, at most 7,000 payload
   bytes per item and 96,000 bytes per packet. History is not rewritten.
 - The fixed research auditor supports host-issued citation handles. Unknown

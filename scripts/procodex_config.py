@@ -47,6 +47,7 @@ def configure(
     isolation="nested",
     successor_sessions=0,
     task_seconds=14400,
+    review_compute=False,
 ):
     """Copy routing only; never carry hooks, MCP, global permissions or project trust over."""
     if isolation not in ("nested", "container-only"):
@@ -179,6 +180,10 @@ def configure(
         settings["succession"] = dict(
             max_sessions=successor_sessions, total_secs=task_seconds
         )
+    if review_compute:
+        # Changing a verification capability does not create another task/home or reset
+        # its existing succession grant. Computation grants are persisted by the runtime.
+        settings["review_execution"] = dict(max_calls=8, timeout_secs=30, max_output_bytes=65536)
     atomic(home / "config.toml", toml(config))
     atomic(home / "environments.toml", env_text)
     atomic(home / "pro_contract/settings.json", json.dumps(settings, indent=2) + "\n")

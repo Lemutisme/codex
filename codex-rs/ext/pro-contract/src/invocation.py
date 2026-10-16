@@ -31,6 +31,16 @@ def run(source, output, seconds, program, args):
     config = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"terminal": None, "piped_stdin": True}
     environment = dict(line.split("=", 1) for line in (source / "env").read_bytes().decode("utf-8").split("\n") if line)
     terminal = config["terminal"]
+    dialogue = [(e["expect"].encode("utf-8"), e["send"].encode("utf-8"))
+                for e in (terminal or {}).get("dialogue", [])]
+    if len(dialogue) > 64 or any(not token or len(token) > 1024 for token, _ in dialogue):
+        raise ValueError("invalid terminal dialogue")
+    if sum(len(reply) for _, reply in dialogue) + len((terminal or {}).get("input", "").encode()) > 65536:
+        raise ValueError("terminal dialogue input exceeds its grant")
+    dialogue_at, dialogue_buffer = 0, b""
+    exchanges = []
+    terminal_queued = len((terminal or {}).get("input", "").encode("utf-8"))
+    terminal_written = 0
     streams = {name: (output / name).open("wb") for name in ["out", "err"]}
     readers, writers, child_fds = {}, {}, set()
     if terminal:
@@ -106,7 +116,10 @@ def run(source, output, seconds, program, args):
                 list(readers), list(writers), [], min(0.05, max(0, deadline - time.monotonic())))
             for fd in writable:
                 try:
-                    writers[fd] = writers[fd][os.write(fd, writers[fd]):]
+                    sent = os.write(fd, writers[fd])
+                    if terminal and fd == master:
+                        terminal_written += sent
+                    writers[fd] = writers[fd][sent:]
                     if not writers[fd]:
                         close_writer(fd)
                 except BlockingIOError:
@@ -126,6 +139,20 @@ def run(source, output, seconds, program, args):
                     data = b""
                 if data:
                     readers[fd].write(data)
+                    if terminal and fd == master and dialogue_at < len(dialogue):
+                        dialogue_buffer += data
+                        while dialogue_at < len(dialogue):
+                            token, reply = dialogue[dialogue_at]
+                            position = dialogue_buffer.find(token)
+                            if position < 0:
+                                dialogue_buffer = dialogue_buffer[-(len(token) - 1):] if len(token) > 1 else b""
+                                break
+                            dialogue_buffer = dialogue_buffer[position + len(token):]
+                            exchanges.append({"index": dialogue_at, "expect_hex": token.hex(), "send_hex": reply.hex()})
+                            terminal_queued += len(reply)
+                            if status is None and reply:
+                                writers[master] = memoryview(bytes(writers.get(master, b"")) + reply)
+                            dialogue_at += 1
                 else:
                     if terminal and fd == master and status is None:
                         # PTY EIO can precede process exit (or a later /dev/tty reopen).
@@ -151,7 +178,12 @@ def run(source, output, seconds, program, args):
     os.close(start_read)
     code = os.waitstatus_to_exitcode(status)
     code = 128 - code if code < 0 else code
-    for name, value in [("rc", code), ("timed_out", int(timed_out)), ("exec_failed", int(exec_failed))]:
+    # A queued but unsent reply does not complete the dialogue.
+    # As with ordinary stdin, a program may legally exit without reading startup input.
+    # Only declared request/reply exchanges impose protocol-completion obligations.
+    dialogue_complete = not dialogue or (dialogue_at == len(dialogue) and terminal_written == terminal_queued)
+    (output / "dialogue.json").write_text(json.dumps({"exchanges": exchanges, "complete": dialogue_complete}))
+    for name, value in [("rc", code), ("timed_out", int(timed_out)), ("exec_failed", int(exec_failed)), ("dialogue_complete", int(dialogue_complete))]:
         (output / name).write_text(str(value) + "\n")
 
 

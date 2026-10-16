@@ -4295,6 +4295,7 @@ dependencies = [
  "codex-protocol",
  "codex-state",
  "codex-utils-absolute-path",
+ "libc",
  "pretty_assertions",
  "serde",
  "serde_json",

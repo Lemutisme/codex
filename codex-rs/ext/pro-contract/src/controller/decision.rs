@@ -174,30 +174,44 @@ pub(crate) fn mechanical_verdict(
             ));
         }
     };
-    if !receipts.complete {
+    if receipts
+        .execution
+        .as_ref()
+        .is_some_and(|run| !run.shutdown_confirmed)
+    {
         return Some(not_verified(
             NotVerifiedClass::Infrastructure,
-            "the check pipeline did not report every step",
+            "check action effects are retained, but shutdown is unconfirmed; reconcile before another action",
         ));
     }
     let failures: Vec<&StepReceipt> = receipts
         .steps
         .iter()
-        .filter(|step| step.outcome == StepOutcome::Fail && !step.step.starts_with(SEALED))
+        .filter(|step| {
+            step.outcome == StepOutcome::Fail
+                && (receipts.complete || step.complete)
+                && !step.step.starts_with(SEALED)
+        })
         .collect();
     let tally = SealedTally::of(receipts, policy);
-    let blocker = policy.preparation_failure.as_ref().map(|reason| EvidenceBlocker {
+    let blocker = (!receipts.complete).then(|| EvidenceBlocker {
+        class: NotVerifiedClass::Infrastructure,
+        reason: receipts.execution.as_ref().map(|run| run.detail.clone())
+            .filter(|reason| !reason.is_empty()).unwrap_or_else(|| "the check pipeline did not report every step".into()),
+    }).or_else(|| policy.preparation_failure.as_ref().map(|reason| EvidenceBlocker {
         class: NotVerifiedClass::InsufficientEvidence,
         reason: reason.clone(),
-    }).or_else(|| (sealed_applies(policy) && !sufficient(&tally, policy)).then(|| EvidenceBlocker {
+    })).or_else(|| (sealed_applies(policy) && !sufficient(&tally, policy)).then(|| EvidenceBlocker {
         class: NotVerifiedClass::InsufficientEvidence,
         reason: format!(
             "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
             tally.line(), tally.succeeded, policy.min_sealed_qualified, policy.min_success_permille
         ),
     }));
-    let sealed_defeat =
-        sealed_applies(policy) && sufficient(&tally, policy) && below_threshold(&tally, policy);
+    let sealed_defeat = receipts.complete
+        && sealed_applies(policy)
+        && sufficient(&tally, policy)
+        && below_threshold(&tally, policy);
     if !failures.is_empty() || sealed_defeat {
         return Some(Verdict::Defeat {
             residual: residual(&failures, sealed_defeat.then_some(&tally), policy),
@@ -344,18 +358,39 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
         }
         Some(Ok(review)) => review,
     };
-    let blocker = (!review.terms_gap.is_empty()).then(|| EvidenceBlocker {
-        class: NotVerifiedClass::TermsGap,
-        reason: format!(
-            "termsGap: contract scope is disputed for {}",
-            review
-                .terms_gap
-                .iter()
-                .map(|gap| gap.element.as_str())
-                .collect::<Vec<_>>()
-                .join("; ")
-        ),
-    });
+    let blocker = (!review.terms_gap.is_empty())
+        .then(|| EvidenceBlocker {
+            class: NotVerifiedClass::TermsGap,
+            reason: format!(
+                "termsGap: contract scope is disputed for {}",
+                review
+                    .terms_gap
+                    .iter()
+                    .map(|gap| gap.element.as_str())
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
+        })
+        .or_else(|| match &review.verdict {
+            ReviewVerdict::Partial {
+                missing,
+                unscoped_missing,
+                ..
+            } if !missing.is_empty() || !unscoped_missing.trim().is_empty() => {
+                Some(EvidenceBlocker {
+                    class: NotVerifiedClass::ReviewerUnable,
+                    reason: missing
+                        .iter()
+                        .map(|gap| format!("{}: {}", gap.requirement_id, gap.reason))
+                        .chain(
+                            (!unscoped_missing.trim().is_empty()).then(|| unscoped_missing.clone()),
+                        )
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                })
+            }
+            _ => None,
+        });
     let findings = review.actionable_findings();
     if let Some(blocker) = &blocker
         && findings.is_empty()
@@ -389,6 +424,27 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
             NotVerifiedClass::ReviewerUnable,
             format!("the reviewer could not judge: {missing}"),
         ),
+        ReviewVerdict::Partial { .. } => {
+            if findings.is_empty() {
+                return not_verified(
+                    NotVerifiedClass::ReviewerUnable,
+                    "review contains unresolved requirements",
+                );
+            }
+            let mut text = String::from(
+                "Independent review found these scoped counterexamples. Repair only these requirements; other judgments and evidence gaps remain recorded:\n",
+            );
+            for finding in findings {
+                text.push_str(&format!(
+                    "- {} at {}: {}\n",
+                    finding.requirement_id, finding.location, finding.counterexample
+                ));
+            }
+            Verdict::Defeat {
+                residual: bounded(&text, EXECUTOR_TEXT_CAP),
+                blocker,
+            }
+        }
     }
 }
 

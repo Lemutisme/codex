@@ -199,6 +199,7 @@ fn observations_show_the_invocation_fixtures_streams_and_stability() {
             rows: 31,
             cols: 97,
             input: "q\n".into(),
+            dialogue: Vec::new(),
         }),
         ..Default::default()
     }];

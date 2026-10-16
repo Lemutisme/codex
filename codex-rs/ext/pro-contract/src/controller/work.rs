@@ -47,6 +47,17 @@ pub(super) struct PublicEvidence {
     pub checks: Vec<PublicCheck>,
     pub findings: Vec<Finding>,
     pub blocker: Option<EvidenceBlocker>,
+    /// Retained local judgments, including coverage and scoped unknowns. An unavailable
+    /// requirement does not erase an independently inspected one. Bound to this subject only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<Review>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<crate::ExecutionReceipt>,
+    /// Host-linked computations remain readable even when the final review is partial.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inspections: Vec<Digest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inspection_actions: Vec<crate::ExecutionReceipt>,
 }
 
 impl PublicEvidence {
@@ -99,7 +110,8 @@ impl PublicEvidence {
             evaluator_digest: receipts.map(|r| r.evaluator_digest),
             pipeline_complete: receipts.is_some_and(|r| r.complete),
             capture_boundary: "Checker receipts retain at most 4,000 detail bytes per step, with omission markers; they are not complete raw process streams. This archive preserves the received public receipt and invocation exactly. Sealed cases are excluded.".into(),
-            checks, findings, blocker,
+            checks, findings, blocker, review: review.cloned(), execution: receipts.and_then(|r| r.execution.clone()),
+            inspections: Vec::new(), inspection_actions: Vec::new(),
         }
     }
 }
@@ -132,7 +144,7 @@ pub(super) fn frontier<'a>(
         }
         for check in &record.checks {
             match check.receipt.outcome {
-                StepOutcome::Fail => {
+                StepOutcome::Fail if record.pipeline_complete || check.receipt.complete => {
                     open.insert(
                         check.receipt.step.clone(),
                         OpenCheck {
@@ -143,10 +155,13 @@ pub(super) fn frontier<'a>(
                         },
                     );
                 }
-                StepOutcome::Pass if record.pipeline_complete => {
+                StepOutcome::Pass if record.pipeline_complete || check.receipt.complete => {
                     open.remove(&check.receipt.step);
                 }
-                StepOutcome::Pass | StepOutcome::Unqualified | StepOutcome::Blocked => {}
+                StepOutcome::Fail
+                | StepOutcome::Pass
+                | StepOutcome::Unqualified
+                | StepOutcome::Blocked => {}
             }
         }
     }

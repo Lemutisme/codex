@@ -18,8 +18,8 @@ use super::ports::{PortFuture, Ports, WorkerIdentity};
 use crate::checks;
 use crate::workers::runtime::{WorkerTurn, run_turn, worker_config};
 use crate::{
-    CheckEnvironment, CheckError, CheckReceipts, DifferentialCase, EvidencePolicy, Observation,
-    WorkerError, WorkerSettings,
+    CheckEnvironment, CheckError, CheckReceipts, DifferentialCase, EvidencePolicy,
+    ObservationBatch, WorkerError, WorkerSettings,
 };
 
 /// The real ports: hidden threads on the host's thread manager and Docker checks.
@@ -57,8 +57,8 @@ impl Ports for CodexPorts {
         base: &'a Path,
         reference: &'a str,
         cases: &'a [DifferentialCase],
-    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>> {
-        Box::pin(checks::observe(env, base, reference, cases))
+    ) -> PortFuture<'a, Result<ObservationBatch, CheckError>> {
+        Box::pin(checks::observe_batch(env, base, reference, cases))
     }
 
     fn run_checks<'a>(

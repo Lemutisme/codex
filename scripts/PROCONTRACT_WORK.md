@@ -1,8 +1,9 @@
 # ProContract: responsibility, working evidence, and replaceable execution
 
-This implementation follows `8c2a1bc1e` (evidence preparation and original-authority
-recovery). It changes the native execution method and working-evidence path. Old
-frozen releases and benchmark results do not describe this version's performance.
+The current continuous-work implementation extends the durable task and original-authority
+work from `37468af98`. It preserves the pure settlement kernel and adds scoped judgments,
+recoverable observations and host-granted computations. Older frozen benchmark results
+remain attached to their original binaries; they do not measure this version's performance.
 
 ## The unit of continuity
 
@@ -106,9 +107,12 @@ calibration does not establish coverage or make a later check unnecessary.
 Invocations can explicitly request a controlling PTY with fixed dimensions and
 terminal input. Text stdin stays a separate file stream; null stdin attaches it
 to the terminal. Terminal stdout/stderr are one raw byte stream, with no terminal
-emulation or normalization. This adapter cannot express arbitrary timed interaction
-or terminal query/reply protocols. Pipe mode is unchanged. Adapter errors and
-incomplete reference receipts fail closed. A proof/document ReviewOnly policy with
+emulation or normalization. An optional ordered `dialogue` of literal `{expect, send}`
+exchanges waits for actual output, including triggers spanning read boundaries, before
+replying. All declared exchanges must finish; process exit alone cannot satisfy a missing
+exchange. Ordinary input remains independent of terminal replies. This is a bounded
+protocol capability, not a complete terminal emulator or an arbitrary timing language.
+Adapter errors and incomplete reference receipts remain explicit. A proof/document ReviewOnly policy with
 no executable checks uses its frozen evidence catalog without starting a container;
 its receipts explicitly state that no program was executed.
 
@@ -148,6 +152,80 @@ timeout codes. Process groups are closed at invocation end. These later input an
 invocation changes are validated separately from experiments frozen at 24e14c2c9;
 those experiments and their performance labels are not rewritten.
 
+## Continuous observations and scoped judgments
+
+A check batch can stop while retaining complete earlier checks. Each host action writes
+its original binding and start record before dispatch, streams bounded stdout/stderr into
+a durable journal, and records completion, failure, timeout or unknown lifecycle separately
+from the observations. Journals are unique and are never overwritten as a retry. A start
+without a completion is not evidence that the action did not execute. Process groups and
+owned containers are cleaned on deadline/cancellation; unconfirmed shutdown prevents
+automatic candidate repair based on that run.
+This also applies to inspection actions: a recovered unknown shutdown or an unreadable
+action journal blocks Support and continuation while preserving any local review.
+
+Only complete protocol records in the expected case order can become check receipts.
+Unfinished trailing records, missing calls and corrupt sequences cannot produce passes.
+A complete individual public counterexample can authorize an existing bounded repair
+even when another check timed out. An individual complete passing replay closes only
+that same registered counterexample. Whole-task Support still requires its full applicable
+policy and no outstanding blockers. Legacy records without individual completeness keep
+their old whole-pipeline interpretation.
+
+Reference observations retain partial batches and their execution status. Repeated reference
+timeouts, exec failures or incomplete dialogues stop further equivalent spending; remaining
+checks are unobserved/blocked. A successful help call or a stable error does not establish
+normal-operation coverage. Check images resolve to immutable local identities, and metadata
+operations share the finite check allowance.
+
+Reviews can return `partial`: positive coverage, concrete findings, scoped `gaps` and any
+unscoped uncertainty coexist. Unknown requirements remain unknown, conflicting judgments
+are rejected, and positive citations are resolved against frozen evidence even in a partial
+review. Full local judgments are retained in the task's public evidence archive. Only
+unaffected findings direct repair; an unavailable attachment does not erase an independent
+proof or turn its lack of inspection into success.
+
+## Frozen evidence computation
+
+`procodex --review-compute` explicitly enables bounded Python inspections in the configured
+check image. It keeps the existing task/home and succession history. The equivalent native
+setting is:
+
+```json
+"review_execution": {
+  "max_calls": 8,
+  "timeout_secs": 30,
+  "max_output_bytes": 65536
+}
+```
+
+Without this grant, artifact review remains read-only text inspection and starts no
+computation container. With it, the native reviewer gets `inspect_evidence` alongside
+`read_evidence`. The model names frozen file IDs and requirement IDs, not host paths or
+mounts. Selected files are mounted read-only as `/evidence/file-N`; Python may use isolated
+`/tmp` scratch. The existing local image supplies libraries: the capability does not install
+NumPy, SymPy or other dependencies or fetch data. The container has no network, dropped
+capabilities, no new privileges, bounded memory/process/CPU use, and no host credentials.
+
+Each computation preserves its selected input hashes, Python program, image identity,
+execution receipt, bounded output and capture limits. A program exit or numeric observation
+is not an automatic proof. Failed/truncated computations cannot be cited as positive coverage;
+reviewers must distinguish failed methods from candidate counterexamples and finite checks
+from universal arguments. Complete computation documents and action receipts are linked by
+the host into the task archive, even when the review itself cannot finish. Only explicitly
+linked, subject-matching documents are readable through `contract_read_evidence`.
+
+A persisted grant binds subject, terms and capability. Reservations precede validation and
+dispatch; restart, malformed requests and failures do not refund calls or renew the original
+deadline. Completed documents can be reopened with validated identities. An unresolved
+prior action blocks another computation until reconciled. A new worker does not acquire a
+new grant merely because its context is fresh.
+
+The current implementation rechecks new candidate versions conservatively. It does not
+infer a complete mathematical dependency graph, implement arbitrary irreversible external
+transactions, or automatically repair an unavailable service. It supplies reusable evidence,
+judgment and lifecycle boundaries on which those domain-specific methods can operate.
+
 ## Deliberate boundaries
 
 - The public archive preserves the checker's available receipts, not arbitrary
@@ -167,6 +245,26 @@ those experiments and their performance labels are not rewritten.
 
 ## Validation
 
+Continuous-work qualification on 2026-10-16 passed **240 Rust tests** (kernel 36,
+store 39, extension 165), **53 Python regressions**, **12 real pipe/PTY tests**,
+formatting, Clippy with warnings denied, and native builds. Docker-enabled Rust
+tests exercised frozen NPZ computation, isolation, failure/truncation refusal,
+durable grants, cancellation and process-group cleanup. Fault injection verified
+that an unresolved or damaged inspection journal blocks both Support and automatic
+repair while retaining the independent local review.
+
+Seven native app-server/code-mode/Docker scenarios passed on the final package:
+frozen binary computation, partial review and bounded repair, reactive dialogue
+through a fresh successor, interrupted checks retaining a failure and its passing
+replay, process restart, scoped terms disputes, and long original-request succession.
+The ledger audit verified one responsibility, preserved original grants, explicit
+remaining gaps, subject-bound computation handles, and no automatic Discharge.
+All provider responses were local scripted fixtures; no real-model inference,
+ProgramBench score or COLT quality improvement was measured.
+
+Commands, exact binary/source identities, retained failed attempts and limitations:
+[`continuous-work-validation-20261016/REPORT.md`](/data/ProContract/continuous-work-validation-20261016/REPORT.md).
+
 The regression suite exercises retained evidence beyond residual bounds and
 three summaries, Unicode and NUL round trips, restart, task scoping, sealed
 non-disclosure, damaged evidence, a late old verifier, and an unrelated green
@@ -181,7 +279,7 @@ app-server, code-mode and Docker using a localhost scripted provider. Its result
 is mechanism evidence, not a real-model performance or RSI result.
 
 See `/data/ProContract/work-validation-20261015/REPORT.md` for the completed
-commands and results from this checkout.
+commands and results from the preceding `37468af98` implementation.
 
 Recorded on 2026-10-15: 213 Rust tests passed (kernel 36, extension 138, store 39),
 the changed build-blockage check also passed against an actual Docker container,

@@ -80,6 +80,7 @@ fn step(name: &str, outcome: StepOutcome, detail: &str) -> StepReceipt {
 
 fn receipts(steps: Vec<StepReceipt>, complete: bool) -> Result<CheckReceipts, CheckError> {
     Ok(CheckReceipts {
+        execution: None,
         steps,
         environment: vec![],
         complete,
@@ -167,6 +168,74 @@ fn checks_that_could_not_run_or_stopped_early_are_infrastructure() {
         &policy(),
     );
     assert_eq!(class(&verdict), Some(NotVerifiedClass::Infrastructure));
+}
+
+#[test]
+fn an_interrupted_batch_keeps_its_completed_public_counterexample_actionable() {
+    let checks = receipts(
+        vec![step("public:D1", StepOutcome::Fail, "actual difference")],
+        false,
+    );
+    assert!(matches!(
+        decide(&checks, Some(&support()), &policy()),
+        Verdict::Defeat {
+            blocker: Some(_),
+            ..
+        }
+    ));
+    let checks = receipts(vec![step("public:D1", StepOutcome::Pass, "")], false);
+    assert!(matches!(
+        decide(&checks, Some(&support()), &policy()),
+        Verdict::NotVerified { .. }
+    ));
+}
+
+#[test]
+fn legacy_failure_requires_the_original_complete_batch_before_authorizing_repair() {
+    let legacy: StepReceipt = serde_json::from_value(serde_json::json!({
+        "step":"public:D1", "outcome":"fail", "detail":"old receipt without individual completion"
+    }))
+    .unwrap();
+    assert!(!legacy.complete);
+    assert!(matches!(
+        decide(&receipts(vec![legacy.clone()], false), None, &policy()),
+        Verdict::NotVerified {
+            class: NotVerifiedClass::Infrastructure,
+            ..
+        }
+    ));
+    assert!(matches!(
+        decide(&receipts(vec![legacy], true), None, &policy()),
+        Verdict::Defeat { .. }
+    ));
+}
+
+#[test]
+fn independent_review_gap_does_not_discard_an_actionable_finding() {
+    let review = crate::workers::reviewer::Review {
+        terms_gap: vec![],
+        verdict: ReviewVerdict::Partial {
+            coverage: vec![],
+            findings: vec![crate::workers::reviewer::Finding {
+                requirement_id: "R1".into(),
+                location: "lemma".into(),
+                counterexample: "d=2".into(),
+            }],
+            missing: vec![crate::workers::reviewer::MissingEvidence {
+                requirement_id: "R2".into(),
+                reason: "unread numeric attachment".into(),
+            }],
+            unscoped_missing: String::new(),
+        },
+    };
+    let verdict = super::review_verdict(Some(&Ok(review)));
+    assert!(matches!(
+        verdict,
+        Verdict::Defeat {
+            blocker: Some(_),
+            ..
+        }
+    ));
 }
 
 #[test]

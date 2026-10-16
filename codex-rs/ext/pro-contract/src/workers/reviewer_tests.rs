@@ -83,12 +83,28 @@ fn the_schema_is_strict() {
 fn support_requires_coverage_of_every_requirement() {
     let mut value = review("support");
     value["coverage"] = json!([{"requirement_id": "R1", "evidence": "differential D1 passed"}]);
-    assert_eq!(
-        parse(&message(value), &terms()).expect("verdict").verdict,
-        ReviewVerdict::CannotJudge {
-            missing: "no coverage for requirement R2".to_string()
-        }
+    let ReviewVerdict::Partial {
+        coverage, missing, ..
+    } = parse(&message(value), &terms()).unwrap().verdict
+    else {
+        panic!("partial judgment lost")
+    };
+    assert_eq!(coverage[0].requirement_id, "R1");
+    assert_eq!(missing[0].requirement_id, "R2");
+}
+
+#[test]
+fn partial_judgments_retain_findings_and_scope_gaps_and_reject_contradictions() {
+    let mut value = review("partial");
+    value["findings"] = json!([{"requirement_id":"R1","location":"lemma 2","counterexample":"fails at dimension two"}]);
+    value["gaps"] = json!([{"requirement_id":"R2","reason":"binary data not yet inspected"}]);
+    let parsed = parse(&message(value.clone()), &terms()).unwrap();
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert!(
+        matches!(parsed.verdict, ReviewVerdict::Partial { ref missing, .. } if missing.len()==1)
     );
+    value["coverage"] = json!([{"requirement_id":"R1","evidence":"e1"}]);
+    assert!(parse(&message(value), &terms()).is_err());
 }
 
 #[test]

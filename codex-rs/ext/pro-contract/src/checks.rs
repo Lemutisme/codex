@@ -62,6 +62,9 @@ pub struct StepReceipt {
     pub step: String,
     pub outcome: StepOutcome,
     pub detail: String,
+    /// A complete individual check, independent of whether later checks ran.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub complete: bool,
     /// The channels on which the two reference runs agreed: `rc`, `out`, `err`, `files`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stable: Vec<String>,
@@ -76,6 +79,7 @@ impl StepReceipt {
             step: step.into(),
             outcome,
             detail: detail.into(),
+            complete: true,
             stable: Vec::new(),
             reference_exit: None,
         }
@@ -91,6 +95,8 @@ pub struct CheckReceipts {
     pub complete: bool,
     pub environment_digest: Digest,
     pub evaluator_digest: Digest,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<crate::ExecutionReceipt>,
 }
 
 /// The reference's behavior on one case, run twice.
@@ -102,6 +108,20 @@ pub struct Observation {
     pub stable: bool,
     pub stdout: String,
     pub stderr: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ObservationBatch {
+    pub observations: Vec<Observation>,
+    pub complete: bool,
+    pub execution: Option<crate::ExecutionReceipt>,
+}
+
+impl std::ops::Deref for ObservationBatch {
+    type Target = [Observation];
+    fn deref(&self) -> &[Observation] {
+        &self.observations
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -239,6 +259,7 @@ pub(crate) fn observe_script(reference: &str, cases: &[DifferentialCase]) -> Str
     script.push_str(&runner_variables(reference));
     for (index, case) in cases.iter().enumerate() {
         script.push_str(&case_line("observe_case", &case.id, index, case));
+        script.push_str("[ \"$reference_hangs\" -lt \"$HANG_BREAKER\" ] || exit 0\n");
     }
     script
 }
@@ -264,6 +285,7 @@ pub(crate) fn parse_output(
     policy: &EvidencePolicy,
 ) -> (Vec<StepReceipt>, Vec<String>, bool) {
     let mut steps = Vec::new();
+    let expected = expected_steps(policy);
     let mut environment = Vec::new();
     let mut logs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for line in stdout.lines() {
@@ -283,8 +305,12 @@ pub(crate) fn parse_output(
                 Some("pass") => StepOutcome::Pass,
                 Some("unqualified") => StepOutcome::Unqualified,
                 Some("blocked") => StepOutcome::Blocked,
-                _ => StepOutcome::Fail,
+                Some("fail") => StepOutcome::Fail,
+                _ => return (Vec::new(), environment, false),
             };
+            if expected.get(steps.len()) != Some(&step) {
+                return (Vec::new(), environment, false);
+            }
             let stable = fields
                 .next()
                 .filter(|stable| *stable != "-")
@@ -296,6 +322,7 @@ pub(crate) fn parse_output(
                 step,
                 outcome,
                 detail,
+                complete: true,
                 stable,
                 reference_exit,
             });
@@ -419,7 +446,7 @@ async fn write_pipeline(
     .map_err(|error| CheckError::Launch(error.to_string()))
 }
 
-fn unique_name() -> String {
+pub(crate) fn unique_name() -> String {
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let nanos = std::time::SystemTime::now()
@@ -429,12 +456,40 @@ fn unique_name() -> String {
     format!("pro-contract-check-{}-{count}-{nanos}", std::process::id())
 }
 
-async fn command_output(program: &str, args: &[&str]) -> Result<String, CheckError> {
-    let output = tokio::process::Command::new(program)
+async fn command_output(
+    program: &str,
+    args: &[&str],
+    timeout: std::time::Duration,
+) -> Result<String, CheckError> {
+    if timeout.is_zero() {
+        return Err(CheckError::TimedOut);
+    }
+    let mut command = tokio::process::Command::new(program);
+    command
         .args(args)
-        .output()
-        .await
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let child = command
+        .spawn()
         .map_err(|error| CheckError::Launch(format!("{program}: {error}")))?;
+    let mut group = crate::execution::ProcessGroup::new(child.id())
+        .map_err(|e| CheckError::Launch(e.to_string()))?;
+    let output = tokio::time::timeout(
+        timeout.min(std::time::Duration::from_secs(30)),
+        child.wait_with_output(),
+    )
+    .await
+    .map_err(|_| {
+        CheckError::Launch(format!(
+            "metadata operation {program} exceeded its deadline"
+        ))
+    })?
+    .map_err(|error| CheckError::Launch(format!("{program}: {error}")))?;
+    group.stop();
     if !output.status.success() {
         return Err(CheckError::Launch(format!(
             "{program} {}: {}",
@@ -445,6 +500,30 @@ async fn command_output(program: &str, args: &[&str]) -> Result<String, CheckErr
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+pub(crate) async fn pin_environment(
+    env: &CheckEnvironment,
+    timeout: std::time::Duration,
+) -> Result<CheckEnvironment, CheckError> {
+    let image = command_output(
+        &env.docker,
+        &["image", "inspect", "--format", "{{.Id}}", &env.image],
+        timeout,
+    )
+    .await?;
+    if image.len() != 71
+        || !image.starts_with("sha256:")
+        || !image[7..].bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err(CheckError::Launch(
+            "container image did not resolve to an immutable identity".into(),
+        ));
+    }
+    Ok(CheckEnvironment {
+        image,
+        ..env.clone()
+    })
+}
+
 /// Runs `pipeline.sh` from `pipeline_dir` in a fresh, network-less container with each
 /// `(host, container)` directory mounted read-only, and returns its stdout.
 async fn run_container(
@@ -452,7 +531,8 @@ async fn run_container(
     pipeline_dir: &Path,
     mounts: &[(&Path, &str)],
     timeout: std::time::Duration,
-) -> Result<String, CheckError> {
+) -> Result<crate::execution::Output, CheckError> {
+    let started = std::time::Instant::now();
     let mut readable: Vec<String> = mounts
         .iter()
         .map(|(host, _)| host.display().to_string())
@@ -461,7 +541,7 @@ async fn run_container(
     let mut chmod = vec!["-R", "a+rX"];
     chmod.extend(readable.iter().map(String::as_str));
     // The container user only needs to read the mounts; it works in its own copies.
-    command_output("chmod", &chmod).await?;
+    command_output("chmod", &chmod, timeout).await?;
     let name = unique_name();
     let mut args: Vec<String> = [
         "run",
@@ -497,34 +577,25 @@ async fn run_container(
         .iter()
         .map(ToString::to_string),
     );
-    let child = tokio::process::Command::new(&env.docker)
-        .args(&args)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|error| CheckError::Launch(error.to_string()))?;
-    match tokio::time::timeout(timeout, child.wait_with_output()).await {
-        Ok(output) => {
-            let output = output.map_err(|error| CheckError::Launch(error.to_string()))?;
-            if !output.status.success() {
-                return Err(CheckError::Launch(format!(
-                    "pipeline exited {}: {}",
-                    output.status,
-                    crate::workers::bounded(
-                        &String::from_utf8_lossy(&output.stderr),
-                        STEP_DETAIL_CAP
-                    ),
-                )));
-            }
-            Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-        }
-        Err(_) => {
-            let _ = command_output(&env.docker, &["rm", "-f", &name]).await;
-            Err(CheckError::TimedOut)
-        }
+    let binding = digest_of("check_action", &(&args, &env.image));
+    let mut command = tokio::process::Command::new(&env.docker);
+    command.args(&args);
+    let available = timeout.saturating_sub(started.elapsed());
+    if available.is_zero() {
+        return Err(CheckError::TimedOut);
     }
+    crate::execution::run(
+        command,
+        &pipeline_dir.join("action"),
+        binding,
+        available,
+        Some(crate::execution::Cleanup::new(
+            env.docker.clone(),
+            vec!["rm".into(), "-f".into(), name],
+        )),
+    )
+    .await
+    .map_err(|error| CheckError::Launch(error.to_string()))
 }
 
 /// Runs `cases` on the reference only, twice each, over the base workspace at `base_dir`; for
@@ -535,6 +606,30 @@ pub async fn observe(
     reference: &str,
     cases: &[DifferentialCase],
 ) -> Result<Vec<Observation>, CheckError> {
+    let batch = observe_batch(env, base_dir, reference, cases).await?;
+    if !batch.complete {
+        return Err(CheckError::Launch("reference observation action was incomplete; retained journal contains partial observations".into()));
+    }
+    Ok(batch.observations)
+}
+
+pub async fn observe_batch(
+    env: &CheckEnvironment,
+    base_dir: &Path,
+    reference: &str,
+    cases: &[DifferentialCase],
+) -> Result<ObservationBatch, CheckError> {
+    if cases.is_empty() {
+        return Ok(ObservationBatch {
+            observations: Vec::new(),
+            complete: true,
+            execution: None,
+        });
+    }
+    let started = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(env.timeout_secs);
+    let pinned = pin_environment(env, timeout).await?;
+    let env = &pinned;
     let pipeline_dir = scratch_dir(base_dir, "observe");
     write_pipeline(
         &pipeline_dir,
@@ -542,25 +637,35 @@ pub async fn observe(
         cases.to_vec(),
     )
     .await?;
-    let stdout = run_container(
+    let output = run_container(
         env,
         &pipeline_dir,
         &[(base_dir, BASE_MOUNT)],
-        std::time::Duration::from_secs(env.timeout_secs),
+        timeout.saturating_sub(started.elapsed()),
     )
-    .await;
-    let _ = tokio::fs::remove_dir_all(&pipeline_dir).await;
-    let observations = parse_observations(&stdout?);
+    .await?;
+    // Journals survive failure; they are not deleted with a partial batch.
+    let observations = parse_observations(completed_lines(&output.stdout));
     if !observations
         .iter()
         .map(|o| &o.id)
-        .eq(cases.iter().map(|c| &c.id))
+        .eq(cases.iter().take(observations.len()).map(|c| &c.id))
     {
         return Err(CheckError::Launch(
-            "reference observation pipeline did not report exactly the requested cases".into(),
+            "reference observation journal is not a valid prefix of requested cases".into(),
         ));
     }
-    Ok(observations)
+    let complete = output.receipt.completed() && observations.len() == cases.len();
+    Ok(ObservationBatch {
+        observations,
+        complete,
+        execution: Some(output.receipt),
+    })
+}
+
+/// An unterminated final record cannot assert a completed check.
+fn completed_lines(text: &str) -> &str {
+    text.rfind('\n').map_or("", |end| &text[..=end])
 }
 
 /// A sibling directory of `dir` for one container run's script and case inputs.
@@ -596,20 +701,21 @@ pub async fn run(
             environment_digest: digest_of("artifact_review_environment", &environment),
             evaluator_digest: digest_of("artifact_review_checks", &policy),
             environment,
+            execution: None,
             complete: true,
         });
     }
+    let started = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(env.timeout_secs);
+    let pinned = pin_environment(env, timeout).await?;
+    let env = &pinned;
     let script = pipeline_script(policy, &env.candidate_mount, step_timeout_secs(env));
     let evaluator_digest = digest_of(
         "check_pipeline",
         &(&script, INVOCATION_RUNNER, PROGRAM_ENV, &env.image),
     );
-    let image_id = command_output(
-        &env.docker,
-        &["image", "inspect", "--format", "{{.Id}}", &env.image],
-    )
-    .await?;
-    let pipeline_dir = subject_dir.with_extension("pipeline");
+    let image_id = &env.image;
+    let pipeline_dir = scratch_dir(subject_dir, "pipeline");
     let case_list = if runs_cases(policy) {
         cases(policy)
             .into_iter()
@@ -626,10 +732,12 @@ pub async fn run(
             (subject_dir, env.candidate_mount.as_str()),
             (base_dir, BASE_MOUNT),
         ],
-        std::time::Duration::from_secs(env.timeout_secs),
+        timeout.saturating_sub(started.elapsed()),
     )
     .await?;
-    let (steps, environment, complete) = parse_output(&stdout, policy);
+    let text = completed_lines(&stdout.stdout);
+    let (steps, environment, complete) = parse_output(text, policy);
+    let complete = complete && stdout.receipt.completed();
     let environment_digest = digest_of("check_environment", &(&image_id, &environment));
     Ok(CheckReceipts {
         steps,
@@ -637,6 +745,7 @@ pub async fn run(
         complete,
         environment_digest,
         evaluator_digest,
+        execution: Some(stdout.receipt),
     })
 }
 

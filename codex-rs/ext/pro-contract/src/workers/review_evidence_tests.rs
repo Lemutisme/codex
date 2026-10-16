@@ -55,6 +55,127 @@ fn read(evidence: &mut ReviewEvidence, request: Value) -> Value {
     serde_json::from_str(text).unwrap()
 }
 
+fn document(evidence: &mut ReviewEvidence, id: &str) -> (String, Value) {
+    let mut offset = 0;
+    let mut result = String::new();
+    loop {
+        let page = read(
+            evidence,
+            json!({"op":"read","source_id":id,"offset":offset}),
+        );
+        result.push_str(page["text"].as_str().unwrap());
+        if page["eof"] == true {
+            return (result, page["citation_id"].clone());
+        }
+        offset = page["next_offset"].as_u64().unwrap();
+    }
+}
+
+#[tokio::test]
+async fn frozen_binary_computation_has_scoped_citations_and_cannot_write_or_claim_failed_checks() {
+    let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
+        return;
+    };
+    let (root, mut evidence) = fixture("placeholder");
+    let workspace = root.path().join("workspace");
+    let generated = std::process::Command::new("python3")
+        .args([
+            "-c",
+            r#"
+import io,struct,sys,zipfile
+header=b"{'descr': '<f8', 'fortran_order': False, 'shape': (3,), }\n"
+npy=b'\x93NUMPY\x01\x00'+struct.pack('<H',len(header))+header+struct.pack('<3d',1.,2.,3.)
+out=io.BytesIO()
+with zipfile.ZipFile(out,'w') as z:z.writestr('x.npy',npy)
+sys.stdout.buffer.write(out.getvalue())
+"#,
+        ])
+        .output()
+        .unwrap();
+    assert!(generated.status.success());
+    std::fs::write(workspace.join("hindsight.json"), generated.stdout).unwrap();
+    evidence.subject = capture(
+        &workspace,
+        &CapturePolicy::standard(vec![]),
+        &evidence.store,
+    )
+    .unwrap();
+    // The computation must see the captured version, not this mutable workspace.
+    std::fs::write(workspace.join("hindsight.json"), "changed after freeze").unwrap();
+    let environment = crate::CheckEnvironment {
+        docker: "docker".into(),
+        image,
+        user: "1000:1000".into(),
+        candidate_mount: "/candidate".into(),
+        timeout_secs: 30,
+        build_command: None,
+        candidate_command: None,
+    };
+    let grant = crate::ReviewExecution {
+        max_calls: 2,
+        timeout_secs: 10,
+        max_output_bytes: 4096,
+    };
+    evidence = evidence
+        .with_execution(
+            environment,
+            grant,
+            root.path().join("review"),
+            std::time::Duration::from_secs(60),
+        )
+        .unwrap();
+    let code = r#"import ast,struct,zipfile
+from pathlib import Path
+data=zipfile.ZipFile('/evidence/file-0').read('x.npy')
+assert data[:8]==b'\x93NUMPY\x01\x00'
+n=struct.unpack('<H',data[8:10])[0]
+header=ast.literal_eval(data[10:10+n].decode())
+assert header['descr']=='<f8' and header['shape']==(3,)
+assert struct.unpack('<3d',data[10+n:])==(1.,2.,3.)
+try:
+ Path('/evidence/file-0').write_bytes(b'changed')
+ raise AssertionError('frozen evidence was writable')
+except PermissionError: pass
+except OSError as error: assert error.errno==30
+assert not Path('/workspace').exists()
+Path('/tmp/result').write_text('scratch is writable')
+print('sum=6; original frozen bytes; isolated writable scratch')
+"#;
+    let response = evidence
+        .inspect(
+            json!({"source_ids":["file:0"],"requirements":["R1"],"python":code}),
+            std::time::Duration::from_secs(20),
+        )
+        .await;
+    assert!(response.success, "{response:?}");
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (text, citation) = document(&mut evidence, "computation:0");
+    let result: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(result["execution"]["state"], "completed", "{result}");
+    assert!(result["stdout"].as_str().unwrap().contains("sum=6"));
+    let supported = |citation: Value| {
+        json!({"verdict":"support","coverage":[{"requirement_id":"R1","evidence":citation}],
+        "findings":[],"terms_gap":[],"missing":"","residual":""})
+        .to_string()
+    };
+    assert!(evidence.resolve_review(&supported(citation)).is_ok());
+    let response = evidence.inspect(json!({"source_ids":[],"requirements":["R1"],"python":"assert False, 'counterexample'"}),std::time::Duration::from_secs(20)).await;
+    assert!(response.success);
+    let (text, citation) = document(&mut evidence, "computation:1");
+    let failed: Value = serde_json::from_str(&text).unwrap();
+    assert_ne!(failed["execution"]["state"], "completed");
+    assert!(evidence.resolve_review(&supported(citation)).is_err());
+    let refused = evidence
+        .inspect(
+            json!({"source_ids":[],"requirements":["R1"],"python":"print('third')"}),
+            std::time::Duration::from_secs(20),
+        )
+        .await;
+    assert!(!refused.success);
+}
+
 #[test]
 fn frozen_data_is_paged_and_support_references_resolve_without_model_hashes() {
     let (root, mut evidence) = fixture(&"\"中文\\\n".repeat(1000));

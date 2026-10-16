@@ -1,6 +1,8 @@
 //! Runs the ProContract check pipeline over a materialized subject outside any thread, for
 //! offline replay and controls. It calls the same `run_checks` the lane uses and prints the
 //! receipts as JSON.
+//! Exit zero means a report was produced, not that the candidate passed or that the action
+//! completed. Consumers must inspect `complete`, individual outcomes and `execution`.
 //!
 //! `pro-contract-check --settings FILE --policy FILE --subject DIR --base DIR
 //! [--candidate-is-reference]` reads the check environment from the settings file's evaluation

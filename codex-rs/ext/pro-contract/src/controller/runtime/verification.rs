@@ -65,7 +65,16 @@ impl ThreadRuntime {
                     self.store.clone(),
                     &terms,
                     crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
-                );
+                )
+                .and_then(|evidence| match &self.settings.review_execution {
+                    Some(grant) => evidence.with_execution(
+                        self.profile.check.clone(),
+                        grant.clone(),
+                        work.with_extension("review"),
+                        Duration::from_secs(self.settings.worker.deadline_secs),
+                    ),
+                    None => Ok(evidence),
+                });
                 let message = match evidence {
                     Ok(evidence) => {
                         self.ports
@@ -85,6 +94,39 @@ impl ThreadRuntime {
             _ => None,
         };
         let mut verdict = decide(&checks, review.as_ref(), &policy);
+        // Keep independent computations even if their reviewer cannot finish judging.
+        // Only the host's grant may link these handles into the public task archive.
+        let inspection_history = if let Some(grant) = &self.settings.review_execution
+            && work.with_extension("review").join("grant.json").exists()
+        {
+            crate::inspection_grant::InspectionGrant::open(
+                self.profile.check.clone(),
+                grant.clone(),
+                work.with_extension("review"),
+                subject.subject_hash,
+                &terms,
+                Duration::ZERO,
+            )
+            .and_then(|grant| Ok((grant.history(&self.store)?, grant.actions()?)))
+        } else {
+            Ok((Vec::new(), Vec::new()))
+        };
+        if let Err(reason) = &inspection_history {
+            verdict = Verdict::NotVerified {
+                class: NotVerifiedClass::Infrastructure,
+                reason: format!("inspection evidence could not be recovered: {reason}"),
+            };
+        }
+        if let Ok((_, actions)) = &inspection_history
+            && actions.iter().any(|action| !action.shutdown_confirmed)
+        {
+            verdict = Verdict::NotVerified {
+                class: NotVerifiedClass::Infrastructure,
+                reason:
+                    "inspection shutdown remains unconfirmed; reconcile before further execution"
+                        .into(),
+            };
+        }
         let mut public = super::super::work::PublicEvidence::capture(
             &contract,
             subject.subject_hash,
@@ -93,6 +135,13 @@ impl ThreadRuntime {
             review.as_ref().and_then(|r| r.as_ref().ok()),
             &verdict,
         );
+        if let Ok((documents, actions)) = inspection_history {
+            public.inspections = documents
+                .iter()
+                .map(|text| Digest::of(text.as_bytes()))
+                .collect();
+            public.inspection_actions = actions;
+        }
         if matches!(verdict, Verdict::Support) {
             match self.evidence_access().unresolved_with(&public).await {
                 Ok(open) if open.is_empty() => {}

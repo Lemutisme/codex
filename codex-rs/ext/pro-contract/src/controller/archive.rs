@@ -98,9 +98,19 @@ impl EvidenceAccess {
         match query.op {
             Operation::Read => {
                 let handle = query.handle.ok_or("read needs a handle from this task's index")?;
-                let (_, _, bytes) = records.iter().find(|(id, _, _)| *id == handle)
-                    .ok_or("evidence handle is not public evidence of this responsibility")?;
-                let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+                let bytes = if let Some((_, _, bytes)) = records.iter().find(|(id, _, _)| *id == handle) {
+                    bytes.clone()
+                } else {
+                    let (_, owner, _) = records.iter().find(|(_, record, _)| record.inspections.contains(&handle))
+                        .ok_or("evidence handle is not public evidence of this responsibility")?;
+                    let bytes = self.store.get(&handle).map_err(|e|e.to_string())?;
+                    let document: Value = serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
+                    if document["subject_hash"] != serde_json::to_value(owner.subject_hash).map_err(|e|e.to_string())? {
+                        return Err("inspection differs from its public subject binding".into());
+                    }
+                    bytes
+                };
+                let text = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
                 if query.offset > text.len() || !text.is_char_boundary(query.offset) {
                     return Err("offset must be a UTF-8 byte boundary within the recorded evidence".into());
                 }
@@ -117,6 +127,7 @@ impl EvidenceAccess {
                 "handle":handle, "generation":record.generation, "revision":record.revision,
                 "subject_hash":record.subject_hash, "public_checks":record.checks.len(),
                 "review_findings":record.findings.len(), "pipeline_complete":record.pipeline_complete,
+                "inspections":record.inspections,
             })).collect(), query.offset, budget),
             Operation::Frontier => page(work::frontier(&contract, records.iter().map(|(h, r, _)| (*h, r)))
                 .into_iter().map(|entry| json!(entry)).collect(), query.offset, budget),

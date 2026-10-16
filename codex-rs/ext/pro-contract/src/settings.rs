@@ -25,10 +25,22 @@ pub struct Settings {
     pub worker: WorkerSettings,
     #[serde(default)]
     pub evidence: EvidenceSettings,
+    /// Explicit host grant for read-only computations over selected frozen evidence. Uses the
+    /// existing check image/runtime; absence keeps artifact review entirely container-free.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_execution: Option<ReviewExecution>,
     /// A version's policy bundle: a directory whose `drafter.md`, `prober.md` and `reviewer.md`
     /// replace the built-in worker instructions.
     #[serde(default)]
     pub policy: Option<PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewExecution {
+    pub max_calls: u32,
+    pub timeout_secs: u64,
+    pub max_output_bytes: usize,
 }
 
 /// An operator's finite grant for replacing failed executor contexts, not resetting a task.

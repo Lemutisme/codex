@@ -29,10 +29,11 @@ impl ThreadRuntime {
                     .iter()
                     .filter(|o| o.stable && o.exit == Some(0))
                     .count();
-                let complete = observations
-                    .iter()
-                    .map(|o| &o.id)
-                    .eq(policy.sealed.iter().map(|c| &c.id));
+                let complete = observations.complete
+                    && observations
+                        .iter()
+                        .map(|o| &o.id)
+                        .eq(policy.sealed.iter().map(|c| &c.id));
                 let ready = complete
                     && qualified >= policy.min_sealed_qualified as usize
                     && succeeded as u64 * 1000
@@ -58,7 +59,9 @@ impl ThreadRuntime {
                 json!({
                     "thread_id": self.thread_id.to_string(), "phase": "calibration",
                     "qualified": qualified, "succeeded": succeeded,
-                    "observations": observed.as_ref().ok(), "failure": failure,
+                    "observations": observed.as_ref().ok().map(|batch| &batch.observations),
+                    "execution": observed.as_ref().ok().and_then(|batch| batch.execution.as_ref()),
+                    "action_complete": observed.as_ref().is_ok_and(|batch| batch.complete), "failure": failure,
                 }),
             )
             .await;

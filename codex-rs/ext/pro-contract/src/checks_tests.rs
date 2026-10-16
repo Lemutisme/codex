@@ -25,6 +25,33 @@ fn case(id: &str, args: &[&str]) -> DifferentialCase {
     }
 }
 
+#[tokio::test]
+async fn metadata_deadline_stops_a_wrapper_and_its_descendants() {
+    let root = tempfile::tempdir().unwrap();
+    let pidfile = root.path().join("pid");
+    let result = super::command_output(
+        "sh",
+        &[
+            "-c",
+            "sleep 30 & echo $! > \"$1\"; wait",
+            "metadata",
+            pidfile.to_str().unwrap(),
+        ],
+        std::time::Duration::from_millis(150),
+    )
+    .await;
+    assert!(matches!(result, Err(super::CheckError::Launch(_))));
+    let pid = std::fs::read_to_string(pidfile).unwrap();
+    for _ in 0..100 {
+        let stat = std::fs::read_to_string(format!("/proc/{}/stat", pid.trim()));
+        if stat.is_err() || stat.unwrap().split(") ").nth(1).unwrap().starts_with('Z') {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("metadata timeout left a running wrapper descendant");
+}
+
 fn policy() -> EvidencePolicy {
     EvidencePolicy {
         class: EvidenceClass::ChecksAndReview,
@@ -117,6 +144,7 @@ async fn case_environment_cannot_replace_the_timeout_or_terminal_interpreter() {
             rows: 24,
             cols: 80,
             input: String::new(),
+            dialogue: Vec::new(),
         }),
         ..pipe.clone()
     };
@@ -159,6 +187,7 @@ async fn completed_special_exit_codes_qualify_and_an_actual_timeout_cannot_match
                 rows: 24,
                 cols: 80,
                 input: String::new(),
+                dialogue: Vec::new(),
             }),
             ..case("pty", &[])
         },
@@ -599,6 +628,7 @@ async fn a_real_terminal_pipeline_preserves_pipe_and_tty_semantics_and_detects_m
         rows: 31,
         cols: 97,
         input: "q".into(),
+        dialogue: Vec::new(),
     });
     let cases = vec![
         DifferentialCase {

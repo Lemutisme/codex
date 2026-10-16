@@ -10,7 +10,7 @@ RUNNER = Path(__file__).resolve().parents[1] / "src/invocation.py"
 
 
 class TerminalTests(unittest.TestCase):
-    def invoke(self, code, *, stdin=None, terminal_input="", timeout=2, args=(), env=None, terminal=True):
+    def invoke(self, code, *, stdin=None, terminal_input="", timeout=2, args=(), env=None, terminal=True, dialogue=()):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source, out = root / "input", root / "output"
@@ -20,7 +20,7 @@ class TerminalTests(unittest.TestCase):
             (source / "env").write_bytes("".join(f"{key}={value}\n" for key,value in environment.items()).encode())
             if terminal:
                 (source / "terminal.json").write_text(json.dumps({
-                    "terminal": {"rows": 31, "cols": 97, "input": terminal_input},
+                    "terminal": {"rows": 31, "cols": 97, "input": terminal_input, "dialogue":list(dialogue)},
                     "piped_stdin": stdin is not None,
                 }))
             script = root / "program with ' quotes.py"
@@ -30,6 +30,8 @@ class TerminalTests(unittest.TestCase):
                                     capture_output=True, timeout=timeout + 5)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
             self.outcome = {name:int((out/name).read_text()) for name in ['timed_out','exec_failed']}
+            self.dialogue_complete = int((out/'dialogue_complete').read_text())
+            self.dialogue_trace = json.loads((out/'dialogue.json').read_text())
             return int((out / "rc").read_text()), (out / "out").read_bytes(), (out / "err").read_bytes()
 
     def test_controlling_terminal_and_piped_stdin_are_independent(self):
@@ -99,6 +101,27 @@ os.write(1,data)
 os.write(2,b'e'*100_000)
 ''',stdin=payload,terminal=False)
         self.assertEqual((rc,output,err),(0,payload.encode(),b'e'*100_000))
+
+    def test_fragmented_queries_drive_ordered_replies_without_consuming_business_stdin(self):
+        rc, output, err = self.invoke('''import os,sys,time,termios
+with open('/dev/tty','r+b',buffering=0) as tty:
+ for answer in [b'first\\n', b'second\\n']:
+  termios.tcflush(tty.fileno(),termios.TCIFLUSH)
+  tty.write(b'QU');time.sleep(.02);tty.write(b'ERY?')
+  assert tty.readline()==answer
+print(sys.stdin.read(),end='')
+''', stdin='business data', dialogue=[{'expect':'QUERY?','send':'first\n'},{'expect':'QUERY?','send':'second\n'}])
+        self.assertEqual((rc,output,err,self.dialogue_complete),(0,b'QUERY?QUERY?business data',b'',1))
+        self.assertEqual([e['index'] for e in self.dialogue_trace['exchanges']],[0,1])
+
+    def test_early_exit_does_not_satisfy_an_unobserved_dialogue(self):
+        rc, output, _ = self.invoke("print('other output')", dialogue=[{'expect':'QUERY?','send':'answer'}])
+        self.assertEqual((rc,self.outcome['timed_out'],self.dialogue_complete),(0,0,0))
+        self.assertEqual(self.dialogue_trace['exchanges'],[])
+
+    def test_program_may_ignore_startup_input_when_no_dialogue_was_required(self):
+        rc, _, _ = self.invoke("import os;os._exit(0)", terminal_input="x"*65536)
+        self.assertEqual((rc,self.dialogue_complete),(0,1))
 
 
 if __name__ == "__main__":

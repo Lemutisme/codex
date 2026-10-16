@@ -53,6 +53,10 @@ def main(argv=None):
     )
     parser.add_argument("--version", action="store_true")
     parser.add_argument(
+        "--review-compute", action="store_true",
+        help="allow bounded, isolated Python review of frozen binary or numerical evidence in the configured image",
+    )
+    parser.add_argument(
         "--successor-sessions",
         type=int,
         default=3,
@@ -158,6 +162,7 @@ def main(argv=None):
         isolation=isolation,
         successor_sessions=args.successor_sessions,
         task_seconds=args.task_seconds,
+        review_compute=args.review_compute,
     )
     if rest and rest[0] in ("doctor", "status"):
         if rest[0] == "status":

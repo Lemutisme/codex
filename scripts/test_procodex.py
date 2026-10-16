@@ -12,6 +12,19 @@ import procodex_config as procodex
 
 @unittest.skipUnless(sys.platform == "linux", "Linux Docker launcher")
 class ConfigurationTests(unittest.TestCase):
+    def test_computation_is_opt_in_and_keeps_existing_task_state(self):
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,_=procodex.configure(*args,successor_sessions=3,task_seconds=3600)
+        self.assertNotIn("review_execution",json.loads((home/"pro_contract/settings.json").read_text()))
+        retained=home/"pro_contract/existing-grant-marker"
+        retained.write_text("original deadline and reservations")
+        enabled,_=procodex.configure(*args,successor_sessions=3,task_seconds=3600,review_compute=True)
+        self.assertEqual(enabled,home)
+        self.assertEqual(retained.read_text(),"original deadline and reservations")
+        settings=json.loads((home/"pro_contract/settings.json").read_text())
+        self.assertEqual(settings["review_execution"],dict(max_calls=8,timeout_secs=30,max_output_bytes=65536))
+        self.assertEqual(settings["succession"],dict(max_sessions=3,total_secs=3600))
+
     def test_succession_is_an_explicit_finite_native_grant(self):
         home, _ = procodex.configure(
             self.root / "package",

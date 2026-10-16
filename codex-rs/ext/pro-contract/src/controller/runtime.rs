@@ -609,8 +609,38 @@ impl ThreadRuntime {
                 stage: "reference_observation",
                 source: crate::WorkerError::Failed(error.to_string()),
             })?;
-        let observed =
-            cases::render_observations(&exploration, &observations, prober::OBSERVATIONS_CAP);
+        self.append_event(
+            ExperimentKind::Probe,
+            None,
+            json!({
+                "thread_id":self.thread_id.to_string(), "phase":"reference_observation",
+                "observations":observations.observations, "complete":observations.complete,
+                "execution":observations.execution,
+            }),
+        )
+        .await
+        .map_err(|error| prober::ProbeFailure {
+            stage: "reference_observation",
+            source: crate::WorkerError::Failed(error),
+        })?;
+        if observations
+            .execution
+            .as_ref()
+            .is_some_and(|run| !run.shutdown_confirmed)
+        {
+            return Err(prober::ProbeFailure {
+                stage: "reference_observation",
+                source: crate::WorkerError::Failed(
+                    "reference action shutdown is unconfirmed; reconcile before another action"
+                        .into(),
+                ),
+            });
+        }
+        let observed = format!(
+            "Reference action complete={}. Missing invocations are unobserved, not passes. Restore invocation capability before expanding variants.\n{}",
+            observations.complete,
+            cases::render_observations(&exploration, &observations, prober::OBSERVATIONS_CAP)
+        );
         let minimum = self.settings.evidence.min_sealed_qualified as usize;
         let probe = self
             .probe_stage(input, Some(&observed), |message| {
@@ -624,7 +654,7 @@ impl ThreadRuntime {
                 Ok(probe)
             })
             .await?;
-        Ok((exploration, observations, probe))
+        Ok((exploration, observations.observations, probe))
     }
 
     /// One correction turn for malformed structured output. Transport, timeout and

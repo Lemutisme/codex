@@ -75,6 +75,7 @@ struct FakePorts {
     sealed_checked: Mutex<Vec<Vec<DifferentialCase>>>,
     reviews: Mutex<VecDeque<&'static str>>,
     review_prompts: Mutex<Vec<String>>,
+    review_gate: Option<Arc<Notify>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
     worker_model: &'static str,
@@ -107,6 +108,7 @@ impl FakePorts {
             sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
             review_prompts: Mutex::new(Vec::new()),
+            review_gate: None,
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
             worker_model: "model-a",
@@ -201,6 +203,9 @@ impl Ports for FakePorts {
                 }
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);
+                    if let Some(gate) = &self.review_gate {
+                        gate.notified().await;
+                    }
                     if let Some(mut evidence) = turn.evidence {
                         let mut cursor = 0;
                         loop {
@@ -249,7 +254,7 @@ impl Ports for FakePorts {
         base: &'a Path,
         _reference: &'a str,
         cases: &'a [DifferentialCase],
-    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>> {
+    ) -> PortFuture<'a, Result<crate::ObservationBatch, CheckError>> {
         Box::pin(async move {
             if self.observation_error {
                 return Err(CheckError::TimedOut);
@@ -258,16 +263,20 @@ impl Ports for FakePorts {
                 base.join("answer.txt").exists(),
                 "observations run over the base"
             );
-            Ok(cases
-                .iter()
-                .map(|case| Observation {
-                    id: case.id.clone(),
-                    exit: Some(self.observation_exit),
-                    stable: true,
-                    stdout: "usage: reference\n".to_string(),
-                    stderr: String::new(),
-                })
-                .collect())
+            Ok(crate::ObservationBatch {
+                complete: true,
+                execution: None,
+                observations: cases
+                    .iter()
+                    .map(|case| Observation {
+                        id: case.id.clone(),
+                        exit: Some(self.observation_exit),
+                        stable: true,
+                        stdout: "usage: reference\n".to_string(),
+                        stderr: String::new(),
+                    })
+                    .collect(),
+            })
         })
     }
 
@@ -322,6 +331,7 @@ impl Ports for FakePorts {
                 }
             }));
             Ok(CheckReceipts {
+                execution: None,
                 steps,
                 environment: vec!["fake toolchain".to_string()],
                 complete: true,
@@ -401,6 +411,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
         reference_command: reference.map(str::to_string),
     };
     let settings = Settings {
+        review_execution: None,
         evaluation: Some(profile.clone()),
         repair_attempts: 1,
         succession: None,
@@ -824,6 +835,7 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
         vec![
             ExperimentKind::Intake,
             ExperimentKind::Probe,
+            ExperimentKind::Probe,
             ExperimentKind::Draft,
             ExperimentKind::Probe,
             ExperimentKind::Issue,
@@ -831,13 +843,22 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
             ExperimentKind::Verification
         ]
     );
-    let issue = &events[4].event.body;
+    let issue = &events
+        .iter()
+        .find(|r| r.event.kind == ExperimentKind::Issue)
+        .unwrap()
+        .event
+        .body;
     assert_eq!(
         issue["evidence_policy"]["sealed"].as_array().map(Vec::len),
         Some(4)
     );
     assert_eq!(issue["evidence_policy"]["sealed_threshold_permille"], 750);
-    let verification = &events[6].event;
+    let verification = &events
+        .iter()
+        .find(|r| r.event.kind == ExperimentKind::Verification)
+        .unwrap()
+        .event;
     assert_eq!(verification.body["sealed"]["qualified"], 4);
     assert!(verification.identities.policies.contains_key("prober"));
     let default = crate::workers::policies::Policies::default();
@@ -849,7 +870,15 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
         ),
         "a controller can recompute the bundle identity from the files"
     );
-    let probe = &events[1].event.body;
+    let probe = &events
+        .iter()
+        .find(|record| {
+            record.event.kind == ExperimentKind::Probe
+                && record.event.body.get("exploration").is_some()
+        })
+        .unwrap()
+        .event
+        .body;
     assert_eq!(probe["exploration"][0]["id"], "e1");
     assert_eq!(probe["observations"][0]["stdout"], "usage: reference\n");
 }
@@ -886,7 +915,9 @@ async fn a_failed_prober_preserves_the_task_and_blocks_support_without_losing_de
     );
     let probe = events
         .iter()
-        .find(|record| record.event.kind == ExperimentKind::Probe)
+        .find(|record| {
+            record.event.kind == ExperimentKind::Probe && record.event.body.get("error").is_some()
+        })
         .expect("probe event");
     assert!(
         probe.event.body["error"]

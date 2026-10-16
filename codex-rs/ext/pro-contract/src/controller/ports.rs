@@ -6,7 +6,7 @@ use crate::CheckError;
 use crate::CheckReceipts;
 use crate::DifferentialCase;
 use crate::EvidencePolicy;
-use crate::Observation;
+use crate::ObservationBatch;
 use crate::WorkerError;
 use crate::workers::runtime::WorkerTurn;
 use codex_protocol::ThreadId;
@@ -37,7 +37,7 @@ pub(crate) trait Ports: Send + Sync {
         base: &'a Path,
         reference: &'a str,
         cases: &'a [DifferentialCase],
-    ) -> PortFuture<'a, Result<Vec<Observation>, CheckError>>;
+    ) -> PortFuture<'a, Result<ObservationBatch, CheckError>>;
 
     /// Runs the check pipeline over the materialized candidate, with the base workspace under
     /// every case.
