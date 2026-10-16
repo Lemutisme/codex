@@ -100,7 +100,6 @@ pub(crate) fn schema() -> Value {
             "source_id": {"type": "string"},
         }))},
         "differential_cases": {"type": "array", "items": cases::case_schema()},
-        "candidate_tests": {"type": "boolean"},
     }))
 }
 
@@ -245,7 +244,6 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
         },
         evidence_policy: Box::new(EvidencePolicy {
             class: if input.build_command.is_none()
-                && !raw.candidate_tests
                 && !(input.reference_command.is_some() && input.candidate_command.is_some())
             {
                 EvidenceClass::ReviewOnly
@@ -254,7 +252,9 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
             },
             build_command: input.build_command.map(str::to_string),
             candidate_command: input.candidate_command.map(str::to_string),
-            candidate_tests: raw.candidate_tests,
+            // Executable checks are host capabilities, not a model's choice of language.
+            // Older frozen policies retain their explicit legacy cargo-test behavior.
+            candidate_tests: false,
             differential,
             reference_command: input.reference_command.map(str::to_string),
             sealed: Vec::new(),
@@ -277,7 +277,8 @@ struct RawDraft {
     #[serde(default)]
     process_constraints: Vec<RawConstraint>,
     differential_cases: Vec<cases::RawCase>,
-    candidate_tests: bool,
+    #[serde(default, rename = "candidate_tests")]
+    _legacy_candidate_tests: bool,
 }
 
 // Legacy quote fields remain readable; newly generated drafts use host-owned source IDs.

@@ -105,6 +105,13 @@ incomplete reference receipts fail closed. A proof/document ReviewOnly policy wi
 no executable checks uses its frozen evidence catalog without starting a container;
 its receipts explicitly state that no program was executed.
 
+Executable check capabilities belong to the host profile. New drafts cannot turn
+an arbitrary self-test obligation into a Rust/Cargo requirement: the model's old
+`candidate_tests` switch is no longer requested or adopted. Requested self-tests
+remain terms to be evidenced and reviewed; an operator can supply their actual
+command in the existing build/check command. Historical frozen policies retain
+their original explicit Cargo-test behavior and hashes.
+
 The fixed working method is supplied to the original executor after admission
 and to fresh successors. It asks the executor to retain runnable probes and live
 hypotheses in task-owned workspace files. The host captures those files with the

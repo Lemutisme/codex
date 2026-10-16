@@ -44,7 +44,7 @@ fn artifact_only_obligations_are_reviewed_without_inventing_executable_checks() 
     };
     let response = json!({"decision":"contract","reason":"", "requirements":[{
         "id":"R1","text":"Prove the claim.","source_id":"request:0","inferred":false}],
-        "out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":false});
+        "out_of_scope":[],"process_constraints":[],"differential_cases":[],"candidate_tests":true});
     let Draft::Contract {
         evidence_policy, ..
     } = parse(&response.to_string(), &input).unwrap()
@@ -52,6 +52,11 @@ fn artifact_only_obligations_are_reviewed_without_inventing_executable_checks() 
         panic!("contract");
     };
     assert_eq!(evidence_policy.class, EvidenceClass::ReviewOnly);
+    assert!(
+        !evidence_policy.candidate_tests,
+        "a legacy model flag cannot invent a Rust requirement"
+    );
+    assert!(schema()["properties"].get("candidate_tests").is_none());
     let input = DraftInput {
         build_command: Some("./check-proof"),
         ..input
@@ -210,7 +215,7 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 class: EvidenceClass::ChecksAndReview,
                 build_command: Some("./compile.sh".to_string()),
                 candidate_command: Some("./executable".to_string()),
-                candidate_tests: true,
+                candidate_tests: false,
                 differential: vec![DifferentialCase {
                     terminal: None,
                     id: "D1".to_string(),

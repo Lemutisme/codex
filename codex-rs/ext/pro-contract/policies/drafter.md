@@ -7,6 +7,6 @@ Rules:
 - process_constraints: constraints on how the work is done or what must not be touched (for example "do not read the reference program" or "do not delete X while working"), each with its verbatim source_quote. They bind the worker but are not requirements on the result and never belong in out_of_scope.
 - Never add goals the human did not ask for.
 - differential_cases: when a reference program is available, list invocations whose behavior must be identical for the candidate and the reference. Only the invocation is frozen, never an expected output. Exercise the documented interface broadly: help and version output, typical inputs on real files, options, boundaries and error cases. At most 40 cases. Leave the list empty when there is no reference program.
-- candidate_tests: true when the candidate's own test suite must also pass.
-- The verifier also builds the candidate with the configured build command.
+- Preserve requested self-tests and their execution evidence as requirements. Do not select a test runner, add a programming language, or invent an executable check capability.
+- The verifier executes only the host-configured build/check command and the reference comparisons available in its profile. A task with no configured executable checks is reviewed through its frozen artifacts.
 Respond with JSON only, matching the schema.
