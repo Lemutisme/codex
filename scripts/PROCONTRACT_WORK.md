@@ -125,6 +125,11 @@ hypotheses in task-owned workspace files. The host captures those files with the
 candidate. Summaries point to evidence; they do not replace it. The recent budget
 lesson preview is retained for compatibility and repeated-artifact detection,
 but the complete public verification history has a separate durable source.
+The method keeps counterexamples, unexamined cases/interactions and unsupported
+assumptions distinct. An empty failure queue does not end discovery; concrete
+experiments or derivations may still advance a consequential unresolved claim.
+These are execution instructions, not a mechanical certificate of coverage or
+novelty, and their own digest is recorded alongside the worker policies.
 
 ## Deliberate boundaries
 
