@@ -20,6 +20,120 @@ async fn progressing(ports: FakePorts) -> Lane {
 }
 
 #[tokio::test]
+async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_handoff() {
+    use crate::controller::observations::AccessOutcome;
+    let lane = progressing(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Fail, StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let publication = lane
+        .runtime
+        .publish_progress("initial".into(), "root-turn".into())
+        .await
+        .unwrap();
+    let handle = serde_json::from_value(publication["handle"].clone()).unwrap();
+    let access = lane.runtime.evidence_access();
+    let caller = serde_json::json!({"executor":lane.thread_id.to_string(),"turn":"root-turn","invocation":"read-1"});
+    let query = || Query {
+        op: Operation::Read,
+        handle: Some(handle),
+        offset: 0,
+    };
+    let response = access
+        .read_observed(query(), 8192, caller.clone())
+        .await
+        .unwrap();
+    assert_eq!(response["handle"], publication["handle"]);
+    access
+        .finish_access(caller, AccessOutcome::Completed)
+        .await
+        .unwrap();
+    let unfinished = serde_json::json!({"executor":lane.thread_id.to_string(),"turn":"root-turn","invocation":"read-2"});
+    access
+        .read_observed(query(), 8192, unfinished.clone())
+        .await
+        .unwrap();
+    // A new access object (as on restart) cannot infer completion of the earlier call.
+    lane.runtime
+        .evidence_access()
+        .finish_access(unfinished.clone(), AccessOutcome::Completed)
+        .await
+        .unwrap();
+    lane.executor_turn("delivered", "ready").await;
+    lane.wait_for("supported").await;
+    let events = lane.ledger.experiments().await.unwrap();
+    let verification = events
+        .iter()
+        .find(|r| r.event.kind == ExperimentKind::Verification)
+        .unwrap();
+    let public_handle =
+        serde_json::from_value(verification.event.body["public_evidence"].clone()).unwrap();
+    let public: serde_json::Value =
+        serde_json::from_slice(&lane.runtime.store.get(&public_handle).unwrap()).unwrap();
+    let context_handle = serde_json::from_value(public["host_observations"].clone()).unwrap();
+    let frozen = lane.runtime.store.get(&context_handle).unwrap();
+    let context: serde_json::Value = serde_json::from_slice(&frozen).unwrap();
+    assert_eq!(context["feedback_access"][0]["outcome"], "completed");
+    assert_eq!(context["feedback_access"][1]["outcome"], "unknown");
+    assert_eq!(
+        context["feedback_access"][0]["returned_bytes_sha256"],
+        serde_json::json!(Digest::of(response["text"].as_str().unwrap().as_bytes()))
+    );
+    access
+        .finish_access(unfinished, AccessOutcome::Completed)
+        .await
+        .unwrap();
+    assert_eq!(lane.runtime.store.get(&context_handle).unwrap(), frozen);
+    let (contract, terms, base, subject, epoch) = {
+        let state = lane.runtime.state.lock().await;
+        let active = state.contract.as_ref().unwrap();
+        (
+            active.contract.clone(),
+            active.terms.clone(),
+            active.base.subject,
+            state.frozen.as_ref().unwrap().subject.clone(),
+            state.epoch,
+        )
+    };
+    let binding = lane.ledger.subject_binding(&base).await.unwrap().unwrap();
+    let baseline =
+        codex_pro_contract_store::load_subject(&lane.runtime.store, &binding.manifest, &base)
+            .unwrap();
+    let rebuilt = crate::controller::observations::snapshot(
+        &lane.ledger,
+        &lane.runtime.store,
+        crate::controller::observations::AssessmentScope {
+            contract: &contract,
+            terms: &terms,
+            subject: &subject,
+            baseline: &baseline,
+            owner_thread: &lane.thread_id.to_string(),
+            turn: "delivered",
+            epoch,
+            formal: true,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        rebuilt, context,
+        "late completion entered the earlier capture prefix"
+    );
+    assert_eq!(
+        lane.ledger
+            .record::<u32>("evidence_access_budget_v1", &lane.runtime.contract_id().0)
+            .await
+            .unwrap(),
+        Some(2)
+    );
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 3); // Issue, Propose, Support only.
+}
+
+#[tokio::test]
 async fn publication_retains_feedback_without_proposing_and_reuses_identical_work() {
     let lane = progressing(
         FakePorts::new(CONTRACT_DRAFT)

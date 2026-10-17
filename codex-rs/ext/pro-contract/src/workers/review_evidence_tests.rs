@@ -72,6 +72,45 @@ fn document(evidence: &mut ReviewEvidence, id: &str) -> (String, Value) {
 }
 
 #[test]
+fn execution_coverage_requires_scoped_host_evidence_and_rejects_self_attestation() {
+    let (_root, previous) = fixture("artifact");
+    let mut terms = previous.terms.clone();
+    terms.process_constraints.push(crate::ProcessConstraint {
+        text: "Access the feedback".into(),
+        source_quote: "Access the feedback".into(),
+    });
+    let subject = previous.subject.clone();
+    let mut evidence = ReviewEvidence::new(subject.clone(), previous.store, &terms, "checks".into()).unwrap()
+        .with_delivery_message(json!({"kind":"native_final_response","subject_hash":subject.subject_hash,
+            "complete":true,"text":"I read the feedback."})).unwrap()
+        .with_host_observations(json!({"kind":"host_observations_v1","subject_hash":subject.subject_hash,
+            "terms_hash":crate::digest_of("terms",&terms),"observation":"native tool completed with the recorded feedback bytes"})).unwrap();
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (_, artifact) = document(&mut evidence, "file:0");
+    let (_, claim) = document(&mut evidence, "delivery_message");
+    let (_, observed) = document(&mut evidence, "host_observations");
+    let response = |citation: Value| {
+        json!({"verdict":"support","coverage":[
+        {"requirement_id":"R1","evidence":artifact},{"requirement_id":"process:0","evidence":citation}],
+        "findings":[],"gaps":[],"terms_gap":[],"missing":"","residual":""}).to_string()
+    };
+    assert!(evidence.resolve_review(&response(claim)).is_err());
+    // Even a successful computation over artifact bytes cannot attest a past read.
+    evidence.computations.push(
+        json!({"execution":{"state":"completed","shutdown_confirmed":true,"truncated":false},
+        "output_truncated":false,"requirements":["process:0"],"stdout":"feedback read"})
+        .to_string(),
+    );
+    let (_, computation) = document(&mut evidence, "computation:0");
+    assert!(evidence.resolve_review(&response(computation)).is_err());
+    assert!(evidence.resolve_review(&response(observed)).is_ok());
+    assert!(evidence.with_host_observations(json!({"kind":"host_observations_v1",
+        "subject_hash":codex_pro_contract::Digest::of(b"foreign"),"terms_hash":crate::digest_of("terms",&terms)})).is_err());
+}
+
+#[test]
 fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage() {
     let (_root, evidence) = fixture("artifact");
     assert!(evidence.with_delivery_message(json!({

@@ -7,6 +7,7 @@ pub(crate) mod eligibility;
 pub(crate) mod evidence_tool;
 pub(crate) mod identity;
 mod native;
+mod observations;
 pub(crate) mod ports;
 pub(crate) mod runtime;
 mod succession_budget;

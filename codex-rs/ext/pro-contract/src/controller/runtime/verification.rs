@@ -75,20 +75,10 @@ impl ThreadRuntime {
             || (policy.build_command.is_none()
                 && policy.differential.is_empty()
                 && !policy.candidate_tests);
+        let mut host_observations = None;
         let review = match (&checks, decision::mechanical_verdict(&checks, policy)) {
             (Ok(receipts), None) if review_needed && review_seconds > 0 => {
-                let mut summary = decision::review_summary(receipts, policy);
-                if formal && let Ok(events) = self.ledger.experiments().await {
-                    let publications: Vec<_> = events.iter().filter(|event| event.event.body["phase"] == "progress_snapshot"
-                            && event.event.body["contract_id"] == json!(contract.id.0)).map(|event| json!({
-                                "publication":event.event.body["publication"],
-                                "subject_hash":event.event.body["subject_hash"],
-                                "matches_original_task_baseline":event.event.body["subject_hash"] == json!(base.subject),
-                                "receipt":event.hash,
-                            })).collect();
-                    summary.push_str(&format!("\nHost-retained publications before this handoff (availability, not proof of comprehension): {}\n",
-                            crate::workers::bounded(&serde_json::to_string(&publications).unwrap_or_default(), 4096)));
-                }
+                let summary = decision::review_summary(receipts, policy);
                 let baseline = self
                     .ledger
                     .subject_binding(&base.subject)
@@ -109,6 +99,25 @@ impl ThreadRuntime {
                         )
                         .map_err(|e| crate::WorkerError::Start(e.to_string()))
                     });
+                let observation = match &baseline {
+                    Ok(baseline) => super::super::observations::snapshot(
+                        &self.ledger,
+                        &self.store,
+                        super::super::observations::AssessmentScope {
+                            contract,
+                            terms,
+                            subject,
+                            baseline,
+                            owner_thread: &self.thread_id.to_string(),
+                            turn: &handoff.turn_id,
+                            epoch: handoff.epoch,
+                            formal,
+                        },
+                    )
+                    .await
+                    .map_err(crate::WorkerError::Start),
+                    Err(error) => Err(crate::WorkerError::Start(error.to_string())),
+                };
                 let evidence = baseline
                     .and_then(|baseline| {
                         crate::workers::review_evidence::ReviewEvidence::new(
@@ -118,6 +127,16 @@ impl ThreadRuntime {
                             crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
                         )
                         .map(|evidence| evidence.with_baseline(baseline))
+                    })
+                    .and_then(|evidence| {
+                        let document = observation?;
+                        let evidence = evidence.with_host_observations(document.clone())?;
+                        host_observations = Some(self.store.put(document.to_string().as_bytes())
+                            .map_err(|e| crate::WorkerError::Start(e.to_string()))?);
+                        Ok(evidence.with_protocol_log(self.ledger.clone(), self.identities(None), json!({
+                            "contract_id":contract.id.0,"revision":contract.revision,"generation":contract.generation,
+                            "turn_id":handoff.turn_id,"formal":formal,"host_observations":host_observations
+                        })))
                     })
                     .and_then(|evidence| match handoff.response.handle() {
                         None => Ok(evidence),
@@ -145,7 +164,7 @@ impl ThreadRuntime {
                         self.ports
                             .run_worker(WorkerTurn {
                                 prompt: evidence.prompt(&self.policies.reviewer),
-                                schema: reviewer::schema(),
+                                schema: reviewer::schema_for(terms),
                                 trigger: "pro_contract_review",
                                 deadline: Duration::from_secs(review_seconds),
                                 evidence: Some(evidence),
@@ -214,6 +233,7 @@ impl ThreadRuntime {
             &verdict,
         );
         public.delivery_message = handoff.response.handle();
+        public.host_observations = host_observations;
         if let Ok((documents, actions)) = inspection_history {
             public.inspections = documents
                 .iter()
@@ -378,8 +398,15 @@ impl ThreadRuntime {
         }
         match verdict {
             Verdict::Support => {
-                self.support(contract, &subject, base.subject, checks.ok(), review)
-                    .await
+                self.support(
+                    contract,
+                    &subject,
+                    base.subject,
+                    checks.ok(),
+                    review,
+                    verification,
+                )
+                .await
             }
             Verdict::Defeat { residual, blocker } => {
                 self.defeat(
@@ -410,6 +437,7 @@ impl ThreadRuntime {
         base_subject: Digest,
         receipts: Option<CheckReceipts>,
         review: Option<Result<reviewer::Review, crate::WorkerError>>,
+        verification: Digest,
     ) {
         let Some(receipts) = receipts else {
             self.not_verified(NotVerifiedClass::Infrastructure, "support without receipts")
@@ -417,7 +445,9 @@ impl ThreadRuntime {
             return;
         };
         let review = review.and_then(Result::ok);
-        let evidence_hash = digest_of("evidence", &(&receipts, &review));
+        // The committed verification links the complete host observation document as well
+        // as artifact/check evidence. Its exact prefix cannot be replaced after Support.
+        let evidence_hash = digest_of("evidence", &(&receipts, &review, verification));
         let worker = self.ports.worker_identity();
         let evaluator_digest = digest_of(
             "evaluator",

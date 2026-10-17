@@ -15,6 +15,24 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 
+    def test_native_feedback_access_is_available_as_scoped_process_evidence(self):
+        self.run_case(progress_fixture=True, observation_fixture=True,
+            task_text="Make answer.txt contain ready. Obtain the retained feedback bytes before repairing the artifact.")
+
+    def test_missing_access_is_a_real_gap_without_false_support(self):
+        self.run_case(progress_fixture=True, observation_fixture=True, missing_access_fixture=True,
+            task_text="Make answer.txt contain ready. Obtain the retained feedback bytes before repairing the artifact.")
+
+    def test_successor_access_is_observed_under_the_original_responsibility(self):
+        self.run_case(succession_fixture=True, observation_fixture=True,
+            task_text="Make answer.txt contain ready. Obtain the retained feedback bytes before repairing the artifact.")
+
+    def test_one_protocol_correction_preserves_the_review_session_and_evidence(self):
+        self.run_case(protocol_correction_fixture=True)
+
+    def test_protocol_correction_exhaustion_remains_unknown_without_more_attempts(self):
+        self.run_case(correction_exhausted_fixture=True)
+
     def test_final_response_and_successful_check_are_native_review_evidence(self):
         self.run_case(delivery_evidence_fixture=True)
 

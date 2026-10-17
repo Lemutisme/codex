@@ -19,6 +19,7 @@ pub(crate) struct EvidenceAccess {
     pub(super) contract_id: ContractId,
     pub(super) ledger: Ledger,
     pub(super) store: BlobStore,
+    pub(super) observations: super::observations::AccessRecorder,
 }
 
 #[derive(Deserialize)]
@@ -128,13 +129,13 @@ impl EvidenceAccess {
                     bytes.clone()
                 } else if let Some((_, _, bytes)) = progress.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
-                } else if let Some((_, owner, _)) = progress.iter().find(|(_, d, _)| d["public"]["inspections"].as_array().is_some_and(|ids| ids.contains(&json!(handle)))) {
+                } else if let Some((_, owner, _)) = progress.iter().find(|(_, d, _)| d["public"]["inspections"].as_array().is_some_and(|ids| ids.contains(&json!(handle))) || d["public"]["host_observations"] == json!(handle)) {
                     let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
                     let document: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
                     if document["subject_hash"] != owner["subject_hash"] { return Err("progress inspection has a different subject".into()); }
                     bytes
                 } else {
-                    let (_, owner, _) = records.iter().find(|(_, record, _)| record.inspections.contains(&handle) || record.delivery_message == Some(handle))
+                    let (_, owner, _) = records.iter().find(|(_, record, _)| record.inspections.contains(&handle) || record.delivery_message == Some(handle) || record.host_observations == Some(handle))
                         .ok_or("evidence handle is not public evidence of this responsibility")?;
                     let bytes = self.store.get(&handle).map_err(|e|e.to_string())?;
                     let document: Value = serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
@@ -160,11 +161,12 @@ impl EvidenceAccess {
                 "handle":handle, "generation":record.generation, "revision":record.revision,
                 "subject_hash":record.subject_hash, "public_checks":record.checks.len(),
                 "review_findings":record.findings.len(), "pipeline_complete":record.pipeline_complete,
-                "inspections":record.inspections, "delivery_message":record.delivery_message,
+                "inspections":record.inspections, "delivery_message":record.delivery_message, "host_observations":record.host_observations,
             })).chain(progress.iter().map(|(handle, document, _)| json!({
                 "kind":"progress", "handle":handle, "publication":document["publication"],
                 "subject_hash":document["subject_hash"], "scope":"progress_only",
                 "inspections":document["public"]["inspections"],
+                "host_observations":document["public"]["host_observations"],
             }))).collect(), query.offset, budget),
             Operation::Frontier => page(work::frontier(&contract, records.iter().map(|(h, r, _)| (*h, r)))
                 .into_iter().map(|entry| json!(entry)).collect(), query.offset, budget),

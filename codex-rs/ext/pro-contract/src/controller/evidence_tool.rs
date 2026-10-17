@@ -21,6 +21,24 @@ use super::archive::Query;
 
 const NAME: &str = "contract_read_evidence";
 
+fn access_context(
+    thread: &str,
+    turn: &str,
+    call: &str,
+    source: &codex_extension_api::ToolCallSource,
+) -> serde_json::Value {
+    let source = match source {
+        codex_extension_api::ToolCallSource::Direct => json!({"kind":"direct"}),
+        codex_extension_api::ToolCallSource::CodeMode {
+            cell_id,
+            runtime_tool_call_id,
+        } => {
+            json!({"kind":"code_mode","cell_id":cell_id,"runtime_tool_call_id":runtime_tool_call_id})
+        }
+    };
+    json!({"thread_id":thread,"turn_id":turn,"call_id":call,"source":source})
+}
+
 pub(crate) struct EvidenceTools;
 
 impl ToolContributor for EvidenceTools {
@@ -32,8 +50,10 @@ impl ToolContributor for EvidenceTools {
         let access = thread.get::<EvidenceAccess>();
         let mut tools: Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> =
             access.map_or_else(Vec::new, |access| {
-                vec![Arc::new(EvidenceTool(access))
-                    as Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>]
+                vec![
+                    Arc::new(EvidenceTool(access, thread.level_id().to_string()))
+                        as Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>,
+                ]
             });
         if let Some(runtime) = thread.get::<super::runtime::ThreadRuntime>()
             && runtime.progress_enabled()
@@ -51,7 +71,45 @@ impl ToolContributor for EvidenceTools {
     }
 }
 
-struct EvidenceTool(Arc<EvidenceAccess>);
+struct EvidenceTool(Arc<EvidenceAccess>, String);
+
+impl codex_extension_api::ToolLifecycleContributor for EvidenceTools {
+    fn on_tool_finish<'a>(
+        &'a self,
+        input: codex_extension_api::ToolFinishInput<'a>,
+    ) -> codex_extension_api::ToolLifecycleFuture<'a> {
+        Box::pin(async move {
+            if input.tool_name.clone().with_default_namespace()
+                != ToolName::plain(NAME).with_default_namespace()
+            {
+                return;
+            }
+            if let Some(access) = input.thread_store.get::<EvidenceAccess>() {
+                let caller = access_context(
+                    input.thread_store.level_id(),
+                    input.turn_id,
+                    input.call_id,
+                    &input.source,
+                );
+                use super::observations::AccessOutcome;
+                use codex_extension_api::ToolCallOutcome;
+                let outcome = match input.outcome {
+                    ToolCallOutcome::Completed { success: true } => AccessOutcome::Completed,
+                    ToolCallOutcome::Completed { success: false } => AccessOutcome::Unsuccessful,
+                    ToolCallOutcome::Blocked => AccessOutcome::Blocked,
+                    ToolCallOutcome::Failed { .. } => AccessOutcome::Failed,
+                    ToolCallOutcome::Aborted => AccessOutcome::Aborted,
+                };
+                if let Err(reason) = access.finish_access(caller, outcome).await {
+                    // A prepared response without a finish remains explicitly unconfirmed.
+                    tracing::warn!(
+                        "pro_contract could not retain evidence-access completion: {reason}"
+                    );
+                }
+            }
+        })
+    }
+}
 
 impl<'call> ToolExecutor<ToolCall<'call>> for EvidenceTool {
     fn tool_name(&self) -> ToolName {
@@ -90,7 +148,11 @@ impl<'call> ToolExecutor<ToolCall<'call>> for EvidenceTool {
             let query: Query = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
             let value = self
                 .0
-                .read(query, call.response_byte_budget(8192))
+                .read_observed(
+                    query,
+                    call.response_byte_budget(8192),
+                    access_context(&self.1, &call.turn_id, &call.call_id, &call.source),
+                )
                 .await
                 .map_err(error)?;
             Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)

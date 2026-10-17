@@ -41,6 +41,8 @@ pub(crate) enum NotVerifiedClass {
     InsufficientEvidence,
     /// The reviewer failed or could not judge.
     ReviewerUnable,
+    /// An execution obligation failed; rewriting an artifact cannot undo a past action.
+    ExecutionConstraint,
     /// The reviewer found the terms unfaithful to the request.
     TermsGap,
     /// The executor's turn ended without handing off a candidate.
@@ -54,6 +56,7 @@ impl NotVerifiedClass {
             NotVerifiedClass::BudgetExhausted => "budget_exhausted",
             NotVerifiedClass::InsufficientEvidence => "insufficient_evidence",
             NotVerifiedClass::ReviewerUnable => "reviewer_unable",
+            NotVerifiedClass::ExecutionConstraint => "execution_constraint",
             NotVerifiedClass::TermsGap => "terms_gap",
             NotVerifiedClass::NoHandoff => "no_handoff",
         }
@@ -373,6 +376,17 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
+        })
+        .or_else(|| {
+            let failures = review.execution_findings();
+            (!failures.is_empty()).then(|| EvidenceBlocker {
+                class: NotVerifiedClass::ExecutionConstraint,
+                reason: failures
+                    .iter()
+                    .map(|f| format!("{}: {}", f.requirement_id, f.counterexample))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            })
         })
         .or_else(|| match &review.verdict {
             ReviewVerdict::Partial {

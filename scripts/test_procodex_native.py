@@ -72,6 +72,10 @@ def custom_call(body, code, name):
 class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
         deadline_fixture = getattr(self, "deadline_fixture", False)
+        observation_fixture = getattr(self, "observation_fixture", False)
+        missing_access = getattr(self, "missing_access_fixture", False)
+        correction_exhausted = getattr(self, "correction_exhausted_fixture", False)
+        protocol_correction = getattr(self, "protocol_correction_fixture", False) or correction_exhausted
         delivery_evidence = getattr(self, "delivery_evidence_fixture", False)
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
@@ -172,6 +176,26 @@ const checks=await fullDocument("check_receipts");
 if(response.kind!=="native_final_response" || !response.complete || !response.text.endsWith("END-NATIVE-RESPONSE") || response.original_bytes<=1200) throw new Error("actual response was truncated or mislabeled");
 if(!checks.includes("host-configured command:") || !checks.includes("NATIVE-CHECK-PASSED")) throw new Error("command or successful check output missing");
 text({deliveryEvidenceSeen:true,complete:response.complete});
+'''
+            if observation_fixture:
+                review_code += r'''
+async function observationDocument(source) {
+ let text="", citation;
+ for(let offset=0,i=0;i<100;i++) {
+  const page=decode(await tools.read_evidence({op:"read",source_id:source,offset}));
+  text+=page.text;if(!citation)citation=page.citation_id;
+  if(page.eof)return {document:JSON.parse(text),citation};offset=page.next_offset;
+ }
+ throw new Error("incomplete host observations");
+}
+const catalog=(await observationDocument("contract_terms")).document;
+const obligation=catalog.obligations.find(x=>x.scope==="execution");
+if(!obligation)throw new Error("process obligation is not in the catalog");
+const observed=await observationDocument("host_observations");
+const h=observed.document;
+const completed=h.feedback_access.filter(x=>x.outcome==="completed");
+if(completed.some(x=>x.completion_sequence>h.journal_through_sequence))throw new Error("future access entered frozen context");
+text({processObligation:obligation.id,hostCitation:observed.citation,completedAccesses:completed.length});
 '''
             if computation:
                 review_code = review_code.replace('text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});',r'''
@@ -297,6 +321,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             )
                             if repair_review:
                                 message["requirements"].append(dict(id="R2", text="Check the numerical attachment" if partial_review else "Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
+                            if observation_fixture:
+                                message["process_constraints"]=[dict(text="Obtain the retained feedback bytes before repairing the artifact.",source_id="request:0")]
                             if partial_checks:
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
                         elif role in ("explore", "probe"):
@@ -340,7 +366,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 ]
                             if dialogue_probe:
                                 message["cases"]=[dialog_case(case["id"],case["args"]) for case in message["cases"]]
-                        elif role == "review" and counts[role] % 2 == 1:
+                        elif role == "review" and counts[role] % 2 == 1 and not (protocol_correction and counts[role]==3):
                             if computation:
                                 # A mutable workspace change must not change inspected bytes.
                                 (workspace/"numbers.npz").write_bytes(b"changed after candidate capture")
@@ -375,6 +401,20 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 missing="",
                                 residual="",
                             )
+                            if observation_fixture:
+                                identifier=re.search(r'"processObligation"\s*:\s*"([^"]+)"',flattened).group(1)
+                                citation=re.search(r'"hostCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
+                                completed=int(re.search(r'"completedAccesses"\s*:\s*(\d+)',flattened).group(1))
+                                if missing_access:
+                                    if completed:raise AssertionError("missing access was fabricated")
+                                    message.update(verdict="partial",gaps=[dict(requirement_id=identifier,reason="No completed feedback access is observed before the handoff.")])
+                                else:
+                                    if not completed:raise AssertionError("native completed access receipt missing")
+                                    message["coverage"].append(dict(requirement_id=identifier,evidence=citation))
+                            if protocol_correction and (counts[role]==2 or correction_exhausted):
+                                message.update(verdict="partial",gaps=[dict(requirement_id="invented-process-id",reason="protocol fault injection")])
+                            if protocol_correction and counts[role]==3:
+                                if "sole protocol correction" not in flattened:raise AssertionError("correction was not scoped")
                             if scoped_review:
                                 message["terms_gap"] = [dict(element="extra artifact", reason="not requested", affected_requirements=["R2"])]
                                 if counts[role] == 2:
@@ -424,6 +464,8 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
 """
                             else:
                                 code = 'text(await tools.publish_progress({request_id:"second"}));text(await tools.publish_progress({request_id:"second"}));'
+                            if missing_access and stage==3:
+                                code='text(await tools.exec_command({cmd:"printf \'ready\\n\' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));'
                             items = [custom_call(body, code, f"progress-{stage}")]
                             message = None
                         elif counts[role] == 1 or (repair_review and role == "executor" and counts[role] == 3):
@@ -528,7 +570,7 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
                 task_seconds=60 if deadline_fixture else 3600,
-                continuous_work=progression or successor_progress or deadline_fixture,
+                continuous_work=progression or successor_progress or deadline_fixture or protocol_correction,
             )
             if resource_limit:
                 environment_path = home / "environments.toml"
@@ -642,7 +684,16 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                 self.assertEqual(errors, [])
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
-                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture else "supported", status)
+                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
+                if missing_access:
+                    self.assertEqual(status["class"],"reviewer_unable")
+                    self.assertIn("No completed feedback access",status["detail"])
+                if protocol_correction:
+                    self.assertEqual(counts.get("review"),3)
+                    self.assertEqual(len(worker_keys["review"]),1,"correction spawned a fresh reviewer")
+                    with sqlite3.connect(database) as connection:
+                        attempts=[json.loads(x[0])["body"] for x in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in x[0]]
+                    self.assertEqual([(x["attempt"],x["valid"]) for x in attempts],[(0,False),(1,not correction_exhausted)])
                 if delivery_evidence:
                     with sqlite3.connect(database) as connection:
                         deliveries=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='capture'") if 'task_delivery' in r[0]]
@@ -687,12 +738,12 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                     self.assertEqual(commands,["issue","propose"] if progression else ["issue","propose","defeat","propose"])
                 if progression:
                     self.assertEqual(counts.get("executor"), 5)
-                    self.assertTrue(any("sameTurnFeedback" in text for request in requests for text in text_values(request)))
+                    self.assertEqual(any("sameTurnFeedback" in text for request in requests for text in text_values(request)),not missing_access)
                     with sqlite3.connect(database) as connection:
                         commands = [json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
                         grant = json.loads(connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()[0])
                         observations = [json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='execution' ORDER BY seq")]
-                    self.assertEqual(commands, ["issue", "propose"] + ([] if partial_review else ["support"]))
+                    self.assertEqual(commands, ["issue", "propose"] + ([] if partial_review or missing_access else ["support"]))
                     if resource_limit:
                         self.assertTrue(any("raw output limit" in text for request in requests for text in text_values(request)))
                     self.assertEqual(grant["used"], 2)
@@ -885,6 +936,9 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                                     response=document.get("delivery_message") or document.get("public",{}).get("delivery_message")
                                     if response:
                                         shutil.copy2(home/"pro_contract/blobs"/response[:2]/response,public/response)
+                                    observation=document.get("host_observations") or document.get("public",{}).get("host_observations")
+                                    if observation:
+                                        shutil.copy2(home/"pro_contract/blobs"/observation[:2]/observation,public/observation)
 
 
 if __name__ == "__main__":

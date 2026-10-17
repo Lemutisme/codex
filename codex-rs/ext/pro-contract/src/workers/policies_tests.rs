@@ -24,5 +24,5 @@ fn the_built_in_texts_are_the_shipped_bundle_files() {
     let defaults = Policies::default();
     assert!(defaults.drafter.starts_with("You are the drafting worker"));
     assert!(defaults.prober.starts_with("You are the probing worker"));
-    assert!(defaults.reviewer.starts_with("You are the review worker"));
+    assert!(defaults.reviewer.starts_with("Independently assess"));
 }

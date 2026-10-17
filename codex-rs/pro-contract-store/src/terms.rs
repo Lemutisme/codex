@@ -23,8 +23,8 @@ pub struct OutOfScope {
     pub non_substantive: bool,
 }
 
-/// A constraint on how the work is done rather than on what it produces (for example "do not read
-/// the reference executable"). It binds the executor, but only the artifact can be judged.
+/// A constraint on how the work is done. Its judgment needs evidence about the applicable
+/// execution, not merely an executor's assertion or the final artifact.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessConstraint {
     pub text: String,
@@ -41,6 +41,93 @@ pub struct Terms {
     pub out_of_scope: Vec<OutOfScope>,
     #[serde(default)]
     pub process_constraints: Vec<ProcessConstraint>,
+}
+
+/// The object an obligation concerns. Evidence may establish only its recorded scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ObligationScope {
+    Artifact,
+    Execution,
+}
+
+/// A canonical assessment view of frozen terms, not another source of authority.
+/// IDs are opaque and scoped to the terms hash. Existing requirement IDs stay readable;
+/// process IDs are assigned by the host and cannot collide with a requirement ID.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Obligation<'a> {
+    pub id: String,
+    pub scope: ObligationScope,
+    pub text: &'a str,
+    pub source_quote: &'a str,
+    /// None means the historical representation did not record inference status.
+    pub inferred: Option<bool>,
+}
+
+impl Terms {
+    /// Derive the catalog without rewriting historical terms or changing their hashes.
+    pub fn obligations(&self) -> Vec<Obligation<'_>> {
+        let mut prefix = "process:".to_string();
+        while self.requirements.iter().any(|r| r.id.starts_with(&prefix)) {
+            prefix.push(':');
+        }
+        self.requirements
+            .iter()
+            .map(|r| Obligation {
+                id: r.id.clone(),
+                scope: ObligationScope::Artifact,
+                text: &r.text,
+                source_quote: &r.source_quote,
+                inferred: Some(r.inferred),
+            })
+            .chain(
+                self.process_constraints
+                    .iter()
+                    .enumerate()
+                    .map(|(index, r)| Obligation {
+                        id: format!("{prefix}{index}"),
+                        scope: ObligationScope::Execution,
+                        text: &r.text,
+                        source_quote: &r.source_quote,
+                        inferred: None,
+                    }),
+            )
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod obligation_tests {
+    use super::*;
+
+    #[test]
+    fn derived_obligations_preserve_terms_bytes_and_have_disjoint_stable_ids() {
+        let terms = Terms {
+            intake_text: "Produce a report and preserve the inputs.".into(),
+            requirements: vec![Requirement {
+                id: "process:0".into(),
+                text: "report".into(),
+                source_quote: "Produce a report".into(),
+                inferred: false,
+            }],
+            process_constraints: vec![ProcessConstraint {
+                text: "preserve inputs".into(),
+                source_quote: "preserve the inputs".into(),
+            }],
+            out_of_scope: vec![],
+        };
+        let bytes = serde_json::to_vec(&terms).unwrap();
+        let catalog = terms.obligations();
+        assert_eq!(catalog[0].id, "process:0");
+        assert_eq!(catalog[1].id, "process::0");
+        assert_eq!(catalog[1].scope, ObligationScope::Execution);
+        assert_eq!(catalog[0].inferred, Some(false));
+        assert_eq!(catalog[1].inferred, None);
+        assert_eq!(catalog, terms.obligations());
+        assert_eq!(bytes, serde_json::to_vec(&terms).unwrap());
+        let restored: Terms = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(catalog, restored.obligations());
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

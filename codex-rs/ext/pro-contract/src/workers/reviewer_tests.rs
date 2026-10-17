@@ -34,6 +34,54 @@ fn terms() -> Terms {
     }
 }
 
+#[test]
+fn process_obligations_have_legal_ids_and_missing_process_evidence_stays_partial() {
+    let mut terms = terms();
+    terms.process_constraints.push(crate::ProcessConstraint {
+        text: "Read the retained feedback".into(),
+        source_quote: "Read the retained feedback".into(),
+    });
+    let schema = super::schema_for(&terms);
+    assert_eq!(
+        schema["properties"]["gaps"]["items"]["properties"]["requirement_id"]["enum"],
+        json!(["R1", "R2", "process:0"])
+    );
+    let mut value = review("support");
+    value["coverage"] =
+        json!([{"requirement_id":"R1","evidence":"e1"},{"requirement_id":"R2","evidence":"e2"}]);
+    let parsed = parse(&message(value.clone()), &terms).unwrap();
+    let ReviewVerdict::Partial {
+        coverage, missing, ..
+    } = parsed.verdict
+    else {
+        panic!("missing process obligation was waived");
+    };
+    assert_eq!(coverage.len(), 2);
+    assert_eq!(missing[0].requirement_id, "process:0");
+    value["gaps"] = json!([{"requirement_id":"invented-process","reason":"not observed"}]);
+    assert!(parse(&message(value.clone()), &terms).is_err());
+    value["gaps"] = json!([{"requirement_id":"process:0","reason":"not observed"}]);
+    assert!(parse(&message(value), &terms).is_ok());
+}
+
+#[test]
+fn an_execution_finding_cannot_become_an_artifact_repair_instruction() {
+    let mut terms = terms();
+    terms.process_constraints.push(crate::ProcessConstraint {
+        text: "Publish before editing".into(),
+        source_quote: "Publish before editing".into(),
+    });
+    let mut value = review("defeat");
+    value["findings"] = json!([
+        {"requirement_id":"process:0","location":"history","counterexample":"edited before initial publication"},
+        {"requirement_id":"R1","location":"artifact","counterexample":"wrong output"}
+    ]);
+    let parsed = parse(&message(value), &terms).unwrap();
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert_eq!(parsed.actionable_findings()[0].requirement_id, "R1");
+    assert_eq!(parsed.execution_findings()[0].requirement_id, "process:0");
+}
+
 fn message(value: Value) -> String {
     serde_json::to_string(&value).expect("json")
 }

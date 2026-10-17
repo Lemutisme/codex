@@ -1,6 +1,6 @@
 //! The reviewer judges a frozen candidate against frozen terms. It sees the verbatim intake,
-//! the terms, the check receipts and bounded reads of the frozen candidate — never the executor's
-//! transcript or final message.
+//! the terms, bounded frozen artifacts and host-scoped observations. An executor's final
+//! response is a communication artifact, not independent proof of its assertions.
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -71,6 +71,9 @@ pub struct Review {
     pub verdict: ReviewVerdict,
     /// Where the terms may have missed, widened or weakened part of the human request.
     pub terms_gap: Vec<TermsGap>,
+    /// Derived by the host from the frozen catalog, never chosen by the reviewer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub execution_obligations: Vec<String>,
 }
 
 impl Review {
@@ -85,12 +88,26 @@ impl Review {
         findings
             .iter()
             .filter(|finding| {
-                self.terms_gap.iter().all(|gap| {
-                    gap.affected_requirements
-                        .as_ref()
-                        .is_some_and(|ids| !ids.contains(&finding.requirement_id))
-                })
+                !self.execution_obligations.contains(&finding.requirement_id)
+                    && self.terms_gap.iter().all(|gap| {
+                        gap.affected_requirements
+                            .as_ref()
+                            .is_some_and(|ids| !ids.contains(&finding.requirement_id))
+                    })
             })
+            .collect()
+    }
+
+    pub(crate) fn execution_findings(&self) -> Vec<&Finding> {
+        let findings = match &self.verdict {
+            ReviewVerdict::Defeat { findings, .. } | ReviewVerdict::Partial { findings, .. } => {
+                findings
+            }
+            _ => return Vec::new(),
+        };
+        findings
+            .iter()
+            .filter(|f| self.execution_obligations.contains(&f.requirement_id))
             .collect()
     }
 }
@@ -105,7 +122,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
         &(
             policy,
             schema(),
-            "frozen-evidence-read-handles-v2",
+            "scoped-obligations-and-host-observations-v1",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )
@@ -136,6 +153,18 @@ pub(crate) fn schema() -> Value {
     }))
 }
 
+/// The wire field keeps its historical name; its values are exact catalog obligation IDs.
+pub(crate) fn schema_for(terms: &Terms) -> Value {
+    let mut value = schema();
+    let ids: Vec<_> = terms.obligations().into_iter().map(|r| r.id).collect();
+    for field in ["coverage", "findings", "gaps"] {
+        value["properties"][field]["items"]["properties"]["requirement_id"]["enum"] = json!(ids);
+    }
+    value["properties"]["terms_gap"]["items"]["properties"]["affected_requirements"]["items"]["enum"] =
+        json!(ids);
+    value
+}
+
 pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError> {
     let raw: RawReview = serde_json::from_str(message.trim())
         .map_err(|error| WorkerError::Malformed(error.to_string()))?;
@@ -144,7 +173,7 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
         .iter()
         .filter_map(|gap| gap.affected_requirements.as_ref())
         .flatten()
-        .find(|id| !terms.requirements.iter().any(|r| &r.id == *id))
+        .find(|id| !terms.obligations().iter().any(|r| &r.id == *id))
     {
         return Err(WorkerError::Malformed(format!(
             "terms gap names unknown requirement {id}"
@@ -153,6 +182,12 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
     Ok(Review {
         verdict: verdict(raw, terms)?,
         terms_gap,
+        execution_obligations: terms
+            .obligations()
+            .into_iter()
+            .filter(|r| r.scope == crate::ObligationScope::Execution)
+            .map(|r| r.id)
+            .collect(),
     })
 }
 
@@ -166,20 +201,15 @@ fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> 
             raw.verdict
         )));
     }
-    let known = |id: &str| {
-        terms
-            .requirements
-            .iter()
-            .any(|requirement| requirement.id == id)
-    };
+    let obligations = terms.obligations();
+    let known = |id: &str| obligations.iter().any(|r| r.id == id);
     // New structured partial judgments also preserve mixed legacy responses. The host,
     // not the model's headline verdict, determines whether every obligation is supported.
     let mixed = raw.verdict == "partial"
         || !raw.gaps.is_empty()
         || (raw.verdict == "support"
             && (!raw.findings.is_empty()
-                || terms
-                    .requirements
+                || obligations
                     .iter()
                     .any(|r| !raw.coverage.iter().any(|c| c.requirement_id == r.id))))
         || (raw.verdict != "support" && !raw.coverage.is_empty())
@@ -213,7 +243,7 @@ fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> 
                 "a scoped evidence gap must give its reason".into(),
             ));
         }
-        for requirement in &terms.requirements {
+        for requirement in &obligations {
             if !supported.contains(&requirement.id)
                 && !raw
                     .findings
@@ -255,7 +285,7 @@ fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> 
                     unknown.requirement_id
                 )));
             }
-            if let Some(uncovered) = terms.requirements.iter().find(|requirement| {
+            if let Some(uncovered) = obligations.iter().find(|requirement| {
                 !raw.coverage
                     .iter()
                     .any(|entry| entry.requirement_id == requirement.id)

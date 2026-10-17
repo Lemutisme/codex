@@ -35,6 +35,7 @@ pub use codex_pro_contract_store::FixtureFile;
 pub use codex_pro_contract_store::Ledger;
 pub use codex_pro_contract_store::LedgerError;
 pub use codex_pro_contract_store::Manifest;
+pub use codex_pro_contract_store::ObligationScope;
 pub use codex_pro_contract_store::OutOfScope;
 pub use codex_pro_contract_store::ProcessConstraint;
 pub use codex_pro_contract_store::Requirement;
@@ -74,6 +75,9 @@ pub fn install(
     registry.turn_lifecycle_contributor(extension.clone());
     registry.turn_input_contributor(extension.clone());
     registry.tool_contributor(std::sync::Arc::new(
+        controller::evidence_tool::EvidenceTools,
+    ));
+    registry.tool_lifecycle_contributor(std::sync::Arc::new(
         controller::evidence_tool::EvidenceTools,
     ));
     registry.prompt_contributor(extension);

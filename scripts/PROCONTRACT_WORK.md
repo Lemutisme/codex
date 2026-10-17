@@ -30,6 +30,46 @@ authorized settlement. These contributions do not require test-time RSI.
 
 ## Implemented behavior
 
+Frozen terms now have a derived obligation catalog. Existing acceptance requirement IDs
+remain unchanged; the host assigns collision-free IDs to execution constraints. Each
+entry retains its source quote, inference status and artifact/execution scope. IDs are
+stable within the frozen terms hash; no continuity is inferred across a revision. This
+view does not rewrite historical terms or create another source of authority. The
+versioned assessment protocol and frozen evidence policy govern admissible evidence.
+
+Review response schemas enumerate exactly the current catalog IDs. The legacy wire field
+`requirement_id` refers to an obligation of either scope. Missing execution evidence is a
+scoped gap, and a valid partial judgment retains independent coverage and findings.
+Execution findings do not themselves authorize an artifact repair: they remain explicit
+`execution_constraint` blockers. Artifact counterexamples outside that scope can still
+direct an already-authorized repair while the blocker remains. This does not assert that
+all execution obligations are irreparable; it avoids inventing a repair permission or
+pretending an artifact rewrite changes the past.
+
+Native `contract_read_evidence` calls retain bounded access observations. A prepared
+response records the immutable source, exact UTF-8 range/hash and native caller identity.
+A separate lifecycle receipt records completed, unsuccessful, failed, blocked or aborted
+completion. Missing completion remains unknown, including after restart. Code-mode
+invocation identity includes the cell and nested call; both root and successor adapters
+record the same semantics. The task has one persisted allowance of 4096 access receipts;
+new sessions cannot reset it. Raw command/tool payloads are not copied into this journal.
+
+Formal and progress assessments receive a `host_observations` document frozen at their
+own capture boundary. It includes publication ordering, access receipts and bounded
+baseline entry comparison, with explicit omissions. Later completions cannot change an
+earlier assessment. This proves native tool completion, not model rendering or
+comprehension; endpoint equality does not prove no intervening edits. It is not a full
+execution monitor and makes no absence claim about network, installation or arbitrary
+external effects. Unsupported obligations remain gaps. An executor's final response
+cannot self-certify execution coverage.
+
+A malformed review may receive one protocol correction in the same isolated reviewer
+session, with the same evidence object, citations, read/computation allowances and original
+deadline. A durable reservation precedes correction dispatch; rejected and final responses
+are retained separately. Valid negative/unknown judgments do not trigger this correction.
+Exhaustion remains unknown. A certificate binds the committed verification event, which
+links the complete observation document. The pure settlement kernel is unchanged.
+
 `publish_progress({request_id})` pauses the provisioned executor, captures immutable
 workspace bytes, confirms resume, then assesses the snapshot. It retains public working
 evidence without proposing a candidate or changing the contract. Executable tasks receive

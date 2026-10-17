@@ -35,6 +35,7 @@ pub(crate) struct ReviewEvidence {
     required_coverage: [Vec<bool>; 2],
     execution: Option<crate::inspection_grant::InspectionGrant>,
     computations: Vec<String>,
+    protocol_log: Option<(crate::Ledger, codex_pro_contract_store::Identities, Value)>,
 }
 
 #[derive(Deserialize)]
@@ -67,7 +68,13 @@ impl ReviewEvidence {
                 *index,
             )
         });
-        let encoded_terms = serde_json::to_string(terms)
+        let encoded_terms = serde_json::to_string(&json!({
+            "catalog_protocol":"scoped-obligations-v1",
+            "terms_hash":crate::digest_of("terms", terms),
+            "intake_text":terms.intake_text, "obligations":terms.obligations(),
+            "out_of_scope":terms.out_of_scope,
+            "meaning":"This catalog is derived from the frozen terms. It grants no new authority. requirement_id in the response schema refers to these exact obligation IDs."
+        }))
             .map_err(|error| WorkerError::Malformed(error.to_string()))?;
         let required_coverage = [
             vec![false; terms.intake_text.len().min(MAX_FILE as usize)],
@@ -90,7 +97,86 @@ impl ReviewEvidence {
             calls: 0,
             execution: None,
             computations: Vec::new(),
+            protocol_log: None,
         })
+    }
+
+    pub(crate) fn with_host_observations(mut self, document: Value) -> Result<Self, WorkerError> {
+        if document["kind"] != "host_observations_v1"
+            || document["subject_hash"] != json!(self.subject.subject_hash)
+            || document["terms_hash"] != json!(crate::digest_of("terms", &self.terms))
+        {
+            return Err(WorkerError::Malformed(
+                "host observations differ from the assessment binding".into(),
+            ));
+        }
+        let text = document.to_string();
+        if text.len() > MAX_FILE as usize {
+            return Err(WorkerError::InputBudget(
+                "host observations exceed the evidence capability".into(),
+            ));
+        }
+        self.documents.push(("host_observations".into(), text));
+        Ok(self)
+    }
+
+    pub(crate) fn with_protocol_log(
+        mut self,
+        ledger: crate::Ledger,
+        identities: codex_pro_contract_store::Identities,
+        binding: Value,
+    ) -> Self {
+        self.protocol_log = Some((ledger, identities, binding));
+        self
+    }
+
+    pub(crate) async fn record_protocol_result(
+        &self,
+        attempt: u32,
+        message: &str,
+        result: &Result<String, WorkerError>,
+    ) -> Result<(), WorkerError> {
+        let Some((ledger, identities, binding)) = &self.protocol_log else {
+            return Ok(());
+        };
+        let retained = if message.len() <= 65536 {
+            message.to_string()
+        } else {
+            super::bounded_head_tail(message, 8192)
+        };
+        let handle = self
+            .store
+            .put(retained.as_bytes())
+            .map_err(|e| WorkerError::Failed(e.to_string()))?;
+        ledger.append_experiment(&codex_pro_contract_store::ExperimentEvent {
+            kind: codex_pro_contract_store::ExperimentKind::Execution,
+            identities: identities.clone(),
+            body: json!({"phase":"review_protocol_result", "binding":binding,
+                "subject_hash":self.subject.subject_hash,"terms_hash":crate::digest_of("terms", &self.terms),
+                "attempt":attempt,"valid":result.is_ok(),"raw_response":handle,
+                "original_sha256":codex_pro_contract::Digest::of(message.as_bytes()),
+                "original_bytes":message.len(),"complete":message.len() <= 65536,
+                "error":result.as_ref().err().map(|e| super::bounded(&e.to_string(), 2000))}),
+        }).await.map_err(|e| WorkerError::Failed(format!("review protocol receipt unavailable: {e}")))?;
+        Ok(())
+    }
+
+    pub(crate) async fn reserve_protocol_correction(
+        &self,
+        remaining: std::time::Duration,
+    ) -> Result<(), WorkerError> {
+        let Some((ledger, identities, binding)) = &self.protocol_log else {
+            return Ok(());
+        };
+        ledger.append_experiment(&codex_pro_contract_store::ExperimentEvent {
+            kind: codex_pro_contract_store::ExperimentKind::Execution,
+            identities: identities.clone(),
+            body: json!({"phase":"review_protocol_correction_reserved","binding":binding,
+                "subject_hash":self.subject.subject_hash,"terms_hash":crate::digest_of("terms", &self.terms),
+                "maximum_corrections":1,"remaining_millis":remaining.as_millis(),
+                "allowances_renewed":false}),
+        }).await.map_err(|e| WorkerError::Failed(format!("review correction reservation unavailable: {e}")))?;
+        Ok(())
     }
 
     pub(crate) fn with_delivery_message(mut self, document: Value) -> Result<Self, WorkerError> {
@@ -167,7 +253,7 @@ impl ReviewEvidence {
             let (work, remaining) = grant.reserve(&arguments, remaining)?;
             let request: Compute = serde_json::from_value(arguments).map_err(|e| e.to_string())?;
             if request.source_ids.len() > 32 || request.python.len() > 32768 || request.requirements.is_empty()
-                || request.requirements.iter().any(|id| !self.terms.requirements.iter().any(|r| &r.id == id)) {
+                || request.requirements.iter().any(|id| !self.terms.obligations().iter().any(|r| &r.id == id)) {
                 return Err("invalid computation scope or size".into());
             }
             let mut sources = Vec::new();
@@ -234,7 +320,7 @@ impl ReviewEvidence {
 
     pub(crate) fn prompt(&self, instructions: &str) -> String {
         let computation = if self.can_compute() {
-            "inspect_evidence is available for bounded computations over selected frozen source IDs. It supplies Python in an isolated read-only image and writable /tmp. Read its result through read_evidence. Never infer a universal theorem merely from finite numerical checks."
+            "inspect_evidence runs bounded Python over selected frozen artifacts in an isolated image. Read its result through read_evidence. Its scope is those artifact bytes, not past executor actions. Finite numerical checks do not establish unrestricted theorems."
         } else {
             "No computation grant is configured; binary evidence remains explicitly unassessed."
         };
@@ -243,7 +329,9 @@ impl ReviewEvidence {
 Use read_evidence: index with source_id=\"\" and offset=0 (then next_offset), or read with a returned source_id and byte offset. \
 Read human_request and contract_terms before judging; inspect required candidate files and check_receipts. \
 Responses are paginated; continue via next_offset. Missing/unreadable/opaque evidence is not success. \
-For support, each coverage.evidence must be one citation_id issued by a read of candidate data or check_receipts. \
+The contract_terms catalog gives every artifact and execution obligation an exact ID. Use only those IDs in requirement_id fields. \
+host_observations records scoped host facts; it does not prove unobserved events or comprehension. \
+For support, each coverage.evidence must be one issued citation_id. Execution obligations require scoped host_observations; neither final-response claims nor computations over artifact bytes attest past executor actions. \
 The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Preserve local judgments with partial and scoped gaps; use cannot_judge when no scoped judgment is possible. \
 No host shell, network or arbitrary paths are available. {computation} Return the required JSON.",
             instructions, self.subject.subject_hash,
@@ -417,6 +505,12 @@ No host shell, network or arbitrary paths are available. {computation} Return th
                 }
                 let citation = self.issued.get(index).ok_or_else(fail)?;
                 let source = citation["source_id"].as_str().ok_or_else(fail)?;
+                let execution_obligation = self.terms.obligations().iter().any(|o| {
+                    row["requirement_id"] == o.id && o.scope == crate::ObligationScope::Execution
+                });
+                if execution_obligation && source != "host_observations" {
+                    return Err(WorkerError::Malformed("execution obligation needs a scoped host observation, not an artifact claim".into()));
+                }
                 if source.starts_with("computation:") {
                     let index = source
                         .strip_prefix("computation:")
@@ -439,7 +533,10 @@ No host shell, network or arbitrary paths are available. {computation} Return th
                     if !self.delivery_message_complete {
                         return Err(fail());
                     }
-                } else if !source.starts_with("file:") && source != "check_receipts" {
+                } else if !source.starts_with("file:")
+                    && source != "check_receipts"
+                    && source != "host_observations"
+                {
                     return Err(fail());
                 }
                 row["evidence"] = Value::String(citation.to_string());

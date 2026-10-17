@@ -107,6 +107,8 @@ pub(super) async fn run(
         }
         let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
         extensions.tool_contributor(std::sync::Arc::new(super::evidence_tool::EvidenceTools));
+        extensions
+            .tool_lifecycle_contributor(std::sync::Arc::new(super::evidence_tool::EvidenceTools));
         options
             .thread_extension_init
             .insert(codex_extension_api::IsolatedSessionExtensions(

@@ -239,6 +239,7 @@ impl ThreadRuntime {
             contract_id: self.contract_id(),
             ledger: self.ledger.clone(),
             store: self.store.clone(),
+            observations: Default::default(),
         }
     }
 

@@ -34,6 +34,8 @@ pub use terms::DifferentialCase;
 pub use terms::EvidenceClass;
 pub use terms::EvidencePolicy;
 pub use terms::FixtureFile;
+pub use terms::Obligation;
+pub use terms::ObligationScope;
 pub use terms::OutOfScope;
 pub use terms::ProcessConstraint;
 pub use terms::Requirement;

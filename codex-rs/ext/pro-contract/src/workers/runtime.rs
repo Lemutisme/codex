@@ -150,6 +150,9 @@ pub(crate) async fn run_turn(
     mut config: Config,
     turn: WorkerTurn,
 ) -> Result<String, WorkerError> {
+    // Admission, evidence calls and protocol correction consume this same deadline.
+    let expires = tokio::time::Instant::now() + turn.deadline;
+    let schema = turn.schema.clone();
     let mut evidence = turn.evidence;
     let request = super::packet::request(&turn.prompt)?.on_start(TurnStartOptions {
         turn_trigger: Some(turn.trigger.to_string()),
@@ -209,7 +212,7 @@ pub(crate) async fn run_turn(
         armed: true,
     };
     let result = async {
-        let turn_id = match thread
+        let mut turn_id = match thread
             .start_turn_if_idle(request)
             .await
             .map_err(|error| WorkerError::NotStarted(error.to_string()))?
@@ -219,11 +222,14 @@ pub(crate) async fn run_turn(
                 return Err(WorkerError::NotStarted(format!("{reason:?}")));
             }
         };
-        let expires = tokio::time::Instant::now() + turn.deadline;
         let deadline = tokio::time::sleep_until(expires);
         tokio::pin!(deadline);
         let mut last_error = None;
+        let mut corrections = 0;
         loop {
+            if tokio::time::Instant::now() >= expires {
+                return Err(WorkerError::TimedOut);
+            }
             tokio::select! {
                 _ = &mut deadline => {
                     let _ = thread.submit(Op::Interrupt).await;
@@ -238,13 +244,33 @@ pub(crate) async fn run_turn(
                         EventMsg::TurnComplete(complete) if complete.turn_id == turn_id => {
                             let message = complete.last_agent_message.ok_or_else(|| {
                                 WorkerError::Failed(
-                                    last_error.unwrap_or_else(|| "no final message".to_string()),
+                                    last_error.take().unwrap_or_else(|| "no final message".to_string()),
                                 )
                             })?;
-                            return match &evidence {
-                                Some(evidence) => evidence.resolve_review(&message),
-                                None => Ok(message),
-                            };
+                            let Some(evidence) = &evidence else { return Ok(message); };
+                            let result = evidence.resolve_review(&message);
+                            evidence.record_protocol_result(corrections, &message, &result).await?;
+                            if let Err(WorkerError::Malformed(reason)) = &result
+                                && corrections == 0 && tokio::time::Instant::now() < expires {
+                                corrections += 1;
+                                evidence.reserve_protocol_correction(expires.saturating_duration_since(tokio::time::Instant::now())).await?;
+                                // Preserve the same evidence object, issued citations, read/computation
+                                // allowance and thread history. This repairs a response, not the task.
+                                let prompt = format!("The host rejected the response's protocol or citation binding: {}. Correct the response using only the existing obligation catalog and issued citations. Preserve real findings, unknowns and scope limits; no verdict is preferred. Do not invent obligations, erase a missing step, or claim a past action occurred. This is the sole protocol correction within the original assessment deadline; evidence allowances have not reset.", super::bounded(reason, 2000));
+                                let request = super::packet::request(&prompt)?.on_start(TurnStartOptions {
+                                    turn_trigger: Some("pro_contract_review_correction".into()),
+                                    final_output_json_schema: Some(schema.clone()),
+                                    ..Default::default()
+                                });
+                                turn_id = match thread.start_turn_if_idle(request).await
+                                    .map_err(|e| WorkerError::NotStarted(e.to_string()))? {
+                                    StartIfIdleSubmission::Started { turn_id } => turn_id,
+                                    StartIfIdleSubmission::NotSubmitted { reason } => return Err(WorkerError::NotStarted(format!("correction: {reason:?}"))),
+                                };
+                                last_error = None;
+                                continue;
+                            }
+                            return result;
                         }
                         EventMsg::DynamicToolCallRequest(call) if call.turn_id == turn_id => {
                             let response = if call.namespace.is_none() && call.tool == super::review_evidence::TOOL {

@@ -59,6 +59,8 @@ pub(super) struct PublicEvidence {
     /// The host-captured final response, treated as a communication artifact, not truth.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivery_message: Option<Digest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_observations: Option<Digest>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inspection_actions: Vec<crate::ExecutionReceipt>,
 }
@@ -114,7 +116,7 @@ impl PublicEvidence {
             pipeline_complete: receipts.is_some_and(|r| r.complete),
             capture_boundary: "Checker receipts retain at most 4,000 detail bytes per step, with omission markers; they are not complete raw process streams. This archive preserves the received public receipt and invocation exactly. Sealed cases are excluded.".into(),
             checks, findings, blocker, review: review.cloned(), execution: receipts.and_then(|r| r.execution.clone()),
-            inspections: Vec::new(), delivery_message: None, inspection_actions: Vec::new(),
+            inspections: Vec::new(), delivery_message: None, host_observations: None, inspection_actions: Vec::new(),
         }
     }
 }
