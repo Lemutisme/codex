@@ -54,7 +54,10 @@ The reviewer sees a frozen observation prefix ending at the matching delivery/pu
 capture, together with bounded baseline comparison. The boundary binds subject, terms,
 turn and execution epoch. Later calls or completions cannot silently enter an earlier
 certificate. The Support evidence hash binds the committed verification event and thus
-the observation document it references.
+the observation document it references. The separate source-basis digest includes host
+observations and the delivered response as well as the original artifact/policy sources;
+a regression verifies that the same artifact with different execution history has a
+different basis.
 
 The current adapter observes feedback access and publication/capture facts. It does not
 attest mental comprehension, complete execution history, all network activity or dependency

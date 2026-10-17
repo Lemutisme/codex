@@ -24,8 +24,8 @@ async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_han
     use crate::controller::observations::AccessOutcome;
     let lane = progressing(
         FakePorts::new(CONTRACT_DRAFT)
-            .checks(&[StepOutcome::Fail, StepOutcome::Pass])
-            .reviews(&[SUPPORT_REVIEW]),
+            .checks(&[StepOutcome::Fail, StepOutcome::Pass, StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW, SUPPORT_REVIEW]),
     )
     .await;
     lane.runtime.intake(INTAKE.into()).await;
@@ -131,6 +131,16 @@ async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_han
         Some(2)
     );
     assert_eq!(lane.ledger.events().await.unwrap().len(), 3); // Issue, Propose, Support only.
+    let first = lane.contract().await.unwrap().support.unwrap().coordinate;
+    lane.executor_turn("same-artifact-new-history", "ready")
+        .await;
+    lane.wait_for("supported").await;
+    let second = lane.contract().await.unwrap().support.unwrap().coordinate;
+    assert_eq!(first.subject_hash, second.subject_hash);
+    assert_ne!(
+        first.basis, second.basis,
+        "different execution history shared an incomplete source basis"
+    );
 }
 
 #[tokio::test]

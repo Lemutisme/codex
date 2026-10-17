@@ -398,15 +398,19 @@ impl ThreadRuntime {
         }
         match verdict {
             Verdict::Support => {
-                self.support(
-                    contract,
-                    &subject,
-                    base.subject,
-                    checks.ok(),
-                    review,
-                    verification,
-                )
-                .await
+                let basis = digest_of(
+                    "basis",
+                    &(
+                        contract.bindings.terms_hash,
+                        base.subject,
+                        contract.bindings.evidence_policy_hash,
+                        checks.as_ref().ok().map(|r| r.environment_digest),
+                        public.host_observations,
+                        response.handle(),
+                    ),
+                );
+                self.support(contract, &subject, basis, checks.ok(), review, verification)
+                    .await
             }
             Verdict::Defeat { residual, blocker } => {
                 self.defeat(
@@ -434,7 +438,7 @@ impl ThreadRuntime {
         &self,
         contract: Contract,
         subject: &Subject,
-        base_subject: Digest,
+        basis: Digest,
         receipts: Option<CheckReceipts>,
         review: Option<Result<reviewer::Review, crate::WorkerError>>,
         verification: Digest,
@@ -469,16 +473,8 @@ impl ThreadRuntime {
             environment_digest: receipts.environment_digest,
             evaluator_digest,
             evidence_hash,
-            // The request (in the terms), the base workspace, the cases and the oracle image.
-            basis: digest_of(
-                "basis",
-                &(
-                    contract.bindings.terms_hash,
-                    base_subject,
-                    contract.bindings.evidence_policy_hash,
-                    receipts.environment_digest,
-                ),
-            ),
+            // All supplied sources, including execution observations and the delivered response.
+            basis,
             // Every source the lane draws on (the request, the workspace, the reference it queries)
             // was within the executor's reach: its support measures diligence and certifies
             // nothing beyond. Only the principal, or what the principal seals, is beyond.

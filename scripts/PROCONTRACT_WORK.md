@@ -68,7 +68,9 @@ session, with the same evidence object, citations, read/computation allowances a
 deadline. A durable reservation precedes correction dispatch; rejected and final responses
 are retained separately. Valid negative/unknown judgments do not trigger this correction.
 Exhaustion remains unknown. A certificate binds the committed verification event, which
-links the complete observation document. The pure settlement kernel is unchanged.
+links the complete observation document. Its source basis also commits to the observation
+document and delivered response, so identical artifact bytes cannot conceal different
+execution-evidence sources. The pure settlement kernel is unchanged.
 
 `publish_progress({request_id})` pauses the provisioned executor, captures immutable
 workspace bytes, confirms resume, then assesses the snapshot. It retains public working
