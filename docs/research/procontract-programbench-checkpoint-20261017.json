@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "recorded_on": "2026-10-17",
+  "source_commit": "7995605fa94bd3901c4990131df7d392aa6cb8c4",
+  "model": "gpt-5.6-luna",
+  "effort": "max",
+  "configuration": {
+    "solver_attempts_per_task": 1,
+    "native_budget_secs": 14400,
+    "grading_budget_secs": 3600,
+    "max_successors": 3,
+    "rsi_enabled": false,
+    "review_computation": {
+      "max_calls": 8,
+      "timeout_secs": 30,
+      "max_output_bytes": 65536
+    },
+    "matched_native_control": false
+  },
+  "cohort": {
+    "tasks": 3,
+    "primary_scored": 2,
+    "observed_scored_including_supplement": 3,
+    "fully_resolved_observed": 0,
+    "almost_resolved_observed": 0,
+    "macro_observed_percent": 78.85184517425839,
+    "vals_same_tasks_macro_percent": 72.03333333333333,
+    "clean_autonomous_cohort": false
+  },
+  "zero_mechanical_errors_achieved": false,
+  "tasks": [
+    {
+      "task": "parcel-bundler__lightningcss.aa2ed1e",
+      "status": "scored",
+      "primary_passed": 1790,
+      "observed_passed": 1790,
+      "total": 2828,
+      "observed_percent": 63.2956152758133,
+      "vals_luna_max_percent": 61.42,
+      "score_kind": "primary",
+      "primary_evaluator_attempts": 1,
+      "supplemental_evaluator_attempts": 0,
+      "execution_class": "registered_budget_stop_post_shutdown_workspace",
+      "deadline_hit": true,
+      "native_delivery_verified": false,
+      "actual_root_turn_statuses": [
+        "interrupted"
+      ],
+      "actual_successor_rollouts": 0,
+      "operator_resource_intervention": false,
+      "private_trace_evidence": {
+        "status": "unknown",
+        "reason": "final_observer_failed"
+      }
+    },
+    {
+      "task": "rust-lang__mdbook.37273ba",
+      "status": "infrastructure_failed",
+      "primary_passed": null,
+      "observed_passed": 897,
+      "total": 1114,
+      "observed_percent": 80.52064631956912,
+      "vals_luna_max_percent": 65.08,
+      "score_kind": "supplemental_dependency_recovery",
+      "primary_evaluator_attempts": 2,
+      "supplemental_evaluator_attempts": 1,
+      "execution_class": "natural_completed_handoff",
+      "deadline_hit": false,
+      "native_delivery_verified": true,
+      "actual_root_turn_statuses": [
+        "completed"
+      ],
+      "actual_successor_rollouts": 0,
+      "operator_resource_intervention": false,
+      "private_trace_evidence": {
+        "status": "unknown",
+        "reason": "final_observer_failed"
+      }
+    },
+    {
+      "task": "mookid__diffr.2152742",
+      "status": "scored",
+      "primary_passed": 562,
+      "observed_passed": 562,
+      "total": 606,
+      "observed_percent": 92.73927392739274,
+      "vals_luna_max_percent": 89.6,
+      "score_kind": "primary",
+      "primary_evaluator_attempts": 1,
+      "supplemental_evaluator_attempts": 0,
+      "execution_class": "registered_budget_stop_post_shutdown_workspace",
+      "deadline_hit": true,
+      "native_delivery_verified": false,
+      "actual_root_turn_statuses": [
+        "interrupted"
+      ],
+      "actual_successor_rollouts": 0,
+      "operator_resource_intervention": true,
+      "private_trace_evidence": {
+        "status": "unknown",
+        "reason": "final_observer_failed"
+      }
+    }
+  ],
+  "qualifications": [
+    "Scores describe artifacts with distinct outcome qualifications, not a clean autonomous cohort or causal improvement.",
+    "Original mdbook result remains infrastructure_failed; the supplemental evaluation is not substituted into the primary outcome.",
+    "Historical exposure is retained; new means different from recent cohorts.",
+    "Vals conditions are not fully matched; this is not a full leaderboard result.",
+    "Trace completeness and actual billing are not established."
+  ],
+  "all_owned_runtime_resources_stopped": true,
+  "evidence_root_local": "/data/ProContract/programbench-new-instances-20261017",
+  "evidence_sha256": {
+    "REPORT.md": "bdafce91c5a9ab6671c93d2761f9d02ad1b4e1f85901d311d05bf095b0d814e9",
+    "QUALIFIED-RESULTS.json": "7d27720a2320c4b96e5dab9d5aa9f51cb564a2098219dda4d92664dd001f7cce",
+    "RESULTS.json": "ad97f0f8a51a9d3983737b30188bd28b203cea3ac4fff1602946dc29e75a0b34",
+    "final-audit.json": "4356bc208175f1d6e48f1b3032738c49fab06416dae16ef02b33935444f8d0cf",
+    "vals-comparison.json": "121640192fdf15b04cd8f12cb3cc3fd614371035026349659da402585a881b2d",
+    "runtime-shutdown.json": "134cb40d5a40e6560b370a5028babcf09ed6710da4c114e4afbcb8cf7f1dad15",
+    "evaluation-recovery-mdbook/audit.json": "8b07abb5b8a0655fa5658bc4455cd6f96d5b5fe9b207c7ac9d607d4611a426af",
+    "evaluation-recovery-mdbook/receipt.json": "b582d05107254a0e3de317dcb26148bd3940c118772c46db4ba6e065bc8ab96f",
+    "2-operator-intervention.json": "26ac5a81ce3a24d2f3c5aa42964e1bb94edffd6bfc2ab63b7f2db81d6bf65da7",
+    "mdbook-budget-decision.json": "d4e150c0c59976b0c1f103d17355d55b2f0467eac2540795063217d519464cff",
+    "FINAL-RESULTS.json": "5289b789eea686611e4f3ac8a6173d40537807bc33a627026355c91e46e9aa39",
+    "selection.json": "fc681d51670597ce309fac895658e73da79d227188ebf37d23cefb21be9e3cd6",
+    "fresh-plan.json": "97b2eae1df9174c16e88d2219c48112c03927c06661b3fad9432afe2767aa6b4",
+    "handoff-configuration-audit.json": "55210c8d47d68788d30dbd7477ab9ae9355381d25147e0c2d020255708c51aeb",
+    "executor-container-shutdown-audit.json": "2261053bf41f886170177b5c254c66680552852ffae90c0e43018372153aa1bc",
+    "RUNAWAY-OUTPUT-INCIDENT.md": "83fcd33cd642c431f605d4d75a60816747306c11aabde231b37b2c8baa25b9a1",
+    "runaway-probe-evidence.json": "bd178e899e348a222b90d8a16a0c3aed2e1ec6292d9a7a3cabf65f5f6740b1de"
+  }
+}
