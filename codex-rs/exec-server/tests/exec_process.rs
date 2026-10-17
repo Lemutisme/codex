@@ -1003,7 +1003,7 @@ async fn collect_process_output_from_events_with_timeout(
             } => {
                 exit_code = Some(code);
             }
-            ExecProcessEvent::Closed { seq: _ } => {
+            ExecProcessEvent::Closed { seq: _, .. } => {
                 drop(session);
                 return Ok((stdout, stderr, exit_code, true));
             }
@@ -1029,7 +1029,7 @@ async fn collect_process_event_snapshots(
             ExecProcessEvent::Exited { seq, exit_code, .. } => {
                 ProcessEventSnapshot::Exited { seq, exit_code }
             }
-            ExecProcessEvent::Closed { seq } => ProcessEventSnapshot::Closed { seq },
+            ExecProcessEvent::Closed { seq, .. } => ProcessEventSnapshot::Closed { seq },
             ExecProcessEvent::Failed(message) => {
                 anyhow::bail!("process failed before closed state: {message}");
             }
@@ -1740,7 +1740,7 @@ async fn remote_exec_process_recovers_after_transport_disconnect() -> Result<()>
                 last_seq = seq;
                 saw_exit = true;
             }
-            ExecProcessEvent::Closed { seq } => {
+            ExecProcessEvent::Closed { seq, .. } => {
                 assert!(saw_exit, "closed must be delivered after exit");
                 assert_eq!(seq, last_seq + 1);
                 break;

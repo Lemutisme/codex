@@ -51,6 +51,7 @@ pub use execution::ExecutionState;
 pub use settings::CheckEnvironment;
 pub use settings::EvaluationProfile;
 pub use settings::EvidenceSettings;
+pub use settings::ProgressSettings;
 pub use settings::ReviewExecution;
 pub use settings::Settings;
 pub use settings::SettingsError;

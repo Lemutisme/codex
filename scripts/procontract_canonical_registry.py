@@ -78,6 +78,7 @@ class Registry:
     exposure_scope: str
     operator_exposed_tasks: tuple[str, ...]
     dependency_policy: "Policy | None" = None
+    grader_requirements: tuple[str, ...] = ()
 
     def verify_source(self):
         _source(self.path, self.digest)
@@ -147,6 +148,7 @@ def load(path: Path, expected_sha256: str) -> Registry:
             "exposure_scope",
             "operator_exposed_tasks",
             "dependency_policy",
+            "grader_requirements",
         }
         or type(data["schema"]) is not int
         or data["schema"] != 1
@@ -212,6 +214,15 @@ def load(path: Path, expected_sha256: str) -> Registry:
     if exposure_scope == "prospective_lineage" and not operator_exposed:
         raise ValueError("prospective lineage requires disclosed operator exposure")
     programbench = _path(data["programbench"])
+    grader_requirements = data.get("grader_requirements", [])
+    if (not isinstance(grader_requirements, list) or len(grader_requirements) > 64
+            or any(not isinstance(item, str) or len(item) > 160
+                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9.+!-]*", item) is None
+                for item in grader_requirements)):
+        raise ValueError("grader requirements must be bounded exact package versions")
+    names = [item.split("==")[0].lower().replace("_", "-").replace(".", "-") for item in grader_requirements]
+    if len(set(names)) != len(names):
+        raise ValueError("duplicate grader requirement")
     dependency_policy = None
     if "dependency_policy" in data:
         import procontract_dependency_policy as dependencies
@@ -240,4 +251,5 @@ def load(path: Path, expected_sha256: str) -> Registry:
         exposure_scope=exposure_scope,
         operator_exposed_tasks=tuple(operator_exposed),
         dependency_policy=dependency_policy,
+        grader_requirements=tuple(grader_requirements),
     )

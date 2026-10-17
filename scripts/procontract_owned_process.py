@@ -11,7 +11,7 @@ import sys
 import time
 
 
-def run(command, *, stdout, timeout):
+def run(command, *, stdout, timeout, env=None, cwd=None):
     if sys.platform != "linux" or not hasattr(os, "WNOWAIT"):
         raise RuntimeError("owned-group supervision requires Linux waitid")
     pending = []
@@ -29,6 +29,8 @@ def run(command, *, stdout, timeout):
             stdout=stdout,
             stderr=subprocess.STDOUT,
             start_new_session=True,
+            env=env,
+            cwd=cwd,
         )
         owned = (
             process.pid not in (os.getpid(), os.getpgrp())

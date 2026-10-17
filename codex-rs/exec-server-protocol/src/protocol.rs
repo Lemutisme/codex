@@ -1192,6 +1192,9 @@ pub struct ExecExitedNotification {
 pub struct ExecClosedNotification {
     pub process_id: ProcessId,
     pub seq: u64,
+    /// Host resource failure, separate from the program's exit status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub failure: Option<String>,
 }
 
 mod base64_bytes {

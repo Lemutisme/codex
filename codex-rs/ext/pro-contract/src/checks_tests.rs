@@ -562,7 +562,7 @@ async fn a_real_container_run_judges_every_channel() {
             ),
         ]
     );
-    assert!(receipts.complete);
+    assert!(receipts.complete, "{receipts:?}");
     let err = &receipts.steps[2];
     assert_eq!(err.reference_exit, Some(3));
     assert!(
@@ -600,7 +600,7 @@ async fn a_failed_build_blocks_cases_without_claiming_they_ran() {
         .await
         .expect("run");
 
-    assert!(receipts.complete);
+    assert!(receipts.complete, "{receipts:?}");
     assert!(
         receipts.steps.iter().all(|step| if step.step == "build" {
             step.outcome == StepOutcome::Fail
@@ -798,7 +798,7 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
         "{}",
         receipts.steps[0].detail
     );
-    assert!(receipts.complete);
+    assert!(receipts.complete, "{receipts:?}");
 }
 
 #[test]

@@ -15,10 +15,7 @@ impl ThreadRuntime {
         else {
             return None;
         };
-        let observed = self
-            .ports
-            .observe(&self.profile.check, base, reference, &policy.sealed)
-            .await;
+        let observed = self.observe_bounded(base, reference, &policy.sealed).await;
         let (qualified, succeeded, failure) = match &observed {
             Ok(observations) => {
                 let qualified = observations

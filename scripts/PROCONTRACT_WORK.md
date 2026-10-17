@@ -1,8 +1,8 @@
 # ProContract: responsibility, working evidence, and replaceable execution
 
-The current continuous-work implementation extends the durable task and original-authority
-work from `37468af98`. It preserves the pure settlement kernel and adds scoped judgments,
-recoverable observations and host-granted computations. Older frozen benchmark results
+The current implementation extends the durable task, scoped judgments and frozen
+computations with publication during an active turn and enforcement of the original
+task grant. It preserves the pure settlement kernel. Older frozen benchmark results
 remain attached to their original binaries; they do not measure this version's performance.
 
 ## The unit of continuity
@@ -29,6 +29,57 @@ explicit distinction between a proposed candidate, evidential support, and an
 authorized settlement. These contributions do not require test-time RSI.
 
 ## Implemented behavior
+
+`publish_progress({request_id})` pauses the provisioned executor, captures immutable
+workspace bytes, confirms resume, then assesses the snapshot. It retains public working
+evidence without proposing a candidate or changing the contract. Executable tasks receive
+public check results; ReviewOnly tasks retain bounded local review. Formal handoff still
+requires the full applicable acceptance policy and independent review. Sealed cases never
+enter adaptive publication feedback.
+
+The original intake binds a durable publication grant. Reopening a request returns its
+receipt; identical subject/policy coordinates reuse the prior assessment. A reservation
+without resolved effects blocks acceptance and further automatic execution. Recovery may
+reconcile a committed assessment, but never assumes an interrupted dispatch did not run.
+Publication records are available through `index` and `read`; they do not alter the formal
+candidate frontier or mint new authority. Fresh successors inherit only scoped publication
+and evidence access, under the original grant and their admitted execution slice.
+
+New `procodex` tasks enable this capability by default (`--no-progress` opts new tasks out).
+Existing task settings and grants are preserved. The native configuration is:
+
+```json
+"progress": {
+  "executor_label": "procontract.task=<provisioner identity>",
+  "max_publications": 8,
+  "assessment_secs": 120,
+  "executor_slice_secs": 1800
+}
+```
+
+This first capture adapter requires exactly one exclusively provisioned workspace
+executor. It verifies the label, exact mount and lifecycle before pausing. External host
+editors and multiple threads writing the same workspace are outside this capture contract.
+Original deadlines clamp preparation, verification and continuations. Expiry interrupts
+and awaits the task's native actor shutdown, then records exhaustion or unresolved cleanup;
+it does not delete containers by workspace label. Zero successor sessions still permits a
+finite original task grant.
+
+The trusted exec-server startup limits each process to 32 MiB of raw emitted output and
+1800 seconds, and each executor to 256 MiB of raw output. Output accounting happens before
+transport encoding and spans all reads; polling cannot renew it. Native resource failures
+survive reconnect/read/closure. Docker logs rotate at 16 MiB × 2. These are specific bounds;
+there is no aggregate writable-workspace filesystem quota.
+
+Delivery now retains the actual native final response as a separate immutable artifact,
+bound to its workspace subject and turn. Continuation summaries remain bounded and cannot
+substitute for that response. The host records original byte count/hash and a 64 KiB retained
+head/tail limit. Truncation is explicit and cannot provide positive review coverage. The
+reviewer can assess a requested final explanation; its claims are not independent proof.
+Successful check output and the actual host-configured command are also retained. Frozen
+evidence pages are 4096 UTF-8 bytes with an 8192-byte response bound; complete request/terms
+reads and citation validation remain required. Baseline equality reports exact entry bytes
+and mode, not semantic equivalence.
 
 `controller/ports.rs` describes the execution boundary; `native.rs` and
 `successor.rs` implement it using Codex. `work.rs` constructs public evidence and
@@ -243,7 +294,33 @@ judgment and lifecycle boundaries on which those domain-specific methods can ope
   backend, or a replacement model loop.
 - Support remains within-reach evidence. Human settlement rights are retained.
 
+## Evaluator capability before inference
+
+The canonical ProgramBench adapter runs `ready` before its first paid inference marker.
+Its registry and source/image/wheel hashes bind a single durable 600-second collection
+reservation. Restart may reuse a completed receipt but cannot replay an unknown dispatch
+or renew the deadline. Host-only diagnostics and hidden test identities stay in the grading
+domain; the readiness receipt exposes aggregate counts and hashes.
+
+The probe exercises an ordinary null build and dependency setup, then collects tests with
+the frozen image's reference executable. Collection can execute import-time probes such as
+`--help`; collected test bodies do not run. Exact eligible test identities must equal the
+official frozen metadata. This qualifies bootstrap and collection, not candidate quality or
+all runtime dependencies. Formal scoring retains the official assertions, fixed denominator
+and ordinary candidate executable validation.
+
+Optional `grader_requirements` are exact, operator-pinned Python package versions installed
+offline from the frozen wheelhouse after candidate compilation/hash. The adapter verifies
+the stashed candidate hash again afterward. The extension and kernel contain no package-
+or benchmark-specific repair rules. Grader dependencies cannot be chosen by a solver.
+
 ## Validation
+
+The 2026-10-17 E2E evolution and all development failures are recorded separately in
+[`procontract-progress-e2e-20261017.md`](../docs/research/procontract-progress-e2e-20261017.md).
+The mdbook capability preflight qualified all **1114 eligible tests across 12 branches**,
+with no model calls or candidate scoring. This does not update any earlier ProgramBench,
+COLT or Vals performance result.
 
 Continuous-work qualification on 2026-10-16 passed **240 Rust tests** (kernel 36,
 store 39, extension 165), **53 Python regressions**, **12 real pipe/PTY tests**,

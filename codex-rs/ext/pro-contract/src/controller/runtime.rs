@@ -4,6 +4,7 @@
 
 mod delivery;
 mod preparation;
+mod progress;
 mod recovery;
 mod succession;
 mod verification;
@@ -117,6 +118,7 @@ struct Base {
 
 /// Everything verification needs about one handoff.
 struct Handoff {
+    response: delivery::ResponseCapture,
     epoch: u64,
     contract: Contract,
     subject: Subject,
@@ -129,6 +131,7 @@ struct Handoff {
 /// The workspace frozen at the end of the executor's last turn.
 #[derive(Clone)]
 struct Frozen {
+    response: delivery::ResponseCapture,
     turn_id: String,
     subject: Subject,
 }
@@ -151,6 +154,7 @@ struct State {
     repair_note: Option<String>,
     epoch: u64,
     successor: Option<succession::Control>,
+    deadline_watch: bool,
 }
 
 /// Everything the automation lane needs for one thread.
@@ -166,6 +170,7 @@ pub(crate) struct ThreadRuntime {
     store: BlobStore,
     ports: Arc<dyn Ports>,
     state: tokio::sync::Mutex<State>,
+    state_changed: tokio::sync::watch::Sender<()>,
     tasks: std::sync::Mutex<tokio::task::JoinSet<()>>,
 }
 
@@ -205,6 +210,7 @@ impl ThreadRuntime {
             store,
             ports,
             state: tokio::sync::Mutex::new(State::default()),
+            state_changed: tokio::sync::watch::channel(()).0,
             tasks: std::sync::Mutex::new(tokio::task::JoinSet::new()),
         }
     }
@@ -269,6 +275,7 @@ impl ThreadRuntime {
         {
             tracing::warn!("pro_contract could not record status: {error}");
         }
+        self.state_changed.send_replace(());
     }
 
     async fn rest(&self, phase: &str, detail: &str) {
@@ -368,6 +375,7 @@ impl ThreadRuntime {
                     "text": text,
                     "base_subject": base.subject_hash,
                     "capture_policy": digest_of("capture_policy", &self.capture_policy),
+                    "progress": self.settings.progress,
                 }),
             )
             .await;
@@ -382,6 +390,12 @@ impl ThreadRuntime {
                 return;
             }
         }
+        if let Err(reason) = self.initialize_progress().await {
+            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                .await;
+            return;
+        }
+        self.arm_deadline().await;
         self.record_status("drafting", "", /*resting*/ false).await;
         let runtime = Arc::clone(self);
         self.spawn(async move { runtime.draft(text, base).await });
@@ -536,11 +550,7 @@ impl ThreadRuntime {
             args: vec!["--help".to_string()],
             ..Default::default()
         }];
-        match self
-            .ports
-            .observe(&self.profile.check, base_dir, reference, &help)
-            .await
-        {
+        match self.observe_bounded(base_dir, reference, &help).await {
             Ok(observations) => {
                 cases::render_observations(&help, &observations, prober::REFERENCE_HELP_CAP)
             }
@@ -602,8 +612,7 @@ impl ThreadRuntime {
         // An intentionally empty exploration can write from documentation. A
         // failed reference execution is a different state and must stay visible.
         let observations = self
-            .ports
-            .observe(&self.profile.check, base_dir, reference, &exploration)
+            .observe_bounded(base_dir, reference, &exploration)
             .await
             .map_err(|error| prober::ProbeFailure {
                 stage: "reference_observation",
@@ -714,6 +723,22 @@ impl ThreadRuntime {
         unreachable!("the final attempt returns its outcome")
     }
 
+    async fn observe_bounded(
+        &self,
+        base: &Path,
+        reference: &str,
+        cases: &[DifferentialCase],
+    ) -> Result<crate::ObservationBatch, crate::CheckError> {
+        let mut environment = self.profile.check.clone();
+        environment.timeout_secs = self
+            .action_seconds(None, environment.timeout_secs)
+            .await
+            .map_err(crate::CheckError::Launch)?;
+        self.ports
+            .observe(&environment, base, reference, cases)
+            .await
+    }
+
     async fn run_worker(
         &self,
         prompt: String,
@@ -725,7 +750,11 @@ impl ThreadRuntime {
                 prompt,
                 schema,
                 trigger,
-                deadline: Duration::from_secs(self.settings.worker.deadline_secs),
+                deadline: Duration::from_secs(
+                    self.action_seconds(None, self.settings.worker.deadline_secs)
+                        .await
+                        .map_err(crate::WorkerError::Start)?,
+                ),
                 evidence: None,
             })
             .await
@@ -740,6 +769,11 @@ impl ThreadRuntime {
             capture_policy_hash: digest_of("capture_policy", &self.capture_policy),
             evidence_policy_hash: digest_of("evidence_policy", &policy),
         };
+        if let Err(reason) = self.action_seconds(None, 1).await {
+            self.not_verified(NotVerifiedClass::BudgetExhausted, &reason)
+                .await;
+            return;
+        }
         let command = AuthenticatedCommand {
             contract_id: contract_id.clone(),
             expected_version: 0,
@@ -836,8 +870,9 @@ impl ThreadRuntime {
     }
 
     /// A new turn supersedes whatever the previous one froze.
-    pub(crate) async fn turn_started(&self) {
+    pub(crate) async fn turn_started(self: &Arc<Self>) {
         self.cancel_successor().await;
+        self.arm_deadline().await;
         let continuing = {
             let mut state = self.state.lock().await;
             let continuing = state.phase == Phase::Resting
@@ -862,7 +897,12 @@ impl ThreadRuntime {
     }
 
     /// Freezes the candidate at the turn-end boundary, before completion is emitted.
+    #[cfg(test)]
     pub(crate) async fn turn_stopped(&self, turn_id: String) {
+        self.turn_stopped_with_message(turn_id, None).await;
+    }
+
+    pub(crate) async fn turn_stopped_with_message(&self, turn_id: String, message: Option<&str>) {
         let epoch = {
             let state = self.state.lock().await;
             if state.admission.is_none()
@@ -873,7 +913,14 @@ impl ThreadRuntime {
             state.epoch
         };
         let frozen = match self.capture_workspace().await {
-            Ok(subject) => Some(Frozen { turn_id, subject }),
+            Ok(subject) => {
+                let response = self.capture_response(&subject, &turn_id, message);
+                Some(Frozen {
+                    turn_id,
+                    subject,
+                    response,
+                })
+            }
             Err(error) => {
                 tracing::warn!("pro_contract candidate capture failed: {error}");
                 None
@@ -927,6 +974,7 @@ impl ThreadRuntime {
                 (Some(frozen), _) if state.proposed_turns.contains(&frozen.turn_id) => return,
                 (Some(frozen), Some(active)) => {
                     let values = Handoff {
+                        response: frozen.response.clone(),
                         epoch: state.epoch,
                         contract: active.contract.clone(),
                         subject: frozen.subject.clone(),

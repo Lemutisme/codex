@@ -58,6 +58,18 @@ pub(super) struct ExecServerCommand {
     )]
     proxy_private_ips_via_upstream: bool,
 
+    /// Maximum raw stdout/stderr bytes per process, across all reads and reconnects.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    max_process_output_bytes: Option<u64>,
+
+    /// Maximum raw output bytes across this executor's lifetime; never refunded.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    max_total_output_bytes: Option<u64>,
+
+    /// Maximum process lifetime, including background execution between tool calls.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..=86400))]
+    max_process_seconds: Option<u64>,
+
     /// Maximum number of requests to process concurrently on each connection.
     #[arg(
         long = "concurrent-requests",
@@ -179,7 +191,12 @@ impl ExecServerCommand {
             arg0_paths.codex_linux_sandbox_exe.clone(),
         )?
         .with_linux_sandbox_pid_namespace(self.linux_sandbox_pid_namespace)
-        .with_proxy_private_ips_via_upstream(self.proxy_private_ips_via_upstream);
+        .with_proxy_private_ips_via_upstream(self.proxy_private_ips_via_upstream)
+        .with_process_limits(
+            self.max_process_output_bytes,
+            self.max_total_output_bytes,
+            self.max_process_seconds,
+        );
         if let Some(base_url) = self.remote.take() {
             let environment_id = self.environment_id.take().ok_or_else(|| {
                 anyhow::anyhow!("--environment-id is required when --remote is set")

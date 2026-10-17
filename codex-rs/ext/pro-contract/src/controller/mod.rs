@@ -1,6 +1,7 @@
 //! The ProContract automation lane, installed as host-side thread and turn contributors.
 
 pub(crate) mod archive;
+mod capture_barrier;
 pub(crate) mod decision;
 pub(crate) mod eligibility;
 pub(crate) mod evidence_tool;
@@ -229,7 +230,10 @@ impl TurnLifecycleContributor for ProContractExtension {
         Box::pin(async move {
             if let Some(runtime) = runtime_of(input.thread_store) {
                 runtime
-                    .turn_stopped(input.turn_store.level_id().to_string())
+                    .turn_stopped_with_message(
+                        input.turn_store.level_id().to_string(),
+                        input.last_agent_message,
+                    )
                     .await;
             }
         })
@@ -283,6 +287,12 @@ impl ContextContributor for ProContractExtension {
                 work::METHOD.to_string(),
                 ContentItemKind("pro_contract.work_method".into()),
             )];
+            if runtime.progress_enabled() {
+                context.push(PromptFragment::developer_policy(
+                    "Use publish_progress after a coherent change or to check a consequential claim while time remains. It freezes this workspace and returns bounded public feedback in the same turn. Read its retained evidence, repair concrete failures, and continue under the original deadline. Publication is not completion; do not wait until the final answer to obtain feedback. Repeating the same snapshot reuses its assessment.",
+                    ContentItemKind("pro_contract.progress".into()),
+                ));
+            }
             context.extend(
                 runtime
                     .outstanding_repair()

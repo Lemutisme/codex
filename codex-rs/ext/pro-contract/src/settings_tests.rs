@@ -48,6 +48,7 @@ fn an_evaluation_profile_loads_with_defaults() {
         Settings::load(home.path()).expect("load"),
         Some(Settings {
             review_execution: None,
+            progress: None,
             evaluation: Some(EvaluationProfile {
                 environment_id: "cleanroom".to_string(),
                 workspace_container_root: "/workspace".to_string(),

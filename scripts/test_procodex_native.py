@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import queue
 import re
+import shlex
 import sqlite3
 import tempfile
 import threading
@@ -70,6 +71,12 @@ def custom_call(body, code, name):
 )
 class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
+        deadline_fixture = getattr(self, "deadline_fixture", False)
+        delivery_evidence = getattr(self, "delivery_evidence_fixture", False)
+        final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
+        progression = getattr(self, "progress_fixture", False)
+        resource_limit = getattr(self, "resource_limit_fixture", False)
+        successor_progress = getattr(self, "successor_progress_fixture", False)
         succession = getattr(self, "succession_fixture", False)
         probe_fixture = getattr(self, "probe_fixture", False)
         scoped_review = getattr(self, "scoped_review_fixture", False)
@@ -150,6 +157,22 @@ for (let offset = 0; offset < 50;) {
 const artifact = decode(await tools.read_evidence({op:"read",source_id:id,offset:0}));
 text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
 """
+            if delivery_evidence:
+                review_code += r'''
+async function fullDocument(source) {
+ let text="";
+ for(let offset=0,i=0;i<100;i++) {
+  const page=decode(await tools.read_evidence({op:"read",source_id:source,offset}));
+  text+=page.text;if(page.eof)return text;offset=page.next_offset;
+ }
+ throw new Error("incomplete delivery evidence");
+}
+const response=JSON.parse(await fullDocument("delivery_message"));
+const checks=await fullDocument("check_receipts");
+if(response.kind!=="native_final_response" || !response.complete || !response.text.endsWith("END-NATIVE-RESPONSE") || response.original_bytes<=1200) throw new Error("actual response was truncated or mislabeled");
+if(!checks.includes("host-configured command:") || !checks.includes("NATIVE-CHECK-PASSED")) throw new Error("command or successful check output missing");
+text({deliveryEvidenceSeen:true,complete:response.complete});
+'''
             if computation:
                 review_code = review_code.replace('text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});',r'''
 let binary;
@@ -338,6 +361,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     "review evidence did not return a handle"
                                 )
                             flattened = "\n".join(text_values(body))
+                            if delivery_evidence and '"deliveryEvidenceSeen":true' not in flattened.replace(" ", ""):
+                                raise AssertionError("reviewer did not receive actual delivery and check evidence")
                             if "ready" not in flattened or "Refused:" not in flattened:
                                 raise AssertionError("missing artifact or refusal")
                             message = dict(
@@ -359,7 +384,48 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             if partial_review:
                                 message.update(verdict="partial",gaps=[dict(requirement_id="R2",reason="numeric format is not yet assessable")])
                                 if counts[role]==2:
-                                    message.update(coverage=[],findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains first failed instead of ready")])
+                                    message.update(coverage=[],findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains not ready instead of ready" if progression else "contains first failed instead of ready")])
+                        elif deadline_fixture and role == "executor":
+                            heartbeat = "import time\nfrom pathlib import Path\nPath('answer.txt').write_text('ready\\n')\nfor i in range(900):\n Path('heartbeat.txt').write_text(str(i))\n time.sleep(.1)\n"
+                            code = "text(await tools.exec_command(" + json.dumps(dict(cmd="python3 -c " + shlex.quote(heartbeat),yield_time_ms=30000,max_output_tokens=1000)) + "));"
+                            items = [custom_call(body, code, "wait-for-original-deadline")]
+                            message = None
+                        elif progression and role == "executor" and counts[role] <= 4:
+                            stage = counts[role]
+                            if stage == 1:
+                                code = "text(await tools.exec_command({cmd:\"printf 'not ready\\n' > answer.txt\",yield_time_ms:1000,max_output_tokens:1000}));"
+                                if resource_limit:
+                                    code = "try {text(await tools.exec_command(" + json.dumps(dict(cmd="python3 -c 'print(chr(120)*1048576)'",yield_time_ms=1000,max_output_tokens=1000)) + "));} catch(e) {text(String(e));} " + code
+                            elif stage == 2:
+                                # Wait for the independently drafted terms, without providing feedback.
+                                until = time.monotonic() + 10
+                                while time.monotonic() < until:
+                                    database = home / "pro_contract/ledger_1.sqlite"
+                                    if database.exists():
+                                        with sqlite3.connect(database) as connection:
+                                            if connection.execute("SELECT count(*) FROM events").fetchone()[0]: break
+                                    time.sleep(.05)
+                                code = 'text(await tools.publish_progress({request_id:"first"}));'
+                            elif stage == 3:
+                                code = successor_recall[:successor_recall.index('const frontier')] + r"""
+const index = decode(await tools.contract_read_evidence({op:"index"}));
+const entry = index.entries.find(x=>x.kind==="progress");
+if (!entry) throw new Error("missing progress publication");
+let record="";
+for (let offset=0,i=0;i<100;i++) {
+ const page=decode(await tools.contract_read_evidence({op:"read",handle:entry.handle,offset}));
+ record+=page.text;if(page.eof)break;offset=page.next_offset;
+}
+const evidence=JSON.parse(record);
+if(evidence.scope!=="progress_only" || !(evidence.public.checks.some(x=>x.receipt.outcome==="fail") || evidence.public.findings.length)) throw new Error("missing actionable progress feedback");
+if(evidence.public.checks.some(x=>x.receipt.step.startsWith("sealed:"))) throw new Error("sealed leak");
+text({sameTurnFeedback:true,subject:evidence.subject_hash});
+text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));
+"""
+                            else:
+                                code = 'text(await tools.publish_progress({request_id:"second"}));text(await tools.publish_progress({request_id:"second"}));'
+                            items = [custom_call(body, code, f"progress-{stage}")]
+                            message = None
                         elif counts[role] == 1 or (repair_review and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
@@ -372,13 +438,14 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     (successor_recall if role == "successor" else "")
                                     + "const r = await tools.exec_command({cmd:"
                                     + json.dumps(f"printf '{answer}\\n' > answer.txt")
-                                    + ",yield_time_ms:1000,max_output_tokens:1000});text(r);",
+                                    + ",yield_time_ms:1000,max_output_tokens:1000});text(r);"
+                                    + ('text(await tools.publish_progress({request_id:"successor-check"}));' if successor_progress and role=="successor" else ""),
                                     "write-answer",
                                 )
                             ]
                             message = None
                         else:
-                            message = "Fixture completed."
+                            message = final_response
                         if message is not None:
                             items = [
                                 dict(
@@ -457,11 +524,15 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 root / "state",
                 source,
                 image,
-                None if repair_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"\'',
+                None if repair_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"; print("NATIVE-CHECK-PASSED")\'',
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
-                task_seconds=3600,
+                task_seconds=60 if deadline_fixture else 3600,
+                continuous_work=progression or successor_progress or deadline_fixture,
             )
+            if resource_limit:
+                environment_path = home / "environments.toml"
+                environment_path.write_text(environment_path.read_text().replace("33554432", "4096"))
             if probe_fixture:
                 settings_path = home / "pro_contract/settings.json"
                 settings = json.loads(settings_path.read_text())
@@ -571,18 +642,70 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                 self.assertEqual(errors, [])
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
-                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks else "supported", status)
-                if not partial_checks:self.assertGreaterEqual(counts.get("review", 0), 2)
+                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture else "supported", status)
+                if delivery_evidence:
+                    with sqlite3.connect(database) as connection:
+                        deliveries=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='capture'") if 'task_delivery' in r[0]]
+                    self.assertEqual(len(deliveries), 2 if succession else 1)
+                    for delivered in deliveries:
+                        handle=delivered["response"]["handle"]
+                        document=json.loads((home/"pro_contract/blobs"/handle[:2]/handle).read_text())
+                        self.assertEqual(document["text"],final_response)
+                        self.assertEqual(document["original_bytes"],len(final_response.encode()))
+                        self.assertTrue(document["complete"])
+                        self.assertEqual(document["subject_hash"],delivered["subject_hash"])
+                        self.assertEqual(document["turn_id"],delivered["turn_id"])
+                if not partial_checks and not deadline_fixture:self.assertGreaterEqual(counts.get("review", 0), 2)
+                if deadline_fixture:
+                    until=time.monotonic()+20
+                    expired=[]
+                    while time.monotonic()<until and not expired:
+                        with sqlite3.connect(database) as connection:
+                            events=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='execution'")]
+                        expired=[r for r in events if r.get("phase")=="original_grant_expired"]
+                        if not expired:time.sleep(.05)
+                    self.assertEqual(len(expired),1)
+                    self.assertTrue(expired[0]["interrupt_and_executor_shutdown_confirmed"],expired)
+                    with sqlite3.connect(database) as connection:
+                        commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
+                        grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
+                    self.assertEqual(commands,["issue"])
+                    self.assertEqual(grant["deadline_ms"]-grant["started_ms"],60000)
+                    heartbeat_path=workspace/"heartbeat.txt"
+                    heartbeat_before=heartbeat_path.read_text()
+                    time.sleep(1)
+                    self.assertEqual(heartbeat_path.read_text(),heartbeat_before,"task-owned background writes outlived confirmed shutdown")
+                    with sqlite3.connect(database) as connection:
+                        status=json.loads(connection.execute("SELECT json FROM records WHERE kind='status'").fetchone()[0])
+                    self.assertEqual(status["class"],"budget_exhausted")
                 if repair_review:
                     self.assertEqual(status["class"], "reviewer_unable" if partial_review else "terms_gap")
-                    self.assertEqual(counts.get("review"), 4)
-                    self.assertEqual(status["repairs_used"], 1)
+                    self.assertEqual(counts.get("review"), 6 if progression else 4)
+                    self.assertEqual(status["repairs_used"], 0 if progression else 1)
                     with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
                         commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events WHERE contract_id=? ORDER BY seq",(thread+".1",))]
-                    self.assertEqual(commands,["issue","propose","defeat","propose"])
+                    self.assertEqual(commands,["issue","propose"] if progression else ["issue","propose","defeat","propose"])
+                if progression:
+                    self.assertEqual(counts.get("executor"), 5)
+                    self.assertTrue(any("sameTurnFeedback" in text for request in requests for text in text_values(request)))
+                    with sqlite3.connect(database) as connection:
+                        commands = [json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
+                        grant = json.loads(connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()[0])
+                        observations = [json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='execution' ORDER BY seq")]
+                    self.assertEqual(commands, ["issue", "propose"] + ([] if partial_review else ["support"]))
+                    if resource_limit:
+                        self.assertTrue(any("raw output limit" in text for request in requests for text in text_values(request)))
+                    self.assertEqual(grant["used"], 2)
+                    self.assertIsNone(grant["pending"])
+                    self.assertEqual(len([r for r in observations if r.get("phase")=="progress_assessed"]), 2)
                 if probe_fixture:
                     self.assertEqual(len(worker_keys.get("explore", set())), 2)
                     self.assertEqual(len(worker_keys.get("probe", set())), 1)
+                if successor_progress:
+                    with sqlite3.connect(database) as connection:
+                        grant = json.loads(connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()[0])
+                    self.assertEqual(grant["used"], 1)
+                    self.assertIsNone(grant["pending"])
                 if succession:
                     self.assertTrue(any("publicEvidenceRecall" in text and "true" in text
                         for request in requests for item in request.get("input", [])
@@ -729,6 +852,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 computation_fixture=computation,partial_review_fixture=partial_review,
                                 dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
                                 real_provider_calls=0,
+                                progress_fixture=progression,resource_limit_fixture=resource_limit,
+                                successor_progress_fixture=successor_progress,deadline_fixture=deadline_fixture,
                             ),
                             indent=2,
                         )
@@ -736,7 +861,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                     (destination / "requests.json").write_text(
                         json.dumps(requests, indent=2)
                     )
-                    if computation or partial_checks or dialogue_probe:
+                    if computation or partial_checks or dialogue_probe or progression or successor_progress:
                         shutil.copytree(home/"pro_contract/work",destination/"work",dirs_exist_ok=True,symlinks=True)
                     database = home / "pro_contract/ledger_1.sqlite"
                     if database.exists():
@@ -749,12 +874,17 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             for (raw,) in source_db.execute("SELECT event_json FROM experiment_events"):
                                 event = json.loads(raw)
                                 handle = event.get("body", {}).get("public_evidence")
-                                if event.get("kind") != "verification" or not isinstance(handle, str):
+                                public_event = event.get("kind") == "verification" or event.get("body",{}).get("phase") == "progress_assessed"
+                                if not public_event or not isinstance(handle, str):
                                     continue
                                 blob = home / "pro_contract/blobs" / handle[:2] / handle
                                 if blob.is_file():
                                     public.mkdir(exist_ok=True)
                                     shutil.copy2(blob, public / handle)
+                                    document=json.loads(blob.read_text())
+                                    response=document.get("delivery_message") or document.get("public",{}).get("delivery_message")
+                                    if response:
+                                        shutil.copy2(home/"pro_contract/blobs"/response[:2]/response,public/response)
 
 
 if __name__ == "__main__":

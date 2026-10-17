@@ -12,6 +12,28 @@ class ContinuousNativeTests(unittest.TestCase):
         for name,value in flags.items():setattr(case,name,value)
         case.debug()
 
+    def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
+        self.run_case(progress_fixture=True)
+
+    def test_final_response_and_successful_check_are_native_review_evidence(self):
+        self.run_case(delivery_evidence_fixture=True)
+
+    def test_successor_delivers_actual_response_beyond_its_continuation_summary(self):
+        self.run_case(delivery_evidence_fixture=True, succession_fixture=True)
+
+    def test_output_limit_keeps_protocol_and_same_turn_progress_usable(self):
+        self.run_case(progress_fixture=True, resource_limit_fixture=True)
+
+    def test_progress_review_retains_a_required_unknown_without_false_acceptance(self):
+        self.run_case(progress_fixture=True, partial_review_fixture=True,
+            task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
+
+    def test_successor_can_publish_under_the_original_task_grant(self):
+        self.run_case(succession_fixture=True, successor_progress_fixture=True)
+
+    def test_original_deadline_stops_the_first_turn_and_its_background_effects(self):
+        self.run_case(deadline_fixture=True)
+
     def test_binary_computation_uses_the_frozen_subject_and_real_citation(self):
         self.run_case(computation_fixture=True)
 

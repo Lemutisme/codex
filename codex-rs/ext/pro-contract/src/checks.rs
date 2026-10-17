@@ -229,13 +229,13 @@ pub(crate) fn pipeline_script(
             .map(|command| format!(" && [ -x {} ]", shell_quote(command)))
             .unwrap_or_default();
         script.push_str(&format!(
-            "if step /tmp/pc-build.log sh -c {}{built}; then emit build pass; else log build /tmp/pc-build.log; emit build fail; built=0; fi\n",
+            "if step /tmp/pc-build.log sh -c {}{built}; then log build /tmp/pc-build.log; emit build pass; else log build /tmp/pc-build.log; emit build fail; built=0; fi\n",
             shell_quote(build)
         ));
     }
     if policy.candidate_tests {
         script.push_str(
-            "if [ -f Cargo.toml ]; then if step /tmp/pc-test.log cargo test --offline --quiet; then emit candidate_tests pass; else log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi; else echo 'no Cargo.toml in the candidate' > /tmp/pc-test.log; log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi\n",
+            "if [ -f Cargo.toml ]; then if step /tmp/pc-test.log cargo test --offline --quiet; then log candidate_tests /tmp/pc-test.log; emit candidate_tests pass; else log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi; else echo 'no Cargo.toml in the candidate' > /tmp/pc-test.log; log candidate_tests /tmp/pc-test.log; emit candidate_tests fail; fi\n",
         );
     }
     if let (Some(reference), Some(candidate)) = (

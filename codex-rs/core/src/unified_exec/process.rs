@@ -487,7 +487,7 @@ impl UnifiedExecProcess {
                 };
                 let event_seq = event.as_ref().and_then(|event| match event {
                     ExecProcessEvent::Output(chunk) => Some(chunk.seq),
-                    ExecProcessEvent::Exited { seq, .. } | ExecProcessEvent::Closed { seq } => {
+                    ExecProcessEvent::Exited { seq, .. } | ExecProcessEvent::Closed { seq, .. } => {
                         Some(*seq)
                     }
                     ExecProcessEvent::Failed(_) => None,
@@ -594,9 +594,13 @@ impl UnifiedExecProcess {
                         state.sandbox_denied |= sandbox_denied.unwrap_or(false);
                         let _ = state_tx.send_replace(state.exited(Some(exit_code)));
                     }
-                    ExecProcessEvent::Closed { seq } => {
+                    ExecProcessEvent::Closed { seq, failure } => {
                         if seq <= last_seq {
                             continue;
+                        }
+                        if let Some(message) = failure {
+                            let state = state_tx.borrow().clone();
+                            let _ = state_tx.send_replace(state.failed(message));
                         }
                         output_closed.store(true, Ordering::Release);
                         output_closed_notify.notify_waiters();

@@ -35,6 +35,8 @@ const RESIDUAL_FAMILIES: usize = 12;
 pub(crate) enum NotVerifiedClass {
     /// The checks or the lane's own machinery failed.
     Infrastructure,
+    /// The original task authority ended; this is not a candidate counterexample.
+    BudgetExhausted,
     /// Too few qualified sealed cases, or too few exercising success paths.
     InsufficientEvidence,
     /// The reviewer failed or could not judge.
@@ -49,6 +51,7 @@ impl NotVerifiedClass {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             NotVerifiedClass::Infrastructure => "infrastructure",
+            NotVerifiedClass::BudgetExhausted => "budget_exhausted",
             NotVerifiedClass::InsufficientEvidence => "insufficient_evidence",
             NotVerifiedClass::ReviewerUnable => "reviewer_unable",
             NotVerifiedClass::TermsGap => "terms_gap",
@@ -463,6 +466,17 @@ pub(crate) fn review_summary(receipts: &CheckReceipts, policy: &EvidencePolicy) 
     for step in &receipts.steps {
         if step.step.starts_with(&format!("{SEALED}:")) {
             continue;
+        }
+        if step.step == "build"
+            && let Some(command) = &policy.build_command
+        {
+            text.push_str(&format!(
+                "host-configured command: {}\n",
+                serde_json::to_string(command).unwrap_or_default()
+            ));
+        }
+        if step.step == "candidate_tests" {
+            text.push_str("command: cargo test --offline --quiet\n");
         }
         text.push_str(&format!("{}: {:?}\n", step.step, step.outcome));
         if !step.detail.is_empty() {

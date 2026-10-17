@@ -108,6 +108,24 @@ fn passing() -> Result<CheckReceipts, CheckError> {
     with_sealed(&[StepOutcome::Pass; 4])
 }
 
+#[test]
+fn reviewer_receives_actual_command_and_success_output_without_sealed_details() {
+    let mut policy = policy();
+    policy.build_command = Some("python3 -m unittest -v tests".into());
+    let receipts = receipts(
+        vec![
+            step("build", StepOutcome::Pass, "Ran 10 tests; OK"),
+            step("sealed:S0", StepOutcome::Pass, SEALED_SECRET),
+        ],
+        true,
+    )
+    .unwrap();
+    let summary = review_summary(&receipts, &policy);
+    assert!(summary.contains("python3 -m unittest -v tests"));
+    assert!(summary.contains("Ran 10 tests; OK"));
+    assert!(!summary.contains(SEALED_SECRET));
+}
+
 fn support() -> Result<Review, WorkerError> {
     Ok(Review {
         verdict: ReviewVerdict::Support {

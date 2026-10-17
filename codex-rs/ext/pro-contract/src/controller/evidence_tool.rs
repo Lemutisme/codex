@@ -30,7 +30,24 @@ impl ToolContributor for EvidenceTools {
         thread: &ExtensionData,
     ) -> Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> {
         let access = thread.get::<EvidenceAccess>();
-        access.map_or_else(Vec::new, |access| vec![Arc::new(EvidenceTool(access)) as Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>])
+        let mut tools: Vec<Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>> =
+            access.map_or_else(Vec::new, |access| {
+                vec![Arc::new(EvidenceTool(access))
+                    as Arc<dyn for<'call> ToolExecutor<ToolCall<'call>>>]
+            });
+        if let Some(runtime) = thread.get::<super::runtime::ThreadRuntime>()
+            && runtime.progress_enabled()
+        {
+            tools.push(Arc::new(ProgressTool(runtime, None)));
+        } else if let Some(access) = thread.get::<ProgressAccess>()
+            && let Some(runtime) = access.runtime.upgrade()
+        {
+            tools.push(Arc::new(ProgressTool(
+                runtime,
+                Some((access.epoch, access.deadline_ms)),
+            )));
+        }
+        tools
     }
 }
 
@@ -76,6 +93,65 @@ impl<'call> ToolExecutor<ToolCall<'call>> for EvidenceTool {
                 .read(query, call.response_byte_budget(8192))
                 .await
                 .map_err(error)?;
+            Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
+        })
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ProgressAccess {
+    pub runtime: std::sync::Weak<super::runtime::ThreadRuntime>,
+    pub epoch: u64,
+    pub deadline_ms: u64,
+}
+
+struct ProgressTool(Arc<super::runtime::ThreadRuntime>, Option<(u64, u64)>);
+impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
+    fn tool_name(&self) -> ToolName {
+        ToolName::plain("publish_progress")
+    }
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::Function(ResponsesApiTool {
+            name: "publish_progress".into(),
+            description: "Publish a consistent frozen workspace and receive bounded public checks or review in this same turn. Stop or finish background jobs first. Use after a coherent change or before spending most of the task budget. This spends the original finite publication grant. A stable request_id reopens its completed receipt without rerunning. Read full evidence with contract_read_evidence. This does not propose, accept or finish the task; repair observed failures and continue.".into(),
+            strict: false, defer_loading: None, output_schema: None,
+            parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
+                "request_id":{"type":"string","minLength":1,"maxLength":128}},
+                "required":["request_id"],"additionalProperties":false})).unwrap_or_else(|error| panic!("static progress schema must parse: {error}")),
+        })
+    }
+    fn supports_parallel_tool_calls(&self) -> bool {
+        false
+    }
+    fn handle<'a>(&'a self, call: ToolCall<'call>) -> ToolExecutorFuture<'a>
+    where
+        'call: 'a,
+    {
+        Box::pin(async move {
+            #[derive(serde::Deserialize)]
+            #[serde(deny_unknown_fields)]
+            struct Request {
+                request_id: String,
+            }
+            let raw = call.function_arguments()?;
+            let error = FunctionCallError::RespondToModel;
+            if raw.len() > 1024 {
+                return Err(error("publication request exceeds 1 KiB".into()));
+            }
+            let request: Request = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
+            let value = match self.1 {
+                None => {
+                    self.0
+                        .publish_progress(request.request_id, call.turn_id)
+                        .await
+                }
+                Some(binding) => {
+                    self.0
+                        .publish_progress_for(request.request_id, call.turn_id, Some(binding))
+                        .await
+                }
+            }
+            .map_err(error)?;
             Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
         })
     }

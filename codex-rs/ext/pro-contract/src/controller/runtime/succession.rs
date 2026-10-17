@@ -110,7 +110,7 @@ impl ThreadRuntime {
         self.record_event(ExperimentKind::Execution, /*check_pipeline*/ None, json!({
             "thread_id": self.thread_id.to_string(), "executor_thread_id": id.to_string(),
             "phase": "successor_reserved", "launch": reserved.launches,
-            "deadline_ms": reserved.deadline_ms, "packet_sha256": super::digest_of("successor_packet", &packet)
+            "deadline_ms": reserved.deadline_ms, "executor_deadline_ms":deadline_ms, "packet_sha256": super::digest_of("successor_packet", &packet)
         })).await;
         let result = self
             .ports
@@ -121,6 +121,13 @@ impl ThreadRuntime {
                 deadline_ms,
                 cancel: cancel_rx,
                 evidence: self.evidence_access(),
+                progress: self.progress_enabled().then(|| {
+                    super::super::evidence_tool::ProgressAccess {
+                        runtime: Arc::downgrade(&self),
+                        epoch,
+                        deadline_ms,
+                    }
+                }),
             })
             .await;
         self.record_event(
@@ -188,6 +195,11 @@ impl ThreadRuntime {
                 return;
             }
             state.frozen = Some(Frozen {
+                response: self.capture_response(
+                    &captured,
+                    &format!("{id}:{}", handoff.turn_id),
+                    handoff.final_message.as_deref(),
+                ),
                 turn_id: format!("{id}:{}", handoff.turn_id),
                 subject: captured,
             });
@@ -217,18 +229,30 @@ impl ThreadRuntime {
             .map_err(|e| e.to_string())?
             .ok_or("no original succession grant; resume cannot create one")?;
         let id = ThreadId::new();
-        let reserve = self
+        let mut reserve = self
             .profile
             .check
             .timeout_secs
             .saturating_add(self.settings.worker.deadline_secs)
             .saturating_add(/*rhs*/ 60);
-        let (reserved, deadline_ms) = previous.reserve(
+        if let Some(progress) = &self.settings.progress {
+            let remaining = previous.deadline_ms.saturating_sub(now_ms()?) / 1000;
+            // A planned bounded assessment, not the sum of all independent maxima.
+            reserve = reserve
+                .min(progress.assessment_secs)
+                .min(remaining / 3)
+                .saturating_add(10);
+        }
+        let (reserved, mut deadline_ms) = previous.reserve(
             id.to_string(),
             Lesson { subject, residual },
             now_ms()?,
             reserve,
         )?;
+        if let Some(progress) = &self.settings.progress {
+            deadline_ms =
+                deadline_ms.min(now_ms()?.saturating_add(progress.executor_slice_secs * 1000));
+        }
         let journal = self.ledger.experiments().await.map_err(|e| e.to_string())?;
         let intake = journal
             .iter()
@@ -261,6 +285,7 @@ impl ThreadRuntime {
             "remaining_failures_and_prior_failed_artifacts": reserved.lessons,
             "previous_executor_claim_untrusted": reserved.previous_executor_claim,
             "executor_deadline_ms": deadline_ms,
+            "progress_publication": self.progress_enabled().then_some("Use publish_progress after a coherent change to obtain bounded public feedback before ending this turn. The original publication and task grants are shared with the prior executor."),
             "public_evidence": "Use contract_read_evidence: frontier for open public checks, index for the complete retained verification history, read for exact available details. Recent failure summaries are an index, not the full evidence. Preserve unrelated work and runnable probes in the workspace.",
             "strategy": super::super::work::METHOD
             })).map_err(|e| e.to_string())?

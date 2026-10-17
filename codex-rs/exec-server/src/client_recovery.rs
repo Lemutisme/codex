@@ -184,7 +184,10 @@ impl SessionState {
                 )
             {
                 ordered_events
-                    .insert_pending(ExecProcessEvent::Closed { seq: target_seq })
+                    .insert_pending(ExecProcessEvent::Closed {
+                        seq: target_seq,
+                        failure: None,
+                    })
                     .map_err(ExecServerError::Protocol)?;
             }
 

@@ -102,6 +102,9 @@ pub(super) async fn run(
             .thread_extension_init
             .insert(SessionIsolation::Isolated);
         options.thread_extension_init.insert(turn.evidence.clone());
+        if let Some(access) = &turn.progress {
+            options.thread_extension_init.insert(access.clone());
+        }
         let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
         extensions.tool_contributor(std::sync::Arc::new(super::evidence_tool::EvidenceTools));
         options
@@ -157,7 +160,8 @@ pub(super) async fn run(
                             if let Some(error) = last_error { return Err(error); }
                             return Ok(SuccessorHandoff {
                                 turn_id,
-                                summary: crate::workers::bounded(&complete.last_agent_message.unwrap_or_default(), /*cap*/ 1200),
+                                summary: crate::workers::bounded(complete.last_agent_message.as_deref().unwrap_or_default(), /*cap*/ 1200),
+                                final_message: complete.last_agent_message,
                             });
                         }
                         EventMsg::TurnAborted(_) => return Err("successor aborted without a handoff".into()),

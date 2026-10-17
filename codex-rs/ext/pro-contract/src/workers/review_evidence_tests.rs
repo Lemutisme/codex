@@ -51,7 +51,7 @@ fn read(evidence: &mut ReviewEvidence, request: Value) -> Value {
     let DynamicToolCallOutputContentItem::InputText { text } = &response.content_items[0] else {
         panic!("text");
     };
-    assert!(text.len() <= 900);
+    assert!(text.len() <= super::MAX_REPLY);
     serde_json::from_str(text).unwrap()
 }
 
@@ -68,6 +68,31 @@ fn document(evidence: &mut ReviewEvidence, id: &str) -> (String, Value) {
             return (result, page["citation_id"].clone());
         }
         offset = page["next_offset"].as_u64().unwrap();
+    }
+}
+
+#[test]
+fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage() {
+    let (_root, evidence) = fixture("artifact");
+    assert!(evidence.with_delivery_message(json!({
+        "kind":"native_final_response", "subject_hash":codex_pro_contract::Digest::of(b"foreign"),
+        "complete":true, "text":"foreign response"
+    })).is_err());
+    for complete in [false, true] {
+        let (_root, evidence) = fixture("artifact");
+        let response = json!({"kind":"native_final_response", "subject_hash":evidence.subject.subject_hash,
+            "complete":complete, "text":"Requested final explanation, not independent proof."});
+        let mut evidence = evidence.with_delivery_message(response.clone()).unwrap();
+        for id in ["human_request", "contract_terms"] {
+            document(&mut evidence, id);
+        }
+        let (text, citation) = document(&mut evidence, "delivery_message");
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), response);
+        let review =
+            json!({"verdict":"support", "coverage":[{"requirement_id":"R1","evidence":citation}],
+            "findings":[],"terms_gap":[],"missing":"","residual":""})
+            .to_string();
+        assert_eq!(evidence.resolve_review(&review).is_ok(), complete);
     }
 }
 
@@ -257,4 +282,32 @@ fn prompt_is_bounded_and_documents_are_accessible_without_dumping_artifacts() {
         json!({"op":"read","source_id":"check_receipts","offset":0}),
     );
     assert_eq!(checks["text"], "build passed");
+}
+
+#[test]
+fn baseline_identity_compares_frozen_entries_not_later_workspace_bytes() {
+    let (root, mut evidence) = fixture("original");
+    let baseline = evidence.subject.clone();
+    evidence = evidence.with_baseline(baseline);
+    std::fs::write(
+        root.path().join("workspace/hindsight.json"),
+        "later mutable work",
+    )
+    .unwrap();
+    let same = read(
+        &mut evidence,
+        json!({"op":"index","source_id":"","offset":3}),
+    );
+    assert_eq!(same["entry"]["matches_original_entry"], true);
+    evidence.subject = capture(
+        &root.path().join("workspace"),
+        &CapturePolicy::standard(vec![]),
+        &evidence.store,
+    )
+    .unwrap();
+    let changed = read(
+        &mut evidence,
+        json!({"op":"index","source_id":"","offset":3}),
+    );
+    assert_eq!(changed["entry"]["matches_original_entry"], false);
 }

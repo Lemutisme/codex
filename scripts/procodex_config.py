@@ -48,6 +48,7 @@ def configure(
     successor_sessions=0,
     task_seconds=14400,
     review_compute=False,
+    continuous_work=False,
 ):
     """Copy routing only; never carry hooks, MCP, global permissions or project trust over."""
     if isolation not in ("nested", "container-only"):
@@ -123,6 +124,8 @@ def configure(
         "--rm",
         "--network",
         "none",
+        "--label", f"procontract.task={key}",
+        "--log-driver", "local", "--log-opt", "max-size=16m", "--log-opt", "max-file=2",
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -144,7 +147,7 @@ def configure(
         image,
         "/bin/bash",
         "-c",
-        'mkdir -p "$HOME" && exec /opt/procodex/bin/codex exec-server --listen stdio',
+        'mkdir -p "$HOME" && exec /opt/procodex/bin/codex exec-server --listen stdio --max-process-output-bytes 33554432 --max-total-output-bytes 268435456 --max-process-seconds 1800',
     ]
     # The environment format uses a TOML array of tables, not an inline JSON object.
     env_text = 'default="procodex"\ninclude_local=false\n[[environments]]\nid="procodex"\nprogram="docker"\n'
@@ -176,10 +179,19 @@ def configure(
         repair_attempts=1,
         worker=dict(model=None, reasoning_effort=None, deadline_secs=900),
     )
-    if successor_sessions:
+    if successor_sessions or continuous_work:
         settings["succession"] = dict(
             max_sessions=successor_sessions, total_secs=task_seconds
         )
+    prior = home / "pro_contract/settings.json"
+    existing = json.loads(prior.read_text()) if prior.exists() else None
+    # A resumed task keeps its original capability grant, including when CLI defaults change.
+    if existing and existing.get("progress"):
+        settings["progress"] = existing["progress"]
+        settings["succession"] = existing["succession"]
+    elif continuous_work and existing is None:
+        settings["progress"] = dict(executor_label=f"procontract.task={key}",
+            max_publications=8, assessment_secs=120, executor_slice_secs=1800)
     if review_compute:
         # Changing a verification capability does not create another task/home or reset
         # its existing succession grant. Computation grants are persisted by the runtime.

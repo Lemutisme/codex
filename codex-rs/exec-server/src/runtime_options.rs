@@ -10,6 +10,10 @@ use codex_utils_absolute_path::AbsolutePathBuf;
 pub struct ExecServerRuntimeOptions {
     /// Stable path to the Codex executable used to launch hidden helper modes.
     pub codex_self_exe: AbsolutePathBuf,
+    /// Trusted provisioning limits. Individual requests cannot raise or reset these.
+    pub max_process_output_bytes: Option<u64>,
+    pub max_total_output_bytes: Option<u64>,
+    pub max_process_seconds: Option<u64>,
     /// Path to the Linux sandbox helper alias used when the platform sandbox
     /// needs to re-enter Codex by argv0.
     pub codex_linux_sandbox_exe: Option<AbsolutePathBuf>,
@@ -41,6 +45,9 @@ impl ExecServerRuntimeOptions {
         codex_linux_sandbox_exe: Option<PathBuf>,
     ) -> std::io::Result<Self> {
         Ok(Self {
+            max_process_output_bytes: None,
+            max_total_output_bytes: None,
+            max_process_seconds: None,
             linux_sandbox_pid_namespace: LinuxSandboxPidNamespace::default(),
             proxy_private_ips_via_upstream: false,
             codex_self_exe: absolute_path(codex_self_exe)?,
@@ -48,6 +55,18 @@ impl ExecServerRuntimeOptions {
             #[cfg(target_os = "macos")]
             allowed_symlinked_codex_home: None,
         })
+    }
+
+    pub fn with_process_limits(
+        mut self,
+        output: Option<u64>,
+        total: Option<u64>,
+        seconds: Option<u64>,
+    ) -> Self {
+        self.max_process_output_bytes = output;
+        self.max_total_output_bytes = total;
+        self.max_process_seconds = seconds;
+        self
     }
 
     /// Applies the PID namespace policy chosen by trusted executor provisioning.

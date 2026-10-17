@@ -59,6 +59,17 @@ class RegistryTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             loaded.tasks[self.fresh]["total"] = 99
 
+    def test_grader_requirements_are_explicit_exact_versions_and_bound_on_resume(self):
+        for invalid in [["pkg"],["pkg>=1"],["--index-url=http://example"],["pkg==1;exit"],["pkg==1","PKG==2"]]:
+            self.document["grader_requirements"] = invalid
+            with self.assertRaises(ValueError):registry.load(self.path,self.write())
+        self.document["grader_requirements"] = ["example-package==1.2.3"]
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.grader_requirements,("example-package==1.2.3",))
+        self.document["grader_requirements"] = ["example-package==2.0"]
+        self.write()
+        with self.assertRaisesRegex(ValueError,"identity"):loaded.verify_source()
+
     def test_frozen_registry_drift_is_rejected_on_resume(self):
         loaded = registry.load(self.path, self.write())
         self.document["tasks"][self.fresh]["total"] = 5

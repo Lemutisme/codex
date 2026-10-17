@@ -41,8 +41,8 @@ pub(super) fn now_ms() -> Result<u64, String> {
 
 impl Budget {
     pub(super) fn new(grant: SuccessionSettings, now: u64) -> Result<Self, String> {
-        if !(1..=16).contains(&grant.max_sessions) || !(60..=86400).contains(&grant.total_secs) {
-            return Err("succession requires 1..16 sessions and 60..86400 all-in seconds".into());
+        if !(0..=16).contains(&grant.max_sessions) || !(60..=86400).contains(&grant.total_secs) {
+            return Err("succession requires 0..16 sessions and 60..86400 all-in seconds".into());
         }
         Ok(Self {
             deadline_ms: now

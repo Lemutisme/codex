@@ -25,6 +25,20 @@ pub(crate) struct WorkerIdentity {
 }
 
 pub(crate) trait Ports: Send + Sync {
+    fn interrupt_executor(&self) -> PortFuture<'_, Result<(), String>> {
+        Box::pin(async { Err("executor interruption is unavailable".into()) })
+    }
+
+    fn capture_barrier<'a>(
+        &'a self,
+        profile: &'a crate::EvaluationProfile,
+        label: &'a str,
+    ) -> PortFuture<'a, Result<super::capture_barrier::CaptureBarrier, String>> {
+        Box::pin(super::capture_barrier::CaptureBarrier::acquire(
+            profile, label,
+        ))
+    }
+
     /// Runs a fresh executor under the parent's authority; returns only after its shutdown.
     fn run_successor(&self, turn: SuccessorTurn) -> PortFuture<'_, Result<SuccessorExit, String>>;
     /// Runs one strict-JSON turn on a hidden worker and returns its final message.
@@ -67,11 +81,14 @@ pub(crate) struct SuccessorTurn {
     pub deadline_ms: u64,
     pub cancel: watch::Receiver<bool>,
     pub evidence: super::archive::EvidenceAccess,
+    pub progress: Option<super::evidence_tool::ProgressAccess>,
 }
 
 pub(crate) struct SuccessorHandoff {
     pub turn_id: String,
     pub summary: String,
+    /// Actual delivered text; the bounded continuation summary is not delivery evidence.
+    pub final_message: Option<String>,
 }
 
 pub(crate) enum SuccessorExit {

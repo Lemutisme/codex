@@ -103,6 +103,8 @@ struct RunningProcess {
     accepted_stdin_write_ids: Arc<Mutex<AcceptedStdinWriteIds>>,
     output: VecDeque<ProcessOutputChunk>,
     retained_bytes: usize,
+    emitted_bytes: u64,
+    failure: Option<String>,
     next_seq: u64,
     exit_code: Option<i32>,
     wake_tx: watch::Sender<u64>,
@@ -160,6 +162,9 @@ struct Inner {
     notifications: std::sync::RwLock<Option<RpcNotificationSender>>,
     requests: Arc<std::sync::RwLock<Option<RpcServerRequestSender>>>,
     processes: Mutex<HashMap<ProcessId, ProcessEntry>>,
+    emitted_bytes: AtomicU64,
+    max_process_output_bytes: Option<u64>,
+    max_total_output_bytes: Option<u64>,
     #[cfg(unix)]
     shell_snapshots: crate::shell_snapshot::ShellSnapshotCache,
     telemetry: ExecServerTelemetry,
@@ -219,6 +224,13 @@ impl LocalProcess {
                 notifications: std::sync::RwLock::new(Some(notifications)),
                 requests: Arc::new(std::sync::RwLock::new(Some(requests))),
                 processes: Mutex::new(HashMap::new()),
+                emitted_bytes: AtomicU64::new(0),
+                max_process_output_bytes: runtime_paths
+                    .as_ref()
+                    .and_then(|p| p.max_process_output_bytes),
+                max_total_output_bytes: runtime_paths
+                    .as_ref()
+                    .and_then(|p| p.max_total_output_bytes),
                 #[cfg(unix)]
                 shell_snapshots: crate::shell_snapshot::ShellSnapshotCache::default(),
                 telemetry,
@@ -475,6 +487,8 @@ impl LocalProcess {
                     ),
                     output: VecDeque::new(),
                     retained_bytes: 0,
+                    emitted_bytes: 0,
+                    failure: None,
                     next_seq: 1,
                     exit_code: None,
                     wake_tx: wake_tx.clone(),
@@ -490,6 +504,38 @@ impl LocalProcess {
                     network_policy_shutdown,
                 })),
             );
+        }
+        if let Some(seconds) = self
+            .runtime_paths
+            .as_ref()
+            .and_then(|p| p.max_process_seconds)
+        {
+            let inner = Arc::clone(&self.inner);
+            let id = process_id.clone();
+            let owner = wake_tx.clone();
+            let mut changes = wake_tx.subscribe();
+            tokio::spawn(async move {
+                let deadline = tokio::time::Instant::now() + Duration::from_secs(seconds);
+                loop {
+                    tokio::select! {
+                        _ = tokio::time::sleep_until(deadline) => {
+                            let mut processes = inner.processes.lock().await;
+                            if let Some(ProcessEntry::Running(process)) = processes.get_mut(&id)
+                                && process.wake_tx.same_channel(&owner) && !process.closed {
+                                limit_process(process, "executor process lifetime limit reached");
+                            }
+                            return;
+                        }
+                        result = changes.changed() => {
+                            if result.is_err() { return; }
+                            let processes = inner.processes.lock().await;
+                            if !matches!(processes.get(&id), Some(ProcessEntry::Running(p)) if p.wake_tx.same_channel(&owner) && !p.closed) {
+                                return;
+                            }
+                        }
+                    }
+                }
+            });
         }
         telemetry.log(ProcessTelemetryEvent::Start, prepared.sandbox);
         tokio::spawn(stream_output(
@@ -593,7 +639,7 @@ impl LocalProcess {
                         exited: process.exit_code.is_some(),
                         exit_code: process.exit_code,
                         closed: process.closed,
-                        failure: None,
+                        failure: process.failure.clone(),
                         sandbox_denied: process.sandbox_denied,
                     },
                     Arc::clone(&process.output_notify),
@@ -965,6 +1011,15 @@ fn map_handler_error(error: JSONRPCErrorError) -> ExecServerError {
     }
 }
 
+fn limit_process(process: &mut RunningProcess, reason: &str) {
+    if process.failure.is_none() {
+        process.failure = Some(reason.to_string());
+        process.termination_requested = true;
+        process.session.terminate();
+        process.output_notify.notify_waiters();
+    }
+}
+
 async fn stream_output(
     process_id: ProcessId,
     stream: ExecOutputStream,
@@ -974,7 +1029,7 @@ async fn stream_output(
 ) {
     while let Some(chunk) = receiver.recv().await {
         let _chunk_len = chunk.len();
-        let chunk = ByteChunk::from(chunk);
+        let mut chunk = chunk;
         let notification = {
             let mut processes = inner.processes.lock().await;
             let Some(entry) = processes.get_mut(&process_id) else {
@@ -983,6 +1038,39 @@ async fn stream_output(
             let ProcessEntry::Running(process) = entry else {
                 break;
             };
+            if process.failure.is_some() {
+                continue;
+            }
+            // This lock serializes both streams and all processes before transport encoding.
+            let total = inner.emitted_bytes.load(Ordering::Relaxed);
+            let remaining = inner
+                .max_process_output_bytes
+                .unwrap_or(u64::MAX)
+                .saturating_sub(process.emitted_bytes)
+                .min(
+                    inner
+                        .max_total_output_bytes
+                        .unwrap_or(u64::MAX)
+                        .saturating_sub(total),
+                );
+            let keep = chunk
+                .len()
+                .min(usize::try_from(remaining).unwrap_or(usize::MAX));
+            if keep < chunk.len() {
+                limit_process(
+                    process,
+                    "executor raw output limit reached; capture is incomplete",
+                );
+                chunk.truncate(keep);
+            }
+            process.emitted_bytes = process.emitted_bytes.saturating_add(keep as u64);
+            inner
+                .emitted_bytes
+                .store(total.saturating_add(keep as u64), Ordering::Relaxed);
+            if chunk.is_empty() {
+                continue;
+            }
+            let chunk = ByteChunk::from(chunk);
             let seq = process.next_seq;
             process.next_seq += 1;
             process.retained_bytes += chunk.0.len();
@@ -1163,11 +1251,15 @@ async fn maybe_emit_closed(process_id: ProcessId, inner: Arc<Inner>) {
         let seq = process.next_seq;
         process.next_seq += 1;
         let _ = process.wake_tx.send(seq);
-        process.events.publish(ExecProcessEvent::Closed { seq });
+        process.events.publish(ExecProcessEvent::Closed {
+            seq,
+            failure: process.failure.clone(),
+        });
         (
             ExecClosedNotification {
                 process_id: process_id.clone(),
                 seq,
+                failure: process.failure.clone(),
             },
             Arc::clone(&process.output_notify),
             process.network_proxy_handle.take(),
@@ -1258,6 +1350,91 @@ mod tests {
                 .split(|byte| *byte == 0)
                 .map(|arg| std::ffi::OsString::from_vec(arg.to_vec())),
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn raw_output_limit_stops_real_process_and_preserves_executor() {
+        let paths = ExecServerRuntimeOptions::new(std::env::current_exe().unwrap(), None)
+            .unwrap()
+            .with_process_limits(Some(1024), Some(4096), Some(3));
+        let backend = LocalProcess::with_local_runtime_paths(paths);
+        let mut params = test_exec_params(HashMap::new());
+        params.argv = vec![
+            "/bin/sh".into(),
+            "-c".into(),
+            "while :; do printf '0123456789abcdef'; done".into(),
+        ];
+        backend
+            .exec(params.clone(), ProcessTelemetry::default())
+            .await
+            .unwrap();
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            read_process_until_closed(&backend, &params.process_id),
+        )
+        .await
+        .unwrap();
+        assert!(
+            result
+                .failure
+                .as_deref()
+                .unwrap()
+                .contains("raw output limit")
+        );
+        assert!(result.exited);
+        assert_eq!(backend.inner.emitted_bytes.load(Ordering::Relaxed), 1024);
+        params.process_id = ProcessId::from("after-output-limit");
+        params.argv = vec!["/bin/sh".into(), "-c".into(), "printf ready".into()];
+        backend
+            .exec(params.clone(), ProcessTelemetry::default())
+            .await
+            .unwrap();
+        let result = read_process_until_closed(&backend, &params.process_id).await;
+        assert_eq!(result.exit_code, Some(0));
+        assert!(result.failure.is_none());
+        assert_eq!(backend.inner.emitted_bytes.load(Ordering::Relaxed), 1029);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn process_lifetime_is_bounded_between_reads_and_closes_descendant_streams() {
+        let paths = ExecServerRuntimeOptions::new(std::env::current_exe().unwrap(), None)
+            .unwrap()
+            .with_process_limits(Some(1024), Some(4096), Some(1));
+        let backend = LocalProcess::with_local_runtime_paths(paths);
+        let mut params = test_exec_params(HashMap::new());
+        params.argv = vec!["/bin/sh".into(), "-c".into(), "sleep 30 & wait".into()];
+        backend
+            .exec(params.clone(), ProcessTelemetry::default())
+            .await
+            .unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let response = backend
+                    .exec_read(ReadParams {
+                        process_id: params.process_id.clone(),
+                        after_seq: None,
+                        max_bytes: None,
+                        wait_ms: Some(100),
+                    })
+                    .await
+                    .unwrap();
+                if response.closed {
+                    break response;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(
+            result
+                .failure
+                .as_deref()
+                .unwrap()
+                .contains("lifetime limit")
+        );
+        assert!(result.exited && result.closed);
     }
 
     fn test_exec_params(env: HashMap<String, String>) -> ExecParams {
@@ -2000,6 +2177,8 @@ mod tests {
                 accepted_stdin_write_ids: Arc::new(Mutex::new(AcceptedStdinWriteIds::default())),
                 output: VecDeque::new(),
                 retained_bytes: 0,
+                emitted_bytes: 0,
+                failure: None,
                 next_seq: 1,
                 exit_code: None,
                 wake_tx: wake_tx.clone(),

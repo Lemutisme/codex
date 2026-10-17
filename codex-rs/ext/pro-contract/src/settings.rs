@@ -29,6 +29,9 @@ pub struct Settings {
     /// existing check image/runtime; absence keeps artifact review entirely container-free.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review_execution: Option<ReviewExecution>,
+    /// Bounded, same-turn publication and public assessment under the original task grant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<ProgressSettings>,
     /// A version's policy bundle: a directory whose `drafter.md`, `prober.md` and `reviewer.md`
     /// replace the built-in worker instructions.
     #[serde(default)]
@@ -41,6 +44,16 @@ pub struct ReviewExecution {
     pub max_calls: u32,
     pub timeout_secs: u64,
     pub max_output_bytes: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProgressSettings {
+    /// Provisioner-owned Docker label, not a model-selected container or path.
+    pub executor_label: String,
+    pub max_publications: u32,
+    pub assessment_secs: u64,
+    pub executor_slice_secs: u64,
 }
 
 /// An operator's finite grant for replacing failed executor contexts, not resetting a task.

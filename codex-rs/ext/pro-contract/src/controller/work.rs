@@ -21,7 +21,7 @@ use crate::StepReceipt;
 use crate::workers::reviewer::Finding;
 use crate::workers::reviewer::Review;
 
-pub(super) const METHOD: &str = "Keep observed counterexamples, unexamined cases and interactions, and unsupported assumptions distinct. Choose the next experiment, derivation or coherent repair by whether it can change a consequential conclusion. Preserve exact invocations, inputs/state, available outputs, assumptions and incomplete-capture boundaries. Replay the motivating case and affected passing controls after each edit. Keep runnable probes, proof fragments and unfinished hypotheses in task-owned workspace files so the frozen candidate carries them forward. Use contract_read_evidence to recover public verification facts omitted from summaries; its frontier covers registered public checks, not every requirement or unknown. An empty failure list is not coverage, and a local passing batch cannot erase an older actionable difference. Continue while a concrete authorized step can materially advance the task within its remaining budget. When handing off, distinguish established results from conjectures and name the remaining uncertainty and stopping reason. Independent support and authorized settlement remain host decisions.";
+pub(super) const METHOD: &str = "Keep observed counterexamples, unexamined cases and interactions, and unsupported assumptions distinct. Choose the next experiment, derivation or coherent repair by whether it can change a consequential conclusion. Preserve exact invocations, inputs/state, available outputs, assumptions and incomplete-capture boundaries. Replay the motivating case and affected passing controls after each edit. Keep runnable probes, proof fragments and unfinished hypotheses in task-owned workspace files so the frozen candidate carries them forward. Use contract_read_evidence to recover public verification facts omitted from summaries; its frontier covers registered public checks, not every requirement or unknown. An empty failure list is not coverage, and a local passing batch cannot erase an older actionable difference. Continue while a concrete authorized step can materially advance the task within its remaining budget. Preserve requested reports and explanations in task-owned workspace files so independent artifact review can inspect them; the final message can point to those files. When handing off, distinguish established results from conjectures and name the remaining uncertainty and stopping reason. Independent support and authorized settlement remain host decisions.";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct PublicCheck {
@@ -56,6 +56,9 @@ pub(super) struct PublicEvidence {
     /// Host-linked computations remain readable even when the final review is partial.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inspections: Vec<Digest>,
+    /// The host-captured final response, treated as a communication artifact, not truth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery_message: Option<Digest>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inspection_actions: Vec<crate::ExecutionReceipt>,
 }
@@ -111,7 +114,7 @@ impl PublicEvidence {
             pipeline_complete: receipts.is_some_and(|r| r.complete),
             capture_boundary: "Checker receipts retain at most 4,000 detail bytes per step, with omission markers; they are not complete raw process streams. This archive preserves the received public receipt and invocation exactly. Sealed cases are excluded.".into(),
             checks, findings, blocker, review: review.cloned(), execution: receipts.and_then(|r| r.execution.clone()),
-            inspections: Vec::new(), inspection_actions: Vec::new(),
+            inspections: Vec::new(), delivery_message: None, inspection_actions: Vec::new(),
         }
     }
 }

@@ -17,15 +17,18 @@ use crate::Terms;
 
 pub(crate) const TOOL: &str = "read_evidence";
 pub(crate) const INSPECT_TOOL: &str = "inspect_evidence";
-const MAX_REPLY: usize = 900;
+const MAX_REPLY: usize = 8192;
+const PAGE_BYTES: usize = 4096;
 const MAX_READS: usize = 4096;
 const MAX_FILE: u64 = 4 << 20;
 
 pub(crate) struct ReviewEvidence {
     subject: Subject,
+    baseline: Option<Subject>,
     store: BlobStore,
     terms: Terms,
-    documents: [(String, String); 3],
+    documents: Vec<(String, String)>,
+    delivery_message_complete: bool,
     order: Vec<usize>,
     issued: Vec<Value>,
     calls: usize,
@@ -72,11 +75,13 @@ impl ReviewEvidence {
         ];
         Ok(Self {
             subject,
+            baseline: None,
             store,
             terms: terms.clone(),
             order,
             required_coverage,
-            documents: [
+            delivery_message_complete: false,
+            documents: vec![
                 ("human_request".to_string(), terms.intake_text.clone()),
                 ("contract_terms".to_string(), encoded_terms),
                 ("check_receipts".to_string(), checks),
@@ -86,6 +91,26 @@ impl ReviewEvidence {
             execution: None,
             computations: Vec::new(),
         })
+    }
+
+    pub(crate) fn with_delivery_message(mut self, document: Value) -> Result<Self, WorkerError> {
+        if document["kind"] != "native_final_response"
+            || document["subject_hash"] != json!(self.subject.subject_hash)
+            || !document["complete"].is_boolean()
+        {
+            return Err(WorkerError::Malformed(
+                "delivery response differs from the frozen subject".into(),
+            ));
+        }
+        self.delivery_message_complete = document["complete"] == true;
+        self.documents
+            .push(("delivery_message".into(), document.to_string()));
+        Ok(self)
+    }
+
+    pub(crate) fn with_baseline(mut self, baseline: Subject) -> Self {
+        self.baseline = Some(baseline);
+        self
     }
 
     pub(crate) fn with_execution(
@@ -228,7 +253,7 @@ No host shell, network or arbitrary paths are available. {computation} Return th
     pub(crate) fn tool() -> DynamicToolSpec {
         DynamicToolSpec::Function(DynamicToolFunctionSpec {
             name: TOOL.to_string(),
-            description: "Read frozen review evidence only. index: source_id empty, offset is cursor. read: source_id from index, offset is next_offset or zero. Each response <=900 bytes.".to_string(),
+            description: "Read frozen review evidence only. index: source_id empty, offset is cursor. read: source_id from index, offset is next_offset or zero. Each response <=8192 bytes; text pages contain up to 4096 UTF-8 bytes. Follow next_offset to eof. Candidate index entries report exact byte/mode identity with the frozen task baseline when available; this is not semantic equivalence. delivery_message is the actual final response as an artifact: its assertions are not independent evidence of program correctness.".to_string(),
             input_schema: super::strict_object(json!({
                 "op":{"type":"string","enum":["index","read"]},
                 "source_id":{"type":"string"}, "offset":{"type":"integer"}
@@ -276,7 +301,10 @@ No host shell, network or arbitrary paths are available. {computation} Return th
             } else if let Some(index) = self.order.get(offset - self.documents.len()) {
                 let entry = &self.subject.manifest.entries[*index];
                 json!({"source_id": format!("file:{index}"),
-                    "path":super::bounded(&entry.path, /*cap*/ 96), "kind":"candidate"})
+                    "path":super::bounded(&entry.path, /*cap*/ 96), "kind":"candidate",
+                    "baseline_subject":self.baseline.as_ref().map(|b| b.subject_hash),
+                    "matches_original_entry":self.baseline.as_ref().map(|b| b.manifest.entries.iter().any(|original| original == entry)),
+                })
             } else if offset >= file_end && offset < count {
                 let index = offset - file_end;
                 json!({"source_id":format!("computation:{index}"),"kind":"computation","bytes":self.computations[index].len()})
@@ -315,7 +343,7 @@ No host shell, network or arbitrary paths are available. {computation} Return th
         if !text.is_char_boundary(offset) {
             return Err("invalid UTF-8 offset".to_string());
         }
-        let mut end = text.floor_char_boundary((offset + 512).min(text.len()));
+        let mut end = text.floor_char_boundary((offset + PAGE_BYTES).min(text.len()));
         loop {
             let handle = (end > offset).then(|| format!("e{}", self.issued.len()));
             let response = json!({"source_id":source_id,"offset":offset,"next_offset":end,
@@ -405,6 +433,10 @@ No host shell, network or arbitrary paths are available. {computation} Return th
                             .as_array()
                             .is_some_and(|ids| ids.contains(&row["requirement_id"]))
                     {
+                        return Err(fail());
+                    }
+                } else if source == "delivery_message" {
+                    if !self.delivery_message_complete {
                         return Err(fail());
                     }
                 } else if !source.starts_with("file:") && source != "check_receipts" {

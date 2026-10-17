@@ -73,6 +73,9 @@ impl ThreadRuntime {
             }
         }
         self.restore_admission().await?;
+        if self.state.lock().await.admission.is_some() {
+            self.progress_ready().await?;
+        }
         let Some(contract) = contract else {
             if self.state.lock().await.admission.is_some()
                 && previous.as_ref().is_none_or(|s| s.contract_id.is_none())

@@ -93,6 +93,9 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         "--rm",
         "--network",
         "none",
+        "--label", "procontract.task=" + hashlib.sha256(str(workspace.resolve()).encode()).hexdigest()[:20],
+        "--log-driver", "local", "--log-opt", "max-size=16m", "--log-opt", "max-file=2",
+        "--pids-limit", "512",
         # One runaway probe once took 235 GiB of a shared machine; the cap confines it to its own run.
         "--memory",
         EXECUTOR_MEMORY,
@@ -121,6 +124,9 @@ def environments_toml(workspace: Path, codex_bin: Path, image: str) -> str:
         "exec-server",
         "--listen",
         "stdio",
+        "--max-process-output-bytes", "33554432",
+        "--max-total-output-bytes", "268435456",
+        "--max-process-seconds", "1800",
     ]
     return (
         f'default = "{ENVIRONMENT_ID}"\n'
@@ -172,6 +178,10 @@ def settings(
         result["policy"] = str(policy)
     if succession is not None:
         result["succession"] = succession
+        result["progress"] = dict(
+            executor_label="procontract.task=" + hashlib.sha256(str(workspace.resolve()).encode()).hexdigest()[:20],
+            max_publications=8, assessment_secs=120, executor_slice_secs=1800,
+        )
     return result
 
 

@@ -29,52 +29,117 @@ use crate::workers::runtime::WorkerTurn;
 
 const CHECK_SUMMARY_CAP: usize = 15_000;
 
+pub(super) struct Assessment {
+    pub(super) checks: Result<CheckReceipts, crate::CheckError>,
+    pub(super) review: Option<Result<reviewer::Review, crate::WorkerError>>,
+    pub(super) verdict: Verdict,
+    pub(super) effects_resolved: bool,
+    pub(super) public: super::super::work::PublicEvidence,
+}
+
 impl ThreadRuntime {
-    pub(super) async fn verify(self: Arc<Self>, handoff: Handoff) {
+    pub(super) async fn assess_snapshot(
+        &self,
+        handoff: &Handoff,
+        work: &std::path::Path,
+        deadline_ms: Option<u64>,
+        formal: bool,
+    ) -> Assessment {
         let Handoff {
-            epoch,
             contract,
             subject,
-            turn_id,
-            policy,
             terms,
+            policy,
             base,
+            ..
         } = handoff;
-        let work = self
-            .work_dir()
-            .join(contract.generation.to_string())
-            .join("candidate");
-        if let Err(error) = self.materialize(&subject, &work).await {
-            self.not_verified(
-                NotVerifiedClass::Infrastructure,
-                &format!("materialization failed: {error}"),
-            )
-            .await;
-            return;
-        }
-        let checks = self
-            .ports
-            .run_checks(&self.profile.check, &work, &base.dir, &policy)
-            .await;
-        // The reviewer is asked only when the mechanical evidence leaves the decision to it.
-        let review = match (&checks, decision::mechanical_verdict(&checks, &policy)) {
-            (Ok(receipts), None) => {
-                let summary = decision::review_summary(receipts, &policy);
-                let evidence = crate::workers::review_evidence::ReviewEvidence::new(
-                    subject.clone(),
-                    self.store.clone(),
-                    &terms,
-                    crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
-                )
-                .and_then(|evidence| match &self.settings.review_execution {
-                    Some(grant) => evidence.with_execution(
-                        self.profile.check.clone(),
-                        grant.clone(),
-                        work.with_extension("review"),
-                        Duration::from_secs(self.settings.worker.deadline_secs),
-                    ),
-                    None => Ok(evidence),
-                });
+        let mut check_environment = self.profile.check.clone();
+        check_environment.timeout_secs = self
+            .action_seconds(deadline_ms, check_environment.timeout_secs)
+            .await
+            .unwrap_or(0);
+        let checks = if check_environment.timeout_secs == 0 {
+            Err(crate::CheckError::TimedOut)
+        } else {
+            self.ports
+                .run_checks(&check_environment, work, &base.dir, policy)
+                .await
+        };
+        let review_seconds = self
+            .action_seconds(deadline_ms, self.settings.worker.deadline_secs)
+            .await
+            .unwrap_or(0);
+        // Public executable checks already provide actionable progress. Full review belongs
+        // to acceptance; ReviewOnly tasks still need a bounded local review during work.
+        let review_needed = formal
+            || (policy.build_command.is_none()
+                && policy.differential.is_empty()
+                && !policy.candidate_tests);
+        let review = match (&checks, decision::mechanical_verdict(&checks, policy)) {
+            (Ok(receipts), None) if review_needed && review_seconds > 0 => {
+                let mut summary = decision::review_summary(receipts, policy);
+                if formal && let Ok(events) = self.ledger.experiments().await {
+                    let publications: Vec<_> = events.iter().filter(|event| event.event.body["phase"] == "progress_snapshot"
+                            && event.event.body["contract_id"] == json!(contract.id.0)).map(|event| json!({
+                                "publication":event.event.body["publication"],
+                                "subject_hash":event.event.body["subject_hash"],
+                                "matches_original_task_baseline":event.event.body["subject_hash"] == json!(base.subject),
+                                "receipt":event.hash,
+                            })).collect();
+                    summary.push_str(&format!("\nHost-retained publications before this handoff (availability, not proof of comprehension): {}\n",
+                            crate::workers::bounded(&serde_json::to_string(&publications).unwrap_or_default(), 4096)));
+                }
+                let baseline = self
+                    .ledger
+                    .subject_binding(&base.subject)
+                    .await
+                    .map_err(|e| crate::WorkerError::Start(e.to_string()))
+                    .and_then(|binding| {
+                        binding.ok_or_else(|| {
+                            crate::WorkerError::Start(
+                                "original task baseline is unavailable".into(),
+                            )
+                        })
+                    })
+                    .and_then(|binding| {
+                        codex_pro_contract_store::load_subject(
+                            &self.store,
+                            &binding.manifest,
+                            &base.subject,
+                        )
+                        .map_err(|e| crate::WorkerError::Start(e.to_string()))
+                    });
+                let evidence = baseline
+                    .and_then(|baseline| {
+                        crate::workers::review_evidence::ReviewEvidence::new(
+                            (*subject).clone(),
+                            self.store.clone(),
+                            terms,
+                            crate::workers::bounded(&summary, CHECK_SUMMARY_CAP),
+                        )
+                        .map(|evidence| evidence.with_baseline(baseline))
+                    })
+                    .and_then(|evidence| match handoff.response.handle() {
+                        None => Ok(evidence),
+                        Some(handle) => self
+                            .store
+                            .get(&handle)
+                            .map_err(|e| crate::WorkerError::Start(e.to_string()))
+                            .and_then(|bytes| {
+                                serde_json::from_slice(&bytes)
+                                    .map_err(|e| crate::WorkerError::Malformed(e.to_string()))
+                            })
+                            .and_then(|message| evidence.with_delivery_message(message)),
+                    })
+                    .and_then(|evidence| match &self.settings.review_execution {
+                        Some(grant) => evidence.with_execution(
+                            self.profile.check.clone(),
+                            grant.clone(),
+                            work.with_extension("review"),
+                            Duration::from_secs(review_seconds),
+                        ),
+                        None => Ok(evidence),
+                    });
                 let message = match evidence {
                     Ok(evidence) => {
                         self.ports
@@ -82,18 +147,25 @@ impl ThreadRuntime {
                                 prompt: evidence.prompt(&self.policies.reviewer),
                                 schema: reviewer::schema(),
                                 trigger: "pro_contract_review",
-                                deadline: Duration::from_secs(self.settings.worker.deadline_secs),
+                                deadline: Duration::from_secs(review_seconds),
                                 evidence: Some(evidence),
                             })
                             .await
                     }
                     Err(error) => Err(error),
                 };
-                Some(message.and_then(|message| reviewer::parse(&message, &terms)))
+                Some(message.and_then(|message| reviewer::parse(&message, terms)))
             }
             _ => None,
         };
-        let mut verdict = decide(&checks, review.as_ref(), &policy);
+        let mut verdict = if !review_needed
+            && decision::mechanical_verdict(&checks, policy).is_none()
+        {
+            Verdict::NotVerified { class: NotVerifiedClass::InsufficientEvidence,
+                reason: "Public executable checks completed for this frozen snapshot. Independent review and full acceptance were not performed.".into() }
+        } else {
+            decide(&checks, review.as_ref(), policy)
+        };
         // Keep independent computations even if their reviewer cannot finish judging.
         // Only the host's grant may link these handles into the public task archive.
         let inspection_history = if let Some(grant) = &self.settings.review_execution
@@ -104,7 +176,7 @@ impl ThreadRuntime {
                 grant.clone(),
                 work.with_extension("review"),
                 subject.subject_hash,
-                &terms,
+                terms,
                 Duration::ZERO,
             )
             .and_then(|grant| Ok((grant.history(&self.store)?, grant.actions()?)))
@@ -127,14 +199,21 @@ impl ThreadRuntime {
                         .into(),
             };
         }
+        let effects_resolved = checks
+            .as_ref()
+            .is_ok_and(|r| r.execution.as_ref().is_none_or(|a| a.shutdown_confirmed))
+            && inspection_history
+                .as_ref()
+                .is_ok_and(|(_, actions)| actions.iter().all(|a| a.shutdown_confirmed));
         let mut public = super::super::work::PublicEvidence::capture(
-            &contract,
+            contract,
             subject.subject_hash,
-            &policy,
+            policy,
             checks.as_ref().ok(),
             review.as_ref().and_then(|r| r.as_ref().ok()),
             &verdict,
         );
+        public.delivery_message = handoff.response.handle();
         if let Ok((documents, actions)) = inspection_history {
             public.inspections = documents
                 .iter()
@@ -142,7 +221,7 @@ impl ThreadRuntime {
                 .collect();
             public.inspection_actions = actions;
         }
-        if matches!(verdict, Verdict::Support) {
+        if formal && matches!(verdict, Verdict::Support) {
             match self.evidence_access().unresolved_with(&public).await {
                 Ok(open) if open.is_empty() => {}
                 Ok(open) => {
@@ -171,6 +250,75 @@ impl ThreadRuntime {
                 _ => None,
             };
         }
+        Assessment {
+            checks,
+            review,
+            verdict,
+            public,
+            effects_resolved,
+        }
+    }
+
+    pub(super) async fn verify(self: Arc<Self>, handoff: Handoff) {
+        if let Err(reason) = self.progress_ready().await {
+            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                .await;
+            return;
+        }
+        if let super::delivery::ResponseCapture::Unavailable { reason } = &handoff.response {
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("delivery response could not be retained: {reason}"),
+            )
+            .await;
+            return;
+        }
+        let Handoff {
+            response,
+            epoch,
+            contract,
+            subject,
+            turn_id,
+            policy,
+            terms,
+            base,
+        } = handoff;
+        let work = self
+            .work_dir()
+            .join(contract.generation.to_string())
+            .join("candidate");
+        if let Err(error) = self.materialize(&subject, &work).await {
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("materialization failed: {error}"),
+            )
+            .await;
+            return;
+        }
+        let assessment = self
+            .assess_snapshot(
+                &Handoff {
+                    response: response.clone(),
+                    epoch,
+                    contract: contract.clone(),
+                    subject: subject.clone(),
+                    turn_id: turn_id.clone(),
+                    policy: policy.clone(),
+                    terms: terms.clone(),
+                    base: base.clone(),
+                },
+                &work,
+                None,
+                true,
+            )
+            .await;
+        let Assessment {
+            checks,
+            review,
+            verdict,
+            public,
+            ..
+        } = assessment;
         let (verdict_name, class, detail) = match &verdict {
             Verdict::Support => ("support", "", ""),
             Verdict::Defeat { residual, .. } => ("defeat", "", residual.as_str()),
@@ -236,6 +384,7 @@ impl ThreadRuntime {
             Verdict::Defeat { residual, blocker } => {
                 self.defeat(
                     Handoff {
+                        response,
                         epoch,
                         contract,
                         subject,

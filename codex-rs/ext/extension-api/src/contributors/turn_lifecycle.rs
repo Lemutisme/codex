@@ -35,6 +35,8 @@ pub struct TurnStartInput<'a> {
 
 /// Input supplied when the host completes a turn.
 pub struct TurnStopInput<'a> {
+    /// The actual final response of this turn. Untrusted content, useful as a delivered artifact.
+    pub last_agent_message: Option<&'a str>,
     /// Store scoped to the host session runtime.
     pub session_store: &'a ExtensionData,
     /// Store scoped to this thread runtime.

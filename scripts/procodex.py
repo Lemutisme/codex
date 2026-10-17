@@ -52,6 +52,7 @@ def main(argv=None):
         help="explicit verification command in the frozen candidate, offline; default is review-only",
     )
     parser.add_argument("--version", action="store_true")
+    parser.add_argument("--no-progress", action="store_true", help="disable same-turn progress publication for a new task")
     parser.add_argument(
         "--review-compute", action="store_true",
         help="allow bounded, isolated Python review of frozen binary or numerical evidence in the configured image",
@@ -163,6 +164,7 @@ def main(argv=None):
         successor_sessions=args.successor_sessions,
         task_seconds=args.task_seconds,
         review_compute=args.review_compute,
+        continuous_work=not args.no_progress,
     )
     if rest and rest[0] in ("doctor", "status"):
         if rest[0] == "status":

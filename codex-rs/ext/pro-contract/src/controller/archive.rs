@@ -79,6 +79,31 @@ impl EvidenceAccess {
         Ok((contract, records))
     }
 
+    async fn progress_records(&self) -> Result<Vec<(Digest, Value, Vec<u8>)>, String> {
+        let mut records = Vec::new();
+        for row in self.ledger.experiments().await.map_err(|e| e.to_string())? {
+            if row.event.kind != ExperimentKind::Execution
+                || row.event.body["phase"] != "progress_assessed"
+                || row.event.body["contract_id"].as_str() != Some(&self.contract_id.0)
+            {
+                continue;
+            }
+            let handle: Digest = serde_json::from_value(row.event.body["public_evidence"].clone())
+                .map_err(|e| e.to_string())?;
+            let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
+            let document: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if document["contract_id"] != row.event.body["contract_id"]
+                || document["subject_hash"] != row.event.body["subject_hash"]
+                || document["publication"] != row.event.body["publication"]
+                || document["scope"] != "progress_only"
+            {
+                return Err("progress evidence differs from its committed binding".into());
+            }
+            records.push((handle, document, bytes));
+        }
+        Ok(records)
+    }
+
     pub(super) async fn unresolved_with(
         &self,
         current: &PublicEvidence,
@@ -95,13 +120,21 @@ impl EvidenceAccess {
 
     pub(super) async fn read(&self, query: Query, budget: usize) -> Result<Value, String> {
         let (contract, records) = self.records().await?;
+        let progress = self.progress_records().await?;
         match query.op {
             Operation::Read => {
                 let handle = query.handle.ok_or("read needs a handle from this task's index")?;
                 let bytes = if let Some((_, _, bytes)) = records.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
+                } else if let Some((_, _, bytes)) = progress.iter().find(|(id, _, _)| *id == handle) {
+                    bytes.clone()
+                } else if let Some((_, owner, _)) = progress.iter().find(|(_, d, _)| d["public"]["inspections"].as_array().is_some_and(|ids| ids.contains(&json!(handle)))) {
+                    let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
+                    let document: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+                    if document["subject_hash"] != owner["subject_hash"] { return Err("progress inspection has a different subject".into()); }
+                    bytes
                 } else {
-                    let (_, owner, _) = records.iter().find(|(_, record, _)| record.inspections.contains(&handle))
+                    let (_, owner, _) = records.iter().find(|(_, record, _)| record.inspections.contains(&handle) || record.delivery_message == Some(handle))
                         .ok_or("evidence handle is not public evidence of this responsibility")?;
                     let bytes = self.store.get(&handle).map_err(|e|e.to_string())?;
                     let document: Value = serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
@@ -127,8 +160,12 @@ impl EvidenceAccess {
                 "handle":handle, "generation":record.generation, "revision":record.revision,
                 "subject_hash":record.subject_hash, "public_checks":record.checks.len(),
                 "review_findings":record.findings.len(), "pipeline_complete":record.pipeline_complete,
-                "inspections":record.inspections,
-            })).collect(), query.offset, budget),
+                "inspections":record.inspections, "delivery_message":record.delivery_message,
+            })).chain(progress.iter().map(|(handle, document, _)| json!({
+                "kind":"progress", "handle":handle, "publication":document["publication"],
+                "subject_hash":document["subject_hash"], "scope":"progress_only",
+                "inspections":document["public"]["inspections"],
+            }))).collect(), query.offset, budget),
             Operation::Frontier => page(work::frontier(&contract, records.iter().map(|(h, r, _)| (*h, r)))
                 .into_iter().map(|entry| json!(entry)).collect(), query.offset, budget),
         }

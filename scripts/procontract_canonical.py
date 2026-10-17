@@ -13,6 +13,8 @@ import hashlib
 import json
 import os
 import shutil
+import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -268,6 +270,10 @@ def pin_state():
         "schema": 1,
         "registry_sha256": frozen.digest,
         "adapter_sha256": sha256(Path(__file__).resolve()),
+        "adapter_modules_sha256": {name:sha256(SCRIPTS / name) for name in (
+            "procontract_canonical_registry.py", "procontract_canonical_recovery.py",
+            "procontract_owned_process.py", "procontract_evaluation.py", "procontract_evaluator_readiness.py",
+        )},
         "programbench": str(PROGRAMBENCH),
         "programbench_head": head,
         "uv_lock_sha256": sha256(PROGRAMBENCH / "uv.lock"),
@@ -314,6 +320,40 @@ def preflight():
         "pins_sha256": sha256(PINS_FILE),
         "totals": {task: spec["total"] for task, spec in TASKS.items()},
     }
+
+
+
+def evaluator_readiness(task, directory):
+    """Exercise the frozen evaluator before admitting paid inference.
+
+    This is a host-only bootstrap and collection probe, not a candidate score.
+    It uses the production image, dependency setup and branch runner, compares
+    the complete eligible collection to the frozen corpus using the image's
+    reference for import-time program probes, and never runs collected test
+    bodies. Actual submissions still require the full production validator.
+    Raw test identities stay outside the solver workspace and are never feedback.
+    """
+    preflight()
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    archive = directory / "sentinel.tar.gz"
+    if not archive.exists():
+        packaging.null_package(archive)
+    allowance = directory / "original-deadline.json"
+    if not allowance.exists():
+        recovery.atomic_artifact(allowance, lambda target: target.write_text(json.dumps({"deadline":time.time()+600})))
+    deadline = json.loads(allowance.read_text())["deadline"]
+    outcome = run_collection_probe(task, archive, directory / "collection", deadline=deadline)
+    if not outcome.get("valid") or outcome.get("total") != TASKS[task]["total"]:
+        raise RuntimeError("evaluator capability preflight is invalid; inference is not admitted")
+    receipt = dict(schema="evaluator-readiness-v1", task=task,
+        pins_sha256=sha256(PINS_FILE), sentinel_sha256=sha256(archive),
+        eligible_total=TASKS[task]["total"], valid=True,
+        scope="null build and exact eligible collection with frozen image reference; import-time code runs, collected test bodies do not; no candidate scoring",
+        collection_attempts=outcome["attempts"], collection=outcome,
+        grader_requirements=list(registry().grader_requirements))
+    write_json(directory / "readiness.json", receipt)
+    return receipt
 
 
 def canonical_score(task, eval_json, output):
@@ -389,8 +429,33 @@ def evaluator_env():
     return env
 
 
-def evaluate_one(task, archive, eval_json):
-    preflight()
+def with_grader_requirements(base, requirements):
+    """Install only operator-pinned grader prerequisites after candidate compile/hash.
+
+    The frozen wheelhouse and registry bind bytes and exact versions. Neither
+    candidate code nor test outcomes can choose packages or change assertions.
+    """
+    if not requirements:
+        return base
+
+    class PreparedEvaluator(base):
+        def _compile_executable(self, env, log_buf):
+            super()._compile_executable(env, log_buf)
+            original_hash = self.result.executable_hash
+            command = shlex.join(["python3", "-m", "pip", "install", "--disable-pip-version-check",
+                "--no-index", "--find-links", "/opt/programbench-wheels", *requirements])
+            self._run_step(command, env=env, log_buf=log_buf,
+                step_name="install_pinned_grader_requirements_after_candidate_hash", timeout=120)
+            result = self._run_step(shlex.join(["sha256sum", self._stashed_executable]), env=env, log_buf=log_buf,
+                step_name="verify_candidate_unchanged_after_grader_preparation", timeout=10)
+            observed = result.get("output", "").split()
+            if not observed or observed[0] != original_hash:
+                raise RuntimeError("grader preparation changed the compiled candidate")
+
+    return PreparedEvaluator
+
+
+def make_evaluator(task, archive, *, collection=False):
     _, _, active, ignored, _ = pb_imports()
     from programbench.eval.eval import Evaluator
     from programbench.utils.load_data import get_ignored_branches
@@ -398,7 +463,11 @@ def evaluate_one(task, archive, eval_json):
     instance = fixture(task)
     branches = active(instance)
     image_name, image_digest = TASKS[task]["image"].split(":", 1)
-    evaluator = Evaluator(
+    evaluator_class = with_grader_requirements(Evaluator, registry().grader_requirements)
+    if collection:
+        from procontract_evaluator_readiness import collection_evaluator
+        evaluator_class = collection_evaluator(evaluator_class)
+    evaluator = evaluator_class(
         image_name=image_name,
         image_tag=image_digest,
         solution_branch="submission",
@@ -416,6 +485,69 @@ def evaluate_one(task, archive, eval_json):
         branch_workers=1,
         branch_retries=1,
     )
+    return evaluator
+
+
+def run_collection_probe(task, archive, directory, *, deadline):
+    import procontract_owned_process as owned
+    directory.mkdir(parents=True, exist_ok=True)
+    binding = {"method":"evaluator-collection-v1", "task":task,
+        "pins_sha256":sha256(PINS_FILE), "sentinel_sha256":sha256(archive)}
+    claim, launch = recovery.start(directory, binding)
+    result_path = directory / "collection.json"
+    if launch:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            raise RuntimeError("original evaluator-readiness deadline exhausted")
+        command = worker_command("ready-one", "--task", task, "--archive", archive, "--output", result_path)
+        with (directory / "collection.log").open("w") as log:
+            code = owned.run(command, stdout=log, timeout=remaining, env=evaluator_env(), cwd=PROGRAMBENCH)
+        if not (directory / recovery.TERMINAL).exists():
+            recovery.finish(directory, claim, {"exit_code":code,
+                "collection_sha256":sha256(result_path) if result_path.exists() else None})
+    terminal = recovery.terminal(directory, binding)
+    if launch and terminal.get("exit_code") != code:
+        raise RuntimeError("collection exit differs from its terminal evidence")
+    if (terminal.get("exit_code") != 0 or not result_path.exists()
+            or terminal.get("collection_sha256") != sha256(result_path)):
+        raise RuntimeError("evaluator capability preflight failed; no inference admitted")
+    return json.loads(result_path.read_text())
+
+
+def collect_claimed(task, archive, output):
+    preflight()
+    claim = recovery.claimed(output.parent)
+    expected = {"method":"evaluator-collection-v1", "task":task,
+        "pins_sha256":sha256(PINS_FILE), "sentinel_sha256":sha256(archive)}
+    if claim["binding"] != expected:
+        raise RuntimeError("collection invocation differs from original reservation")
+    recovery.enter_worker(output.parent, claim)
+    code = 1
+    evaluator = None
+    try:
+        evaluator = make_evaluator(task, archive, collection=True)
+        outcome = evaluator.readiness()
+        if outcome["total"] != TASKS[task]["total"]:
+            raise RuntimeError("collected denominator differs from frozen registry")
+        write_json(output, outcome)
+        code = 0
+        return outcome
+    except KeyboardInterrupt:
+        code = 130
+        raise
+    finally:
+        # Host-only diagnostics survive failed collection; never feed grading data to solvers.
+        try:
+            if evaluator is not None:
+                write_json(output.parent / "grader-diagnostics.json", evaluator.result.log)
+        finally:
+            recovery.finish(output.parent, claim, {"exit_code":code,
+                "collection_sha256":sha256(output) if output.exists() else None})
+
+
+def evaluate_one(task, archive, eval_json):
+    preflight()
+    evaluator = make_evaluator(task, archive)
     result = evaluator.run()
     Path(eval_json).parent.mkdir(parents=True, exist_ok=True)
     Path(eval_json).write_text(result.model_dump_json(indent=2) + "\n")
@@ -778,6 +910,11 @@ class CanonicalProgramBench(rsi.ProgramBench):
             raise RuntimeError(
                 "An earlier paid attempt exists; reconcile its frozen output instead of rerunning inference"
             )
+        if not (run_dir / "inference-started.json").exists():
+            subprocess.run(
+                worker_command("ready", "--task", task, "--output", run_dir / "evaluator-readiness"),
+                cwd=PROGRAMBENCH, env=evaluator_env(), check=True, stdout=subprocess.DEVNULL,
+            )
         common = [
             "--arm",
             "on",
@@ -876,7 +1013,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=["freeze", "preflight", "score", "evaluate-one", "evaluate", "null"],
+        choices=["freeze", "preflight", "ready", "ready-one", "score", "evaluate-one", "evaluate", "null"],
     )
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--registry-sha256", required=True)
@@ -907,7 +1044,7 @@ def main():
     if args.task is not None and args.task not in TASKS:
         parser.error("task is outside the frozen registry")
     if (
-        args.command in ("score", "evaluate-one", "evaluate", "null")
+        args.command in ("ready", "ready-one", "score", "evaluate-one", "evaluate", "null")
         and args.task is None
     ):
         parser.error("this command requires --task")
@@ -919,9 +1056,23 @@ def main():
             result = preflight()
     elif args.command == "preflight":
         result = preflight()
+    elif args.command == "ready-one":
+        if args.archive is None or args.output is None:
+            parser.error("ready-one requires a reserved archive and output")
+        def cancel_collection(_signum, _frame):
+            raise KeyboardInterrupt("collection cancelled; unwind owned containers")
+        signal.signal(signal.SIGTERM, cancel_collection)
+        result = collect_claimed(args.task, args.archive, args.output)
+    elif args.command == "ready":
+        if args.output is None:
+            parser.error("ready requires --output outside the solver workspace")
+        result = evaluator_readiness(args.task, args.output)
     elif args.command == "score":
         result = canonical_score(args.task, args.eval_json, args.output)
     elif args.command == "evaluate-one":
+        def cancel_evaluator(_signum, _frame):
+            raise KeyboardInterrupt("evaluator cancelled; unwind owned containers")
+        signal.signal(signal.SIGTERM, cancel_evaluator)
         result = evaluate_claimed(args.task, args.archive, args.eval_json)
     elif args.command == "evaluate":
         result = evaluate_archive(args.task, args.archive, args.output)

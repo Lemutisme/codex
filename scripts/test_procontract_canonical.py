@@ -229,6 +229,50 @@ class CanonicalTest(unittest.TestCase):
                     json.loads((self.root / "canonical-feedback.json").read_text()), {}
                 )
 
+    def test_grader_dependencies_are_post_build_and_cannot_change_the_candidate(self):
+        import types
+        calls = []
+        class Evaluator:
+            _stashed_executable = "/opt/fixture/executable"
+            def _compile_executable(self, env, log_buf):
+                calls.append("compile")
+                self.result = types.SimpleNamespace(executable_hash="a"*64)
+            def _run_step(self, command, **kwargs):
+                calls.append((command,kwargs["step_name"]))
+                return {"output":self.observed_hash+"  ./executable"}
+        prepared = canonical.with_grader_requirements(Evaluator, ("example==1.2.3",))()
+        prepared.observed_hash = "a"*64
+        prepared._compile_executable(None, [])
+        self.assertEqual(calls[0], "compile")
+        self.assertIn("--no-index", calls[1][0])
+        self.assertIn("example==1.2.3", calls[1][0])
+        self.assertEqual(calls[2][0], "sha256sum /opt/fixture/executable")
+        prepared.observed_hash = "b"*64
+        with self.assertRaisesRegex(RuntimeError, "changed the compiled candidate"):
+            prepared._compile_executable(None, [])
+        self.assertIs(canonical.with_grader_requirements(Evaluator, ()), Evaluator)
+
+    def test_readiness_requires_valid_collection_but_does_not_require_a_good_sentinel_score(self):
+        with mock.patch.object(canonical, "preflight"), mock.patch.object(canonical, "run_collection_probe") as evaluate:
+            for index, outcome in enumerate([
+                dict(valid=False, total=3, attempts=2),
+                dict(valid=True, total=4, attempts=1),
+            ]):
+                evaluate.return_value = outcome
+                directory = self.root / f"not-ready-{index}"
+                with self.assertRaisesRegex(RuntimeError, "preflight is invalid"):
+                    canonical.evaluator_readiness(self.task, directory)
+                self.assertFalse((directory / "readiness.json").exists())
+            evaluate.return_value = dict(valid=True, total=3, attempts=1, resolved=0)
+            directory = self.root / "ready"
+            receipt = canonical.evaluator_readiness(self.task, directory)
+            self.assertTrue(receipt["valid"])
+            self.assertNotIn("resolved", receipt)
+            deadline = json.loads((directory / "original-deadline.json").read_text())
+            canonical.evaluator_readiness(self.task, directory)
+            self.assertEqual(json.loads((directory / "original-deadline.json").read_text()), deadline)
+            self.assertEqual(evaluate.call_args.kwargs["deadline"], deadline["deadline"])
+
     def evaluate(self, work, valid_attempts):
         archive = self.root / (work.name + ".tar.gz")
         archive.write_bytes(b"frozen submission")

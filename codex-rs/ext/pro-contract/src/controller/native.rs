@@ -31,6 +31,30 @@ pub(crate) struct CodexPorts {
 }
 
 impl Ports for CodexPorts {
+    fn interrupt_executor(&self) -> PortFuture<'_, Result<(), String>> {
+        Box::pin(async move {
+            let manager = self.manager.upgrade().ok_or("thread manager is gone")?;
+            let thread = manager
+                .get_thread(self.thread_id)
+                .await
+                .map_err(|e| e.to_string())?;
+            thread
+                .submit(codex_protocol::protocol::Op::Interrupt)
+                .await
+                .map_err(|e| e.to_string())?;
+            // Shut down only this actor. A backend may be shared with other threads;
+            // deleting containers by a workspace label would exceed this authority.
+            tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                thread.shutdown_and_wait(),
+            )
+            .await
+            .map_err(|_| "executor shutdown timed out")?
+            .map_err(|e| e.to_string())?;
+            Ok(())
+        })
+    }
+
     fn run_successor(
         &self,
         turn: super::ports::SuccessorTurn,

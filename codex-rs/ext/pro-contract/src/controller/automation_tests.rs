@@ -40,6 +40,8 @@ use crate::controller::ports::Ports;
 use crate::controller::ports::WorkerIdentity;
 use crate::workers::runtime::WorkerTurn;
 
+#[path = "progress_tests.rs"]
+mod progress_tests;
 #[path = "runtime_recovery_tests.rs"]
 mod recovery_tests;
 #[path = "succession_tests.rs"]
@@ -134,6 +136,14 @@ impl FakePorts {
 }
 
 impl Ports for FakePorts {
+    fn capture_barrier<'a>(
+        &'a self,
+        _: &'a crate::EvaluationProfile,
+        _: &'a str,
+    ) -> PortFuture<'a, Result<crate::controller::capture_barrier::CaptureBarrier, String>> {
+        Box::pin(async { Ok(crate::controller::capture_barrier::CaptureBarrier::test_only()) })
+    }
+
     fn run_successor(
         &self,
         mut turn: crate::controller::ports::SuccessorTurn,
@@ -170,6 +180,7 @@ impl Ports for FakePorts {
             Ok(SuccessorExit::Handoff(SuccessorHandoff {
                 turn_id: "fresh-turn".into(),
                 summary: format!("executor claims: {answer}"),
+                final_message: Some(format!("executor claims: {answer}")),
             }))
         })
     }
@@ -412,6 +423,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
     };
     let settings = Settings {
         review_execution: None,
+        progress: None,
         evaluation: Some(profile.clone()),
         repair_attempts: 1,
         succession: None,

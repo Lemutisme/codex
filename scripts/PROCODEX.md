@@ -47,6 +47,18 @@ preview issues a contract for the first substantive request in a session; use
 `/new` for a different task. Large workspaces or excluded dependencies may exceed
 capture/check capabilities; an abstention/unknown is not success.
 
+New tasks can publish progress during the current turn. ProContract pauses the
+project's single provisioned executor, captures its files, resumes execution and
+returns retained public feedback. Publication does not certify completion; final
+handoff still receives independent review. Use `--no-progress` for a new task
+without this capability. Resuming a task preserves its existing grant. Do not run
+multiple writers against the same project while using this capture mode.
+
+The original task deadline covers preparation, execution and verification. It
+does not restart when a successor takes over. On expiry, ProContract interrupts
+and awaits the native executor's shutdown. Final responses and successful check
+logs are retained as review evidence, with explicit truncation where necessary.
+
 For binary or numerical attachments, opt into bounded review computations:
 
 ```sh
@@ -90,7 +102,7 @@ or reimplement task-owned files; the host does not wipe the project or reset Git
 
 ```sh
 procodex --successor-sessions 2 --task-seconds 7200 --check 'your-test-command'
-procodex --successor-sessions 0  # legacy same-thread bounded repair
+procodex --successor-sessions 0  # no fresh successors; the original deadline still applies
 ```
 
 `procodex status` reports `succeeding` while a fresh executor runs. Its individual
@@ -126,8 +138,8 @@ This is a rebuilt pinned fork, not a claim that it tracks latest upstream.
 
 Use `just assemble-codex-package` with an explicit target and source revision.
 Build `pro-contract-store` from the same tree and put it in `bin/`. After a clean
-commit, record `build-source.json` with source_commit and SHA-256 for the three
-binaries. Then:
+commit, record `build-source.json` with the source identity and hashes of all
+packaged binaries and scripts, including provenance for reused helpers. Then:
 
 ```sh
 python scripts/install_procodex.py --package /path/to/package --image sha256:IMAGE_ID

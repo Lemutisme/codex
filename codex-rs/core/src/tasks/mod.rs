@@ -829,8 +829,11 @@ impl Session {
                 .time_to_first_token_ms()
                 .await;
             let error = turn_context.terminal_error.lock().await.clone();
-            self.emit_turn_stop_lifecycle(turn_context.extension_data.as_ref())
-                .await;
+            self.emit_turn_stop_lifecycle(
+                turn_context.extension_data.as_ref(),
+                last_agent_message.as_deref(),
+            )
+            .await;
             EventMsg::TurnComplete(TurnCompleteEvent {
                 turn_id: turn_context.sub_id.clone(),
                 last_agent_message,

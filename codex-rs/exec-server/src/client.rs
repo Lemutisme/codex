@@ -1874,8 +1874,10 @@ async fn handle_server_notification(
                 // Closed is terminal, but it can arrive before tail output or
                 // exited. Keep routing this process until the ordered publisher
                 // says Closed has actually been delivered.
-                let result =
-                    session.publish_ordered_event(ExecProcessEvent::Closed { seq: params.seq });
+                let result = session.publish_ordered_event(ExecProcessEvent::Closed {
+                    seq: params.seq,
+                    failure: params.failure,
+                });
                 if result.is_ok() {
                     session.note_change(params.seq);
                 }
@@ -2484,6 +2486,7 @@ mod tests {
                     serde_json::to_value(ExecClosedNotification {
                         process_id: process_id.clone(),
                         seq: 4,
+                        failure: None,
                     })
                     .expect("closed notification should serialize"),
                 ),
@@ -2559,7 +2562,10 @@ mod tests {
                     exit_code: 0,
                     sandbox_denied: Some(true),
                 },
-                ExecProcessEvent::Closed { seq: 4 },
+                ExecProcessEvent::Closed {
+                    seq: 4,
+                    failure: None
+                },
             ]
         );
 
