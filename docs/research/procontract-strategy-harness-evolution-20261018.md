@@ -115,6 +115,21 @@ reviewer must still judge whether an observation establishes the requested actio
 policy identity changes with this protocol. All 188 extension tests pass. Native and live
 reviewer controls are qualified separately, without rerunning any original solve.
 
+On `bdf04e61d`, both new native controls passed. A separately frozen live-reviewer
+qualification then used the actual production reviewer, code-mode and evidence tools with
+Luna/max; executor and drafter were scripted. The positive control used 13 real requests
+and issued Support from scoped host check evidence. The negative control used 8 requests
+and retained the missing prior executor-access gap without Support. Both produced a valid
+first review response, with no protocol correction or interrupted model stream. These are
+reviewer integration controls, not two additional real-model task solves. Their gateway
+request ledgers are the authoritative real-model accounting; the reused native fixture's
+static `real_provider_calls: 0` and synthetic SSE usage are not real-provider counters.
+
+Final validation and provenance are recorded in
+`/data/ProContract/strategy-harness-evolution-20261018/REPORT.md`. The runtime release is
+`/data/ProContract/releases/procontract-bdf04e61d`. The earlier releases, frozen plans,
+failed attempts and original results remain retained.
+
 ## General lessons and remaining boundaries
 
 The transferable relation is: retain the subject and observation conditions, make a useful
