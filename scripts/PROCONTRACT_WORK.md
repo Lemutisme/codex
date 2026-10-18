@@ -88,7 +88,9 @@ requires the full applicable acceptance policy and independent review. Sealed ca
 enter adaptive publication feedback.
 
 The original intake binds a durable publication grant. Reopening a request returns its
-receipt; identical subject/policy coordinates reuse the prior assessment. A reservation
+receipt; artifact checks with identical subject, policy, environment and harness identity
+may reuse the prior assessment. A new diagnostic request freezes its own observation basis.
+A reservation
 without resolved effects blocks acceptance and further automatic execution. Recovery may
 reconcile a committed assessment, but never assumes an interrupted dispatch did not run.
 Publication records are available through `index` and `read`; they do not alter the formal
@@ -101,11 +103,21 @@ Existing task settings and grants are preserved. The native configuration is:
 ```json
 "progress": {
   "executor_label": "procontract.task=<provisioner identity>",
-  "max_publications": 8,
   "assessment_secs": 120,
   "executor_slice_secs": 1800
 }
 ```
+
+The count ceiling is optional; new launcher tasks use the original deadline without
+inventing publication or successor counts. Explicit limits and existing grants remain
+binding. `publish_progress({request_id, review: true})` requests diagnosis even when
+checks fail or the checking method is unavailable. The response carries remaining-budget
+facts. Diagnosis retains its findings and gaps without granting Support or settling.
+
+Named `--input NAME=FILE` attachments are snapshotted outside mutable outputs and mounted
+read-only for execution, checks and enabled computations. Their original modes, identities
+and usable paths survive successor sessions. A supplied `--strategy DIR` selects context
+files; it does not change the original task grant.
 
 This first capture adapter requires exactly one exclusively provisioned workspace
 executor. It verifies the label, exact mount and lifecycle before pausing. External host
@@ -201,8 +213,11 @@ successor accounting and original authorization checks.
 Issue freezes both terms and the actual evidence basis. Preparation failure is
 an explicit optional field in the hashed policy, never an empty successful suite.
 Before Issue, the host executes the sealed invocations against the reference and
-records calibration counts. An inadequate or unretained calibration forbids Support
-without discarding the task. Runtime checks still establish their own evidence;
+records calibration observations, including individually stable channels. New policies
+have no implicit numeric cutoffs: the review strategy assesses the retained evidence.
+Explicit owner-supplied criteria retain their blocking meaning; historical policies keep
+their original values and hashes. A failed preparation is retained as a method observation,
+not silently turned into a successful suite. Runtime checks still establish their own evidence;
 calibration does not establish coverage or make a later check unnecessary.
 
 Invocations can explicitly request a controlling PTY with fixed dimensions and
@@ -224,11 +239,11 @@ remain terms to be evidenced and reviewed; an operator can supply their actual
 command in the existing build/check command. Historical frozen policies retain
 their original explicit Cargo-test behavior and hashes.
 
-The fixed working method is supplied to the original executor after admission
-and to fresh successors. It asks the executor to retain runnable probes and live
+The replaceable `work_method.md` strategy is supplied from the original executor's first
+request, independently of contract admission, and to fresh successors. It asks the executor to retain runnable probes and live
 hypotheses in task-owned workspace files. The host captures those files with the
 candidate. Summaries point to evidence; they do not replace it. The recent budget
-lesson preview is retained for compatibility and repeated-artifact detection,
+lesson preview is retained as context,
 but the complete public verification history has a separate durable source.
 The method keeps counterexamples, unexamined cases/interactions and unsupported
 assumptions distinct. An empty failure queue does not end discovery; concrete

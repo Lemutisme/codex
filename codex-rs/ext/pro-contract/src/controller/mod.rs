@@ -281,16 +281,25 @@ impl ContextContributor for ProContractExtension {
             let Some(runtime) = runtime_of(input.thread_store) else {
                 return Vec::new();
             };
-            if !runtime.admitted().await {
-                return Vec::new();
-            }
             let mut context = vec![PromptFragment::developer_policy(
-                work::METHOD.to_string(),
+                runtime.work_method().to_string(),
                 ContentItemKind("pro_contract.work_method".into()),
             )];
+            let inputs = runtime.input_capabilities();
+            if !inputs.is_empty() {
+                context.push(PromptFragment::developer_policy(
+                    serde_json::json!({"declared_task_inputs":inputs}).to_string(),
+                    ContentItemKind("pro_contract.task_inputs".into()),
+                ));
+            }
+            // Strategy and provisioned capabilities exist before the first intake;
+            // responsibility-dependent notes are added only after admission.
+            if !runtime.admitted().await {
+                return context;
+            }
             if runtime.progress_enabled() {
                 context.push(PromptFragment::developer_policy(
-                    "Use publish_progress after a coherent change or to check a consequential claim while time remains. It freezes this workspace and returns bounded public feedback in the same turn. Read its retained evidence, repair concrete failures, and continue under the original deadline. Publication is not completion; do not wait until the final answer to obtain feedback. Repeating the same snapshot reuses its assessment.",
+                    "publish_progress is available for a frozen-workspace assessment under this task's original grant. Its results remain readable with contract_read_evidence. It does not propose a candidate, grant Support or finish the task.",
                     ContentItemKind("pro_contract.progress".into()),
                 ));
             }

@@ -79,6 +79,8 @@ class NativeEvidenceTest(unittest.TestCase):
         delivery_evidence = getattr(self, "delivery_evidence_fixture", False)
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
+        diagnostic_review = getattr(self, "diagnostic_review_fixture", False)
+        input_strategy = getattr(self, "input_strategy_fixture", False)
         resource_limit = getattr(self, "resource_limit_fixture", False)
         successor_progress = getattr(self, "successor_progress_fixture", False)
         succession = getattr(self, "succession_fixture", False)
@@ -97,6 +99,10 @@ class NativeEvidenceTest(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             (workspace / "answer.txt").write_text("not ready\n")
+            if input_strategy:
+                (root/'source-input.txt').write_text('immutable source\n')
+                (root/'strategy').mkdir()
+                (root/'strategy/work_method.md').write_text('STRATEGY-NATIVE-MARKER: Preserve the supplied input and the runnable check across handoffs.')
             if computation:
                 import io, struct, zipfile
                 header=b"{'descr': '<f8', 'fortran_order': False, 'shape': (3,), }\n"
@@ -302,6 +308,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             role = "successor"
                         counts[role] = counts.get(role, 0) + 1
                         worker_keys.setdefault(role, set()).add(body.get("prompt_cache_key"))
+                        if input_strategy and role in ('executor','successor') and 'STRATEGY-NATIVE-MARKER' not in '\n'.join(text_values(body)):
+                            raise AssertionError('selected strategy did not reach this executor context')
+                        if input_strategy and role in ('executor','successor') and '/inputs/source.txt' not in '\n'.join(text_values(body)):
+                            raise AssertionError('declared input capability did not reach this executor context')
                         if role == "draft":
                             message = dict(
                                 decision="contract",
@@ -401,6 +411,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 missing="",
                                 residual="",
                             )
+                            if diagnostic_review and counts[role] == 2:
+                                message.update(verdict="defeat",coverage=[],
+                                    findings=[dict(requirement_id="R1",location="answer.txt",counterexample="The frozen answer is not ready.")],
+                                    residual="Write the required ready value and replay the check.")
                             if observation_fixture:
                                 identifier=re.search(r'"processObligation"\s*:\s*"([^"]+)"',flattened).group(1)
                                 citation=re.search(r'"hostCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
@@ -446,6 +460,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                             if connection.execute("SELECT count(*) FROM events").fetchone()[0]: break
                                     time.sleep(.05)
                                 code = 'text(await tools.publish_progress({request_id:"first"}));'
+                                if diagnostic_review:
+                                    code = 'text(await tools.publish_progress({request_id:"first",review:true}));'
                             elif stage == 3:
                                 code = successor_recall[:successor_recall.index('const frontier')] + r"""
 const index = decode(await tools.contract_read_evidence({op:"index"}));
@@ -504,6 +520,21 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                                     ],
                                 )
                             ]
+                        if input_strategy and role in ('executor','successor'):
+                            probe = """import json
+from pathlib import Path
+p=Path('/inputs/source.txt')
+content=p.read_text()
+denied=[]
+for operation in [lambda:p.write_text('changed'),p.unlink]:
+ try:operation();denied.append(False)
+ except OSError:denied.append(True)
+assert content=='immutable source\\n' and all(denied)
+Path('input-check.json').write_text(json.dumps({'content':content,'write_denied':denied[0],'unlink_denied':denied[1]}))
+"""
+                            for item in items:
+                                if item.get('type')=='custom_tool_call':
+                                    item['input']='text(await tools.exec_command('+json.dumps(dict(cmd='python3 -c '+shlex.quote(probe),yield_time_ms=1000,max_output_tokens=1000))+'));'+item['input']
                         response_id = f"local-{len(requests)}"
                         events = [
                             dict(type="response.created", response=dict(id=response_id))
@@ -571,7 +602,15 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                 successor_sessions=2 if succession else 0,
                 task_seconds=60 if deadline_fixture else 3600,
                 continuous_work=progression or successor_progress or deadline_fixture or protocol_correction,
+                inputs={"source.txt": root/"source-input.txt"} if input_strategy else None,
+                strategy=root/"strategy" if input_strategy else None,
             )
+            if input_strategy:
+                (root/'source-input.txt').unlink()
+                settings_path=home/'pro_contract/settings.json'
+                settings=json.loads(settings_path.read_text())
+                settings['evaluation']['check']['build_command'] += " && python3 -c \"from pathlib import Path; assert Path('/inputs/source.txt').read_text() == 'immutable source\\n'\""
+                settings_path.write_text(json.dumps(settings))
             if resource_limit:
                 environment_path = home / "environments.toml"
                 environment_path.write_text(environment_path.read_text().replace("33554432", "4096"))
@@ -682,6 +721,10 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                             if status.get("resting"):
                                 break
                 self.assertEqual(errors, [])
+                if input_strategy:
+                    self.assertEqual(json.loads((workspace/'input-check.json').read_text()),
+                        {'content':'immutable source\n','write_denied':True,'unlink_denied':True})
+                    self.assertEqual((home/'inputs/files/source.txt').read_text(),'immutable source\n')
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
                 self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
@@ -749,6 +792,13 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                     self.assertEqual(grant["used"], 2)
                     self.assertIsNone(grant["pending"])
                     self.assertEqual(len([r for r in observations if r.get("phase")=="progress_assessed"]), 2)
+                    if diagnostic_review:
+                        first=next(r for r in observations if r.get('phase')=='progress_assessed')
+                        handle=first['public_evidence']
+                        record=json.loads((home/'pro_contract/blobs'/handle[:2]/handle).read_text())
+                        self.assertTrue(record['diagnostic_review'])
+                        self.assertEqual(record['public']['review']['verdict']['type'],'defeat')
+                        self.assertEqual(len(record['public']['findings']),1)
                 if probe_fixture:
                     self.assertEqual(len(worker_keys.get("explore", set())), 2)
                     self.assertEqual(len(worker_keys.get("probe", set())), 1)

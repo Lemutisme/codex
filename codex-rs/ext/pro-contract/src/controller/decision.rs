@@ -204,13 +204,13 @@ pub(crate) fn mechanical_verdict(
         class: NotVerifiedClass::Infrastructure,
         reason: receipts.execution.as_ref().map(|run| run.detail.clone())
             .filter(|reason| !reason.is_empty()).unwrap_or_else(|| "the check pipeline did not report every step".into()),
-    }).or_else(|| policy.preparation_failure.as_ref().map(|reason| EvidenceBlocker {
+    }).or_else(|| policy.preparation_failure.as_ref().filter(|_| policy.has_declared_cutoffs()).map(|reason| EvidenceBlocker {
         class: NotVerifiedClass::InsufficientEvidence,
         reason: reason.clone(),
     })).or_else(|| (sealed_applies(policy) && !sufficient(&tally, policy)).then(|| EvidenceBlocker {
         class: NotVerifiedClass::InsufficientEvidence,
         reason: format!(
-            "insufficient evidence: {}, {} with a successful reference run; support needs at least {} qualified and {}‰ successful",
+            "insufficient evidence: {}, {} with a successful reference run; declared cutoffs: qualified={:?}, successful_permille={:?}",
             tally.line(), tally.succeeded, policy.min_sealed_qualified, policy.min_success_permille
         ),
     }));
@@ -231,14 +231,18 @@ pub(crate) fn mechanical_verdict(
 }
 
 fn sufficient(tally: &SealedTally, policy: &EvidencePolicy) -> bool {
-    tally.qualified >= policy.min_sealed_qualified
-        && u64::from(tally.succeeded) * 1000
-            >= u64::from(policy.min_success_permille) * u64::from(tally.qualified)
+    policy
+        .min_sealed_qualified
+        .is_none_or(|minimum| tally.qualified >= minimum)
+        && policy.min_success_permille.is_none_or(|minimum| {
+            u64::from(tally.succeeded) * 1000 >= u64::from(minimum) * u64::from(tally.qualified)
+        })
 }
 
 fn below_threshold(tally: &SealedTally, policy: &EvidencePolicy) -> bool {
-    u64::from(tally.passed) * 1000
-        < u64::from(policy.sealed_threshold_permille) * u64::from(tally.qualified)
+    policy.sealed_threshold_permille.is_some_and(|threshold| {
+        u64::from(tally.passed) * 1000 < u64::from(threshold) * u64::from(tally.qualified)
+    })
 }
 
 /// The residual of a mechanical defeat: the sealed line first (it alone measures breadth), then
@@ -477,6 +481,12 @@ pub(crate) fn decide(
 /// The receipts as the reviewer sees them: every non-sealed step, sealed steps only in aggregate.
 pub(crate) fn review_summary(receipts: &CheckReceipts, policy: &EvidencePolicy) -> String {
     let mut text = format!("environment: {}\n", receipts.environment.join(" | "));
+    if let Some(failure) = &policy.preparation_failure {
+        text.push_str(&format!(
+            "Evidence preparation observation: {}\n",
+            bounded(failure, 800)
+        ));
+    }
     for step in &receipts.steps {
         if step.step.starts_with(&format!("{SEALED}:")) {
             continue;

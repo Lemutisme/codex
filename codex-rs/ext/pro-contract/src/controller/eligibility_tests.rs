@@ -20,6 +20,7 @@ fn settings() -> Settings {
             workspace_host_root: PathBuf::from("/tmp/ws"),
             excluded_paths: vec![],
             check: CheckEnvironment {
+                inputs: Vec::new(),
                 docker: "docker".to_string(),
                 image: "img".to_string(),
                 user: "1000:1000".to_string(),

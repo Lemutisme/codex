@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import tomllib
 
+import procodex_inputs
+
 
 def toml(document, prefix=()):
     lines = []
@@ -45,17 +47,20 @@ def configure(
     check,
     *,
     isolation="nested",
-    successor_sessions=0,
+    successor_sessions=None,
     task_seconds=14400,
     review_compute=False,
     continuous_work=False,
+    inputs=None,
+    strategy=None,
 ):
     """Copy routing only; never carry hooks, MCP, global permissions or project trust over."""
     if isolation not in ("nested", "container-only"):
         raise ValueError("unknown execution isolation")
-    if not 0 <= successor_sessions <= 16 or not 60 <= task_seconds <= 86400:
+    if (successor_sessions is not None and
+            (type(successor_sessions) is not int or not 0 <= successor_sessions <= 2**32-1)) or not 1 <= task_seconds <= (2**64-1)//1000:
         raise ValueError(
-            "succession requires 0..16 sessions and 60..86400 task seconds"
+            "succession requires an optional nonnegative session count and a positive representable task duration"
         )
     if any(c in str(workspace) for c in ("\n", "\0", ",")):
         raise ValueError("workspace path is not representable as a Docker bind mount")
@@ -111,13 +116,24 @@ def configure(
     identity = dict(
         workspace=str(workspace), image=image, check=check, isolation=isolation
     )
+    declared_inputs = procodex_inputs.declarations(inputs)
+    if declared_inputs:
+        identity["inputs"] = declared_inputs
     key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()[:20]
     home = root / "workspaces" / key
     if any(path.is_symlink() for path in (home, *home.parents)):
         raise ValueError("redirected ProCodex workspace state")
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
+    attachments = procodex_inputs.provision(home, declared_inputs)
     config["sqlite_home"] = str(home)
     config["log_dir"] = str(home / "log")
+    input_args = []
+    for attachment in attachments:
+        input_args += ["--mount", f'type=bind,src={attachment["source"]},dst={attachment["target"]},readonly']
+    if attachments:
+        config["developer_instructions"] += "\nDeclared read-only task inputs:\n" + "\n".join(
+            f'- {item["name"]}: {item["target"]} (SHA-256 {item["sha256"]})'
+            for item in attachments)
     docker_args = [
         "run",
         "-i",
@@ -142,6 +158,7 @@ def configure(
         f"type=bind,src={workspace},dst=/workspace",
         "--mount",
         f"type=bind,src={package},dst=/opt/procodex,readonly",
+        *input_args,
         "-w",
         "/workspace",
         image,
@@ -179,19 +196,35 @@ def configure(
         repair_attempts=1,
         worker=dict(model=None, reasoning_effort=None, deadline_secs=900),
     )
-    if successor_sessions or continuous_work:
-        settings["succession"] = dict(
-            max_sessions=successor_sessions, total_secs=task_seconds
-        )
+    if successor_sessions is None or successor_sessions or continuous_work:
+        settings["succession"] = dict(total_secs=task_seconds)
+        if successor_sessions is not None:
+            settings["succession"]["max_sessions"] = successor_sessions
+    if attachments:
+        settings["evaluation"]["check"]["inputs"] = [
+            dict(name=item['name'], source=item['source'], digest=item['sha256'])
+            for item in attachments]
     prior = home / "pro_contract/settings.json"
     existing = json.loads(prior.read_text()) if prior.exists() else None
+    if existing is not None:
+        if existing.get("succession"):
+            settings["succession"] = existing["succession"]
+        else:
+            settings.pop("succession", None)
+    if strategy is not None:
+        strategy = Path(strategy).expanduser().resolve(strict=True)
+        if not strategy.is_dir():
+            raise ValueError("strategy must be a context bundle directory")
+        settings["policy"] = str(strategy)
+    elif existing and existing.get("policy"):
+        settings["policy"] = existing["policy"]
     # A resumed task keeps its original capability grant, including when CLI defaults change.
     if existing and existing.get("progress"):
         settings["progress"] = existing["progress"]
         settings["succession"] = existing["succession"]
     elif continuous_work and existing is None:
         settings["progress"] = dict(executor_label=f"procontract.task={key}",
-            max_publications=8, assessment_secs=120, executor_slice_secs=1800)
+            assessment_secs=120, executor_slice_secs=1800)
     if review_compute:
         # Changing a verification capability does not create another task/home or reset
         # its existing succession grant. Computation grants are persisted by the runtime.

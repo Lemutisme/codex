@@ -232,9 +232,9 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
                 }],
                 reference_command: Some("/workspace/executable".to_string()),
                 sealed: vec![],
-                sealed_threshold_permille: 950,
-                min_sealed_qualified: 100,
-                min_success_permille: 500,
+                sealed_threshold_permille: None,
+                min_sealed_qualified: None,
+                min_success_permille: None,
                 preparation_failure: None,
             }),
         }

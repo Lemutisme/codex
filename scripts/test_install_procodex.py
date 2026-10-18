@@ -26,6 +26,7 @@ class InstallTests(unittest.TestCase):
         for name in (
             "procodex.py",
             "procodex_config.py",
+            "procodex_inputs.py",
             "PROCODEX.md",
             "procontract_rsi.py",
         ):

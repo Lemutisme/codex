@@ -283,6 +283,7 @@ impl Ports for FakePorts {
                         id: case.id.clone(),
                         exit: Some(self.observation_exit),
                         stable: true,
+                        stable_channels: Vec::new(),
                         stdout: "usage: reference\n".to_string(),
                         stderr: String::new(),
                     })
@@ -411,6 +412,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
         workspace_host_root: workspace.clone(),
         excluded_paths: Vec::new(),
         check: CheckEnvironment {
+            inputs: Vec::new(),
             docker: "docker".to_string(),
             image: "unused".to_string(),
             user: "1000:1000".to_string(),
@@ -429,9 +431,9 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
         succession: None,
         worker: WorkerSettings::default(),
         evidence: EvidenceSettings {
-            sealed_threshold_permille: 750,
-            min_sealed_qualified: 4,
-            min_success_permille: 500,
+            sealed_threshold_permille: Some(750),
+            min_sealed_qualified: Some(4),
+            min_success_permille: Some(500),
         },
         policy: None,
     };
@@ -878,7 +880,12 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
         verification.identities.policies["bundle"],
         crate::digest_of(
             "policy_bundle",
-            &serde_json::json!([default.drafter, default.prober, default.reviewer]),
+            &serde_json::json!([
+                default.work_method,
+                default.drafter,
+                default.prober,
+                default.reviewer
+            ]),
         ),
         "a controller can recompute the bundle identity from the files"
     );

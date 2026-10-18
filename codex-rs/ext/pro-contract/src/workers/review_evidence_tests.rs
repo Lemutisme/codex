@@ -167,6 +167,7 @@ sys.stdout.buffer.write(out.getvalue())
     // The computation must see the captured version, not this mutable workspace.
     std::fs::write(workspace.join("hindsight.json"), "changed after freeze").unwrap();
     let environment = crate::CheckEnvironment {
+        inputs: Vec::new(),
         docker: "docker".into(),
         image,
         user: "1000:1000".into(),

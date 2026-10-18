@@ -17,6 +17,19 @@ use crate::EvidenceClass;
 use crate::EvidencePolicy;
 use crate::FixtureFile;
 
+#[test]
+fn varying_output_retains_stable_properties_but_unqualified_runs_do_not() {
+    let rows = parse_observations(
+        "@@OBS varying 0 unstable rc,err,files\n@@OBS stopped 137 unqualified rc,err,files\n@@OBS historical 0 unstable\n",
+    );
+    assert!(!rows[0].stable);
+    assert!(rows[0].qualified());
+    assert_eq!(rows[0].stable_channels, vec!["rc", "err", "files"]);
+    assert!(!rows[1].qualified());
+    assert!(rows[1].stable_channels.is_empty());
+    assert!(!rows[2].qualified());
+}
+
 fn case(id: &str, args: &[&str]) -> DifferentialCase {
     DifferentialCase {
         id: id.to_string(),
@@ -67,9 +80,9 @@ fn policy() -> EvidencePolicy {
         ],
         reference_command: Some("/workspace/executable".to_string()),
         sealed: vec![case("S1", &["-s", "tree"])],
-        sealed_threshold_permille: 950,
-        min_sealed_qualified: 100,
-        min_success_permille: 500,
+        sealed_threshold_permille: Some(950),
+        min_sealed_qualified: Some(100),
+        min_success_permille: Some(500),
         preparation_failure: None,
     }
 }
@@ -364,6 +377,7 @@ fn observations_collect_each_cases_streams() {
                 id: "help".to_string(),
                 exit: Some(0),
                 stable: true,
+                stable_channels: Vec::new(),
                 stdout: "Usage: tool\n  -s summary\n".to_string(),
                 stderr: "note\n".to_string(),
             },
@@ -371,6 +385,7 @@ fn observations_collect_each_cases_streams() {
                 id: "quiet".to_string(),
                 exit: Some(2),
                 stable: false,
+                stable_channels: Vec::new(),
                 stdout: String::new(),
                 stderr: String::new(),
             },
@@ -415,6 +430,7 @@ fn case_inputs_are_written_inside_their_directory() -> std::io::Result<()> {
 
 fn test_env(image: String, timeout_secs: u64) -> CheckEnvironment {
     CheckEnvironment {
+        inputs: Vec::new(),
         docker: "docker".to_string(),
         image,
         user: "1000:1000".to_string(),
@@ -504,9 +520,9 @@ async fn a_real_container_run_judges_every_channel() {
             },
             case("slow", &["slow"]),
         ],
-        sealed_threshold_permille: 950,
-        min_sealed_qualified: 1,
-        min_success_permille: 0,
+        sealed_threshold_permille: Some(950),
+        min_sealed_qualified: Some(1),
+        min_success_permille: Some(0),
         preparation_failure: None,
     };
 
@@ -681,7 +697,7 @@ async fn a_real_terminal_pipeline_preserves_pipe_and_tty_semantics_and_detects_m
 }
 
 #[tokio::test]
-async fn timeout_guard_marks_unexecuted_cases_blocked_instead_of_fabricating_failures() {
+async fn a_bounded_timeout_does_not_cancel_unrelated_cases() {
     let Ok(image) = std::env::var("PRO_CONTRACT_TEST_IMAGE") else {
         return;
     };
@@ -691,18 +707,21 @@ async fn timeout_guard_marks_unexecuted_cases_blocked_instead_of_fabricating_fai
     let pipeline = dirs.path().join("pipeline");
     std::fs::create_dir_all(&base).unwrap();
     std::fs::create_dir_all(&candidate).unwrap();
-    write_executable(&candidate.join("executable"), "#!/bin/sh\nsleep 30\n").unwrap();
+    write_executable(
+        &candidate.join("executable"),
+        "#!/bin/sh\n[ \"$1\" = slow ] && sleep 30\nprintf '%s\\n' \"$@\"\n",
+    )
+    .unwrap();
     let policy = EvidencePolicy {
         build_command: None,
         candidate_tests: false,
         reference_command: Some("/bin/echo".into()),
-        differential: vec![case("first", &[]), case("not-run", &[])],
+        differential: vec![case("first", &["slow"]), case("later", &["ready"])],
         sealed: vec![],
         ..policy()
     };
-    let script = pipeline_script(&policy, "/candidate", 5)
-        .replace("HANG_BREAKER=5", "HANG_BREAKER=1")
-        .replace("CASE_TIMEOUT=10", "CASE_TIMEOUT=1");
+    let script =
+        pipeline_script(&policy, "/candidate", 5).replace("CASE_TIMEOUT=10", "CASE_TIMEOUT=1");
     super::write_pipeline(&pipeline, &script, policy.differential.clone())
         .await
         .unwrap();
@@ -717,8 +736,8 @@ async fn timeout_guard_marks_unexecuted_cases_blocked_instead_of_fabricating_fai
     let (steps, _, complete) = parse_output(&stdout, &policy);
     assert!(complete);
     assert_eq!(steps[0].outcome, StepOutcome::Fail);
-    assert_eq!(steps[1].outcome, StepOutcome::Blocked);
-    assert_eq!(steps[1].reference_exit, None);
+    assert_eq!(steps[1].outcome, StepOutcome::Pass);
+    assert_eq!(steps[1].reference_exit, Some(0));
 }
 
 #[tokio::test]
@@ -781,9 +800,9 @@ async fn a_hanging_build_is_the_candidates_failure_not_an_infrastructure_timeout
         differential: vec![],
         reference_command: None,
         sealed: vec![],
-        sealed_threshold_permille: 950,
-        min_sealed_qualified: 100,
-        min_success_permille: 500,
+        sealed_threshold_permille: Some(950),
+        min_sealed_qualified: Some(100),
+        min_success_permille: Some(500),
         preparation_failure: None,
     };
     // Each step gets a sixth of the container budget: 10 s here.

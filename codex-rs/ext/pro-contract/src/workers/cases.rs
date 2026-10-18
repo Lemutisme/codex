@@ -234,9 +234,14 @@ pub(crate) fn render_observations(
             .exit
             .map_or_else(|| "unknown".to_string(), |exit| exit.to_string());
         let stability = if observation.stable {
-            ""
+            ", all channels stable".to_string()
+        } else if observation.stable_channels.is_empty() {
+            ", stable channels unavailable".to_string()
         } else {
-            ", no stable completed observation"
+            format!(
+                ", stable channels: {}; other channels may vary",
+                observation.stable_channels.join(",")
+            )
         };
         let heading = format!(
             "Case {}\nInvocation JSON (omission markers mean unknown input, not defaults):\n",

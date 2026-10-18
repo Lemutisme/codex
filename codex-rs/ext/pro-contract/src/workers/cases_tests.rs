@@ -207,6 +207,7 @@ fn observations_show_the_invocation_fixtures_streams_and_stability() {
         id: "a".to_string(),
         exit: Some(2),
         stable: false,
+        stable_channels: Vec::new(),
         stdout: "out\n".to_string(),
         stderr: "warning\n".to_string(),
     }];
@@ -225,7 +226,7 @@ fn observations_show_the_invocation_fixtures_streams_and_stability() {
         json!(cases[0])
     );
     assert!(text.contains("out\n") && text.contains("warning\n"));
-    assert!(text.contains("[exit status 2, no stable completed observation]"));
+    assert!(text.contains("[exit status 2, stable channels unavailable]"));
     assert!(render_observations(&cases, &observations, 20).len() <= 20);
 }
 
@@ -246,6 +247,7 @@ fn bounded_observations_keep_later_invocations_and_make_missing_bytes_explicit()
             id: case.id.clone(),
             exit: Some(0),
             stable: true,
+            stable_channels: Vec::new(),
             stdout: "large output 尾\n".repeat(1000),
             stderr: String::new(),
         })

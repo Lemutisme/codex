@@ -20,7 +20,7 @@ struct Grant {
 
 impl ThreadRuntime {
     pub(super) async fn arm_deadline(self: &std::sync::Arc<Self>) {
-        if !self.progress_enabled() {
+        if self.settings.succession.is_none() {
             return;
         }
         {
@@ -77,12 +77,28 @@ impl ThreadRuntime {
         self.settings.progress.is_some()
     }
 
+    pub(crate) async fn remaining_task_budget(&self) -> Result<Value, String> {
+        let budget: Budget = self
+            .ledger
+            .record(KIND, &self.thread_id.to_string())
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or("original task grant unavailable")?;
+        let now = now_ms()?;
+        let progress = self.progress_grant().await?;
+        Ok(json!({"deadline_ms":budget.deadline_ms,
+            "remaining_ms":budget.deadline_ms.saturating_sub(now),
+            "sessions_used":budget.launches,"session_limit":budget.grant.max_sessions,
+            "publications_used":progress.used,
+            "publication_limit":self.settings.progress.as_ref().and_then(|grant| grant.max_publications)}))
+    }
+
     pub(super) async fn action_seconds(
         &self,
         deadline: Option<u64>,
         maximum: u64,
     ) -> Result<u64, String> {
-        if self.settings.progress.is_none() {
+        if self.settings.succession.is_none() {
             return Ok(maximum);
         }
         let budget: Budget = self
@@ -110,8 +126,7 @@ impl ThreadRuntime {
         let Some(settings) = &self.settings.progress else {
             return Ok(());
         };
-        if !(1..=32).contains(&settings.max_publications)
-            || !(15..=900).contains(&settings.assessment_secs)
+        if !(15..=900).contains(&settings.assessment_secs)
             || !(30..=7200).contains(&settings.executor_slice_secs)
             || self.settings.succession.is_none()
         {
@@ -229,6 +244,7 @@ impl ThreadRuntime {
         )
     }
 
+    #[cfg(test)]
     pub(crate) async fn publish_progress(
         &self,
         request: String,
@@ -237,11 +253,23 @@ impl ThreadRuntime {
         self.publish_progress_for(request, turn, None).await
     }
 
+    #[cfg(test)]
     pub(crate) async fn publish_progress_for(
         &self,
         request: String,
         turn: String,
         owner: Option<(u64, u64)>,
+    ) -> Result<Value, String> {
+        self.publish_progress_with_review(request, turn, owner, false)
+            .await
+    }
+
+    pub(crate) async fn publish_progress_with_review(
+        &self,
+        request: String,
+        turn: String,
+        owner: Option<(u64, u64)>,
+        diagnostic_review: bool,
     ) -> Result<Value, String> {
         if request.is_empty() || request.len() > 128 {
             return Err("publication request_id must contain 1..128 bytes".into());
@@ -254,6 +282,12 @@ impl ThreadRuntime {
         self.progress_ready().await?;
         let previous = self.progress_grant().await?;
         if let Some((_, handle)) = previous.completed.iter().find(|(id, _)| id == &request) {
+            let stored: Value =
+                serde_json::from_slice(&self.store.get(handle).map_err(|e| e.to_string())?)
+                    .map_err(|e| e.to_string())?;
+            if stored["diagnostic_review"].as_bool().unwrap_or(false) != diagnostic_review {
+                return Err("request_id belongs to a different assessment; use a new ID to request different capabilities".into());
+            }
             return Ok(
                 json!({"handle":handle,"reused":true,"scope":"progress_only","read_with":"contract_read_evidence"}),
             );
@@ -261,7 +295,10 @@ impl ThreadRuntime {
         if previous.pending.is_some() {
             return Err("prior publication is still running or unresolved; no replay".into());
         }
-        if previous.used >= settings.max_publications {
+        if settings
+            .max_publications
+            .is_some_and(|limit| previous.used >= limit)
+        {
             return Err("original publication allowance exhausted".into());
         }
         let seconds = self
@@ -301,7 +338,10 @@ impl ThreadRuntime {
             )
         };
         let mut reserved = previous.clone();
-        reserved.used += 1;
+        reserved.used = reserved
+            .used
+            .checked_add(1)
+            .ok_or("publication counter overflow")?;
         reserved.pending = Some(request.clone());
         if !self
             .ledger
@@ -355,8 +395,22 @@ impl ThreadRuntime {
             "capture_boundary":"confirmed pause of the exclusively provisioned workspace executor; confirmed resume"})).await?;
         // Adaptive feedback never queries withheld acceptance cases.
         policy.sealed.clear();
-        let policy_hash = super::digest_of("progress_assessment_policy", &policy);
-        for (_, handle) in &previous.completed {
+        let policy_hash = super::digest_of(
+            "progress_assessment_v2",
+            &(
+                &policy,
+                &self.profile.check,
+                super::identity::harness_sha256(),
+                diagnostic_review.then_some(&self.policies.reviewer),
+            ),
+        );
+        // Artifact-only checks may be reused; diagnosis also depends on the evolving
+        // execution observations. A new diagnosis request gets a new frozen basis.
+        let includes_review = diagnostic_review
+            || (policy.build_command.is_none()
+                && policy.differential.is_empty()
+                && !policy.candidate_tests);
+        for (_, handle) in previous.completed.iter().filter(|_| !includes_review) {
             let old: Value =
                 serde_json::from_slice(&self.store.get(handle).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
@@ -401,9 +455,10 @@ impl ThreadRuntime {
             base,
         };
         let assessment = self
-            .assess_snapshot(&handoff, &work, Some(deadline), false)
+            .assess_snapshot(&handoff, &work, Some(deadline), false, diagnostic_review)
             .await;
         let safe = assessment.effects_resolved;
+        let review_available = assessment.public.review.is_some();
         let feedback = match &assessment.verdict {
             crate::controller::decision::Verdict::Support => "Local assessment supports this frozen snapshot; full acceptance has not been performed.".to_string(),
             crate::controller::decision::Verdict::Defeat { residual, .. } => residual.clone(),
@@ -412,6 +467,7 @@ impl ThreadRuntime {
         let document = json!({"schema_version":1,"scope":"progress_only","contract_id":handoff.contract.id.0,
             "revision":handoff.contract.revision,"publication":reserved.used,"request_id":request,
             "subject_hash":handoff.subject.subject_hash,"assessment_policy_hash":policy_hash,
+            "diagnostic_review":diagnostic_review,
             "feedback":feedback,"public":assessment.public,"effects_resolved":safe});
         let handle = self
             .store
@@ -446,6 +502,7 @@ impl ThreadRuntime {
         Ok(
             json!({"handle":handle,"subject_hash":handoff.subject.subject_hash,"publication":reserved.used,
             "scope":"progress_only","feedback":crate::workers::bounded(&feedback, 2000),
+            "diagnostic_review_requested":diagnostic_review,"review_available":review_available,
             "effects_resolved":safe,"read_with":"contract_read_evidence","completion_certified":false}),
         )
     }

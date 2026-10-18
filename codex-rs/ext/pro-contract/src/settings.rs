@@ -32,8 +32,8 @@ pub struct Settings {
     /// Bounded, same-turn publication and public assessment under the original task grant.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress: Option<ProgressSettings>,
-    /// A version's policy bundle: a directory whose `drafter.md`, `prober.md` and `reviewer.md`
-    /// replace the built-in worker instructions.
+    /// Context bundle: `work_method.md` replaces the executor strategy; `drafter.md`,
+    /// `prober.md` and `reviewer.md` replace the corresponding worker instructions.
     #[serde(default)]
     pub policy: Option<PathBuf>,
 }
@@ -51,7 +51,9 @@ pub struct ReviewExecution {
 pub struct ProgressSettings {
     /// Provisioner-owned Docker label, not a model-selected container or path.
     pub executor_label: String,
-    pub max_publications: u32,
+    /// Optional explicit count grant; absent means the original task deadline bounds use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_publications: Option<u32>,
     pub assessment_secs: u64,
     pub executor_slice_secs: u64,
 }
@@ -60,32 +62,24 @@ pub struct ProgressSettings {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SuccessionSettings {
-    pub max_sessions: u32,
+    /// Optional explicit count grant; absent means the original task deadline bounds use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_sessions: Option<u32>,
     /// Wall-clock lifetime from original intake, including the original executor.
     pub total_secs: u64,
 }
 
-/// The sealed-evidence rules copied into every evidence policy at Issue.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// Explicit quantitative acceptance criteria, when supplied by the task owner.
+/// Absent cutoffs leave evidence interpretation to the review strategy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceSettings {
-    #[serde(default = "codex_pro_contract_store::default_sealed_threshold_permille")]
-    pub sealed_threshold_permille: u16,
-    #[serde(default = "codex_pro_contract_store::default_min_sealed_qualified")]
-    pub min_sealed_qualified: u32,
-    #[serde(default = "codex_pro_contract_store::default_min_success_permille")]
-    pub min_success_permille: u16,
-}
-
-impl Default for EvidenceSettings {
-    fn default() -> Self {
-        Self {
-            sealed_threshold_permille: codex_pro_contract_store::default_sealed_threshold_permille(
-            ),
-            min_sealed_qualified: codex_pro_contract_store::default_min_sealed_qualified(),
-            min_success_permille: codex_pro_contract_store::default_min_success_permille(),
-        }
-    }
+    #[serde(default)]
+    pub sealed_threshold_permille: Option<u16>,
+    #[serde(default)]
+    pub min_sealed_qualified: Option<u32>,
+    #[serde(default)]
+    pub min_success_permille: Option<u16>,
 }
 
 /// The evaluation profile of spec §13: an isolated container executor environment and a
@@ -109,6 +103,8 @@ pub struct EvaluationProfile {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CheckEnvironment {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<TaskInput>,
     pub docker: String,
     pub image: String,
     pub user: String,
@@ -119,6 +115,54 @@ pub struct CheckEnvironment {
     pub build_command: Option<String>,
     /// Path of the built candidate program, relative to the candidate root.
     pub candidate_command: Option<String>,
+}
+
+/// Provisioner-owned input files, independent of the candidate workspace.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaskInput {
+    pub name: String,
+    pub source: PathBuf,
+    pub digest: codex_pro_contract::Digest,
+}
+
+impl CheckEnvironment {
+    pub(crate) fn input_mount_args(&self) -> Result<Vec<String>, String> {
+        let mut names = std::collections::BTreeSet::new();
+        let mut args = Vec::new();
+        for input in &self.inputs {
+            if input.name.is_empty()
+                || input.name.len() > 128
+                || !input
+                    .name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
+                || input.name == "."
+                || input.name == ".."
+                || !names.insert(&input.name)
+                || !input.source.is_absolute()
+                || input.source.to_string_lossy().contains([',', '\n', '\0'])
+            {
+                return Err("invalid declared task input mount".into());
+            }
+            args.extend([
+                "--mount".to_string(),
+                format!(
+                    "type=bind,src={},dst=/inputs/{},readonly",
+                    input.source.display(),
+                    input.name
+                ),
+            ]);
+        }
+        Ok(args)
+    }
+
+    pub(crate) fn input_capabilities(&self) -> Vec<serde_json::Value> {
+        self.inputs.iter().map(|input| serde_json::json!({
+            "name":input.name,"path":format!("/inputs/{}",input.name),"sha256":input.digest,"access":"read_only",
+            "scope":"declared task input available to checks and enabled frozen computations; availability does not attest executor access"
+        })).collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

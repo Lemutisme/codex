@@ -41,8 +41,10 @@ pub(super) fn now_ms() -> Result<u64, String> {
 
 impl Budget {
     pub(super) fn new(grant: SuccessionSettings, now: u64) -> Result<Self, String> {
-        if !(0..=16).contains(&grant.max_sessions) || !(60..=86400).contains(&grant.total_secs) {
-            return Err("succession requires 0..16 sessions and 60..86400 all-in seconds".into());
+        if grant.total_secs == 0 || grant.total_secs > u64::MAX / 1000 {
+            return Err(
+                "succession requires a positive representable original task lifetime".into(),
+            );
         }
         Ok(Self {
             deadline_ms: now
@@ -71,18 +73,12 @@ impl Budget {
         if now < self.started_ms || now >= self.deadline_ms {
             return Err("original task deadline exhausted or clock moved backwards".into());
         }
-        if self.launches >= self.grant.max_sessions {
-            return Err("original successor allowance exhausted".into());
-        }
-        if self.lessons.len() >= 2
-            && self
-                .lessons
-                .iter()
-                .rev()
-                .take(/*n*/ 2)
-                .all(|old| old.subject == lesson.subject)
+        if self
+            .grant
+            .max_sessions
+            .is_some_and(|limit| self.launches >= limit)
         {
-            return Err("two fresh sessions returned the same failed artifact; no progress".into());
+            return Err("original successor allowance exhausted".into());
         }
         let seconds = (self.deadline_ms - now) / 1000;
         let seconds = seconds
@@ -90,7 +86,10 @@ impl Budget {
             .filter(|s| *s > 0)
             .ok_or("no executor time remains after reserving independent verification")?;
         let mut next = self.clone();
-        next.launches += 1;
+        next.launches = next
+            .launches
+            .checked_add(1)
+            .ok_or("session counter overflow")?;
         next.executors.push(session.clone());
         next.pending = Some(session);
         next.lessons.push(lesson);

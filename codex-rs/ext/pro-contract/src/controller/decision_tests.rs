@@ -64,9 +64,9 @@ fn policy() -> EvidencePolicy {
         }],
         reference_command: Some("/workspace/executable".to_string()),
         sealed: (0..4).map(sealed_case).collect(),
-        sealed_threshold_permille: 750,
-        min_sealed_qualified: 4,
-        min_success_permille: 500,
+        sealed_threshold_permille: Some(750),
+        min_sealed_qualified: Some(4),
+        min_success_permille: Some(500),
         preparation_failure: None,
     }
 }
@@ -106,6 +106,26 @@ fn with_sealed(outcomes: &[StepOutcome]) -> Result<CheckReceipts, CheckError> {
 
 fn passing() -> Result<CheckReceipts, CheckError> {
     with_sealed(&[StepOutcome::Pass; 4])
+}
+
+#[test]
+fn undeclared_numeric_cutoffs_are_measurements_not_automatic_acceptance() {
+    let policy = EvidencePolicy {
+        min_sealed_qualified: None,
+        min_success_permille: None,
+        sealed_threshold_permille: None,
+        ..policy()
+    };
+    let observations = with_sealed(&[StepOutcome::Unqualified; 4]);
+    assert!(mechanical_verdict(&observations, &policy).is_none());
+    assert!(matches!(
+        decide(&observations, None, &policy),
+        Verdict::NotVerified {
+            class: NotVerifiedClass::ReviewerUnable,
+            ..
+        }
+    ));
+    assert!(review_summary(observations.as_ref().unwrap(), &policy).contains("unqualified"));
 }
 
 #[test]
@@ -463,7 +483,7 @@ fn a_sealed_pass_rate_below_threshold_defeats_with_aggregates_only() {
 #[test]
 fn unqualified_sealed_cases_leave_the_denominator() {
     let policy = EvidencePolicy {
-        min_sealed_qualified: 3,
+        min_sealed_qualified: Some(3),
         ..policy()
     };
     let checks = with_sealed(&[

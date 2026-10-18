@@ -101,6 +101,41 @@ mod obligation_tests {
     use super::*;
 
     #[test]
+    fn historical_cutoffs_keep_their_wire_values_and_new_nulls_remain_absent() {
+        let old = serde_json::json!({"class":"checks_and_review","build_command":null,
+            "candidate_command":null,"candidate_tests":false,"differential":[],
+            "reference_command":null,"sealed":[],"sealed_threshold_permille":950,
+            "min_sealed_qualified":100,"min_success_permille":500});
+        let historical: EvidencePolicy = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&historical).unwrap(), old);
+        let mut missing = old;
+        for field in [
+            "sealed_threshold_permille",
+            "min_sealed_qualified",
+            "min_success_permille",
+        ] {
+            missing.as_object_mut().unwrap().remove(field);
+        }
+        let legacy: EvidencePolicy = serde_json::from_value(missing).unwrap();
+        assert_eq!(
+            crate::digest_of("policy", &historical),
+            crate::digest_of("policy", &legacy)
+        );
+        let current = EvidencePolicy {
+            sealed_threshold_permille: None,
+            min_sealed_qualified: None,
+            min_success_permille: None,
+            ..historical
+        };
+        let wire = serde_json::to_value(&current).unwrap();
+        assert!(wire["min_sealed_qualified"].is_null());
+        assert_eq!(
+            serde_json::from_value::<EvidencePolicy>(wire).unwrap(),
+            current
+        );
+    }
+
+    #[test]
     fn derived_obligations_preserve_terms_bytes_and_have_disjoint_stable_ids() {
         let terms = Terms {
             intake_text: "Produce a report and preserve the inputs.".into(),
@@ -229,31 +264,41 @@ pub struct EvidencePolicy {
     /// Sealed cases: written by the prober, never shown to the executor.
     #[serde(default)]
     pub sealed: Vec<DifferentialCase>,
-    /// The sealed pass rate support needs, in permille.
+    /// Optional owner-declared sealed pass cutoff, in permille.
     #[serde(default = "default_sealed_threshold_permille")]
-    pub sealed_threshold_permille: u16,
-    /// Fewest qualified sealed cases that count as evidence.
+    pub sealed_threshold_permille: Option<u16>,
+    /// Optional owner-declared minimum number of qualified sealed cases.
     #[serde(default = "default_min_sealed_qualified")]
-    pub min_sealed_qualified: u32,
-    /// Smallest share, in permille, of qualified sealed cases whose reference run succeeds.
+    pub min_sealed_qualified: Option<u32>,
+    /// Optional owner-declared share of successful reference runs, in permille.
     #[serde(default = "default_min_success_permille")]
-    pub min_success_permille: u16,
-    /// A preparation failure is part of the frozen basis, never an empty successful suite.
-    /// It forbids Support but does not erase the task or prevent repair of public failures.
+    pub min_success_permille: Option<u16>,
+    /// A preparation failure remains part of the frozen basis. It blocks declared quantitative
+    /// criteria; without such criteria it is an observation for independent assessment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preparation_failure: Option<String>,
 }
 
-pub fn default_sealed_threshold_permille() -> u16 {
-    950
+impl EvidencePolicy {
+    pub fn has_declared_cutoffs(&self) -> bool {
+        self.sealed_threshold_permille.is_some()
+            || self.min_sealed_qualified.is_some()
+            || self.min_success_permille.is_some()
+    }
 }
 
-pub fn default_min_sealed_qualified() -> u32 {
-    100
+// Missing fields in historical policies keep their original interpretation.
+// New policies explicitly serialize null for an undeclared acceptance cutoff.
+pub fn default_sealed_threshold_permille() -> Option<u16> {
+    Some(950)
 }
 
-pub fn default_min_success_permille() -> u16 {
-    500
+pub fn default_min_sealed_qualified() -> Option<u32> {
+    Some(100)
+}
+
+pub fn default_min_success_permille() -> Option<u16> {
+    Some(500)
 }
 
 /// How the subject is captured; frozen at intake and hashed into `capture_policy_hash`.

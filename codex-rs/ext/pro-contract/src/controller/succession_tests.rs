@@ -9,7 +9,7 @@ use pretty_assertions::assert_ne;
 async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> Lane {
     let mut lane = lane(ports).await;
     Arc::get_mut(&mut lane.runtime).unwrap().settings.succession = Some(SuccessionSettings {
-        max_sessions,
+        max_sessions: Some(max_sessions),
         total_secs: 3600,
     });
     *lane.ports.successor_workspace.lock().unwrap() = Some(lane.workspace.clone());

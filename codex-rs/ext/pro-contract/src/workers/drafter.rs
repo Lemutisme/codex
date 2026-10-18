@@ -266,10 +266,9 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
             differential,
             reference_command: input.reference_command.map(str::to_string),
             sealed: Vec::new(),
-            sealed_threshold_permille: codex_pro_contract_store::default_sealed_threshold_permille(
-            ),
-            min_sealed_qualified: codex_pro_contract_store::default_min_sealed_qualified(),
-            min_success_permille: codex_pro_contract_store::default_min_success_permille(),
+            sealed_threshold_permille: None,
+            min_sealed_qualified: None,
+            min_success_permille: None,
             preparation_failure: None,
         }),
     })

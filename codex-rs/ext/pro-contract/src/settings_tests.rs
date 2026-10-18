@@ -59,6 +59,7 @@ fn an_evaluation_profile_loads_with_defaults() {
                     "executable".to_string()
                 ],
                 check: CheckEnvironment {
+                    inputs: Vec::new(),
                     docker: "docker".to_string(),
                     image: "img:tag".to_string(),
                     user: "1000:1000".to_string(),
@@ -77,9 +78,9 @@ fn an_evaluation_profile_loads_with_defaults() {
                 deadline_secs: 900,
             },
             evidence: EvidenceSettings {
-                sealed_threshold_permille: 950,
-                min_sealed_qualified: 100,
-                min_success_permille: 500,
+                sealed_threshold_permille: None,
+                min_sealed_qualified: None,
+                min_success_permille: None,
             },
             policy: None,
         })
@@ -99,9 +100,9 @@ fn evidence_settings_are_read_and_default_field_by_field() {
             .expect("settings")
             .evidence,
         EvidenceSettings {
-            sealed_threshold_permille: 900,
-            min_sealed_qualified: 100,
-            min_success_permille: 500,
+            sealed_threshold_permille: Some(900),
+            min_sealed_qualified: None,
+            min_success_permille: None,
         }
     );
 }

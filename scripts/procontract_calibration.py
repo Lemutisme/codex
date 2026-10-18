@@ -282,9 +282,9 @@ def sealed_rate(facts: dict) -> float | None:
 def mechanically_supported(facts: dict, policy: dict, theta_permille: int) -> bool:
     """The lane's mechanical gate (decision::mechanical_verdict passes) at threshold θ."""
     sufficient = (
-        facts["qualified"] >= policy["min_sealed_qualified"]
-        and facts["succeeded"] * 1000
-        >= policy["min_success_permille"] * facts["qualified"]
+        (policy["min_sealed_qualified"] is None or facts["qualified"] >= policy["min_sealed_qualified"])
+        and (policy["min_success_permille"] is None or facts["succeeded"] * 1000
+        >= policy["min_success_permille"] * facts["qualified"])
     )
     return (
         facts["complete"]

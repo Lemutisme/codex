@@ -101,7 +101,7 @@ impl ThreadRuntime {
         self.record_status(
             "succeeding",
             &format!(
-                "fresh executor {id}; same responsibility, {} of {} sessions; original deadline {}",
+                "fresh executor {id}; same responsibility, {} launches; explicit session limit {:?}; original deadline {}",
                 reserved.launches, reserved.grant.max_sessions, reserved.deadline_ms
             ),
             /*resting*/ false,
@@ -285,9 +285,10 @@ impl ThreadRuntime {
             "remaining_failures_and_prior_failed_artifacts": reserved.lessons,
             "previous_executor_claim_untrusted": reserved.previous_executor_claim,
             "executor_deadline_ms": deadline_ms,
-            "progress_publication": self.progress_enabled().then_some("Use publish_progress after a coherent change to obtain bounded public feedback before ending this turn. The original publication and task grants are shared with the prior executor."),
+            "progress_publication": self.progress_enabled().then_some("publish_progress is available under the original publication and task grants shared with the prior executor."),
             "public_evidence": "Use contract_read_evidence: frontier for open public checks, index for the complete retained verification history, read for exact available details. Recent failure summaries are an index, not the full evidence. Preserve unrelated work and runnable probes in the workspace.",
-            "strategy": super::super::work::METHOD
+            "strategy": self.policies.work_method,
+            "declared_task_inputs": self.input_capabilities()
             })).map_err(|e| e.to_string())?
         };
         successor::packet(&packet)?; // Validate all context bounds before spending a launch.

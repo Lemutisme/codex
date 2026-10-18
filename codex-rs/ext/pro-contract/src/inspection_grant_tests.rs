@@ -3,6 +3,7 @@ use super::*;
 fn fixture(directory: PathBuf, lifetime: Duration) -> Result<InspectionGrant, String> {
     InspectionGrant::open(
         crate::CheckEnvironment {
+            inputs: Vec::new(),
             docker: "docker".into(),
             image: "pinned-image".into(),
             user: "1000:1000".into(),

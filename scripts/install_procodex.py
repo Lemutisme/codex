@@ -60,7 +60,7 @@ def install(source, package, image, prefix):
     scripts.mkdir()
     for path in (source / "scripts").glob("procontract*.py"):
         shutil.copy2(path, scripts / path.name)
-    for name in ("procodex.py", "procodex_config.py"):
+    for name in ("procodex.py", "procodex_config.py", "procodex_inputs.py"):
         shutil.copy2(source / "scripts" / name, scripts / name)
     shutil.copy2(source / "scripts/PROCODEX.md", release / "README.md")
     policies = Path("codex-rs/ext/pro-contract/policies")

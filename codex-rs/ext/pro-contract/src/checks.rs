@@ -22,7 +22,6 @@ use crate::digest_of;
 /// Seconds each run of one case may take.
 const CASE_TIMEOUT_SECS: u64 = 10;
 /// Candidate timeouts after which the remaining cases are blocked without inventing results.
-const HANG_BREAKER: u32 = 5;
 /// Bytes of log kept per step.
 const STEP_DETAIL_CAP: usize = 4000;
 /// Bytes of each stream kept per observation, head and tail, so a long `--help` keeps its option
@@ -106,8 +105,18 @@ pub struct Observation {
     pub exit: Option<i32>,
     /// Whether both invocations completed and agreed on every channel.
     pub stable: bool,
+    /// Channels that agreed across completed reference invocations. Older records omit it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stable_channels: Vec<String>,
     pub stdout: String,
     pub stderr: String,
+}
+
+impl Observation {
+    pub fn qualified(&self) -> bool {
+        self.exit.is_some()
+            && (self.stable || self.stable_channels.iter().any(|channel| channel == "rc"))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -203,7 +212,7 @@ fn case_line(function: &str, name: &str, index: usize, case: &DifferentialCase) 
 
 fn runner_variables(reference: &str) -> String {
     format!(
-        "CASE_TIMEOUT={CASE_TIMEOUT_SECS}\nHANG_BREAKER={HANG_BREAKER}\nOBSERVATION_CAP={OBSERVATION_STREAM_CAP}\nREFERENCE={}\n",
+        "CASE_TIMEOUT={CASE_TIMEOUT_SECS}\nOBSERVATION_CAP={OBSERVATION_STREAM_CAP}\nREFERENCE={}\n",
         shell_quote(reference)
     )
 }
@@ -259,7 +268,6 @@ pub(crate) fn observe_script(reference: &str, cases: &[DifferentialCase]) -> Str
     script.push_str(&runner_variables(reference));
     for (index, case) in cases.iter().enumerate() {
         script.push_str(&case_line("observe_case", &case.id, index, case));
-        script.push_str("[ \"$reference_hangs\" -lt \"$HANG_BREAKER\" ] || exit 0\n");
     }
     script
 }
@@ -347,13 +355,21 @@ pub(crate) fn parse_observations(stdout: &str) -> Vec<Observation> {
             let mut fields = rest.split(' ');
             let id = fields.next().unwrap_or_default().to_string();
             let exit = fields.next().and_then(|exit| exit.parse().ok());
-            let stable = fields.next() == Some("stable");
+            let state = fields.next();
+            let stable = state == Some("stable");
+            let stable_channels = fields
+                .next()
+                .filter(|_| matches!(state, Some("stable" | "unstable")))
+                .filter(|text| *text != "-")
+                .map(|text| text.split(',').map(str::to_string).collect())
+                .unwrap_or_default();
             observations.push(Observation {
                 stdout: streams.remove(&(id.clone(), true)).unwrap_or_default(),
                 stderr: streams.remove(&(id.clone(), false)).unwrap_or_default(),
                 id,
                 exit,
                 stable,
+                stable_channels,
             });
             continue;
         } else {
@@ -550,6 +566,10 @@ async fn run_container(
         &name,
         "--network",
         "none",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges",
         "--user",
         &env.user,
     ]
@@ -567,6 +587,7 @@ async fn run_container(
         args.push("-v".to_string());
         args.push(format!("{host}:{container}:ro"));
     }
+    args.extend(env.input_mount_args().map_err(CheckError::Launch)?);
     args.extend(
         [
             "--entrypoint",

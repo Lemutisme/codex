@@ -21,8 +21,6 @@ use crate::StepReceipt;
 use crate::workers::reviewer::Finding;
 use crate::workers::reviewer::Review;
 
-pub(super) const METHOD: &str = "Keep observed counterexamples, unexamined cases and interactions, and unsupported assumptions distinct. Choose the next experiment, derivation or coherent repair by whether it can change a consequential conclusion. Preserve exact invocations, inputs/state, available outputs, assumptions and incomplete-capture boundaries. Replay the motivating case and affected passing controls after each edit. Keep runnable probes, proof fragments and unfinished hypotheses in task-owned workspace files so the frozen candidate carries them forward. Use contract_read_evidence to recover public verification facts omitted from summaries; its frontier covers registered public checks, not every requirement or unknown. An empty failure list is not coverage, and a local passing batch cannot erase an older actionable difference. Continue while a concrete authorized step can materially advance the task within its remaining budget. Preserve requested reports and explanations in task-owned workspace files so independent artifact review can inspect them; the final message can point to those files. When handing off, distinguish established results from conjectures and name the remaining uncertainty and stopping reason. Independent support and authorized settlement remain host decisions.";
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct PublicCheck {
     pub receipt: StepReceipt,

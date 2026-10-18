@@ -57,6 +57,7 @@ pub use settings::ReviewExecution;
 pub use settings::Settings;
 pub use settings::SettingsError;
 pub use settings::SuccessionSettings;
+pub use settings::TaskInput;
 pub use settings::WorkerSettings;
 pub use workers::WorkerError;
 

@@ -59,6 +59,44 @@ does not restart when a successor takes over. On expiry, ProContract interrupts
 and awaits the native executor's shutdown. Final responses and successful check
 logs are retained as review evidence, with explicit truncation where necessary.
 
+New tasks share the original deadline without a default successor or publication
+count ceiling. `--successor-sessions N` imposes an explicit count if wanted; `0`
+disables fresh sessions. Previously admitted task grants are retained on resume.
+The deadline is enforced even when progress publication is disabled.
+
+Choose a replaceable strategy context, or provide input files independently of
+the writable project:
+
+```sh
+procodex --container-only --strategy /path/to/context-bundle \
+  --input specification=/path/to/spec.txt --input reference=/path/to/reference
+```
+
+`work_method.md` in the bundle supplies the executor's strategy, including workflow
+choices, and reaches fresh successors. Optional `drafter.md`, `prober.md` and
+`reviewer.md` replace the worker contexts. Strategy changes do not reset the task's
+grant. The native automatic Principal workflow still exists; this interface does
+not claim that all legacy orchestration has already moved out of code.
+
+Each named regular input file is retained once outside the mutable project and
+mounted read-only at `/inputs/NAME` for execution, checks and enabled review
+computations. Original file modes are retained. Builds may replace project outputs
+without replacing these inputs. Reopening the same task keeps its original input
+snapshot even if the supplied source file later changes or disappears.
+
+`publish_progress({request_id, review: true})` requests an independent diagnostic
+assessment while ordinary checks fail or their method is unavailable. It records
+findings and gaps under the same budget; it does not issue Support or settle the
+task. Reusing the same ID reopens that same assessment. A new diagnosis freezes a
+new observation basis, even if artifact bytes did not change. The response includes
+the remaining task time and any explicitly supplied count ceilings.
+
+New tasks do not invent quantitative evidence cutoffs. Explicit owner-supplied
+criteria are respected, and historical issued policies retain their old values.
+Absent cutoffs mean observations are assessed by the review strategy, not automatic
+acceptance. Reference observations retain stable channels; one bounded timeout
+does not cancel unrelated cases while the overall check budget remains.
+
 For binary or numerical attachments, opt into bounded review computations:
 
 ```sh

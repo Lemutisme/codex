@@ -7,16 +7,95 @@ async fn progressing(ports: FakePorts) -> Lane {
     let mut lane = lane(ports).await;
     let runtime = Arc::get_mut(&mut lane.runtime).unwrap();
     runtime.settings.succession = Some(SuccessionSettings {
-        max_sessions: 1,
+        max_sessions: Some(1),
         total_secs: 3600,
     });
     runtime.settings.progress = Some(ProgressSettings {
         executor_label: "procontract.task=test".into(),
-        max_publications: 3,
+        max_publications: Some(3),
         assessment_secs: 120,
         executor_slice_secs: 1800,
     });
     lane
+}
+
+#[tokio::test]
+async fn requested_diagnosis_survives_failed_checks_and_cannot_be_replaced_by_cached_checks() {
+    let lane = progressing(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Fail, StepOutcome::Fail])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let checks = lane
+        .runtime
+        .publish_progress("checks".into(), "working-turn".into())
+        .await
+        .unwrap();
+    assert!(lane.ports.review_prompts.lock().unwrap().is_empty());
+    assert!(
+        lane.runtime
+            .publish_progress_with_review("checks".into(), "working-turn".into(), None, true)
+            .await
+            .is_err()
+    );
+    let diagnosis = lane
+        .runtime
+        .publish_progress_with_review("diagnosis".into(), "working-turn".into(), None, true)
+        .await
+        .unwrap();
+    assert_ne!(checks["handle"], diagnosis["handle"]);
+    assert_eq!(diagnosis["review_available"], true);
+    assert_eq!(diagnosis["completion_certified"], false);
+    assert_eq!(lane.ports.review_prompts.lock().unwrap().len(), 1);
+    let repeated = lane
+        .runtime
+        .publish_progress_with_review("diagnosis".into(), "working-turn".into(), None, true)
+        .await
+        .unwrap();
+    assert_eq!(repeated["handle"], diagnosis["handle"]);
+    assert_eq!(lane.ports.review_prompts.lock().unwrap().len(), 1);
+    let handle = serde_json::from_value(diagnosis["handle"].clone()).unwrap();
+    let document: serde_json::Value =
+        serde_json::from_slice(&lane.runtime.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(
+        document["public"]["checks"][0]["receipt"]["outcome"],
+        "fail"
+    );
+    assert!(document["public"]["review"].is_object());
+    lane.wait_for("working").await;
+}
+
+#[tokio::test]
+async fn publications_without_a_count_ceiling_still_share_one_original_deadline() {
+    let mut lane = progressing(FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Pass])).await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .profile
+        .check
+        .build_command = Some("host check".into());
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .settings
+        .progress
+        .as_mut()
+        .unwrap()
+        .max_publications = None;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let before = lane.runtime.remaining_task_budget().await.unwrap();
+    for index in 0..10 {
+        lane.runtime
+            .publish_progress(format!("snapshot-{index}"), "working-turn".into())
+            .await
+            .unwrap();
+    }
+    let after = lane.runtime.remaining_task_budget().await.unwrap();
+    assert_eq!(before["deadline_ms"], after["deadline_ms"]);
+    assert_eq!(after["publications_used"], 10);
+    assert!(after["publication_limit"].is_null());
 }
 
 #[tokio::test]
@@ -145,12 +224,17 @@ async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_han
 
 #[tokio::test]
 async fn publication_retains_feedback_without_proposing_and_reuses_identical_work() {
-    let lane = progressing(
+    let mut lane = progressing(
         FakePorts::new(CONTRACT_DRAFT)
             .checks(&[StepOutcome::Fail, StepOutcome::Pass, StepOutcome::Pass])
             .reviews(&[SUPPORT_REVIEW, SUPPORT_REVIEW]),
     )
     .await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .profile
+        .check
+        .build_command = Some("host check".into());
     lane.runtime.intake(INTAKE.into()).await;
     lane.wait_for("working").await;
     let first = lane

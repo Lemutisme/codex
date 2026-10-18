@@ -15,6 +15,12 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 
+    def test_selected_strategy_and_requested_diagnosis_with_readonly_inputs(self):
+        self.run_case(progress_fixture=True,diagnostic_review_fixture=True,input_strategy_fixture=True)
+
+    def test_readonly_inputs_and_strategy_survive_a_successor(self):
+        self.run_case(succession_fixture=True,input_strategy_fixture=True)
+
     def test_native_feedback_access_is_available_as_scoped_process_evidence(self):
         self.run_case(progress_fixture=True, observation_fixture=True,
             task_text="Make answer.txt contain ready. Obtain the retained feedback bytes before repairing the artifact.")

@@ -2,10 +2,42 @@ use super::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn time_only_grant_does_not_invent_session_or_stagnation_limits() {
+    let mut budget = Budget::new(
+        SuccessionSettings {
+            max_sessions: None,
+            total_secs: 100,
+        },
+        1000,
+    )
+    .unwrap();
+    let original_deadline = budget.deadline_ms;
+    let lesson = Lesson {
+        subject: Digest::of(b"same artifact"),
+        residual: "New reasoning may still advance the task.".into(),
+    };
+    for i in 0..20 {
+        budget = budget
+            .reserve(format!("child-{i}"), lesson.clone(), 2000 + i * 1000, 1)
+            .unwrap()
+            .0;
+        budget.pending = None;
+        assert_eq!(budget.deadline_ms, original_deadline);
+        let encoded = serde_json::to_string(&budget).unwrap();
+        budget = serde_json::from_str(&encoded).unwrap();
+    }
+    assert!(
+        budget
+            .reserve("expired".into(), lesson, original_deadline, 0)
+            .is_err()
+    );
+}
+
+#[test]
 fn a_session_changes_context_not_the_original_grant() {
     let initial = Budget::new(
         SuccessionSettings {
-            max_sessions: 2,
+            max_sessions: Some(2),
             total_secs: 100,
         },
         /*now*/ 1000,

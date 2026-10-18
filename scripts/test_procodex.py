@@ -12,6 +12,48 @@ import procodex_config as procodex
 
 @unittest.skipUnless(sys.platform == "linux", "Linux Docker launcher")
 class ConfigurationTests(unittest.TestCase):
+    def test_time_only_continuations_do_not_reintroduce_a_default_count_on_resume(self):
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,_=procodex.configure(*args,successor_sessions=None,task_seconds=3600,continuous_work=True)
+        original=json.loads((home/'pro_contract/settings.json').read_text())
+        self.assertEqual(original['succession'],{'total_secs':3600})
+        self.assertNotIn('max_publications',original['progress'])
+        same,_=procodex.configure(*args,successor_sessions=3,task_seconds=7200,continuous_work=True)
+        current=json.loads((same/'pro_contract/settings.json').read_text())
+        self.assertEqual(original['succession'],current['succession'])
+        self.assertEqual(original['progress'],current['progress'])
+
+    def test_input_survives_output_replacement_and_reopening_after_source_disappears(self):
+        original = self.root / "reference"
+        original.write_text("original specification")
+        original.chmod(0o555)
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,config=procodex.configure(*args,inputs={"spec":original})
+        snapshot=home/'inputs/files/spec'
+        self.assertEqual(snapshot.read_text(),"original specification")
+        self.assertEqual(snapshot.stat().st_mode & 0o777,0o555)
+        (self.workspace/'executable').write_text('new implementation')
+        original.unlink()
+        reopened,_=procodex.configure(*args,inputs={"spec":original})
+        self.assertEqual(home,reopened)
+        self.assertEqual(snapshot.read_text(),"original specification")
+        environment=tomllib.loads((home/'environments.toml').read_text())
+        self.assertIn(f'type=bind,src={snapshot},dst=/inputs/spec,readonly',environment['environments'][0]['args'])
+        self.assertIn('/inputs/spec',config['developer_instructions'])
+
+    def test_strategy_changes_context_without_resetting_task_identity_or_grant(self):
+        bundle=self.root/'strategy';bundle.mkdir()
+        (bundle/'work_method.md').write_text('Investigate assumptions before changing proof structure.')
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,_=procodex.configure(*args,successor_sessions=3,task_seconds=3600,continuous_work=True)
+        before=json.loads((home/'pro_contract/settings.json').read_text())
+        same,_=procodex.configure(*args,strategy=bundle,successor_sessions=1,task_seconds=7200,continuous_work=True)
+        after=json.loads((home/'pro_contract/settings.json').read_text())
+        self.assertEqual(home,same)
+        self.assertEqual(before['succession'],after['succession'])
+        self.assertEqual(before['progress'],after['progress'])
+        self.assertEqual(after['policy'],str(bundle))
+
     def test_computation_is_opt_in_and_keeps_existing_task_state(self):
         args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
         home,_=procodex.configure(*args,successor_sessions=3,task_seconds=3600)
@@ -48,7 +90,7 @@ class ConfigurationTests(unittest.TestCase):
                 self.source,
                 "unused",
                 "true",
-                successor_sessions=17,
+                successor_sessions=-1,
             )
 
     def setUp(self):

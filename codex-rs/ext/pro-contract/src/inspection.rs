@@ -91,6 +91,7 @@ pub(crate) async fn compute(
             python,
             &image,
             &env.user,
+            &env.inputs,
             grant,
         ),
     );
@@ -129,6 +130,7 @@ pub(crate) async fn compute(
         .arg(format!("{}:/evidence:ro", source_dir.display()))
         .arg("-v")
         .arg(format!("{}:/inspection.py:ro", program.display()))
+        .args(env.input_mount_args()?)
         .args(["--entrypoint", "python3", &image, "-I", "/inspection.py"]);
     let available = remaining
         .saturating_sub(started.elapsed())
@@ -154,7 +156,7 @@ pub(crate) async fn compute(
     let stdout = crate::workers::bounded_head_tail(&output.stdout, out_cap);
     let stderr = crate::workers::bounded_head_tail(&output.stderr, err_cap);
     Ok(
-        json!({"schema":1,"subject_hash":subject,"requirements":requirements,"inputs":inputs,
+        json!({"schema":1,"subject_hash":subject,"requirements":requirements,"inputs":inputs,"task_inputs":env.input_capabilities(),
         "program_sha256":Digest::of(python.as_bytes()),"program":python,"image_id":image,
         "execution":output.receipt,"stdout":stdout,"stderr":stderr,"output_truncated":truncated,
         "interpretation":"An observed computation, not an automatic theorem proof or permission to settle."}),

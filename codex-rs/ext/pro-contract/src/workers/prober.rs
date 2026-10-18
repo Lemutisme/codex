@@ -70,12 +70,11 @@ pub(crate) struct ProbeFailure {
 /// The built-in instructions: version 0 of this part of a policy bundle.
 pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/prober.md");
 
-const EXPLORE: &str = "Turn 1 of 2: explore. Propose at most 30 exploration cases whose reference behavior you need \
-to see before writing the suite: the help of each subcommand, one sample of each documented input format, typical \
-combinations whose output format is unclear. They run on the reference only, twice each.";
+const EXPLORE: &str = "Turn 1 of 2: reference-observation phase. Return the exploration invocations chosen by your strategy, \
+within the tool capacity of 30 cases. They run on the reference only, twice each.";
 
-const WRITE: &str = "Turn 2 of 2: write the sealed suite. Using the documentation and the reference observations \
-below, return the coverage plan and 150 to 300 cases.";
+const WRITE: &str = "Turn 2 of 2: suite-publication phase. Return the coverage plan and selected cases using the documentation \
+and reference observations below. The protocol permits up to 300 cases; it imposes no minimum count.";
 
 fn instructions(policy: &str, turn: &str) -> String {
     format!(

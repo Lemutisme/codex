@@ -33,7 +33,7 @@ pub(crate) fn identities(
     let mut policies = BTreeMap::from([
         (
             "work_method".to_string(),
-            crate::digest_of("work_method", &super::work::METHOD),
+            crate::digest_of("work_method", &bundle.work_method),
         ),
         (
             "drafter".to_string(),
@@ -49,7 +49,12 @@ pub(crate) fn identities(
             "bundle".to_string(),
             crate::digest_of(
                 "policy_bundle",
-                &(&bundle.drafter, &bundle.prober, &bundle.reviewer),
+                &(
+                    &bundle.work_method,
+                    &bundle.drafter,
+                    &bundle.prober,
+                    &bundle.reviewer,
+                ),
             ),
         ),
     ]);

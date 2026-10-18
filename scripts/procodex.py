@@ -53,6 +53,10 @@ def main(argv=None):
     )
     parser.add_argument("--version", action="store_true")
     parser.add_argument("--no-progress", action="store_true", help="disable same-turn progress publication for a new task")
+    parser.add_argument("--strategy", type=Path,
+        help="context bundle directory; work_method.md and optional worker prompts")
+    parser.add_argument("--input", action="append", default=[], metavar="NAME=FILE",
+        help="retain a file as a read-only task input at /inputs/NAME")
     parser.add_argument(
         "--review-compute", action="store_true",
         help="allow bounded, isolated Python review of frozen binary or numerical evidence in the configured image",
@@ -60,8 +64,8 @@ def main(argv=None):
     parser.add_argument(
         "--successor-sessions",
         type=int,
-        default=3,
-        help="fresh executor sessions after failed verification (0 disables; max 16)",
+        default=None,
+        help="optional explicit ceiling on fresh sessions (0 disables); otherwise shared task time bounds them",
     )
     parser.add_argument(
         "--task-seconds",
@@ -75,8 +79,14 @@ def main(argv=None):
         help="explicitly use Docker as the execution sandbox, without nested bwrap; approvals remain on-request",
     )
     args, rest = parser.parse_known_args(argv)
-    if not 0 <= args.successor_sessions <= 16 or not 60 <= args.task_seconds <= 86400:
-        parser.error("succession requires 0..16 sessions and 60..86400 task seconds")
+    inputs = {}
+    for declaration in args.input:
+        name, separator, value = declaration.partition("=")
+        if not separator or not value or name in inputs:
+            parser.error("--input requires unique NAME=FILE declarations")
+        inputs[name] = value
+    if (args.successor_sessions is not None and not 0 <= args.successor_sessions <= 2**32-1) or not 1 <= args.task_seconds <= (2**64-1)//1000:
+        parser.error("succession requires an optional nonnegative count and a positive task duration")
     if args.check is not None and (
         not args.check.strip() or len(args.check.encode()) > 4096
     ):
@@ -165,6 +175,8 @@ def main(argv=None):
         task_seconds=args.task_seconds,
         review_compute=args.review_compute,
         continuous_work=not args.no_progress,
+        inputs=inputs,
+        strategy=args.strategy,
     )
     if rest and rest[0] in ("doctor", "status"):
         if rest[0] == "status":
@@ -250,7 +262,7 @@ def main(argv=None):
         file=sys.stderr,
     )
     print(
-        f"[procodex] Failed verification can start up to {args.successor_sessions} fresh sessions within {args.task_seconds}s from original intake; no task/budget reset.",
+        f"[procodex] Continuations share the original {args.task_seconds}s task grant; explicit session ceiling: {args.successor_sessions}. No task/budget reset.",
         file=sys.stderr,
     )
     os.chdir(workspace)

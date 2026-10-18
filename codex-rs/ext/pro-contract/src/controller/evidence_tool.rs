@@ -175,10 +175,11 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
     fn spec(&self) -> ToolSpec {
         ToolSpec::Function(ResponsesApiTool {
             name: "publish_progress".into(),
-            description: "Publish a consistent frozen workspace and receive bounded public checks or review in this same turn. Stop or finish background jobs first. Use after a coherent change or before spending most of the task budget. This spends the original finite publication grant. A stable request_id reopens its completed receipt without rerunning. Read full evidence with contract_read_evidence. This does not propose, accept or finish the task; repair observed failures and continue.".into(),
+            description: "Capture a consistent frozen workspace and return bounded public assessment in this turn. review=true also requests independent artifact diagnosis, including when checks fail or their evidence is incomplete. Stop or finish background jobs first. Requests share the original task grant. A stable request_id reopens the same assessment; changing review requires a new ID. Read the retained checks and diagnosis with contract_read_evidence. This operation does not propose a candidate, grant Support, settle responsibility or finish the task.".into(),
             strict: false, defer_loading: None, output_schema: None,
             parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
-                "request_id":{"type":"string","minLength":1,"maxLength":128}},
+                "request_id":{"type":"string","minLength":1,"maxLength":128},
+                "review":{"type":"boolean","description":"Request independent diagnosis of this snapshot in addition to its public checks; defaults to false."}},
                 "required":["request_id"],"additionalProperties":false})).unwrap_or_else(|error| panic!("static progress schema must parse: {error}")),
         })
     }
@@ -194,6 +195,8 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
             #[serde(deny_unknown_fields)]
             struct Request {
                 request_id: String,
+                #[serde(default)]
+                review: bool,
             }
             let raw = call.function_arguments()?;
             let error = FunctionCallError::RespondToModel;
@@ -201,19 +204,19 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
                 return Err(error("publication request exceeds 1 KiB".into()));
             }
             let request: Request = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
-            let value = match self.1 {
-                None => {
-                    self.0
-                        .publish_progress(request.request_id, call.turn_id)
-                        .await
-                }
-                Some(binding) => {
-                    self.0
-                        .publish_progress_for(request.request_id, call.turn_id, Some(binding))
-                        .await
-                }
+            let mut value = self
+                .0
+                .publish_progress_with_review(
+                    request.request_id,
+                    call.turn_id,
+                    self.1,
+                    request.review,
+                )
+                .await
+                .map_err(error)?;
+            if let Ok(budget) = self.0.remaining_task_budget().await {
+                value["budget"] = budget;
             }
-            .map_err(error)?;
             Ok(Box::new(JsonToolOutput::new(value).with_external_context()) as Box<dyn ToolOutput>)
         })
     }

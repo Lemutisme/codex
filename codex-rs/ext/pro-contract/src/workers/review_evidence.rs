@@ -227,7 +227,7 @@ impl ReviewEvidence {
     pub(crate) fn inspection_tool() -> DynamicToolSpec {
         DynamicToolSpec::Function(DynamicToolFunctionSpec {
             name: INSPECT_TOOL.into(),
-            description: "Run bounded Python over selected frozen file IDs in a network-less, read-only container with writable /tmp. file:N appears at /evidence/file-N. Only selected files are mounted. Return a computation source_id readable with read_evidence. Check data and identities; computations prove only their declared scope, not arbitrary universal claims.".into(),
+            description: "Run bounded Python over selected frozen files and host-declared task inputs in a network-less, read-only container with writable /tmp. file:N appears at /evidence/file-N; declared inputs appear at their host_observations paths. Return a computation source_id readable with read_evidence. Computations establish only their observed scope.".into(),
             input_schema: super::strict_object(json!({
                 "source_ids":{"type":"array","items":{"type":"string"},"maxItems":32},
                 "requirements":{"type":"array","items":{"type":"string"}},
@@ -320,7 +320,7 @@ impl ReviewEvidence {
 
     pub(crate) fn prompt(&self, instructions: &str) -> String {
         let computation = if self.can_compute() {
-            "inspect_evidence runs bounded Python over selected frozen artifacts in an isolated image. Read its result through read_evidence. Its scope is those artifact bytes, not past executor actions. Finite numerical checks do not establish unrestricted theorems."
+            "inspect_evidence runs bounded Python over selected frozen artifacts and declared task inputs in an isolated image. Read its result through read_evidence. It does not attest past executor actions."
         } else {
             "No computation grant is configured; binary evidence remains explicitly unassessed."
         };

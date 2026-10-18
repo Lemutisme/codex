@@ -44,6 +44,7 @@ impl ThreadRuntime {
         work: &std::path::Path,
         deadline_ms: Option<u64>,
         formal: bool,
+        diagnostic_review: bool,
     ) -> Assessment {
         let Handoff {
             contract,
@@ -72,13 +73,23 @@ impl ThreadRuntime {
         // Public executable checks already provide actionable progress. Full review belongs
         // to acceptance; ReviewOnly tasks still need a bounded local review during work.
         let review_needed = formal
+            || diagnostic_review
             || (policy.build_command.is_none()
                 && policy.differential.is_empty()
                 && !policy.candidate_tests);
         let mut host_observations = None;
         let review = match (&checks, decision::mechanical_verdict(&checks, policy)) {
-            (Ok(receipts), None) if review_needed && review_seconds > 0 => {
-                let summary = decision::review_summary(receipts, policy);
+            (observations, mechanical)
+                if review_needed
+                    && review_seconds > 0
+                    && (mechanical.is_none() || diagnostic_review) =>
+            {
+                let summary = match observations {
+                    Ok(receipts) => decision::review_summary(receipts, policy),
+                    Err(error) => format!(
+                        "Check capability could not produce a result: {error}. No candidate failure or success follows from this method error."
+                    ),
+                };
                 let baseline = self
                     .ledger
                     .subject_binding(&base.subject)
@@ -117,7 +128,14 @@ impl ThreadRuntime {
                     .await
                     .map_err(crate::WorkerError::Start),
                     Err(error) => Err(crate::WorkerError::Start(error.to_string())),
-                };
+                }
+                .map(|mut document| {
+                    if !self.profile.check.inputs.is_empty() {
+                        document["task_inputs"] =
+                            serde_json::json!(self.profile.check.input_capabilities());
+                    }
+                    document
+                });
                 let evidence = baseline
                     .and_then(|baseline| {
                         crate::workers::review_evidence::ReviewEvidence::new(
@@ -330,6 +348,7 @@ impl ThreadRuntime {
                 &work,
                 None,
                 true,
+                false,
             )
             .await;
         let Assessment {

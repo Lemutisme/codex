@@ -26,3 +26,17 @@ fn the_built_in_texts_are_the_shipped_bundle_files() {
     assert!(defaults.prober.starts_with("You are the probing worker"));
     assert!(defaults.reviewer.starts_with("Independently assess"));
 }
+
+#[test]
+fn strategy_changes_context_without_changing_worker_protocols() -> std::io::Result<()> {
+    let dir = tempfile::tempdir()?;
+    std::fs::write(
+        dir.path().join("work_method.md"),
+        "Keep a proof dependency graph.",
+    )?;
+    let loaded = Policies::load(dir.path())?;
+    assert_eq!(loaded.work_method, "Keep a proof dependency graph.");
+    assert_eq!(loaded.drafter, Policies::default().drafter);
+    assert_eq!(loaded.reviewer, Policies::default().reviewer);
+    Ok(())
+}

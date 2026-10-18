@@ -7,9 +7,10 @@ use super::drafter;
 use super::prober;
 use super::reviewer;
 
-/// One instruction text per worker, read from a version's policy bundle.
+/// Replaceable context for the executor and its judgment workers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Policies {
+    pub work_method: String,
     pub drafter: String,
     pub prober: String,
     pub reviewer: String,
@@ -18,6 +19,7 @@ pub(crate) struct Policies {
 impl Default for Policies {
     fn default() -> Self {
         Self {
+            work_method: DEFAULT_WORK_METHOD.to_string(),
             drafter: drafter::DEFAULT_INSTRUCTIONS.to_string(),
             prober: prober::DEFAULT_INSTRUCTIONS.to_string(),
             reviewer: reviewer::DEFAULT_INSTRUCTIONS.to_string(),
@@ -26,7 +28,7 @@ impl Default for Policies {
 }
 
 impl Policies {
-    /// Reads `drafter.md`, `prober.md` and `reviewer.md` from a bundle directory; a missing file
+    /// Reads `work_method.md`, `drafter.md`, `prober.md` and `reviewer.md`; a missing file
     /// keeps the built-in text, an unreadable one is an error.
     pub(crate) fn load(dir: &Path) -> std::io::Result<Self> {
         let read = |name: &str, default: &str| match std::fs::read_to_string(dir.join(name)) {
@@ -35,12 +37,15 @@ impl Policies {
             Err(error) => Err(error),
         };
         Ok(Self {
+            work_method: read("work_method.md", DEFAULT_WORK_METHOD)?,
             drafter: read("drafter.md", drafter::DEFAULT_INSTRUCTIONS)?,
             prober: read("prober.md", prober::DEFAULT_INSTRUCTIONS)?,
             reviewer: read("reviewer.md", reviewer::DEFAULT_INSTRUCTIONS)?,
         })
     }
 }
+
+pub(crate) const DEFAULT_WORK_METHOD: &str = include_str!("../../policies/work_method.md");
 
 #[cfg(test)]
 #[path = "policies_tests.rs"]

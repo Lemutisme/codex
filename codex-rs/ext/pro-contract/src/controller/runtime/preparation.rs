@@ -18,13 +18,10 @@ impl ThreadRuntime {
         let observed = self.observe_bounded(base, reference, &policy.sealed).await;
         let (qualified, succeeded, failure) = match &observed {
             Ok(observations) => {
-                let qualified = observations
-                    .iter()
-                    .filter(|o| o.stable && o.exit.is_some())
-                    .count();
+                let qualified = observations.iter().filter(|o| o.qualified()).count();
                 let succeeded = observations
                     .iter()
-                    .filter(|o| o.stable && o.exit == Some(0))
+                    .filter(|o| o.qualified() && o.exit == Some(0))
                     .count();
                 let complete = observations.complete
                     && observations
@@ -32,11 +29,14 @@ impl ThreadRuntime {
                         .map(|o| &o.id)
                         .eq(policy.sealed.iter().map(|c| &c.id));
                 let ready = complete
-                    && qualified >= policy.min_sealed_qualified as usize
-                    && succeeded as u64 * 1000
-                        >= u64::from(policy.min_success_permille) * qualified as u64;
+                    && policy
+                        .min_sealed_qualified
+                        .is_none_or(|minimum| qualified >= minimum as usize)
+                    && policy.min_success_permille.is_none_or(|minimum| {
+                        succeeded as u64 * 1000 >= u64::from(minimum) * qualified as u64
+                    });
                 let failure = (!ready).then(|| format!(
-                    "reference calibration incomplete: {qualified}/{} stable qualified invocations, {succeeded} successful; requires {} qualified and {}‰ successful (complete={complete})",
+                    "reference calibration incomplete: {qualified}/{} stable qualified invocations, {succeeded} successful; declared cutoffs: qualified={:?}, successful_permille={:?} (complete={complete})",
                     policy.sealed.len(), policy.min_sealed_qualified, policy.min_success_permille,
                 ));
                 (qualified, succeeded, failure)

@@ -189,6 +189,13 @@ pub(crate) struct BriefView {
 }
 
 impl ThreadRuntime {
+    pub(super) fn work_method(&self) -> &str {
+        &self.policies.work_method
+    }
+
+    pub(super) fn input_capabilities(&self) -> Vec<serde_json::Value> {
+        self.profile.check.input_capabilities()
+    }
     pub(crate) fn new(
         thread_id: ThreadId,
         settings: Settings,
@@ -651,11 +658,13 @@ impl ThreadRuntime {
             observations.complete,
             cases::render_observations(&exploration, &observations, prober::OBSERVATIONS_CAP)
         );
-        let minimum = self.settings.evidence.min_sealed_qualified as usize;
+        let minimum = self.settings.evidence.min_sealed_qualified;
         let probe = self
             .probe_stage(input, Some(&observed), |message| {
                 let probe = prober::parse_probe(message)?;
-                if probe.cases.len() < minimum {
+                if let Some(minimum) = minimum
+                    && probe.cases.len() < minimum as usize
+                {
                     return Err(crate::WorkerError::Malformed(format!(
                         "sealed suite has {} cases; at least {minimum} are required before Issue",
                         probe.cases.len(),

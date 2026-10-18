@@ -1,6 +1,4 @@
 mkdir -p /tmp/pc-bin /tmp/pc-diff
-hangs=0
-reference_hangs=0
 reference_ready() {
   [ "$(cat "$1/timed_out" "$1/exec_failed" | sort -u)" = 0 ] && [ "$(cat "$1/dialogue_complete")" = 1 ]
 }
@@ -43,13 +41,11 @@ judge() {
 }
 run_case() {
   step_name=$1; input=$2; d=$3; shift 3
-  if [ "$built" != 1 ] || [ "$hangs" -ge "$HANG_BREAKER" ] || [ "$reference_hangs" -ge "$HANG_BREAKER" ]; then emit "$step_name" blocked; return; fi
+  if [ "$built" != 1 ]; then emit "$step_name" blocked; return; fi
   run_side "$input" "$REFERENCE" "$d/r1" "$@" || exit 90
-  if ! reference_ready "$d/r1"; then reference_hangs=$((reference_hangs + 1)); printf '@@PC %s unqualified - %s\n' "$step_name" "$(cat "$d/r1/rc")"; return; fi
+  if ! reference_ready "$d/r1"; then printf '@@PC %s unqualified - %s\n' "$step_name" "$(cat "$d/r1/rc")"; return; fi
   run_side "$input" "$CANDIDATE" "$d/c" "$@" || exit 90
-  if [ "$(cat "$d/c/timed_out")" = 1 ]; then hangs=$((hangs + 1)); fi
   run_side "$input" "$REFERENCE" "$d/r2" "$@" || exit 90
-  if ! reference_ready "$d/r2"; then reference_hangs=$((reference_hangs + 1)); fi
   judge "$step_name" "$d"
 }
 obs() { size=$(wc -c < "$2"); if [ "$size" -le "$OBSERVATION_CAP" ]; then cat "$2"; else head -c "$((OBSERVATION_CAP / 2))" "$2"; printf '\n[... %s bytes omitted ...]\n' "$((size - OBSERVATION_CAP))"; tail -c "$((OBSERVATION_CAP / 2))" "$2"; fi | awk -v prefix="$1" '{ print prefix $0 }'; }
@@ -57,17 +53,17 @@ observe_case() {
   id=$1; input=$2; d=$3; shift 3
   run_side "$input" "$REFERENCE" "$d/r1" "$@" || exit 90
   if ! reference_ready "$d/r1"; then
-    reference_hangs=$((reference_hangs + 1))
     obs "@@OUT $id " "$d/r1/out"; obs "@@ERR $id " "$d/r1/err"
     printf '@@OBS %s %s unqualified\n' "$id" "$(cat "$d/r1/rc")"
     return
   fi
   run_side "$input" "$REFERENCE" "$d/r2" "$@" || exit 90
-  if ! reference_ready "$d/r2"; then reference_hangs=$((reference_hangs + 1)); fi
-  agree=stable; for ch in rc out err files; do cmp -s "$d/r1/$ch" "$d/r2/$ch" || agree=unstable; done
-  if [ "$(cat "$d/r1/timed_out" "$d/r2/timed_out" "$d/r1/exec_failed" "$d/r2/exec_failed" | sort -u)" != 0 ]; then agree=unqualified; fi
-  if [ "$(cat "$d/r1/dialogue_complete" "$d/r2/dialogue_complete" | sort -u)" != 1 ]; then agree=unqualified; fi
+  agree=stable; channels=''
+  for ch in rc out err files; do
+    if cmp -s "$d/r1/$ch" "$d/r2/$ch"; then channels="$channels${channels:+,}$ch"; else agree=unstable; fi
+  done
+  if ! reference_ready "$d/r1" || ! reference_ready "$d/r2"; then agree=unqualified; channels=''; fi
   obs "@@OUT $id " "$d/r1/out"
   obs "@@ERR $id " "$d/r1/err"
-  printf '@@OBS %s %s %s\n' "$id" "$(cat "$d/r1/rc")" "$agree"
+  printf '@@OBS %s %s %s %s\n' "$id" "$(cat "$d/r1/rc")" "$agree" "${channels:--}"
 }
