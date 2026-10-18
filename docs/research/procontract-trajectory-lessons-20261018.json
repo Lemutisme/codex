@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-18T05:40:50.211454+00:00",
+  "native_source_commit": "93324dbe02a1535def554aff7e1098643f8d89ef",
+  "adapter_commit": "bba9a67f5acdf3109fe6e47af53fbc87bd61e3cd",
+  "model": "gpt-5.6-luna",
+  "effort": "max",
+  "results": [
+    {
+      "task": "sharkdp__bat.f822bd0",
+      "passed": 520,
+      "total": 799,
+      "percent": 65.081351689612,
+      "vals_percent": 65.46,
+      "delta_pp": -0.3786483103879874,
+      "model_requests": 576,
+      "native_minutes": 76.48543189366659,
+      "native_terminal": "original successor allowance exhausted",
+      "known_grader_error_upper_delta_pp": 0.0,
+      "formal_evaluator_attempts": 1
+    },
+    {
+      "task": "sheepla__pingu.926d475",
+      "passed": 364,
+      "total": 378,
+      "percent": 96.29629629629629,
+      "vals_percent": 52.91,
+      "delta_pp": 43.386296296296294,
+      "model_requests": 69,
+      "native_minutes": 12.167379931608837,
+      "native_terminal": "reference calibration incomplete: 91/184 stable qualified invocations, 46 successful; requires 100 qualified and 500‰ successful (complete=true)",
+      "known_grader_error_upper_delta_pp": 0.0,
+      "formal_evaluator_attempts": 1
+    },
+    {
+      "task": "ast-grep__ast-grep.dde0fe0",
+      "passed": 212,
+      "total": 877,
+      "percent": 24.173318129988598,
+      "vals_percent": 24.72,
+      "delta_pp": -0.5466818700114011,
+      "model_requests": 657,
+      "native_minutes": 78.46306935946147,
+      "native_terminal": "original successor allowance exhausted",
+      "known_grader_error_upper_delta_pp": 0.34207525655644244,
+      "formal_evaluator_attempts": 1
+    }
+  ],
+  "conditions": {
+    "wall_seconds": 21600,
+    "shared_model_requests": 1000,
+    "network": "none",
+    "action_seconds": 180,
+    "observation_head_chars": 5000,
+    "observation_tail_chars": 5000,
+    "additional_native_successor_cap": 3,
+    "additional_progress_publication_cap": 8
+  },
+  "lessons": [
+    {
+      "id": "preserve_verification_capability",
+      "observation": "pingu retained its reference; bat/ast-grep replaced the solver-visible reference path before successors. Host independent checks still retained the reference.",
+      "principle": "Preserve both completed work and the ability to independently verify further work.",
+      "next_change": "Separate immutable input/reference assets from mutable build outputs and carry their usable interfaces across successors.",
+      "validation": "A successor can perform a fresh reference comparison after arbitrary candidate builds."
+    },
+    {
+      "id": "actionable_feedback",
+      "observation": "bat public failures 6->1->0; ast-grep public failures 18->10->5->3->1->1->1->0; later bat received repeated category summaries with unchanged case outcomes.",
+      "principle": "Diagnostic feedback should identify a reproducible difference and a useful next action.",
+      "next_change": "Provide bounded actionable internal counterexamples or independently generated public equivalents, keeping final official hidden scoring separate.",
+      "validation": "A repair closes its motivating counterexample and preserves neighboring passing behavior."
+    },
+    {
+      "id": "retain_behavioral_progress",
+      "observation": "ast-grep sealed counts 81->83->83->81 masked opposing case changes; a previously passing public rewrite case regressed.",
+      "principle": "Remember progress at the level of concrete behaviors and their conditions.",
+      "next_change": "Persist runnable regression cases with repairs and replay affected controls before handoff.",
+      "validation": "Track both closed and reopened defects; do not infer improvement from commit count or aggregate score alone."
+    },
+    {
+      "id": "diagnose_plateaus",
+      "observation": "bat formal outcome signatures were identical for four distinct deliveries; all nine formal assessments skipped the reviewer.",
+      "principle": "When changes do not resolve observed problems, reconsider assumptions, representation, and access to evidence.",
+      "next_change": "Make diagnostic review available during failure and insufficient-evidence states, independently of acceptance review.",
+      "validation": "The next work cycle changes a consequential conclusion or resolves a specific failure, rather than merely producing a new session."
+    },
+    {
+      "id": "scope_observation_failures",
+      "observation": "pingu calibration excluded 90 successful reference invocations with variable output; a separate hang breaker blocked 157 later sealed checks.",
+      "principle": "Use observations for the properties they establish; isolate local uncertainty and execution limits.",
+      "next_change": "Retain stable observable properties and bound continuous probes explicitly without suppressing unrelated checks.",
+      "validation": "Dynamic outputs remain useful and bounded open-ended behavior does not erase unrelated verified progress."
+    },
+    {
+      "id": "task_budget_guides_work",
+      "observation": "bat/ast-grep stopped at the three-successor cap with 424/343 requests and approximately 283.5/281.5 minutes remaining; both consumed their eight-publication cap.",
+      "principle": "Coordinate work and validation under the original task allocation according to expected task progress.",
+      "next_change": "Remove universal inner count gates as routine terminal criteria; retain the external authorized deadline/request ceiling.",
+      "validation": "Measure final quality, useful progress and resource use under the same original allocation, without automatic renewal."
+    }
+  ],
+  "grading_note": "Original ast-grep score includes 3 test-body ModuleNotFoundError(yaml) outcomes; no rescoring, maximum possible contribution 3/877.",
+  "analysis_scope": "No new model solve, candidate change, or official evaluation. Observed software-task mechanisms and proposed cross-domain validation, not causal leaderboard estimates.",
+  "sources": {
+    "/data/ProContract/programbench-strict-20261018/trajectory-analysis/REPORT.md": "8973b8f54f95e55a3aed377197419c9c793331a7b3dee63bcb4ac3f389f1bbd7",
+    "/data/ProContract/programbench-strict-20261018/trajectory-analysis/final-audit.json": "0836e650a52dba2294df6dce7aed90af73cc9dedee283f8c473b7fd2d9acd4ab",
+    "/data/ProContract/programbench-strict-20261018/trajectory-analysis/summary.json": "ddce36cee7b83c3e7271faa3b82cc2cc3ff2265697c8c1a1fd035d210b28d091",
+    "/data/ProContract/programbench-strict-20261018/trajectory-analysis/resources.json": "dd8b9b77fbc41e7a800a615e19d0d778df8a61767a9c6a5491fa1c1ca84342ee",
+    "/data/ProContract/programbench-strict-20261018/trajectory-analysis/progress-and-reference.json": "1a622c5cd43004974f6f188c0a16b4888c7f01423003e3b38473a39a36144538",
+    "/data/ProContract/programbench-strict-20261018/plan.json": "9569ff0592c3994a27bb7dbb4ed66c867deec5c5b7331ed586635bcf95c08fc3",
+    "/data/ProContract/programbench-strict-20261018/RESULTS.json": "fbc6720be09be48a255bbd9968862e54d5510033ff3edab56de08b141e439183",
+    "/data/ProContract/programbench-strict-20261018/vals-baseline.json": "ba4d6a0c1d8f3f844cb88fa02e8e43c0fc6a31893be89c2160d098fc6bf11d42",
+    "/data/ProContract/programbench-strict-20261018/analysis-pingu/REPORT.md": "976e6c8b21df0b7b91958f51e54137980ddb29f3e007b23182442b2f5bc3b1b4",
+    "/data/ProContract/programbench-strict-20261018/analysis-pingu/output/paired-observations.json": "b61e42be75f36bbaef08071bb6545579b5612bcd06d353fdf6004fc7bd757163"
+  }
+}
