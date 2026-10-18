@@ -111,6 +111,44 @@ fn execution_coverage_requires_scoped_host_evidence_and_rejects_self_attestation
 }
 
 #[test]
+fn a_host_check_receipt_can_evidence_a_check_execution_obligation() {
+    let (_root, previous) = fixture("artifact");
+    let mut terms = previous.terms.clone();
+    terms.process_constraints.push(crate::ProcessConstraint {
+        text: "Run the configured check".into(),
+        source_quote: "Run the configured check".into(),
+    });
+    let mut evidence = ReviewEvidence::new(
+        previous.subject,
+        previous.store,
+        &terms,
+        "Host checker action after capture: configured check completed successfully.".into(),
+    )
+    .unwrap();
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (_, artifact) = document(&mut evidence, "file:0");
+    let (_, check) = document(&mut evidence, "check_receipts");
+    let message = json!({"verdict":"support","coverage":[
+        {"requirement_id":"R1","evidence":artifact},
+        {"requirement_id":"process:0","evidence":check}],
+        "findings":[],"gaps":[],"terms_gap":[],"missing":"","residual":""})
+    .to_string();
+    let resolved = evidence.resolve_review(&message).unwrap();
+    let value: Value = serde_json::from_str(&resolved).unwrap();
+    let citation: Value =
+        serde_json::from_str(value["coverage"][1]["evidence"].as_str().unwrap()).unwrap();
+    assert_eq!(citation["source_id"], "check_receipts");
+    assert!(
+        citation["quote"]
+            .as_str()
+            .unwrap()
+            .contains("after capture")
+    );
+}
+
+#[test]
 fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage() {
     let (_root, evidence) = fixture("artifact");
     assert!(evidence.with_delivery_message(json!({

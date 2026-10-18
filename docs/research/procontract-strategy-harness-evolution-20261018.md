@@ -51,10 +51,89 @@ denial, input survival after source deletion, and successor continuity. The nati
 caught a first-request strategy-injection defect; its failed run and the correction remain
 recorded rather than being replaced by a later pass.
 
-Fresh code, data and theory E2E tasks are prepared separately from the completed official
+Fresh code, data and theory E2E tasks were frozen separately from the completed official
 ProgramBench cohort. They use the same default strategy and mechanisms, Luna/max, frozen
 inputs, one attempt each, and separate grading of retained delivery. Their actual outcomes
 belong in the validation report, not in the earlier benchmark scores.
+
+## Real-model results and what they establish
+
+The three attempts on `13fce01e1` are complete. Each used the actual ProCodex entrypoint,
+native app-server and code-mode execution, the same bundled strategy, GPT-5.6-Luna/max,
+network-isolated Docker tools, and an original shared 900-second/1000-request allocation.
+These are small diagnostics, not ProgramBench instances or leaderboard measurements.
+All 250 frozen plan files still match their hashes. Original results remain unchanged.
+There is no matched native baseline in this cohort, so the scores do not estimate a causal
+performance gain or establish success on arbitrary long-horizon tasks.
+
+| New task | Retained artifact result | Model requests | Internal Support |
+|---|---|---:|---|
+| Integer interval union | 40/40 frozen external cases | 64 | No: absence text was treated as an evidence gap |
+| Revision ledger totals | 31/31 frozen external cases | 112 | No: same protocol problem |
+| Weighted block projection | 6/6 rubric items in assistant mathematical review | 41 | Yes |
+
+The mathematical assessment is a separate reading of the frozen proof, not formal machine
+verification or independent human review. It verifies the quotient for zero weights,
+well-defined linear projection, orthogonality, Pythagoras, equality conditions and the
+explicit nonuniform-weight counterexample. The original pending-review result is retained;
+`manual-review.json` records this later qualification and its artifact hash.
+
+The data trajectory provides a concrete success beyond the small test score. Public checks
+passed an initial implementation using ambient Decimal precision. Formal review identified
+an actual exactness failure and supplied counterexamples. A successor under the same
+deadline changed aggregation to integer cents. Separate posthoc checks reproduce an initial
+sum of `0.99` where the exact answer is `0.00`, and confirm the repaired answer. Those checks
+are labeled posthoc; they do not alter the frozen 31-case score. The decisive operation was
+falsifying an implementation assumption, not raising an evidence-count threshold.
+
+Two diagnostic reviews reached their local 120-second assessment limit, with interrupted
+gateway streams. Their method limitations were retained and did not erase the artifacts.
+One formal reviewer response also needed the existing protocol correction for duplicate
+coverage. These observations preclude a claim of zero mechanical errors in this cohort.
+All three app servers shut down normally and all natural deliveries were retained.
+
+The absence-field defect was fixed separately in `21b7e4437`. The protocol now defines empty
+lists/strings as absence and nonempty `missing` as an actual unresolved evidence gap, in
+both schema and reviewer context. This convention participates in the policy identity.
+There is no task-specific phrase normalization, no replacement of a real gap with Support,
+and no retrospective change to a run's internal status. The 67 affected worker tests,
+targeted production Clippy, formatting and native build pass.
+
+A separate new consecutive-run encoding task on `21b7e4437` delivered 32/32 frozen cases
+in 206.6 seconds and 28 requests. The absence fields were correct. Its original internal
+result remains unsupported: the host rejected a check-receipt citation for an execution
+obligation solely because it was not the `host_observations` document. The root trajectory
+had run the checks; independently, the native checker receipt contained the configured
+command and successful result. The gate prevented the reviewer from using that receipt.
+
+The follow-on correction recognizes host check receipts as process evidence within their
+actor/time scope. The summary identifies checker actions on the frozen candidate after
+capture, with command output remaining untrusted data. It does not attest earlier executor
+actions or comprehension. Artifact claims and fresh computations still cannot stand in for
+past actions. This changes evidence transport/protocol, not the obligation or kernel; the
+reviewer must still judge whether an observation establishes the requested action. The
+policy identity changes with this protocol. All 188 extension tests pass. Native and live
+reviewer controls are qualified separately, without rerunning any original solve.
+
+## General lessons and remaining boundaries
+
+The transferable relation is: retain the subject and observation conditions, make a useful
+observation possible, let strategy interpret it, and carry the resulting work under the
+original responsibility and grant. Domains provide the tests, assumptions and proof steps;
+they do not add kernel branches. Result quality, evidence availability and permission to
+settle remain separate facts.
+
+The supplied strategy already asks for runnable regression memory. The ledger successor
+executed precision checks but delivered only its implementation and summary, without a
+reusable regression file. Prompt availability therefore does not establish reliable strategy
+adherence. This is a strategy evaluation issue, not a reason to make every task produce a
+test file or satisfy another universal kernel gate.
+
+The fixed local assessment slice also remains visible migration work: useful reviews can
+outlive it while the task still has resources. Any future change should expose resource
+allocation through the capability interface and retain cancellation/accounting. Increasing
+another hidden constant would not resolve ownership of that decision. This release does
+not claim to have completed that migration.
 
 The legacy automatic Principal still performs intake, contract preparation and its
 existing formal handoff workflow. This change makes strategy context and requested

@@ -331,7 +331,7 @@ Read human_request and contract_terms before judging; inspect required candidate
 Responses are paginated; continue via next_offset. Missing/unreadable/opaque evidence is not success. \
 The contract_terms catalog gives every artifact and execution obligation an exact ID. Use only those IDs in requirement_id fields. \
 host_observations records scoped host facts; it does not prove unobserved events or comprehension. \
-For support, each coverage.evidence must be one issued citation_id. Execution obligations require scoped host_observations; neither final-response claims nor computations over artifact bytes attest past executor actions. \
+Each coverage.evidence must be one issued citation_id. Execution coverage may cite host_observations or check_receipts within their stated actor/time scope; artifacts and computations cannot attest prior executor actions. \
 The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Preserve local judgments with partial and scoped gaps; use cannot_judge when no scoped judgment is possible. \
 No host shell, network or arbitrary paths are available. {computation} {} Return the required JSON.",
             instructions,
@@ -510,8 +510,9 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
                 let execution_obligation = self.terms.obligations().iter().any(|o| {
                     row["requirement_id"] == o.id && o.scope == crate::ObligationScope::Execution
                 });
-                if execution_obligation && source != "host_observations" {
-                    return Err(WorkerError::Malformed("execution obligation needs a scoped host observation, not an artifact claim".into()));
+                if execution_obligation && !matches!(source, "host_observations" | "check_receipts")
+                {
+                    return Err(WorkerError::Malformed("execution obligation needs a scoped host observation or check receipt, not an artifact claim".into()));
                 }
                 if source.starts_with("computation:") {
                     let index = source

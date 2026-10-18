@@ -77,6 +77,7 @@ class NativeEvidenceTest(unittest.TestCase):
         correction_exhausted = getattr(self, "correction_exhausted_fixture", False)
         protocol_correction = getattr(self, "protocol_correction_fixture", False) or correction_exhausted
         delivery_evidence = getattr(self, "delivery_evidence_fixture", False)
+        check_execution = getattr(self, "check_execution_fixture", False)
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
         diagnostic_review = getattr(self, "diagnostic_review_fixture", False)
@@ -182,6 +183,12 @@ const checks=await fullDocument("check_receipts");
 if(response.kind!=="native_final_response" || !response.complete || !response.text.endsWith("END-NATIVE-RESPONSE") || response.original_bytes<=1200) throw new Error("actual response was truncated or mislabeled");
 if(!checks.includes("host-configured command:") || !checks.includes("NATIVE-CHECK-PASSED")) throw new Error("command or successful check output missing");
 text({deliveryEvidenceSeen:true,complete:response.complete});
+'''
+            if check_execution:
+                review_code += r'''
+const check=decode(await tools.read_evidence({op:"read",source_id:"check_receipts",offset:0}));
+if(!check.eof || !check.text.includes("Host checker actions") || !check.text.includes("NATIVE-CHECK-PASSED")) throw new Error("scoped host check result missing");
+text({checkCitation:check.citation_id});
 '''
             if observation_fixture:
                 review_code += r'''
@@ -333,6 +340,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["requirements"].append(dict(id="R2", text="Check the numerical attachment" if partial_review else "Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
                             if observation_fixture:
                                 message["process_constraints"]=[dict(text="Obtain the retained feedback bytes before repairing the artifact.",source_id="request:0")]
+                            if check_execution:
+                                message["process_constraints"]=[dict(text="Run the configured check.",source_id="request:0")]
                             if partial_checks:
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
                         elif role in ("explore", "probe"):
@@ -415,6 +424,9 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message.update(verdict="defeat",coverage=[],
                                     findings=[dict(requirement_id="R1",location="answer.txt",counterexample="The frozen answer is not ready.")],
                                     residual="Write the required ready value and replay the check.")
+                            if check_execution:
+                                citation=re.search(r'"checkCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
+                                message["coverage"].append(dict(requirement_id="process:0",evidence=citation))
                             if observation_fixture:
                                 identifier=re.search(r'"processObligation"\s*:\s*"([^"]+)"',flattened).group(1)
                                 citation=re.search(r'"hostCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)

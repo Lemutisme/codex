@@ -42,6 +42,10 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_final_response_and_successful_check_are_native_review_evidence(self):
         self.run_case(delivery_evidence_fixture=True)
 
+    def test_host_checker_execution_can_support_an_execution_obligation(self):
+        self.run_case(check_execution_fixture=True,
+            task_text="Make answer.txt contain ready. Run the configured check.")
+
     def test_successor_delivers_actual_response_beyond_its_continuation_summary(self):
         self.run_case(delivery_evidence_fixture=True, succession_fixture=True)
 

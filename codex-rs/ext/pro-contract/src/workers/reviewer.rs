@@ -124,7 +124,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
         &(
             policy,
             schema(),
-            "scoped-obligations-and-host-observations-v1",
+            "scoped-obligations-and-host-check-receipts-v2",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )
