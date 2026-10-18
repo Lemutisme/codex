@@ -5,6 +5,13 @@ computations with publication during an active turn and enforcement of the origi
 task grant. It preserves the pure settlement kernel. Older frozen benchmark results
 remain attached to their original binaries; they do not measure this version's performance.
 
+Architecture ownership follows [kernel / harness / strategy](../docs/PROCONTRACT_LAYERS.md).
+**Strategy** is prompt/skill/context-level instruction, including workflow orchestration.
+**Harness** is agent-control/tool code implementing the necessary capabilities and actual
+execution constraints. Keep both essential and decoupled from the responsibility kernel.
+The components below describe the present implementation; existing hard-coded workflow
+choices are migration work, not a reason to assign those choices to harness.
+
 ## The unit of continuity
 
 A task persists; an executor is one bounded attempt to advance it. The host owns
@@ -12,13 +19,14 @@ the original authorization, contract, artifacts, evidence and remaining grant.
 Neither conversation history nor an executor's summary is the responsibility's
 source of truth.
 
-Four responsibilities compose the system:
+The current implementation composes these responsibilities:
 
 | Layer | Owns | May not decide |
 | --- | --- | --- |
+| Strategy context | Task reasoning, choice and composition of experiments, checks, diagnosis, repair and handoff | New execution authority or the truth of unobserved effects |
 | Kernel and store | Roles, current subject and policy coordinates, support, discharge, release | Which experiment to try or whether a model is intelligent |
 | Working evidence | Retained observations, exact available public receipts, registered counterexamples | New authority, policy changes, or task completion |
-| Controller | Evidence preparation, capture, verification, continuation and explicit blockage | Inferring missing evidence or silently renewing a grant |
+| Controller mechanisms | Prepare/capture evidence, invoke verification, execute continuation and report concrete limits | Task-solving workflow choices, inferring missing evidence, or silently renewing a grant |
 | Codex adapter | Native worker/session creation, context transport, tools, cancellation and confirmed exit | Issuing or discharging from a successor session |
 
 The OpenCode V2 contribution is the separation between persistent responsibility

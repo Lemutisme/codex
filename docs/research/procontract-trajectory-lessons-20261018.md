@@ -1,5 +1,9 @@
 # ProContract：从完整轨迹中积累的工作经验
 
+后续开发按用户明确的[分层约定](../PROCONTRACT_LAYERS.md)落实这些经验：strategy 是
+prompt/skill 等 context level，包含工作流编排；harness 是 agent 控制/tool 层代码。
+下文的“具体机制”需要继续区分通用能力与策略选择，不能整体固化成 controller 工作流。
+
 2026-10-18，native `93324dbe0`、预算适配器 `bba9a67f5`，GPT-5.6-Luna / max。
 三个官方实例的求解、冻结提交和首次外部评分已结束。
 
