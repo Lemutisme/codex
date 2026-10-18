@@ -115,6 +115,8 @@ impl Review {
 /// The built-in instructions: version 0 of this part of a policy bundle.
 pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/reviewer.md");
 
+pub(crate) const OUTPUT_CONVENTIONS: &str = "Use [] for absent lists and \"\" for absent missing/residual text. Nonempty missing declares an unresolved evidence gap; describe only actual gaps.";
+
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
     crate::digest_of(
@@ -129,7 +131,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
 }
 
 pub(crate) fn schema() -> Value {
-    strict_object(json!({
+    let mut value = strict_object(json!({
         "verdict": {"type": "string", "enum": ["support", "defeat", "cannot_judge", "partial"]},
         "coverage": {"type": "array", "items": strict_object(json!({
             "requirement_id": {"type": "string"},
@@ -150,7 +152,9 @@ pub(crate) fn schema() -> Value {
             "requirement_id":{"type":"string"}, "reason":{"type":"string"},
         }))},
         "residual": {"type": "string"},
-    }))
+    }));
+    value["description"] = json!(OUTPUT_CONVENTIONS);
+    value
 }
 
 /// The wire field keeps its historical name; its values are exact catalog obligation IDs.

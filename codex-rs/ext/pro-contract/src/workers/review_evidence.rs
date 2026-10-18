@@ -333,8 +333,10 @@ The contract_terms catalog gives every artifact and execution obligation an exac
 host_observations records scoped host facts; it does not prove unobserved events or comprehension. \
 For support, each coverage.evidence must be one issued citation_id. Execution obligations require scoped host_observations; neither final-response claims nor computations over artifact bytes attest past executor actions. \
 The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Preserve local judgments with partial and scoped gaps; use cannot_judge when no scoped judgment is possible. \
-No host shell, network or arbitrary paths are available. {computation} Return the required JSON.",
-            instructions, self.subject.subject_hash,
+No host shell, network or arbitrary paths are available. {computation} {} Return the required JSON.",
+            instructions,
+            self.subject.subject_hash,
+            super::reviewer::OUTPUT_CONVENTIONS,
         )
     }
 

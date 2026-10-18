@@ -156,6 +156,34 @@ fn partial_judgments_retain_findings_and_scope_gaps_and_reject_contradictions() 
 }
 
 #[test]
+fn complete_coverage_distinguishes_absent_and_unresolved_unscoped_evidence() {
+    let mut value = review("partial");
+    value["coverage"] = json!([
+        {"requirement_id": "R1", "evidence": "e1"},
+        {"requirement_id": "R2", "evidence": "e2"}
+    ]);
+    assert!(matches!(
+        parse(&message(value.clone()), &terms()).unwrap().verdict,
+        ReviewVerdict::Support { .. }
+    ));
+
+    let reason = "The retained observations may refer to a different environment.";
+    value["missing"] = json!(reason);
+    let ReviewVerdict::Partial {
+        coverage,
+        missing,
+        unscoped_missing,
+        ..
+    } = parse(&message(value), &terms()).unwrap().verdict
+    else {
+        panic!("full coverage must not erase an unresolved unscoped gap");
+    };
+    assert_eq!(coverage.len(), 2);
+    assert!(missing.is_empty());
+    assert_eq!(unscoped_missing, reason);
+}
+
+#[test]
 fn a_complete_support_is_accepted() {
     let mut value = review("support");
     value["coverage"] = json!([
