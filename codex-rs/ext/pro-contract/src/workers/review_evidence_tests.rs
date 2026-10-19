@@ -182,6 +182,49 @@ fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
 }
 
 #[test]
+fn computation_intent_is_not_an_artificial_requirement_boundary() {
+    let (_root, original) = fixture("artifact");
+    let mut terms = original.terms.clone();
+    terms.requirements.push(crate::Requirement {
+        id: "R2".into(),
+        text: "The artifact has eight bytes".into(),
+        source_quote: "The artifact has eight bytes".into(),
+        inferred: false,
+    });
+    let mut evidence =
+        ReviewEvidence::new(original.subject, original.store, &terms, "checks".into()).unwrap();
+    for source in ["human_request", "contract_terms"] {
+        document(&mut evidence, source);
+    }
+    let mut computation = json!({"subject_hash":evidence.subject.subject_hash,
+        "requirements":["R1"], "execution":{"state":"completed", "shutdown_confirmed":true, "truncated":false},
+        "output_truncated":false, "stdout":"artifact content and length=8"});
+    evidence.computations.push(computation.to_string());
+    let (_, citation) = document(&mut evidence, "computation:0");
+    let response = json!({"assessments":[{"requirement_id":"R2", "observations":"Same observed bytes also establish their length.",
+        "judgment":{"status":"supported", "evidence":citation}}], "terms_gap":[], "missing":""}).to_string();
+    assert!(evidence.resolve_review(&response).is_ok());
+    computation["subject_hash"] = json!(codex_pro_contract::Digest::of(b"another subject"));
+    evidence.computations[0] = computation.to_string();
+    let error = evidence.resolve_review(&response).unwrap_err().to_string();
+    assert!(
+        error.contains("R2")
+            && error.contains(citation.as_str().unwrap())
+            && error.contains("another frozen subject")
+    );
+    computation["subject_hash"] = json!(evidence.subject.subject_hash);
+    computation["output_truncated"] = json!(true);
+    evidence.computations[0] = computation.to_string();
+    assert!(
+        evidence
+            .resolve_review(&response)
+            .unwrap_err()
+            .to_string()
+            .contains("truncated")
+    );
+}
+
+#[test]
 fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage() {
     let (_root, evidence) = fixture("artifact");
     assert!(evidence.with_delivery_message(json!({

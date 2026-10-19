@@ -72,6 +72,10 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_binary_computation_uses_the_frozen_subject_and_real_citation(self):
         self.run_case(computation_fixture=True)
 
+    def test_one_frozen_computation_can_support_another_original_obligation(self):
+        self.run_case(cross_requirement_computation_fixture=True,
+            task_text="Make answer.txt contain ready. Establish that the supplied numerical attachment sums to 6.")
+
     def test_partial_review_repairs_an_independent_failure_without_false_support(self):
         self.run_case(partial_review_fixture=True,
             task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")

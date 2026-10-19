@@ -91,7 +91,8 @@ class NativeEvidenceTest(unittest.TestCase):
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
         scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
-        computation = getattr(self, "computation_fixture", False)
+        cross_requirement_computation = getattr(self, "cross_requirement_computation_fixture", False)
+        computation = getattr(self, "computation_fixture", False) or cross_requirement_computation
         dialogue_probe = getattr(self, "dialogue_probe_fixture", False)
         partial_checks = getattr(self, "partial_checks_fixture", False)
         repair_review = scoped_review or partial_review
@@ -358,6 +359,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             )
                             if repair_review:
                                 message["requirements"].append(dict(id="R2", text="Check the numerical attachment" if partial_review else "Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
+                            if cross_requirement_computation:
+                                message["requirements"].append(dict(id="R2", text="The supplied numerical attachment sums to 6.", source_id="request:0", inferred=False))
                             if observation_fixture:
                                 message["process_constraints"]=[dict(text="Obtain the retained feedback bytes before repairing the artifact.",source_id="request:0")]
                             if check_execution:
@@ -449,6 +452,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             if check_execution:
                                 citation=re.search(r'"checkCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
                                 message["coverage"].append(dict(requirement_id="process:0",evidence=citation))
+                            if cross_requirement_computation:
+                                message["coverage"].append(dict(requirement_id="R2", evidence=candidates[-1]))
                             if delivery_action:
                                 citation=re.search(r'"deliveryActionCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
                                 message["coverage"].append(dict(requirement_id="process:0",evidence=citation))

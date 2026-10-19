@@ -422,6 +422,13 @@ Progress snapshots carry no final-delivery receipt, and absent/unavailable respo
 are preserved. Execution support still requires scoped host observations or check receipts;
 the message body does not become evidence that its claimed actions occurred.
 
+An inspection's `requirements` records the inquiry's declared targets. It does not
+restrict reuse of its observed facts to those labels. A completed, untruncated computation
+over the same frozen subject may inform another obligation in the same frozen terms;
+the reviewer must justify relevance. Subject identity, successful completion, resolved
+effects and execution-versus-artifact provenance remain enforced. Citation errors identify
+the affected obligation and citation so correction need not erase unrelated valid support.
+
 ## Validation
 
 The 2026-10-17 E2E evolution and all development failures are recorded separately in

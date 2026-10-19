@@ -468,7 +468,9 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
             )
         };
         if message.len() > 64 << 10 {
-            return Err(fail());
+            return Err(WorkerError::InputBudget(
+                "review response exceeds 64 KiB".into(),
+            ));
         }
         // Preserve the strict typed parser's duplicate-field and shape checks before normalization.
         super::reviewer::parse(message, &self.terms)?;
@@ -499,21 +501,33 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
                     .get("evidence")
                     .and_then(Value::as_str)
                     .ok_or_else(fail)?;
+                let invalid = |reason: &str| {
+                    WorkerError::Malformed(format!(
+                        "requirement {} support citation {:?}: {reason}",
+                        row["requirement_id"],
+                        super::bounded(handle, 96)
+                    ))
+                };
                 let index = handle
                     .strip_prefix('e')
                     .and_then(|id| id.parse::<usize>().ok())
-                    .ok_or_else(fail)?;
+                    .ok_or_else(|| invalid("expected one issued citation_id"))?;
                 if handle != format!("e{index}") {
-                    return Err(fail());
+                    return Err(invalid("noncanonical citation_id"));
                 }
-                let citation = self.issued.get(index).ok_or_else(fail)?;
+                let citation = self
+                    .issued
+                    .get(index)
+                    .ok_or_else(|| invalid("citation_id was not issued"))?;
                 let source = citation["source_id"].as_str().ok_or_else(fail)?;
                 let execution_obligation = self.terms.obligations().iter().any(|o| {
                     row["requirement_id"] == o.id && o.scope == crate::ObligationScope::Execution
                 });
                 if execution_obligation && !matches!(source, "host_observations" | "check_receipts")
                 {
-                    return Err(WorkerError::Malformed("execution obligation needs a scoped host observation or check receipt, not an artifact claim".into()));
+                    return Err(invalid(
+                        "execution obligation needs a scoped host observation or check receipt, not an artifact claim",
+                    ));
                 }
                 if source.starts_with("computation:") {
                     let index = source
@@ -523,32 +537,41 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
                     let computation: Value =
                         serde_json::from_str(self.computations.get(index).ok_or_else(fail)?)
                             .map_err(|_| fail())?;
+                    if computation["subject_hash"] != json!(self.subject.subject_hash) {
+                        return Err(invalid("computation belongs to another frozen subject"));
+                    }
                     if computation["execution"]["state"] != "completed"
                         || computation["execution"]["shutdown_confirmed"] != true
                         || computation["execution"]["truncated"] != false
                         || computation["output_truncated"] != false
-                        || !computation["requirements"]
-                            .as_array()
-                            .is_some_and(|ids| ids.contains(&row["requirement_id"]))
                     {
-                        return Err(fail());
+                        return Err(invalid(
+                            "computation is incomplete, truncated, or its shutdown is unconfirmed",
+                        ));
                     }
+                    // Query intent is retained in `requirements`, but it is not an access
+                    // boundary. An observation over this frozen subject may bear on another
+                    // obligation in the same frozen terms. Relevance remains a judgment.
                 } else if source == "delivery_message" {
                     if !self.delivery_message_complete {
-                        return Err(fail());
+                        return Err(invalid("delivery response content is incomplete"));
                     }
                 } else if !source.starts_with("file:")
                     && source != "check_receipts"
                     && source != "host_observations"
                 {
-                    return Err(fail());
+                    return Err(invalid(
+                        "source is request/catalog context, not observed evidence",
+                    ));
                 }
                 row["evidence"] = Value::String(citation.to_string());
             }
         }
         let resolved = result.to_string();
         if resolved.len() > 64 << 10 {
-            return Err(fail());
+            return Err(WorkerError::InputBudget(
+                "resolved review citations exceed 64 KiB".into(),
+            ));
         }
         Ok(resolved)
     }
