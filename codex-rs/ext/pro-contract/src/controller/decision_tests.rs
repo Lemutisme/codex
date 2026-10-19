@@ -148,6 +148,7 @@ fn reviewer_receives_actual_command_and_success_output_without_sealed_details() 
 
 fn support() -> Result<Review, WorkerError> {
     Ok(Review {
+        observations: vec![],
         execution_obligations: vec![],
         verdict: ReviewVerdict::Support {
             coverage: vec![Coverage {
@@ -162,6 +163,7 @@ fn support() -> Result<Review, WorkerError> {
 #[test]
 fn a_past_execution_violation_blocks_support_without_discarding_the_artifact() {
     let review = Review {
+        observations: vec![],
         execution_obligations: vec!["process:0".into()],
         terms_gap: vec![],
         verdict: ReviewVerdict::Defeat {
@@ -275,6 +277,7 @@ fn legacy_failure_requires_the_original_complete_batch_before_authorizing_repair
 #[test]
 fn independent_review_gap_does_not_discard_an_actionable_finding() {
     let review = crate::workers::reviewer::Review {
+        observations: vec![],
         execution_obligations: vec![],
         terms_gap: vec![],
         verdict: ReviewVerdict::Partial {
@@ -513,6 +516,7 @@ fn passing_checks_leave_the_decision_to_the_review() {
         Some(NotVerifiedClass::ReviewerUnable)
     );
     let cannot = Ok(Review {
+        observations: vec![],
         execution_obligations: vec![],
         verdict: ReviewVerdict::CannotJudge {
             missing: "the output".to_string(),
@@ -540,6 +544,7 @@ fn without_a_reference_the_sealed_rules_do_not_apply() {
 #[test]
 fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
     let defeat = Ok(Review {
+        observations: vec![],
         execution_obligations: vec![],
         verdict: ReviewVerdict::Defeat {
             findings: vec![Finding {
@@ -559,6 +564,7 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
         "{residual}"
     );
     let gap = Ok(Review {
+        observations: vec![],
         execution_obligations: vec![],
         terms_gap: vec![TermsGap {
             affected_requirements: None,
@@ -580,6 +586,7 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
 #[test]
 fn a_scope_dispute_blocks_acceptance_without_blocking_an_unaffected_repair() {
     let review = Review {
+        observations: vec![],
         execution_obligations: vec![],
         verdict: ReviewVerdict::Defeat {
             findings: vec![Finding {
@@ -605,6 +612,7 @@ fn a_scope_dispute_blocks_acceptance_without_blocking_an_unaffected_repair() {
     assert_eq!(blocker.class, NotVerifiedClass::TermsGap);
     assert!(residual.contains("R1") && !residual.contains("invent unrequested"));
     let unscoped = Review {
+        observations: vec![],
         execution_obligations: vec![],
         terms_gap: vec![TermsGap {
             affected_requirements: None,

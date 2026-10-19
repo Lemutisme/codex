@@ -274,6 +274,7 @@ def pin_state():
             "procontract_canonical_registry.py", "procontract_canonical_recovery.py",
             "procontract_owned_process.py", "procontract_evaluation.py", "procontract_evaluator_readiness.py",
             "procontract_evaluator_scope.py",
+            "procontract_evaluator_runtime.py",
         )},
         "programbench": str(PROGRAMBENCH),
         "programbench_head": head,
@@ -303,6 +304,11 @@ def pin_state():
                 image: inspection.verify_image(policy, image) for image in policy.images
             },
         }
+    if frozen.grader_assets is not None:
+        assets = frozen.grader_assets
+        assets.verify()
+        result["grader_assets"] = dict(archive=str(assets.archive), sha256=assets.sha256,
+            environment=dict(assets.environment), path_prepend=list(assets.path_prepend))
     return result
 
 
@@ -465,6 +471,8 @@ def make_evaluator(task, archive, *, collection=False):
     branches = active(instance)
     image_name, image_digest = TASKS[task]["image"].split(":", 1)
     evaluator_class = with_grader_requirements(Evaluator, registry().grader_requirements)
+    from procontract_evaluator_runtime import runtime_evaluator
+    evaluator_class = runtime_evaluator(evaluator_class, registry().grader_assets)
     from procontract_evaluator_scope import scoped_evaluator
     evaluator_class = scoped_evaluator(evaluator_class)
     if collection:

@@ -43,7 +43,7 @@ fn process_obligations_have_legal_ids_and_missing_process_evidence_stays_partial
     });
     let schema = super::schema_for(&terms);
     assert_eq!(
-        schema["properties"]["gaps"]["items"]["properties"]["requirement_id"]["enum"],
+        schema["properties"]["assessments"]["items"]["properties"]["requirement_id"]["enum"],
         json!(["R1", "R2", "process:0"])
     );
     let mut value = review("support");
@@ -152,6 +152,56 @@ fn partial_judgments_retain_findings_and_scope_gaps_and_reject_contradictions() 
         matches!(parsed.verdict, ReviewVerdict::Partial { ref missing, .. } if missing.len()==1)
     );
     value["coverage"] = json!([{"requirement_id":"R1","evidence":"e1"}]);
+    assert!(parse(&message(value), &terms()).is_err());
+}
+
+#[test]
+fn scoped_observations_and_counterexamples_for_one_obligation_reach_repair() {
+    let value = json!({"assessments":[
+        {"requirement_id":"R1", "observations":"Ordinary inputs match the reference.",
+         "judgment":{"status":"defeated","findings":[
+             {"location":"parser","counterexample":"An empty input incorrectly succeeds."}],
+             "missing":"The network path remains unexamined."}},
+        {"requirement_id":"R2", "observations":"Exit codes match on all required paths.",
+         "judgment":{"status":"supported","evidence":"e1"}}
+    ],"terms_gap":[],"missing":""});
+    let parsed = parse(&message(value.clone()), &terms()).unwrap();
+    assert_eq!(parsed.observations.len(), 2);
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert!(
+        matches!(&parsed.verdict, ReviewVerdict::Partial {coverage, findings, missing, ..}
+        if coverage.len() == 1 && coverage[0].requirement_id == "R2"
+            && findings.len() == 1 && missing.len() == 1)
+    );
+    assert!(matches!(
+        crate::controller::decision::review_verdict(Some(&Ok(parsed.clone()))),
+        crate::controller::decision::Verdict::Defeat { .. }
+    ));
+    assert_eq!(
+        parse(
+            &super::normalize(&message(value)).unwrap().to_string(),
+            &terms()
+        )
+        .unwrap(),
+        parsed
+    );
+}
+
+#[test]
+fn observations_do_not_promote_unresolved_obligations_or_duplicate_judgments() {
+    let row = json!({"requirement_id":"R1", "observations":"Some examples pass.",
+        "judgment":{"status":"unresolved","missing":"Required domain is untested."}});
+    let mut value = json!({"assessments":[row],"terms_gap":[],"missing":""});
+    let parsed = parse(&message(value.clone()), &terms()).unwrap();
+    assert!(
+        matches!(parsed.verdict, ReviewVerdict::Partial { coverage, missing, .. }
+        if coverage.is_empty() && missing.len() == 2)
+    );
+    value["assessments"].as_array_mut().unwrap().push(row);
+    assert!(parse(&message(value.clone()), &terms()).is_err());
+    value["assessments"].as_array_mut().unwrap().pop();
+    value["assessments"][0]["judgment"] =
+        json!({"status":"supported", "evidence":"e1", "missing":"still untested"});
     assert!(parse(&message(value), &terms()).is_err());
 }
 

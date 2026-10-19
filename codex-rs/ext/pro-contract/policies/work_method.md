@@ -11,6 +11,9 @@ Choose observations that distinguish plausible explanations. Check whether your 
 representation can express the important behavior before expanding peripheral features.
 Use the actual relevant conditions: execution mode, input/state, assumptions and interfaces.
 Distinguish a variable measurement from the other properties that an observation establishes.
+When an observation depends on a helper, fixture or service, establish that dependency
+is working before interpreting the result. A convenient substitute interface and a failed
+setup exercise different behavior from a successful interaction with the required interface.
 
 Use concrete differences to guide a coherent repair. Keep the motivating example and
 affected passing controls as runnable checks, proof fragments or reproducible experiments
@@ -18,6 +21,9 @@ in task-owned files. After a change, compare which specific behaviors improved o
 an unchanged aggregate can conceal both. A previously passing result belongs to the version
 and conditions that produced it. Do not replace earlier counterexamples with a general
 claim that everything now works.
+Keep the source and launch conditions of useful probes and fixtures when cleaning build
+artifacts. Confirm that a retained check can still exercise its intended path; two setup
+failures do not establish agreement on the behavior the check was meant to compare.
 
 If edits or fresh sessions keep producing the same unresolved result, investigate the
 assumption, implementation method, observation capability or missing information. A

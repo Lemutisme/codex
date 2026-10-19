@@ -88,6 +88,7 @@ class NativeEvidenceTest(unittest.TestCase):
         probe_fixture = getattr(self, "probe_fixture", False)
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
+        scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
         computation = getattr(self, "computation_fixture", False)
         dialogue_probe = getattr(self, "dialogue_probe_fixture", False)
         partial_checks = getattr(self, "partial_checks_fixture", False)
@@ -302,7 +303,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             "draft"
                             if "differential_cases" in props
                             else "review"
-                            if "coverage" in props
+                            if "coverage" in props or "assessments" in props
                             else "probe"
                             if "coverage_plan" in props
                             else "explore"
@@ -451,6 +452,25 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message.update(verdict="partial",gaps=[dict(requirement_id="R2",reason="numeric format is not yet assessable")])
                                 if counts[role]==2:
                                     message.update(coverage=[],findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains not ready instead of ready" if progression else "contains first failed instead of ready")])
+                            if scoped_judgment:
+                                if "assessments" not in props:
+                                    raise AssertionError("worker did not receive scoped judgment schema")
+                                rows = []
+                                for identifier in ("R1", "R2"):
+                                    findings = [dict(location=f["location"], counterexample=f["counterexample"])
+                                        for f in message["findings"] if f["requirement_id"] == identifier]
+                                    gaps = [g["reason"] for g in message.get("gaps", []) if g["requirement_id"] == identifier]
+                                    if findings:
+                                        judgment = dict(status="defeated", findings=findings, missing="; ".join(gaps))
+                                    elif gaps:
+                                        judgment = dict(status="unresolved", missing="; ".join(gaps))
+                                    else:
+                                        evidence = next(c["evidence"] for c in message["coverage"] if c["requirement_id"] == identifier)
+                                        judgment = dict(status="supported", evidence=evidence)
+                                    rows.append(dict(requirement_id=identifier,
+                                        observations="Some local examples pass." if findings else "",
+                                        judgment=judgment))
+                                message = dict(assessments=rows, terms_gap=message["terms_gap"], missing=message["missing"])
                         elif deadline_fixture and role == "executor":
                             heartbeat = "import time\nfrom pathlib import Path\nPath('answer.txt').write_text('ready\\n')\nfor i in range(900):\n Path('heartbeat.txt').write_text(str(i))\n time.sleep(.1)\n"
                             code = "text(await tools.exec_command(" + json.dumps(dict(cmd="python3 -c " + shlex.quote(heartbeat),yield_time_ms=30000,max_output_tokens=1000)) + "));"

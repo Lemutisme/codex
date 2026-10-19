@@ -71,7 +71,7 @@ fn expired_or_unknown_actions_cannot_obtain_a_fresh_dispatch() {
         r#"{"state":"running","shutdown_confirmed":false}"#,
     )
     .unwrap();
-    let restored = fixture(live.directory.clone(), Duration::from_secs(3600)).unwrap();
+    let restored = fixture(live.directory, Duration::from_secs(3600)).unwrap();
     assert!(
         restored
             .reserve(&json!({}), Duration::from_secs(60))
@@ -94,7 +94,7 @@ fn recovered_evidence_requires_the_same_grant_and_content_identity() {
             &store,
         )
         .unwrap();
-    let restored = fixture(grant.directory.clone(), Duration::from_secs(600)).unwrap();
+    let restored = fixture(grant.directory, Duration::from_secs(600)).unwrap();
     assert_eq!(restored.history(&store).unwrap(), vec![document]);
     std::fs::write(work.join("result.json"), r#"{"stdout":"fabricated"}"#).unwrap();
     assert!(restored.history(&store).is_err());

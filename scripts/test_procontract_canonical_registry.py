@@ -77,6 +77,17 @@ class RegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identity"):
             loaded.verify_source()
 
+    def test_grader_assets_are_bound_and_rechecked_independently_of_registry_bytes(self):
+        archive = self.root / "grader-assets.tar.gz"
+        archive.write_bytes(b"original toolchain")
+        self.document["grader_assets"] = dict(archive=str(archive),
+            sha256=hashlib.sha256(archive.read_bytes()).hexdigest(), environment={}, path_prepend=[])
+        loaded = registry.load(self.path, self.write())
+        loaded.verify_source()
+        archive.write_bytes(b"replaced toolchain")
+        with self.assertRaisesRegex(ValueError, "archive changed"):
+            loaded.verify_source()
+
     def test_unknown_tasks_and_known_repo_exposure_do_not_enter_confirmation(self):
         loaded = registry.load(self.path, self.write())
         terms = self.terms()

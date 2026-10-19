@@ -149,6 +149,39 @@ fn a_host_check_receipt_can_evidence_a_check_execution_obligation() {
 }
 
 #[test]
+fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
+    let (_root, mut evidence) = fixture("artifact");
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (_, citation) = document(&mut evidence, "file:0");
+    let mut message = json!({"assessments":[{
+        "requirement_id":"R1", "observations":"Some local behavior is visible.",
+        "judgment":{"status":"supported", "evidence":citation}
+    }],"terms_gap":[],"missing":""});
+    let resolved = evidence.resolve_review(&message.to_string()).unwrap();
+    let value: Value = serde_json::from_str(&resolved).unwrap();
+    let bound: Value =
+        serde_json::from_str(value["coverage"][0]["evidence"].as_str().unwrap()).unwrap();
+    assert_eq!(bound["source_id"], "file:0");
+    assert_eq!(
+        value["observations"][0]["detail"],
+        "Some local behavior is visible."
+    );
+    message["assessments"][0]["judgment"]["evidence"] = json!("e99999");
+    assert!(evidence.resolve_review(&message.to_string()).is_err());
+    message["assessments"][0]["judgment"] = json!({"status":"defeated",
+        "findings":[{"location":"artifact", "counterexample":"The boundary case fails."}], "missing":""});
+    let parsed = super::super::reviewer::parse(
+        &evidence.resolve_review(&message.to_string()).unwrap(),
+        &evidence.terms,
+    )
+    .unwrap();
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert_eq!(parsed.observations.len(), 1);
+}
+
+#[test]
 fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage() {
     let (_root, evidence) = fixture("artifact");
     assert!(evidence.with_delivery_message(json!({

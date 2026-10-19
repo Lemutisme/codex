@@ -79,11 +79,14 @@ class Registry:
     operator_exposed_tasks: tuple[str, ...]
     dependency_policy: "Policy | None" = None
     grader_requirements: tuple[str, ...] = ()
+    grader_assets: object = None
 
     def verify_source(self):
         _source(self.path, self.digest)
         if self.dependency_policy is not None:
             self.dependency_policy.verify_source()
+        if self.grader_assets is not None:
+            self.grader_assets.verify()
 
     def validate_campaign(self, terms):
         """Check source identity and known group overlap, not unknown training exposure."""
@@ -149,6 +152,7 @@ def load(path: Path, expected_sha256: str) -> Registry:
             "operator_exposed_tasks",
             "dependency_policy",
             "grader_requirements",
+            "grader_assets",
         }
         or type(data["schema"]) is not int
         or data["schema"] != 1
@@ -224,6 +228,10 @@ def load(path: Path, expected_sha256: str) -> Registry:
     if len(set(names)) != len(names):
         raise ValueError("duplicate grader requirement")
     dependency_policy = None
+    grader_assets = None
+    if "grader_assets" in data:
+        from procontract_evaluator_runtime import load_assets
+        grader_assets = load_assets(data["grader_assets"])
     if "dependency_policy" in data:
         import procontract_dependency_policy as dependencies
 
@@ -252,4 +260,5 @@ def load(path: Path, expected_sha256: str) -> Registry:
         operator_exposed_tasks=tuple(operator_exposed),
         dependency_policy=dependency_policy,
         grader_requirements=tuple(grader_requirements),
+        grader_assets=grader_assets,
     )

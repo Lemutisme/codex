@@ -238,7 +238,9 @@ pub(super) async fn snapshot(
         };
         *counts.entry(state).or_default() += 1;
         if entries.len() < 1024 {
-            entries.push(json!({"path":path,"state":state}));
+            entries.push(json!({"path":path,"state":state,
+                "baseline":before.get(path).map(|entry| &entry.kind),
+                "current":after.get(path).map(|entry| &entry.kind)}));
         }
     }
     let total: usize = counts.values().sum();

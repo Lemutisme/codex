@@ -388,6 +388,30 @@ failure, missing eligible test or changed denominator is not waived. Scope recei
 the adapter/plugin hashes are retained with the grader evidence. No task IDs, guessed
 name prefixes, new ignore entries or modified test assertions implement this rule.
 
+Optional `grader_assets` pins a grader-only archive, its SHA-256, environment values and
+relative PATH additions. Toolchains and dependency caches are installed only after the
+candidate has compiled and been hashed; its hash is checked again afterward. These
+resources are not mounted into solver containers. Preparation can use the network, but
+actual test execution uses the pinned resources offline. Archive permissions must allow
+installation in the evaluator's restricted container; preparation failures remain visible.
+
+The test-runtime adapter records each setup/call/teardown outcome and attempt number.
+After a failure report is rendered, it releases finished traceback-frame locals and
+reclaims unreachable objects before the next attempt. This prevents a retained exception
+from keeping otherwise-unreachable sockets alive across official retries. Live fixture
+resources, test assertions, retry counts, timeouts and worker scheduling are unchanged.
+Collection and valid score aggregation do not establish fixture execution readiness;
+qualification must also inspect actual execution outcomes. A fixture error is not
+automatically a candidate defect or permission to change the eligible denominator.
+
+Reviewer wire output uses one judgment per assessed obligation, with local observations
+stored separately. A supported judgment requires an issued evidence citation; a defeated
+judgment retains counterexamples and may also retain unknowns. Unresolved observations
+do not create support. The host derives the aggregate conclusion and binds support
+citations to their original scope. Old review records remain readable without silently
+normalizing contradictory legacy support claims. This changes the harness interface;
+workflow choices and empirical testing advice remain in the strategy policies.
+
 ## Validation
 
 The 2026-10-17 E2E evolution and all development failures are recorded separately in

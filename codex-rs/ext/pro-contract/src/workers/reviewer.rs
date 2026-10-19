@@ -17,6 +17,14 @@ pub struct Coverage {
     pub evidence: String,
 }
 
+/// A scoped observation is not a conclusion that the entire obligation is satisfied.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Observation {
+    pub requirement_id: String,
+    pub detail: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Finding {
     pub requirement_id: String,
@@ -69,6 +77,8 @@ pub enum ReviewVerdict {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Review {
     pub verdict: ReviewVerdict,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observations: Vec<Observation>,
     /// Where the terms may have missed, widened or weakened part of the human request.
     pub terms_gap: Vec<TermsGap>,
     /// Derived by the host from the frozen catalog, never chosen by the reviewer.
@@ -115,7 +125,7 @@ impl Review {
 /// The built-in instructions: version 0 of this part of a policy bundle.
 pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/reviewer.md");
 
-pub(crate) const OUTPUT_CONVENTIONS: &str = "Use [] for absent lists and \"\" for absent missing/residual text. Nonempty missing declares an unresolved evidence gap; describe only actual gaps.";
+pub(crate) const OUTPUT_CONVENTIONS: &str = "Give each assessed obligation exactly one judgment. observations records local facts, not complete support. Use supported only for the whole obligation, defeated for concrete counterexamples, unresolved for missing evidence. Partial positive observations can accompany either defeated or unresolved. Use [] for absent lists and \"\" for absent text.";
 
 /// Identity of this worker's policy: its instructions and output schema.
 pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
@@ -124,7 +134,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
         &(
             policy,
             schema(),
-            "scoped-obligations-and-host-check-receipts-v2",
+            "scoped-observations-and-exclusive-conclusions-v3",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )
@@ -132,15 +142,26 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
 
 pub(crate) fn schema() -> Value {
     let mut value = strict_object(json!({
-        "verdict": {"type": "string", "enum": ["support", "defeat", "cannot_judge", "partial"]},
-        "coverage": {"type": "array", "items": strict_object(json!({
+        "assessments": {"type": "array", "items": strict_object(json!({
             "requirement_id": {"type": "string"},
-            "evidence": {"type": "string"},
-        }))},
-        "findings": {"type": "array", "items": strict_object(json!({
-            "requirement_id": {"type": "string"},
-            "location": {"type": "string"},
-            "counterexample": {"type": "string"},
+            "observations": {"type": "string"},
+            "judgment": {"anyOf": [
+                strict_object(json!({
+                    "status": {"type":"string", "enum":["supported"]},
+                    "evidence": {"type":"string"},
+                })),
+                strict_object(json!({
+                    "status": {"type":"string", "enum":["defeated"]},
+                    "findings": {"type":"array", "items": strict_object(json!({
+                        "location":{"type":"string"}, "counterexample":{"type":"string"},
+                    }))},
+                    "missing": {"type":"string"},
+                })),
+                strict_object(json!({
+                    "status": {"type":"string", "enum":["unresolved"]},
+                    "missing": {"type":"string"},
+                })),
+            ]},
         }))},
         "terms_gap": {"type": "array", "items": strict_object(json!({
             "element": {"type": "string"},
@@ -148,10 +169,6 @@ pub(crate) fn schema() -> Value {
             "affected_requirements": {"type": "array", "items": {"type": "string"}},
         }))},
         "missing": {"type": "string"},
-        "gaps": {"type":"array", "items": strict_object(json!({
-            "requirement_id":{"type":"string"}, "reason":{"type":"string"},
-        }))},
-        "residual": {"type": "string"},
     }));
     value["description"] = json!(OUTPUT_CONVENTIONS);
     value
@@ -161,17 +178,27 @@ pub(crate) fn schema() -> Value {
 pub(crate) fn schema_for(terms: &Terms) -> Value {
     let mut value = schema();
     let ids: Vec<_> = terms.obligations().into_iter().map(|r| r.id).collect();
-    for field in ["coverage", "findings", "gaps"] {
-        value["properties"][field]["items"]["properties"]["requirement_id"]["enum"] = json!(ids);
-    }
+    value["properties"]["assessments"]["items"]["properties"]["requirement_id"]["enum"] =
+        json!(ids);
     value["properties"]["terms_gap"]["items"]["properties"]["affected_requirements"]["items"]["enum"] =
         json!(ids);
     value
 }
 
 pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError> {
-    let raw: RawReview = serde_json::from_str(message.trim())
-        .map_err(|error| WorkerError::Malformed(error.to_string()))?;
+    let raw = decode(message)?;
+    let observations = raw.observations.clone();
+    if let Some(row) = observations.iter().find(|row| {
+        !terms
+            .obligations()
+            .iter()
+            .any(|o| o.id == row.requirement_id)
+    }) {
+        return Err(WorkerError::Malformed(format!(
+            "observation names unknown requirement {}",
+            row.requirement_id
+        )));
+    }
     let terms_gap = raw.terms_gap.clone();
     if let Some(id) = terms_gap
         .iter()
@@ -185,6 +212,7 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
     }
     Ok(Review {
         verdict: verdict(raw, terms)?,
+        observations,
         terms_gap,
         execution_obligations: terms
             .obligations()
@@ -193,6 +221,129 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
             .map(|r| r.id)
             .collect(),
     })
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScopedReview {
+    assessments: Vec<Assessment>,
+    terms_gap: Vec<TermsGap>,
+    missing: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Assessment {
+    requirement_id: String,
+    observations: String,
+    judgment: Judgment,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+enum Judgment {
+    Supported {
+        evidence: String,
+    },
+    Defeated {
+        findings: Vec<Counterexample>,
+        missing: String,
+    },
+    Unresolved {
+        missing: String,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Counterexample {
+    location: String,
+    counterexample: String,
+}
+
+/// Keep old retained responses readable; new workers use exclusive per-obligation judgments.
+fn decode(message: &str) -> Result<RawReview, WorkerError> {
+    let malformed = |error: serde_json::Error| WorkerError::Malformed(error.to_string());
+    let shape: Value = serde_json::from_str(message).map_err(malformed)?;
+    if shape.get("assessments").is_none() {
+        return serde_json::from_str(message).map_err(malformed);
+    }
+    let scoped: ScopedReview = serde_json::from_str(message).map_err(malformed)?;
+    let mut raw = RawReview {
+        verdict: "partial".into(),
+        coverage: Vec::new(),
+        findings: Vec::new(),
+        gaps: Vec::new(),
+        observations: Vec::new(),
+        terms_gap: scoped.terms_gap,
+        missing: scoped.missing,
+        residual: String::new(),
+    };
+    let mut seen = std::collections::BTreeSet::new();
+    for row in scoped.assessments {
+        let id = row.requirement_id;
+        if !seen.insert(id.clone()) {
+            return Err(WorkerError::Malformed(format!(
+                "duplicate assessment for {id}"
+            )));
+        }
+        if !row.observations.trim().is_empty() {
+            raw.observations.push(Observation {
+                requirement_id: id.clone(),
+                detail: row.observations,
+            });
+        }
+        match row.judgment {
+            Judgment::Supported { evidence } => {
+                if evidence.trim().is_empty() {
+                    return Err(WorkerError::Malformed(format!(
+                        "supported obligation {id} needs evidence"
+                    )));
+                }
+                raw.coverage.push(Coverage {
+                    requirement_id: id,
+                    evidence,
+                });
+            }
+            Judgment::Defeated { findings, missing } => {
+                if findings.is_empty()
+                    || findings.iter().any(|f| f.counterexample.trim().is_empty())
+                {
+                    return Err(WorkerError::Malformed(format!(
+                        "defeated obligation {id} needs a concrete counterexample"
+                    )));
+                }
+                raw.findings.extend(findings.into_iter().map(|f| Finding {
+                    requirement_id: id.clone(),
+                    location: f.location,
+                    counterexample: f.counterexample,
+                }));
+                if !missing.trim().is_empty() {
+                    raw.gaps.push(MissingEvidence {
+                        requirement_id: id,
+                        reason: missing,
+                    });
+                }
+            }
+            Judgment::Unresolved { missing } => {
+                if missing.trim().is_empty() {
+                    return Err(WorkerError::Malformed(format!(
+                        "unresolved obligation {id} needs its evidence gap"
+                    )));
+                }
+                raw.gaps.push(MissingEvidence {
+                    requirement_id: id,
+                    reason: missing,
+                });
+            }
+        }
+    }
+    Ok(raw)
+}
+
+/// Normalize only the wire representation. No observation is promoted to support.
+pub(crate) fn normalize(message: &str) -> Result<Value, WorkerError> {
+    serde_json::to_value(decode(message)?).map_err(|e| WorkerError::Malformed(e.to_string()))
 }
 
 fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> {
@@ -337,7 +488,7 @@ fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> 
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawReview {
     verdict: String,
@@ -348,6 +499,8 @@ struct RawReview {
     #[serde(default)]
     gaps: Vec<MissingEvidence>,
     residual: String,
+    #[serde(default)]
+    observations: Vec<Observation>,
 }
 
 #[cfg(test)]

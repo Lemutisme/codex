@@ -69,6 +69,10 @@ class ContinuousNativeTests(unittest.TestCase):
         self.run_case(partial_review_fixture=True,
             task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
 
+    def test_local_observations_and_a_counterexample_reach_real_repair(self):
+        self.run_case(partial_review_fixture=True, scoped_judgment_fixture=True,
+            task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
+
     def test_reactive_dialogue_survives_observation_handoff_and_successor_execution(self):
         self.run_case(dialogue_probe_fixture=True,probe_fixture=True,succession_fixture=True)
 

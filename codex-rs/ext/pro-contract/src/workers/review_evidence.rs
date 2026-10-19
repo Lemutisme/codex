@@ -331,8 +331,8 @@ Read human_request and contract_terms before judging; inspect required candidate
 Responses are paginated; continue via next_offset. Missing/unreadable/opaque evidence is not success. \
 The contract_terms catalog gives every artifact and execution obligation an exact ID. Use only those IDs in requirement_id fields. \
 host_observations records scoped host facts; it does not prove unobserved events or comprehension. \
-Each coverage.evidence must be one issued citation_id. Execution coverage may cite host_observations or check_receipts within their stated actor/time scope; artifacts and computations cannot attest prior executor actions. \
-The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Preserve local judgments with partial and scoped gaps; use cannot_judge when no scoped judgment is possible. \
+Each supported judgment.evidence must be one issued citation_id. Execution support may cite host_observations or check_receipts within their stated actor/time scope; artifacts and computations cannot attest prior executor actions. \
+The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Record partial positive facts in observations and give the obligation one supported, defeated or unresolved judgment. \
 No host shell, network or arbitrary paths are available. {computation} {} Return the required JSON.",
             instructions,
             self.subject.subject_hash,
@@ -392,6 +392,7 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
                 let entry = &self.subject.manifest.entries[*index];
                 json!({"source_id": format!("file:{index}"),
                     "path":super::bounded(&entry.path, /*cap*/ 96), "kind":"candidate",
+                    "captured_entry":entry.kind,
                     "baseline_subject":self.baseline.as_ref().map(|b| b.subject_hash),
                     "matches_original_entry":self.baseline.as_ref().map(|b| b.manifest.entries.iter().any(|original| original == entry)),
                 })
@@ -471,7 +472,7 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
         }
         // Preserve the strict typed parser's duplicate-field and shape checks before normalization.
         super::reviewer::parse(message, &self.terms)?;
-        let mut result: Value = serde_json::from_str(message).map_err(|_| fail())?;
+        let mut result = super::reviewer::normalize(message)?;
         if result
             .get("coverage")
             .and_then(Value::as_array)
