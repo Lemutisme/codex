@@ -222,6 +222,11 @@ class CodexHomeTest(unittest.TestCase):
         self.assertIsNone(evaluation["check"]["build_command"])
         self.assertIsNone(evaluation["check"]["candidate_command"])
 
+    def test_original_task_grant_does_not_acquire_implicit_executor_or_publication_caps(self):
+        value = runner.settings(Path("/workspace"), "image:tag", succession={"total_secs": 21600})
+        self.assertNotIn("executor_slice_secs", value["progress"])
+        self.assertNotIn("max_publications", value["progress"])
+
     def test_codex_home_has_the_model_the_container_environment_and_the_evaluation_grant(
         self,
     ):

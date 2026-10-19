@@ -2,6 +2,30 @@ use super::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn remaining_time_is_not_rounded_away_or_reserved_for_hypothetical_verification() {
+    let budget = Budget::new(
+        SuccessionSettings {
+            max_sessions: None,
+            total_secs: 1,
+        },
+        1000,
+    )
+    .unwrap();
+    let (reserved, deadline) = budget
+        .reserve(
+            "last-millisecond".into(),
+            Lesson {
+                subject: Digest::of(b"work"),
+                residual: "continue within the actual grant".into(),
+            },
+            1999,
+        )
+        .unwrap();
+    assert_eq!(deadline, 2000);
+    assert_eq!((reserved.started_ms, reserved.deadline_ms), (1000, 2000));
+}
+
+#[test]
 fn time_only_grant_does_not_invent_session_or_stagnation_limits() {
     let mut budget = Budget::new(
         SuccessionSettings {
@@ -18,7 +42,7 @@ fn time_only_grant_does_not_invent_session_or_stagnation_limits() {
     };
     for i in 0..20 {
         budget = budget
-            .reserve(format!("child-{i}"), lesson.clone(), 2000 + i * 1000, 1)
+            .reserve(format!("child-{i}"), lesson.clone(), 2000 + i * 1000)
             .unwrap()
             .0;
         budget.pending = None;
@@ -28,7 +52,7 @@ fn time_only_grant_does_not_invent_session_or_stagnation_limits() {
     }
     assert!(
         budget
-            .reserve("expired".into(), lesson, original_deadline, 0)
+            .reserve("expired".into(), lesson, original_deadline)
             .is_err()
     );
 }
@@ -48,25 +72,15 @@ fn a_session_changes_context_not_the_original_grant() {
         residual: "test failed".into(),
     };
     let (pending, deadline_ms) = initial
-        .reserve(
-            "child-1".into(),
-            lesson.clone(),
-            /*now*/ 11000,
-            /*verification_reserve_secs*/ 20,
-        )
+        .reserve("child-1".into(), lesson.clone(), /*now*/ 11000)
         .unwrap();
     assert_eq!(
         (deadline_ms, pending.deadline_ms, pending.launches),
-        (81000, 101000, 1)
+        (101000, 101000, 1)
     );
     assert!(
         pending
-            .reserve(
-                "duplicate".into(),
-                lesson.clone(),
-                /*now*/ 12000,
-                /*verification_reserve_secs*/ 20
-            )
+            .reserve("duplicate".into(), lesson.clone(), /*now*/ 12000,)
             .is_err()
     );
     let completed = Budget {
@@ -74,16 +88,11 @@ fn a_session_changes_context_not_the_original_grant() {
         ..pending
     };
     let (second, deadline_ms) = completed
-        .reserve(
-            "child-2".into(),
-            lesson.clone(),
-            /*now*/ 61000,
-            /*verification_reserve_secs*/ 20,
-        )
+        .reserve("child-2".into(), lesson.clone(), /*now*/ 61000)
         .unwrap();
     assert_eq!(
         (deadline_ms, second.deadline_ms, second.launches),
-        (81000, 101000, 2)
+        (101000, 101000, 2)
     );
     let exhausted = Budget {
         pending: None,
@@ -91,32 +100,17 @@ fn a_session_changes_context_not_the_original_grant() {
     };
     assert!(
         exhausted
-            .reserve(
-                "child-3".into(),
-                lesson.clone(),
-                /*now*/ 62000,
-                /*verification_reserve_secs*/ 20
-            )
+            .reserve("child-3".into(), lesson.clone(), /*now*/ 62000,)
             .is_err()
     );
     assert!(
         initial
-            .reserve(
-                "late".into(),
-                lesson.clone(),
-                /*now*/ 82000,
-                /*verification_reserve_secs*/ 20
-            )
+            .reserve("late".into(), lesson.clone(), /*now*/ 101000,)
             .is_err()
     );
     assert!(
         initial
-            .reserve(
-                "clock".into(),
-                lesson,
-                /*now*/ 999,
-                /*verification_reserve_secs*/ 20
-            )
+            .reserve("clock".into(), lesson, /*now*/ 999,)
             .is_err()
     );
 }

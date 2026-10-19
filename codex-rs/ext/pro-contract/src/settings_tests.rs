@@ -116,3 +116,15 @@ fn unknown_fields_are_rejected() {
         Err(SettingsError::Parse { .. })
     ));
 }
+#[test]
+fn progress_does_not_invent_an_executor_window_or_publication_quota() {
+    let progress: super::ProgressSettings = serde_json::from_value(serde_json::json!({
+        "executor_label":"procontract.task=test", "assessment_secs":120
+    }))
+    .unwrap();
+    assert_eq!(progress.executor_slice_secs, None);
+    assert_eq!(progress.max_publications, None);
+    let value = serde_json::to_value(progress).unwrap();
+    assert!(value.get("executor_slice_secs").is_none());
+    assert!(value.get("max_publications").is_none());
+}

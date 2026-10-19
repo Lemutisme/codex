@@ -66,6 +66,9 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_original_deadline_stops_the_first_turn_and_its_background_effects(self):
         self.run_case(deadline_fixture=True)
 
+    def test_successor_can_use_remaining_grant_without_a_guessed_review_reserve(self):
+        self.run_case(late_successor_fixture=True)
+
     def test_binary_computation_uses_the_frozen_subject_and_real_citation(self):
         self.run_case(computation_fixture=True)
 

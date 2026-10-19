@@ -65,7 +65,6 @@ impl Budget {
         session: String,
         lesson: Lesson,
         now: u64,
-        verification_reserve_secs: u64,
     ) -> Result<(Self, u64), String> {
         if self.pending.is_some() {
             return Err("previous executor lifetime is unresolved; no launch replayed".into());
@@ -80,11 +79,6 @@ impl Budget {
         {
             return Err("original successor allowance exhausted".into());
         }
-        let seconds = (self.deadline_ms - now) / 1000;
-        let seconds = seconds
-            .checked_sub(verification_reserve_secs)
-            .filter(|s| *s > 0)
-            .ok_or("no executor time remains after reserving independent verification")?;
         let mut next = self.clone();
         next.launches = next
             .launches
@@ -97,7 +91,9 @@ impl Budget {
         if next.lessons.len() > 3 {
             next.lessons.remove(/*index*/ 0);
         }
-        Ok((next, now + seconds * 1000))
+        // Allocation among execution and later assessment is a strategy choice. Admission
+        // enforces the actual grant rather than subtracting guessed future work durations.
+        Ok((next, self.deadline_ms))
     }
 
     pub(super) async fn replace(

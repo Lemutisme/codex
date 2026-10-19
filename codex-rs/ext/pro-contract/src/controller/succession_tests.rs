@@ -44,6 +44,11 @@ async fn two_fresh_sessions_inherit_lessons_and_only_one_responsibility() {
     assert_eq!(packets.len(), 2);
     assert_ne!(packets[0].0, packets[1].0);
     let second: serde_json::Value = serde_json::from_str(&packets[1].1).unwrap();
+    for (_, packet) in &packets {
+        let value: serde_json::Value = serde_json::from_str(packet).unwrap();
+        assert_eq!(value["executor_deadline_ms"], before.deadline_ms);
+        assert_eq!(value["original_task_deadline_ms"], before.deadline_ms);
+    }
     assert_eq!(second["original_task"], INTAKE);
     assert_eq!(
         second["remaining_failures_and_prior_failed_artifacts"]

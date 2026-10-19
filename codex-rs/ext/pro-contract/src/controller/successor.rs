@@ -42,7 +42,7 @@ pub(super) async fn run(
             .deadline_ms
             .checked_sub(super::succession_budget::now_ms()?)
             .filter(|ms| *ms > 0)
-            .ok_or("original executor deadline exhausted before startup")?;
+            .ok_or("executor time allowance exhausted before startup")?;
         let deadline = tokio::time::Instant::now() + Duration::from_millis(remaining_ms);
         if *turn.cancel.borrow() {
             return Err("successor cancelled before startup".into());
@@ -138,7 +138,7 @@ pub(super) async fn run(
         if tokio::time::Instant::now() >= deadline || *turn.cancel.borrow()
             || parent.conversation_history_snapshot().await.user_message_revision() != authorization_revision
         {
-            return Err("original deadline or owner cancellation during startup".into());
+            return Err("executor time allowance or owner cancellation during startup".into());
         }
         let turn_id = match child.thread.start_turn_if_idle(request).await.map_err(|e| e.to_string())? {
             StartIfIdleSubmission::Started { turn_id } => turn_id,
@@ -152,7 +152,7 @@ pub(super) async fn run(
                 return Err("successor cancelled by owner input or shutdown".into());
             }
             tokio::select! {
-                _ = &mut deadline => return Err("successor reached the original task deadline".into()),
+                _ = &mut deadline => return Err("successor executor time allowance ended without a handoff".into()),
                 _ = turn.cancel.changed() => return Err("successor cancelled by owner input or shutdown".into()),
                 event = child.thread.next_event() => {
                     let event = event.map_err(|e| e.to_string())?;

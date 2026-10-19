@@ -14,7 +14,7 @@ async fn progressing(ports: FakePorts) -> Lane {
         executor_label: "procontract.task=test".into(),
         max_publications: Some(3),
         assessment_secs: 120,
-        executor_slice_secs: 1800,
+        executor_slice_secs: Some(1800),
     });
     lane
 }

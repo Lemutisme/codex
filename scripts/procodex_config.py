@@ -224,7 +224,7 @@ def configure(
         settings["succession"] = existing["succession"]
     elif continuous_work and existing is None:
         settings["progress"] = dict(executor_label=f"procontract.task={key}",
-            assessment_secs=120, executor_slice_secs=1800)
+            assessment_secs=120)
     if review_compute:
         # Changing a verification capability does not create another task/home or reset
         # its existing succession grant. Computation grants are persisted by the runtime.

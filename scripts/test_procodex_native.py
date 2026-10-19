@@ -85,7 +85,8 @@ class NativeEvidenceTest(unittest.TestCase):
         input_strategy = getattr(self, "input_strategy_fixture", False)
         resource_limit = getattr(self, "resource_limit_fixture", False)
         successor_progress = getattr(self, "successor_progress_fixture", False)
-        succession = getattr(self, "succession_fixture", False)
+        late_successor = getattr(self, "late_successor_fixture", False)
+        succession = getattr(self, "succession_fixture", False) or late_successor
         probe_fixture = getattr(self, "probe_fixture", False)
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
@@ -329,6 +330,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                         ):
                             role = "successor"
                         counts[role] = counts.get(role, 0) + 1
+                        if late_successor and role == "successor" and counts[role] == 2:
+                            # Real native clock/HTTP wait: this handoff fits the original
+                            # grant but exceeds the former guessed verification reserve.
+                            time.sleep(45)
                         worker_keys.setdefault(role, set()).add(body.get("prompt_cache_key"))
                         if input_strategy and role in ('executor','successor') and 'STRATEGY-NATIVE-MARKER' not in '\n'.join(text_values(body)):
                             raise AssertionError('selected strategy did not reach this executor context')
@@ -651,8 +656,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 None if repair_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"; print("NATIVE-CHECK-PASSED")\'',
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
-                task_seconds=60 if deadline_fixture else 3600,
-                continuous_work=progression or successor_progress or deadline_fixture or protocol_correction,
+                task_seconds=75 if late_successor else 60 if deadline_fixture else 3600,
+                continuous_work=progression or successor_progress or deadline_fixture or protocol_correction or late_successor,
                 inputs={"source.txt": root/"source-input.txt"} if input_strategy else None,
                 strategy=root/"strategy" if input_strategy else None,
             )
@@ -661,6 +666,14 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 settings_path=home/'pro_contract/settings.json'
                 settings=json.loads(settings_path.read_text())
                 settings['evaluation']['check']['build_command'] += " && python3 -c \"from pathlib import Path; assert Path('/inputs/source.txt').read_text() == 'immutable source\\n'\""
+                settings_path.write_text(json.dumps(settings))
+            if late_successor:
+                # Keep the cross-version control compatible with the old required field.
+                # This explicit ceiling exceeds the entire 75-second task grant; only
+                # the old inferred verification reserve can end the executor too early.
+                settings_path = home / "pro_contract/settings.json"
+                settings = json.loads(settings_path.read_text())
+                settings["progress"]["executor_slice_secs"] = 1800
                 settings_path.write_text(json.dumps(settings))
             if resource_limit:
                 environment_path = home / "environments.toml"

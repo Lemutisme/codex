@@ -103,14 +103,17 @@ Existing task settings and grants are preserved. The native configuration is:
 ```json
 "progress": {
   "executor_label": "procontract.task=<provisioner identity>",
-  "assessment_secs": 120,
-  "executor_slice_secs": 1800
+  "assessment_secs": 120
 }
 ```
 
-The count ceiling is optional; new launcher tasks use the original deadline without
-inventing publication or successor counts. Explicit limits and existing grants remain
-binding. `publish_progress({request_id, review: true})` requests diagnosis even when
+Count ceilings and `executor_slice_secs` are optional explicit grants. New launchers
+inherit the original task deadline without inventing publication/session counts or a
+30-minute executor window. Admission does not subtract an estimate of future verification
+work: allocating time to implementation and assessment belongs to strategy. A successor
+packet distinguishes its effective executor deadline from the original task deadline;
+an explicitly configured local allowance never renews or replaces the original grant.
+Existing grants remain binding on resume. `publish_progress({request_id, review: true})` requests diagnosis even when
 checks fail or the checking method is unavailable. The response carries remaining-budget
 facts. Diagnosis retains its findings and gaps without granting Support or settling.
 

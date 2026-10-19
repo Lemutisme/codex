@@ -55,7 +55,9 @@ pub struct ProgressSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_publications: Option<u32>,
     pub assessment_secs: u64,
-    pub executor_slice_secs: u64,
+    /// Optional explicit executor allowance; omission inherits the original task deadline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executor_slice_secs: Option<u64>,
 }
 
 /// An operator's finite grant for replacing failed executor contexts, not resetting a task.

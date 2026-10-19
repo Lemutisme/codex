@@ -176,8 +176,12 @@ impl ThreadRuntime {
                 return;
             }
             Ok(SuccessorExit::Stopped(reason)) | Err(reason) => {
-                self.not_verified(NotVerifiedClass::NoHandoff, &reason)
-                    .await;
+                let class = if now_ms().is_ok_and(|now| now >= reserved.deadline_ms) {
+                    NotVerifiedClass::BudgetExhausted
+                } else {
+                    NotVerifiedClass::NoHandoff
+                };
+                self.not_verified(class, &reason).await;
                 return;
             }
         };
@@ -229,29 +233,15 @@ impl ThreadRuntime {
             .map_err(|e| e.to_string())?
             .ok_or("no original succession grant; resume cannot create one")?;
         let id = ThreadId::new();
-        let mut reserve = self
-            .profile
-            .check
-            .timeout_secs
-            .saturating_add(self.settings.worker.deadline_secs)
-            .saturating_add(/*rhs*/ 60);
-        if let Some(progress) = &self.settings.progress {
-            let remaining = previous.deadline_ms.saturating_sub(now_ms()?) / 1000;
-            // A planned bounded assessment, not the sum of all independent maxima.
-            reserve = reserve
-                .min(progress.assessment_secs)
-                .min(remaining / 3)
-                .saturating_add(10);
-        }
-        let (reserved, mut deadline_ms) = previous.reserve(
-            id.to_string(),
-            Lesson { subject, residual },
-            now_ms()?,
-            reserve,
-        )?;
-        if let Some(progress) = &self.settings.progress {
-            deadline_ms =
-                deadline_ms.min(now_ms()?.saturating_add(progress.executor_slice_secs * 1000));
+        let (reserved, mut deadline_ms) =
+            previous.reserve(id.to_string(), Lesson { subject, residual }, now_ms()?)?;
+        if let Some(seconds) = self
+            .settings
+            .progress
+            .as_ref()
+            .and_then(|progress| progress.executor_slice_secs)
+        {
+            deadline_ms = deadline_ms.min(now_ms()?.saturating_add(seconds * 1000));
         }
         let journal = self.ledger.experiments().await.map_err(|e| e.to_string())?;
         let intake = journal
@@ -285,6 +275,7 @@ impl ThreadRuntime {
             "remaining_failures_and_prior_failed_artifacts": reserved.lessons,
             "previous_executor_claim_untrusted": reserved.previous_executor_claim,
             "executor_deadline_ms": deadline_ms,
+            "original_task_deadline_ms": reserved.deadline_ms,
             "progress_publication": self.progress_enabled().then_some("publish_progress is available under the original publication and task grants shared with the prior executor."),
             "public_evidence": "Use contract_read_evidence: frontier for open public checks, index for the complete retained verification history, read for exact available details. Recent failure summaries are an index, not the full evidence. Preserve unrelated work and runnable probes in the workspace.",
             "strategy": self.policies.work_method,

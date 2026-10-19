@@ -180,7 +180,7 @@ def settings(
         result["succession"] = succession
         result["progress"] = dict(
             executor_label="procontract.task=" + hashlib.sha256(str(workspace.resolve()).encode()).hexdigest()[:20],
-            max_publications=8, assessment_secs=120, executor_slice_secs=1800,
+            assessment_secs=120,
         )
     return result
 

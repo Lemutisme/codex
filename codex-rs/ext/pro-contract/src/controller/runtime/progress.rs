@@ -127,7 +127,9 @@ impl ThreadRuntime {
             return Ok(());
         };
         if !(15..=900).contains(&settings.assessment_secs)
-            || !(30..=7200).contains(&settings.executor_slice_secs)
+            || settings
+                .executor_slice_secs
+                .is_some_and(|seconds| seconds == 0 || seconds > u64::MAX / 1000)
             || self.settings.succession.is_none()
         {
             return Err(

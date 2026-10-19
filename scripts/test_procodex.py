@@ -18,6 +18,7 @@ class ConfigurationTests(unittest.TestCase):
         original=json.loads((home/'pro_contract/settings.json').read_text())
         self.assertEqual(original['succession'],{'total_secs':3600})
         self.assertNotIn('max_publications',original['progress'])
+        self.assertNotIn('executor_slice_secs',original['progress'])
         same,_=procodex.configure(*args,successor_sessions=3,task_seconds=7200,continuous_work=True)
         current=json.loads((same/'pro_contract/settings.json').read_text())
         self.assertEqual(original['succession'],current['succession'])
