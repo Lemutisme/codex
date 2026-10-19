@@ -412,6 +412,13 @@ citations to their original scope. Old review records remain readable without si
 normalizing contradictory legacy support claims. This changes the harness interface;
 workflow choices and empirical testing advice remain in the strategy policies.
 
+Formal host observations also retain the delivery capture receipt, its turn/subject
+binding and original response-capture state. An available captured response can establish
+the act of submitting a final response, while its assertions remain unverified claims.
+Progress snapshots carry no final-delivery receipt, and absent/unavailable response states
+are preserved. Execution support still requires scoped host observations or check receipts;
+the message body does not become evidence that its claimed actions occurred.
+
 ## Validation
 
 The 2026-10-17 E2E evolution and all development failures are recorded separately in

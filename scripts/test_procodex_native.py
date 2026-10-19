@@ -78,6 +78,7 @@ class NativeEvidenceTest(unittest.TestCase):
         protocol_correction = getattr(self, "protocol_correction_fixture", False) or correction_exhausted
         delivery_evidence = getattr(self, "delivery_evidence_fixture", False)
         check_execution = getattr(self, "check_execution_fixture", False)
+        delivery_action = getattr(self, "delivery_action_fixture", False)
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
         diagnostic_review = getattr(self, "diagnostic_review_fixture", False)
@@ -190,6 +191,19 @@ text({deliveryEvidenceSeen:true,complete:response.complete});
 const check=decode(await tools.read_evidence({op:"read",source_id:"check_receipts",offset:0}));
 if(!check.eof || !check.text.includes("Host checker actions") || !check.text.includes("NATIVE-CHECK-PASSED")) throw new Error("scoped host check result missing");
 text({checkCitation:check.citation_id});
+'''
+            if delivery_action:
+                review_code += r'''
+let receiptText="", receiptCitation;
+for(let offset=0,i=0;i<100;i++) {
+ const page=decode(await tools.read_evidence({op:"read",source_id:"host_observations",offset}));
+ receiptText+=page.text;
+ if(page.text.includes('"delivery"'))receiptCitation=page.citation_id;
+ if(page.eof)break;offset=page.next_offset;
+}
+const observedDelivery=JSON.parse(receiptText);
+if(!observedDelivery.delivery || observedDelivery.delivery.response_capture.state!=="available" || observedDelivery.delivery.subject_hash!==observedDelivery.subject_hash || !receiptCitation) throw new Error("native delivery action receipt missing");
+text({deliveryActionCitation:receiptCitation});
 '''
             if observation_fixture:
                 review_code += r'''
@@ -343,6 +357,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["process_constraints"]=[dict(text="Obtain the retained feedback bytes before repairing the artifact.",source_id="request:0")]
                             if check_execution:
                                 message["process_constraints"]=[dict(text="Run the configured check.",source_id="request:0")]
+                            if delivery_action:
+                                message["process_constraints"]=[dict(text="Submit with your final assistant response.",source_id="request:0")]
                             if partial_checks:
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
                         elif role in ("explore", "probe"):
@@ -427,6 +443,9 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     residual="Write the required ready value and replay the check.")
                             if check_execution:
                                 citation=re.search(r'"checkCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
+                                message["coverage"].append(dict(requirement_id="process:0",evidence=citation))
+                            if delivery_action:
+                                citation=re.search(r'"deliveryActionCitation"\s*:\s*"(e[0-9]+)"',flattened).group(1)
                                 message["coverage"].append(dict(requirement_id="process:0",evidence=citation))
                             if observation_fixture:
                                 identifier=re.search(r'"processObligation"\s*:\s*"([^"]+)"',flattened).group(1)

@@ -330,9 +330,9 @@ Use read_evidence: index with source_id=\"\" and offset=0 (then next_offset), or
 Read human_request and contract_terms before judging; inspect required candidate files and check_receipts. \
 Responses are paginated; continue via next_offset. Missing/unreadable/opaque evidence is not success. \
 The contract_terms catalog gives every artifact and execution obligation an exact ID. Use only those IDs in requirement_id fields. \
-host_observations records scoped host facts; it does not prove unobserved events or comprehension. \
+host_observations includes delivery receipts: response_capture.state=available attests final-response delivery, not its claims. Progress is not final delivery. \
 Each supported judgment.evidence must be one issued citation_id. Execution support may cite host_observations or check_receipts within their stated actor/time scope; artifacts and computations cannot attest prior executor actions. \
-The host resolves the exact bytes. Never copy hashes, quotes or invent IDs. Record partial positive facts in observations and give the obligation one supported, defeated or unresolved judgment. \
+Use issued citation IDs; the host resolves exact bytes. Never invent IDs or copy hashes/quotes. \
 No host shell, network or arbitrary paths are available. {computation} {} Return the required JSON.",
             instructions,
             self.subject.subject_hash,

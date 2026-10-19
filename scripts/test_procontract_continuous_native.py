@@ -46,6 +46,10 @@ class ContinuousNativeTests(unittest.TestCase):
         self.run_case(check_execution_fixture=True,
             task_text="Make answer.txt contain ready. Run the configured check.")
 
+    def test_host_delivery_receipt_can_support_submission_without_attesting_response_claims(self):
+        self.run_case(delivery_action_fixture=True,
+            task_text="Make answer.txt contain ready. Submit with your final assistant response.")
+
     def test_successor_delivers_actual_response_beyond_its_continuation_summary(self):
         self.run_case(delivery_evidence_fixture=True, succession_fixture=True)
 

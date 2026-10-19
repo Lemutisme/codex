@@ -244,12 +244,22 @@ pub(super) async fn snapshot(
         }
     }
     let total: usize = counts.values().sum();
+    let delivery = scope.formal.then(|| json!({
+        "receipt":cutoff.hash,"sequence":cutoff.seq,
+        "owner_thread":cutoff.event.body["thread_id"],
+        "turn_id":cutoff.event.body["turn_id"],
+        "execution_epoch":cutoff.event.body["execution_epoch"],
+        "subject_hash":cutoff.event.body["subject_hash"],
+        "response_capture":cutoff.event.body["response"],
+        "meaning":"The native host captured this handoff. response_capture.state=available attests a retained final response for this turn; absent/unavailable do not establish retained response content. This witnesses delivery, not the truth of assertions in the response or other executor actions."
+    }));
     Ok(
         json!({"kind":"host_observations_v1","contract_id":scope.contract.id.0,
         "revision":scope.contract.revision,"generation":scope.contract.generation,
         "terms_hash":crate::digest_of("terms", scope.terms),"subject_hash":scope.subject.subject_hash,
         "baseline_subject":scope.baseline.subject_hash,"turn_id":scope.turn,"execution_epoch":scope.epoch,
         "capture_receipt":cutoff.hash,"journal_through_sequence":cutoff.seq,
+        "delivery":delivery,
         "publications":publications,"feedback_access":accesses,
         "baseline_comparison":{"counts":counts,"entries":entries,"omitted_entries":total.saturating_sub(1024)},
         "limits":[

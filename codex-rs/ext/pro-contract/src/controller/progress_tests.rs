@@ -65,6 +65,14 @@ async fn requested_diagnosis_survives_failed_checks_and_cannot_be_replaced_by_ca
         "fail"
     );
     assert!(document["public"]["review"].is_object());
+    let observations =
+        serde_json::from_value(document["public"]["host_observations"].clone()).unwrap();
+    let observed: serde_json::Value =
+        serde_json::from_slice(&lane.runtime.store.get(&observations).unwrap()).unwrap();
+    assert!(
+        observed["delivery"].is_null(),
+        "a progress snapshot is not a final-response delivery"
+    );
     lane.wait_for("working").await;
 }
 
@@ -156,6 +164,17 @@ async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_han
     let context_handle = serde_json::from_value(public["host_observations"].clone()).unwrap();
     let frozen = lane.runtime.store.get(&context_handle).unwrap();
     let context: serde_json::Value = serde_json::from_slice(&frozen).unwrap();
+    assert_eq!(context["delivery"]["receipt"], context["capture_receipt"]);
+    assert_eq!(context["delivery"]["subject_hash"], context["subject_hash"]);
+    assert_eq!(context["delivery"]["turn_id"], "delivered");
+    let capture = events
+        .iter()
+        .find(|event| serde_json::json!(event.hash) == context["capture_receipt"])
+        .unwrap();
+    assert_eq!(
+        context["delivery"]["response_capture"],
+        capture.event.body["response"]
+    );
     assert_eq!(context["feedback_access"][0]["outcome"], "completed");
     assert_eq!(context["feedback_access"][1]["outcome"], "unknown");
     assert_eq!(
