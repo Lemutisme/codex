@@ -273,6 +273,7 @@ def pin_state():
         "adapter_modules_sha256": {name:sha256(SCRIPTS / name) for name in (
             "procontract_canonical_registry.py", "procontract_canonical_recovery.py",
             "procontract_owned_process.py", "procontract_evaluation.py", "procontract_evaluator_readiness.py",
+            "procontract_evaluator_scope.py",
         )},
         "programbench": str(PROGRAMBENCH),
         "programbench_head": head,
@@ -464,6 +465,8 @@ def make_evaluator(task, archive, *, collection=False):
     branches = active(instance)
     image_name, image_digest = TASKS[task]["image"].split(":", 1)
     evaluator_class = with_grader_requirements(Evaluator, registry().grader_requirements)
+    from procontract_evaluator_scope import scoped_evaluator
+    evaluator_class = scoped_evaluator(evaluator_class)
     if collection:
         from procontract_evaluator_readiness import collection_evaluator
         evaluator_class = collection_evaluator(evaluator_class)

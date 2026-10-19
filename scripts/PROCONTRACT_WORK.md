@@ -379,6 +379,15 @@ offline from the frozen wheelhouse after candidate compilation/hash. The adapter
 the stashed candidate hash again afterward. The extension and kernel contain no package-
 or benchmark-specific repair rules. Grader dependencies cannot be chosen by a solver.
 
+Official ignore entries can name pytest collector modules, including modules that failed
+to import when the catalogue was produced. The adapter resolves those exact module
+identities before import in both readiness and scoring. Installing a grader dependency
+therefore cannot accidentally reactivate the children of an excluded module. Ordinary
+leaf exclusions remain in the official scorer; a similarly named module, unignored import
+failure, missing eligible test or changed denominator is not waived. Scope receipts and
+the adapter/plugin hashes are retained with the grader evidence. No task IDs, guessed
+name prefixes, new ignore entries or modified test assertions implement this rule.
+
 ## Validation
 
 The 2026-10-17 E2E evolution and all development failures are recorded separately in
