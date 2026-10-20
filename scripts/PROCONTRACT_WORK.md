@@ -117,6 +117,47 @@ Existing grants remain binding on resume. `publish_progress({request_id, review:
 checks fail or the checking method is unavailable. The response carries remaining-budget
 facts. Diagnosis retains its findings and gaps without granting Support or settling.
 
+Diagnostic work can name a question, choose an action allocation, and continue from a
+previous public assessment or diagnostic checkpoint:
+
+```json
+{
+  "request_id": "investigate-remaining-behavior",
+  "review": true,
+  "question": "Which assumption explains the retained counterexample?",
+  "assessment_secs": 240,
+  "continue_from": "<handle from this task's public evidence>"
+}
+```
+
+`question`, `assessment_secs` and `continue_from` are optional. The question and prior handle
+require `review=true`; they add no obligations or acceptance conditions. The requested time
+is clamped to the original task/current-owner deadline; omitting it uses the configured
+default. Worker and execution capabilities retain their own limits. An identical request ID
+recalls its existing result; changing its question, allocation or prior handle requires a
+new ID. Continuation starts a new bounded assessment using retained work, not a renewed task
+grant or an invisible continuation of the previous model's reasoning.
+
+Diagnostic reviewers have `record_review({checkpoint_id, review})`. The review uses the
+same obligation catalog, judgments and citation validation as a final response, but may
+assess only a subset. Each explicit checkpoint is committed before acknowledgment and is
+readable through `contract_read_evidence`, even if the reviewer later times out. Identical
+checkpoint IDs recall their receipt; revised work uses a new ID. These are reviewer
+judgments, not host-certified truth, final Support, or settlement. Checkpoints do not replace
+the final review or erase its error. `review_error` remains independently visible even when
+checker failures already provide a repair verdict.
+
+The prior assessment supplies its public checks, retained diagnostic judgments and linked
+inspection records as historical context. It cannot itself be cited as proof about the
+current candidate or prior executor actions. Complete public checks are reused only when
+subject, revision, check policy, environment/inputs and harness identity still match; a
+changed subject is checked anew. Earlier versions remain readable. Remaining assessment
+time is returned inside the existing JSON tool response, preserving code-mode parsing.
+
+The replaceable work-method and reviewer contexts choose what to investigate, when to
+checkpoint or continue, and how much effort to allocate. No new kernel command, automatic
+retry rule, task-specific exception or RSI orchestration implements this capability.
+
 Named `--input NAME=FILE` attachments are snapshotted outside mutable outputs and mounted
 read-only for execution, checks and enabled computations. Their original modes, identities
 and usable paths survive successor sessions. A supplied `--strategy DIR` selects context

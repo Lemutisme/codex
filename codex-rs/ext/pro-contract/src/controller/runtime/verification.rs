@@ -37,6 +37,13 @@ pub(super) struct Assessment {
     pub(super) public: super::super::work::PublicEvidence,
 }
 
+#[derive(Default)]
+pub(super) struct Diagnosis {
+    pub(super) question: Option<String>,
+    pub(super) prior: Option<serde_json::Value>,
+    pub(super) checks: Option<CheckReceipts>,
+}
+
 impl ThreadRuntime {
     pub(super) async fn assess_snapshot(
         &self,
@@ -45,6 +52,7 @@ impl ThreadRuntime {
         deadline_ms: Option<u64>,
         formal: bool,
         diagnostic_review: bool,
+        diagnosis: Option<&Diagnosis>,
     ) -> Assessment {
         let Handoff {
             contract,
@@ -59,7 +67,9 @@ impl ThreadRuntime {
             .action_seconds(deadline_ms, check_environment.timeout_secs)
             .await
             .unwrap_or(0);
-        let checks = if check_environment.timeout_secs == 0 {
+        let checks = if let Some(receipts) = diagnosis.and_then(|d| d.checks.as_ref()) {
+            Ok(receipts.clone())
+        } else if check_environment.timeout_secs == 0 {
             Err(crate::CheckError::TimedOut)
         } else {
             self.ports
@@ -78,6 +88,16 @@ impl ThreadRuntime {
                 && policy.differential.is_empty()
                 && !policy.candidate_tests);
         let mut host_observations = None;
+        let assessment_id = digest_of(
+            "assessment_action",
+            &(
+                contract.id.clone(),
+                subject.subject_hash,
+                &handoff.turn_id,
+                work,
+                formal,
+            ),
+        );
         let review = match (&checks, decision::mechanical_verdict(&checks, policy)) {
             (observations, mechanical)
                 if review_needed
@@ -153,9 +173,13 @@ impl ThreadRuntime {
                             .map_err(|e| crate::WorkerError::Start(e.to_string()))?);
                         Ok(evidence.with_protocol_log(self.ledger.clone(), self.identities(None), json!({
                             "contract_id":contract.id.0,"revision":contract.revision,"generation":contract.generation,
-                            "turn_id":handoff.turn_id,"formal":formal,"host_observations":host_observations
+                            "turn_id":handoff.turn_id,"formal":formal,"host_observations":host_observations,
+                            "assessment_id":assessment_id,
                         })))
                     })
+                    .and_then(|evidence| if !formal {
+                        evidence.with_diagnosis(diagnosis.and_then(|d| d.question.as_deref()), diagnosis.and_then(|d| d.prior.clone()))
+                    } else { Ok(evidence) })
                     .and_then(|evidence| match handoff.response.handle() {
                         None => Ok(evidence),
                         Some(handle) => self
@@ -251,7 +275,27 @@ impl ThreadRuntime {
             &verdict,
         );
         public.delivery_message = handoff.response.handle();
+        public.review_error = review
+            .as_ref()
+            .and_then(|r| r.as_ref().err())
+            .map(ToString::to_string);
         public.host_observations = host_observations;
+        // Checkpoints are independent durable outputs. They do not replace the final
+        // review or its error, and cannot issue Support through the acceptance path.
+        match self.ledger.experiments().await {
+            Ok(events) => {
+                for event in events {
+                    if event.event.body["phase"] == "review_checkpoint"
+                        && event.event.body["binding"]["assessment_id"] == json!(assessment_id)
+                        && let Ok(handle) =
+                            serde_json::from_value(event.event.body["handle"].clone())
+                    {
+                        public.review_checkpoints.push(handle);
+                    }
+                }
+            }
+            Err(error) => tracing::warn!("pro_contract checkpoint index unavailable: {error}"),
+        }
         if let Ok((documents, actions)) = inspection_history {
             public.inspections = documents
                 .iter()
@@ -349,6 +393,7 @@ impl ThreadRuntime {
                 None,
                 true,
                 false,
+                None,
             )
             .await;
         let Assessment {

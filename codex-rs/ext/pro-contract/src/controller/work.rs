@@ -49,6 +49,12 @@ pub(super) struct PublicEvidence {
     /// requirement does not erase an independently inspected one. Bound to this subject only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<Review>,
+    /// Independent of checker findings: a failed check must not hide reviewer timeout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review_error: Option<String>,
+    /// Explicit diagnostic judgments retained before a final response, including timeout.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub review_checkpoints: Vec<Digest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<crate::ExecutionReceipt>,
     /// Host-linked computations remain readable even when the final review is partial.
@@ -114,7 +120,7 @@ impl PublicEvidence {
             pipeline_complete: receipts.is_some_and(|r| r.complete),
             capture_boundary: "Checker receipts retain at most 4,000 detail bytes per step, with omission markers; they are not complete raw process streams. This archive preserves the received public receipt and invocation exactly. Sealed cases are excluded.".into(),
             checks, findings, blocker, review: review.cloned(), execution: receipts.and_then(|r| r.execution.clone()),
-            inspections: Vec::new(), delivery_message: None, host_observations: None, inspection_actions: Vec::new(),
+            inspections: Vec::new(), review_error: None, review_checkpoints: Vec::new(), delivery_message: None, host_observations: None, inspection_actions: Vec::new(),
         }
     }
 }

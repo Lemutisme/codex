@@ -175,11 +175,14 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
     fn spec(&self) -> ToolSpec {
         ToolSpec::Function(ResponsesApiTool {
             name: "publish_progress".into(),
-            description: "Capture a consistent frozen workspace and return bounded public assessment in this turn. review=true also requests independent artifact diagnosis, including when checks fail or their evidence is incomplete. Stop or finish background jobs first. Requests share the original task grant. A stable request_id reopens the same assessment; changing review requires a new ID. Read the retained checks and diagnosis with contract_read_evidence. This operation does not propose a candidate, grant Support, settle responsibility or finish the task.".into(),
+            description: "Capture a consistent frozen workspace and assess it within the original task grant. review=true requests independent diagnosis; question focuses it and continue_from supplies prior public progress or a diagnostic checkpoint as historical context. Completed checks may be reused only for the same subject, policy and environment. assessment_secs selects this action's time allocation within the original deadline. Stop background jobs first. Repeating request_id reopens the same assessment; new work needs a new ID. Read retained checks, diagnostic checkpoints and final review through contract_read_evidence. This operation does not propose a candidate, grant Support, settle responsibility or finish the task.".into(),
             strict: false, defer_loading: None, output_schema: None,
             parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
                 "request_id":{"type":"string","minLength":1,"maxLength":128},
-                "review":{"type":"boolean","description":"Request independent diagnosis of this snapshot in addition to its public checks; defaults to false."}},
+                "review":{"type":"boolean","description":"Request independent diagnosis of this snapshot in addition to its public checks; defaults to false."},
+                "question":{"type":"string","description":"The uncertainty this diagnosis should investigate; requires review=true."},
+                "continue_from":{"type":"string","description":"A prior public progress or diagnostic checkpoint handle from this task; requires review=true. Its judgments remain historical."},
+                "assessment_secs":{"type":"integer","minimum":1,"description":"Requested action time; clamped to the original remaining task/owner grant. Omit to use the configured default."}},
                 "required":["request_id"],"additionalProperties":false})).unwrap_or_else(|error| panic!("static progress schema must parse: {error}")),
         })
     }
@@ -195,23 +198,18 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
             #[serde(deny_unknown_fields)]
             struct Request {
                 request_id: String,
-                #[serde(default)]
-                review: bool,
+                #[serde(flatten)]
+                assessment: super::runtime::ProgressAssessment,
             }
             let raw = call.function_arguments()?;
             let error = FunctionCallError::RespondToModel;
-            if raw.len() > 1024 {
-                return Err(error("publication request exceeds 1 KiB".into()));
+            if raw.len() > 16_384 {
+                return Err(error("publication request exceeds 16 KiB".into()));
             }
             let request: Request = serde_json::from_str(raw).map_err(|e| error(e.to_string()))?;
             let mut value = self
                 .0
-                .publish_progress_with_review(
-                    request.request_id,
-                    call.turn_id,
-                    self.1,
-                    request.review,
-                )
+                .publish_assessment(request.request_id, call.turn_id, self.1, request.assessment)
                 .await
                 .map_err(error)?;
             if let Ok(budget) = self.0.remaining_task_budget().await {

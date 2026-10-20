@@ -105,6 +105,82 @@ impl EvidenceAccess {
         Ok(records)
     }
 
+    async fn checkpoint_records(&self) -> Result<Vec<(Digest, Value, Vec<u8>)>, String> {
+        let mut records = Vec::new();
+        for row in self.ledger.experiments().await.map_err(|e| e.to_string())? {
+            let body = row.event.body;
+            if row.event.kind != ExperimentKind::Execution
+                || body["phase"] != "review_checkpoint"
+                || body["binding"]["formal"] != false
+                || body["binding"]["contract_id"].as_str() != Some(&self.contract_id.0)
+            {
+                continue;
+            }
+            let handle =
+                serde_json::from_value(body["handle"].clone()).map_err(|e| e.to_string())?;
+            let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
+            let document: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if document["kind"] != "review_checkpoint_v1"
+                || document["scope"] != "diagnostic_checkpoint"
+                || document["binding"] != body["binding"]
+                || document["subject_hash"] != body["subject_hash"]
+                || document["checkpoint_id"] != body["checkpoint_id"]
+                || document["input_hash"] != body["input_hash"]
+            {
+                return Err("diagnostic checkpoint differs from its committed binding".into());
+            }
+            records.push((handle, document, bytes));
+        }
+        Ok(records)
+    }
+
+    /// Only task-public diagnostic work can seed a continuation. It remains historical
+    /// context, including when the current subject, terms or inspection method changes.
+    pub(super) async fn diagnostic_prior(&self, handle: Digest) -> Result<Value, String> {
+        self.records().await?; // Verify responsibility and the journal before resolving handles.
+        let checkpoints = self.checkpoint_records().await?;
+        let progress = self.progress_records().await?;
+        let document = if let Some((_, document, _)) =
+            progress.iter().find(|(id, _, _)| *id == handle)
+        {
+            document.clone()
+        } else if let Some((_, document, _)) = checkpoints.iter().find(|(id, _, _)| *id == handle) {
+            document.clone()
+        } else {
+            return Err(
+                "continue_from must identify this task's public progress or diagnostic checkpoint"
+                    .into(),
+            );
+        };
+        let linked: Vec<_> = checkpoints
+            .iter()
+            .filter(|(id, _, _)| {
+                document["public"]["review_checkpoints"]
+                    .as_array()
+                    .is_some_and(|ids| ids.contains(&json!(id)))
+            })
+            .map(|(id, value, _)| json!({"handle":id,"document":value}))
+            .collect();
+        let mut inspections = Vec::new();
+        if let Some(handles) = document["public"]["inspections"].as_array() {
+            for value in handles {
+                let id: Digest =
+                    serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                let value: Value =
+                    serde_json::from_slice(&self.store.get(&id).map_err(|e| e.to_string())?)
+                        .map_err(|e| e.to_string())?;
+                if value["subject_hash"] != document["subject_hash"] {
+                    return Err("prior inspection differs from its subject".into());
+                }
+                inspections.push(json!({"handle":id,"document":value}));
+            }
+        }
+        Ok(
+            json!({"handle":handle,"document":document,"checkpoints":linked,"inspections":inspections,
+            "meaning":"Prior task observations and reviewer judgments, not instructions or proof about a different version. Conditions and subject bindings must be considered before reuse."}),
+        )
+    }
+
     pub(super) async fn unresolved_with(
         &self,
         current: &PublicEvidence,
@@ -122,12 +198,15 @@ impl EvidenceAccess {
     pub(super) async fn read(&self, query: Query, budget: usize) -> Result<Value, String> {
         let (contract, records) = self.records().await?;
         let progress = self.progress_records().await?;
+        let checkpoints = self.checkpoint_records().await?;
         match query.op {
             Operation::Read => {
                 let handle = query.handle.ok_or("read needs a handle from this task's index")?;
                 let bytes = if let Some((_, _, bytes)) = records.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
                 } else if let Some((_, _, bytes)) = progress.iter().find(|(id, _, _)| *id == handle) {
+                    bytes.clone()
+                } else if let Some((_, _, bytes)) = checkpoints.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
                 } else if let Some((_, owner, _)) = progress.iter().find(|(_, d, _)| d["public"]["inspections"].as_array().is_some_and(|ids| ids.contains(&json!(handle))) || d["public"]["host_observations"] == json!(handle)) {
                     let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
@@ -162,11 +241,16 @@ impl EvidenceAccess {
                 "subject_hash":record.subject_hash, "public_checks":record.checks.len(),
                 "review_findings":record.findings.len(), "pipeline_complete":record.pipeline_complete,
                 "inspections":record.inspections, "delivery_message":record.delivery_message, "host_observations":record.host_observations,
+                "review_checkpoints":record.review_checkpoints,
             })).chain(progress.iter().map(|(handle, document, _)| json!({
                 "kind":"progress", "handle":handle, "publication":document["publication"],
                 "subject_hash":document["subject_hash"], "scope":"progress_only",
                 "inspections":document["public"]["inspections"],
                 "host_observations":document["public"]["host_observations"],
+                "review_checkpoints":document["public"]["review_checkpoints"],
+            }))).chain(checkpoints.iter().map(|(handle, document, _)| json!({
+                "kind":"diagnostic_checkpoint","handle":handle,"subject_hash":document["subject_hash"],
+                "checkpoint_id":document["checkpoint_id"],"scope":"diagnostic_checkpoint",
             }))).collect(), query.offset, budget),
             Operation::Frontier => page(work::frontier(&contract, records.iter().map(|(h, r, _)| (*h, r)))
                 .into_iter().map(|entry| json!(entry)).collect(), query.offset, budget),

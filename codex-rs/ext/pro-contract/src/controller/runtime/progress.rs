@@ -10,6 +10,35 @@ use crate::controller::succession_budget::{Budget, KIND, now_ms};
 const PROGRESS: &str = "progress_grant_v1";
 const CLEANUP_SECONDS: u64 = 10;
 
+/// Caller-selected work, not a new task grant or a change to the frozen obligations.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProgressAssessment {
+    #[serde(default)]
+    pub review: bool,
+    #[serde(default)]
+    pub question: Option<String>,
+    #[serde(default)]
+    pub continue_from: Option<Digest>,
+    #[serde(default)]
+    pub assessment_secs: Option<u64>,
+}
+
+impl ProgressAssessment {
+    fn validate(&self) -> Result<(), String> {
+        if !self.review && (self.question.is_some() || self.continue_from.is_some()) {
+            return Err("question and continue_from require review=true".into());
+        }
+        if self.question.as_ref().is_some_and(|q| q.len() > 8192) {
+            return Err("diagnostic question exceeds 8 KiB".into());
+        }
+        if self.assessment_secs == Some(0) {
+            return Err("assessment_secs must be positive".into());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 struct Grant {
     binding: Digest,
@@ -266,6 +295,7 @@ impl ThreadRuntime {
             .await
     }
 
+    #[cfg(test)]
     pub(crate) async fn publish_progress_with_review(
         &self,
         request: String,
@@ -273,6 +303,27 @@ impl ThreadRuntime {
         owner: Option<(u64, u64)>,
         diagnostic_review: bool,
     ) -> Result<Value, String> {
+        self.publish_assessment(
+            request,
+            turn,
+            owner,
+            ProgressAssessment {
+                review: diagnostic_review,
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub(crate) async fn publish_assessment(
+        &self,
+        request: String,
+        turn: String,
+        owner: Option<(u64, u64)>,
+        options: ProgressAssessment,
+    ) -> Result<Value, String> {
+        options.validate()?;
+        let diagnostic_review = options.review;
         if request.is_empty() || request.len() > 128 {
             return Err("publication request_id must contain 1..128 bytes".into());
         }
@@ -287,8 +338,19 @@ impl ThreadRuntime {
             let stored: Value =
                 serde_json::from_slice(&self.store.get(handle).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
-            if stored["diagnostic_review"].as_bool().unwrap_or(false) != diagnostic_review {
-                return Err("request_id belongs to a different assessment; use a new ID to request different capabilities".into());
+            let original = if let Some(value) = stored.get("assessment_request") {
+                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?
+            } else {
+                ProgressAssessment {
+                    review: stored["diagnostic_review"].as_bool().unwrap_or(false),
+                    ..Default::default()
+                }
+            };
+            if original != options {
+                return Err(
+                    "request_id belongs to a different assessment; use a new ID for new work"
+                        .into(),
+                );
             }
             return Ok(
                 json!({"handle":handle,"reused":true,"scope":"progress_only","read_with":"contract_read_evidence"}),
@@ -304,7 +366,10 @@ impl ThreadRuntime {
             return Err("original publication allowance exhausted".into());
         }
         let seconds = self
-            .action_seconds(owner.map(|(_, end)| end), settings.assessment_secs)
+            .action_seconds(
+                owner.map(|(_, end)| end),
+                options.assessment_secs.unwrap_or(settings.assessment_secs),
+            )
             .await?;
         let deadline = now_ms()?.saturating_add((seconds + CLEANUP_SECONDS) * 1000);
         // Preparation is concurrent with this turn. One state subscription and one
@@ -338,6 +403,10 @@ impl ThreadRuntime {
                 active.terms.clone(),
                 active.base.clone(),
             )
+        };
+        let prior = match options.continue_from {
+            Some(handle) => Some(self.evidence_access().diagnostic_prior(handle).await?),
+            None => None,
         };
         let mut reserved = previous.clone();
         reserved.used = reserved
@@ -397,6 +466,14 @@ impl ThreadRuntime {
             "capture_boundary":"confirmed pause of the exclusively provisioned workspace executor; confirmed resume"})).await?;
         // Adaptive feedback never queries withheld acceptance cases.
         policy.sealed.clear();
+        let checks_policy_hash = super::digest_of(
+            "progress_checks_v1",
+            &(
+                &policy,
+                &self.profile.check,
+                super::identity::harness_sha256(),
+            ),
+        );
         let policy_hash = super::digest_of(
             "progress_assessment_v2",
             &(
@@ -418,6 +495,11 @@ impl ThreadRuntime {
                     .map_err(|e| e.to_string())?;
             if old["subject_hash"] == json!(subject.subject_hash)
                 && old["assessment_policy_hash"] == json!(policy_hash)
+                && old
+                    .get("assessment_request")
+                    .map_or(options == ProgressAssessment::default(), |value| {
+                        *value == json!(options)
+                    })
             {
                 let mut completed = reserved.clone();
                 completed.pending = None;
@@ -456,20 +538,54 @@ impl ThreadRuntime {
             terms,
             base,
         };
+        let mut diagnosis = super::verification::Diagnosis {
+            question: options.question.clone(),
+            prior,
+            checks: None,
+        };
+        if let Some(prior) = &diagnosis.prior {
+            let old = &prior["document"];
+            if old["scope"] == "progress_only"
+                && old["effects_resolved"] == true
+                && old["subject_hash"] == json!(handoff.subject.subject_hash)
+                && old["revision"] == json!(handoff.contract.revision)
+                && old["checks_policy_hash"] == json!(checks_policy_hash)
+                && old["check_receipts"]["complete"] == true
+            {
+                diagnosis.checks = Some(
+                    serde_json::from_value(old["check_receipts"].clone())
+                        .map_err(|e| e.to_string())?,
+                );
+            }
+        }
+        let checks_reused = diagnosis.checks.is_some();
         let assessment = self
-            .assess_snapshot(&handoff, &work, Some(deadline), false, diagnostic_review)
+            .assess_snapshot(
+                &handoff,
+                &work,
+                Some(deadline),
+                false,
+                diagnostic_review,
+                Some(&diagnosis),
+            )
             .await;
         let safe = assessment.effects_resolved;
         let review_available = assessment.public.review.is_some();
-        let feedback = match &assessment.verdict {
+        let checkpoint_count = assessment.public.review_checkpoints.len();
+        let mut feedback = match &assessment.verdict {
             crate::controller::decision::Verdict::Support => "Local assessment supports this frozen snapshot; full acceptance has not been performed.".to_string(),
             crate::controller::decision::Verdict::Defeat { residual, .. } => residual.clone(),
             crate::controller::decision::Verdict::NotVerified { reason, .. } => reason.clone(),
         };
+        if checkpoint_count > 0 {
+            feedback.push_str(&format!("\n{checkpoint_count} diagnostic checkpoint(s) retained independently of the final review. Read them through contract_read_evidence; their judgments remain bound to the recorded subject."));
+        }
         let document = json!({"schema_version":1,"scope":"progress_only","contract_id":handoff.contract.id.0,
             "revision":handoff.contract.revision,"publication":reserved.used,"request_id":request,
             "subject_hash":handoff.subject.subject_hash,"assessment_policy_hash":policy_hash,
             "diagnostic_review":diagnostic_review,
+            "assessment_request":options,"checks_policy_hash":checks_policy_hash,
+            "check_receipts":assessment.checks.as_ref().ok(),"checks_reused":checks_reused,
             "feedback":feedback,"public":assessment.public,"effects_resolved":safe});
         let handle = self
             .store
@@ -505,6 +621,8 @@ impl ThreadRuntime {
             json!({"handle":handle,"subject_hash":handoff.subject.subject_hash,"publication":reserved.used,
             "scope":"progress_only","feedback":crate::workers::bounded(&feedback, 2000),
             "diagnostic_review_requested":diagnostic_review,"review_available":review_available,
+            "review_checkpoints":document["public"]["review_checkpoints"],"checks_reused":checks_reused,
+            "review_error":document["public"]["review_error"],
             "effects_resolved":safe,"read_with":"contract_read_evidence","completion_certified":false}),
         )
     }

@@ -135,6 +135,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             policy,
             schema(),
             "scoped-observations-and-exclusive-conclusions-v3",
+            "diagnostic-checkpoints-v1",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )

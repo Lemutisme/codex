@@ -71,6 +71,112 @@ fn document(evidence: &mut ReviewEvidence, id: &str) -> (String, Value) {
     }
 }
 
+async fn checkpoint_fixture() -> (tempfile::TempDir, ReviewEvidence, crate::Ledger) {
+    let (root, evidence) = fixture("artifact");
+    let config = codex_state::SqliteConfig::new_for_testing(
+        codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(root.path()).unwrap(),
+    );
+    let ledger = crate::Ledger::open(&config, root.path()).await.unwrap();
+    let evidence = evidence.with_protocol_log(
+        ledger.clone(),
+        Default::default(),
+        json!({
+            "contract_id":"task","revision":1,"formal":false,"assessment_id":"one",
+        }),
+    );
+    (root, evidence, ledger)
+}
+
+#[tokio::test]
+async fn checkpoints_resolve_citations_are_durable_and_do_not_relabel_changed_work() {
+    let (_root, mut evidence, ledger) = checkpoint_fixture().await;
+    document(&mut evidence, "human_request");
+    document(&mut evidence, "contract_terms");
+    let (_, citation) = document(&mut evidence, "file:0");
+    let request = json!({"checkpoint_id":"one","review":{
+        "assessments":[{"requirement_id":"R1","observations":"The file is present.",
+            "judgment":{"status":"supported","evidence":citation}}],"terms_gap":[],"missing":""}});
+    let first = evidence.record_checkpoint(request.clone()).await;
+    assert!(first.success);
+    assert!(evidence.record_checkpoint(request.clone()).await.success);
+    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+    let event = ledger.experiments().await.unwrap().remove(0).event;
+    let handle = serde_json::from_value(event.body["handle"].clone()).unwrap();
+    let retained: Value = serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(retained["completion_certified"], false);
+    assert_eq!(retained["review"]["verdict"]["type"], "support");
+    assert!(
+        retained["review"]["verdict"]["coverage"][0]["evidence"]
+            .as_str()
+            .unwrap()
+            .contains("sha256")
+    );
+    let mut changed = request.clone();
+    changed["review"]["assessments"][0]["observations"] = json!("changed work");
+    assert!(!evidence.record_checkpoint(changed).await.success);
+    // Recreate the evidence capability: receipt recall does not depend on its
+    // previous citation counter or worker history, and performs no new action.
+    let restored = ReviewEvidence::new(
+        evidence.subject.clone(),
+        evidence.store.clone(),
+        &evidence.terms,
+        "checks".into(),
+    )
+    .unwrap()
+    .with_protocol_log(
+        ledger.clone(),
+        Default::default(),
+        evidence.protocol_log.as_ref().unwrap().2.clone(),
+    );
+    assert!(restored.record_checkpoint(request).await.success);
+    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn invalid_checkpoint_does_not_discard_prior_valid_work_or_create_new_obligations() {
+    let (_root, evidence, ledger) = checkpoint_fixture().await;
+    let valid = json!({"checkpoint_id":"finding","review":{
+        "assessments":[{"requirement_id":"R1","observations":"Local observation.",
+            "judgment":{"status":"defeated","findings":[{"location":"artifact","counterexample":"observed wrong value"}],"missing":"other behavior unexamined"}}],
+        "terms_gap":[],"missing":""}});
+    assert!(evidence.record_checkpoint(valid.clone()).await.success);
+    let mut invalid = valid;
+    invalid["checkpoint_id"] = json!("invalid");
+    invalid["review"]["assessments"][0]["requirement_id"] = json!("invented-obligation");
+    assert!(!evidence.record_checkpoint(invalid).await.success);
+    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+    let unissued = json!({"checkpoint_id":"false-support","review":{
+        "assessments":[{"requirement_id":"R1","observations":"claim",
+            "judgment":{"status":"supported","evidence":"e99"}}],"terms_gap":[],"missing":""}});
+    assert!(!evidence.record_checkpoint(unissued).await.success);
+    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+}
+
+#[test]
+fn prior_diagnosis_is_context_and_cannot_be_cited_as_current_artifact_or_execution_proof() {
+    let (_root, evidence) = fixture("new artifact");
+    let mut evidence = evidence
+        .with_diagnosis(
+            Some("Investigate the remaining issue"),
+            Some(json!({
+                "subject_hash":"old-subject","review":{"verdict":"support"}
+            })),
+        )
+        .unwrap();
+    document(&mut evidence, "human_request");
+    document(&mut evidence, "contract_terms");
+    let (_, prior) = document(&mut evidence, "prior_assessment");
+    let response = json!({"assessments":[{"requirement_id":"R1","observations":"prior claim",
+        "judgment":{"status":"supported","evidence":prior}}],"terms_gap":[],"missing":""});
+    assert!(
+        evidence
+            .resolve_review(&response.to_string())
+            .unwrap_err()
+            .to_string()
+            .contains("not observed evidence")
+    );
+}
+
 #[test]
 fn execution_coverage_requires_scoped_host_evidence_and_rejects_self_attestation() {
     let (_root, previous) = fixture("artifact");

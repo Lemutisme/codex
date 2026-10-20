@@ -32,10 +32,15 @@ it when it can change the next decision; a new executor by itself adds no inform
 
 When publish_progress is available, choose the assessment you need while useful work
 remains: checks for executable feedback, diagnostic review for a frozen-artifact assessment.
-Use contract_read_evidence to recover the retained observations and exact available
-invocations. Its frontier covers registered public checks, not all requirements. An empty
-failure list is not coverage. Preserve a usable artifact and do not spend the whole task
-allocation repeatedly rechecking unchanged facts.
+For diagnosis, set review=true and use question to name the uncertainty that can change
+your next decision. assessment_secs lets you allocate time within the original task grant.
+Use contract_read_evidence to recover retained observations, diagnostic checkpoints and
+exact available invocations. A reviewer may leave useful checkpoints even without a final
+judgment. A new request with continue_from can build on a prior progress/checkpoint handle;
+reopening the same request_id only recalls its result. Consider the recorded version and
+conditions before using earlier conclusions. Its frontier covers registered public checks,
+not all requirements. An empty failure list is not coverage. Preserve a usable artifact
+and do not spend the whole task allocation repeatedly rechecking unchanged facts.
 
 Keep established results, concrete defects, unexamined behavior and unsupported assumptions
 distinct. Missing observations do not erase successful work or certify an unexamined claim.

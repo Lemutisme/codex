@@ -3,6 +3,209 @@ use crate::controller::archive::{Operation, Query};
 use crate::{ProgressSettings, SuccessionSettings};
 use pretty_assertions::{assert_eq, assert_ne};
 
+#[tokio::test]
+async fn diagnostic_checkpoints_survive_timeout_and_continue_without_replaying_unchanged_checks() {
+    use super::super::ProgressAssessment;
+    let lane = progressing(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass, StepOutcome::Pass])
+            .reviews(&["CHECKPOINT_TIMEOUT", SUPPORT_REVIEW, SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let budget = lane.runtime.remaining_task_budget().await.unwrap();
+    let request = ProgressAssessment {
+        review: true,
+        question: Some("Does answer.txt match the requested content?".into()),
+        assessment_secs: Some(360),
+        ..Default::default()
+    };
+    let first = lane
+        .runtime
+        .publish_assessment(
+            "diagnose".into(),
+            "working-turn".into(),
+            None,
+            request.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first["review_available"], false);
+    assert_eq!(first["completion_certified"], false);
+    assert_eq!(first["review_checkpoints"].as_array().unwrap().len(), 1);
+    let checkpoint = serde_json::from_value(first["review_checkpoints"][0].clone()).unwrap();
+    let archived = lane
+        .runtime
+        .evidence_access()
+        .read(
+            Query {
+                op: Operation::Read,
+                handle: Some(checkpoint),
+                offset: 0,
+            },
+            8192,
+        )
+        .await
+        .unwrap();
+    assert!(
+        archived["text"]
+            .as_str()
+            .unwrap()
+            .contains("not yet differs from ready")
+    );
+    assert!(lane.contract().await.unwrap().candidate.is_none());
+    assert!(lane.ports.review_deadlines.lock().unwrap()[0] > Duration::from_secs(120));
+    let retry = lane
+        .runtime
+        .publish_assessment(
+            "diagnose".into(),
+            "working-turn".into(),
+            None,
+            request.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retry["handle"], first["handle"]);
+    assert_eq!(lane.ports.review_deadlines.lock().unwrap().len(), 1);
+    let mut changed_request = request.clone();
+    changed_request.question = Some("A different question".into());
+    assert!(
+        lane.runtime
+            .publish_assessment(
+                "diagnose".into(),
+                "working-turn".into(),
+                None,
+                changed_request
+            )
+            .await
+            .is_err()
+    );
+
+    let mut continuation = request.clone();
+    continuation.continue_from = Some(serde_json::from_value(first["handle"].clone()).unwrap());
+    let second = lane
+        .runtime
+        .publish_assessment(
+            "continue".into(),
+            "working-turn".into(),
+            None,
+            continuation.clone(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second["checks_reused"], true);
+    assert_eq!(lane.ports.checked.lock().unwrap().len(), 1);
+    assert!(
+        lane.ports
+            .review_contexts
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|v| v["checkpoints"].as_array().is_some_and(|a| !a.is_empty()))
+    );
+    assert!(
+        lane.ports
+            .review_contexts
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|v| v["question"] == "Does answer.txt match the requested content?")
+    );
+    lane.write_answer("ready");
+    continuation.continue_from = Some(checkpoint);
+    let third = lane
+        .runtime
+        .publish_assessment(
+            "new-version".into(),
+            "working-turn".into(),
+            None,
+            continuation,
+        )
+        .await
+        .unwrap();
+    assert_ne!(first["subject_hash"], third["subject_hash"]);
+    assert_eq!(third["checks_reused"], false);
+    assert_eq!(lane.ports.checked.lock().unwrap().len(), 2);
+    assert_eq!(
+        lane.runtime.remaining_task_budget().await.unwrap()["deadline_ms"],
+        budget["deadline_ms"]
+    );
+    assert!(lane.contract().await.unwrap().candidate.is_none());
+}
+
+#[tokio::test]
+async fn diagnosis_cannot_import_arbitrary_handles_or_extend_the_original_grant() {
+    use super::super::ProgressAssessment;
+    let lane = progressing(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let arbitrary = lane
+        .runtime
+        .store
+        .put(br#"{"kind":"review_checkpoint_v1"}"#)
+        .unwrap();
+    let invalid = ProgressAssessment {
+        review: true,
+        continue_from: Some(arbitrary),
+        ..Default::default()
+    };
+    assert!(
+        lane.runtime
+            .publish_assessment("foreign".into(), "turn".into(), None, invalid)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        lane.runtime.remaining_task_budget().await.unwrap()["publications_used"],
+        0
+    );
+    let deadline = crate::controller::succession_budget::now_ms().unwrap() + 40_000;
+    let request = ProgressAssessment {
+        review: true,
+        assessment_secs: Some(u64::MAX),
+        ..Default::default()
+    };
+    // A current root cannot borrow a successor owner token. Test the actual parent
+    // clamp by shortening the original grant's deadline in this isolated fixture.
+    let mut budget: crate::controller::succession_budget::Budget = lane
+        .ledger
+        .record(
+            crate::controller::succession_budget::KIND,
+            &lane.thread_id.to_string(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let old = budget.clone();
+    budget.deadline_ms = deadline;
+    assert!(
+        lane.ledger
+            .compare_exchange_record(
+                crate::controller::succession_budget::KIND,
+                &lane.thread_id.to_string(),
+                Some(&old),
+                &budget
+            )
+            .await
+            .unwrap()
+    );
+    lane.runtime
+        .publish_assessment("bounded".into(), "turn".into(), None, request)
+        .await
+        .unwrap();
+    assert!(lane.ports.review_deadlines.lock().unwrap()[0] <= Duration::from_secs(40));
+    assert_eq!(
+        lane.runtime.remaining_task_budget().await.unwrap()["deadline_ms"],
+        deadline
+    );
+}
+
 async fn progressing(ports: FakePorts) -> Lane {
     let mut lane = lane(ports).await;
     let runtime = Arc::get_mut(&mut lane.runtime).unwrap();

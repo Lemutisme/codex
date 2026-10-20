@@ -77,6 +77,8 @@ struct FakePorts {
     sealed_checked: Mutex<Vec<Vec<DifferentialCase>>>,
     reviews: Mutex<VecDeque<&'static str>>,
     review_prompts: Mutex<Vec<String>>,
+    review_contexts: Mutex<Vec<serde_json::Value>>,
+    review_deadlines: Mutex<Vec<Duration>>,
     review_gate: Option<Arc<Notify>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
@@ -110,6 +112,8 @@ impl FakePorts {
             sealed_checked: Mutex::new(Vec::new()),
             reviews: Mutex::new(VecDeque::new()),
             review_prompts: Mutex::new(Vec::new()),
+            review_contexts: Mutex::new(Vec::new()),
+            review_deadlines: Mutex::new(Vec::new()),
             review_gate: None,
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
@@ -214,6 +218,8 @@ impl Ports for FakePorts {
                 }
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);
+                    self.review_deadlines.lock().unwrap().push(turn.deadline);
+                    let scripted = self.reviews.lock().unwrap().pop_front();
                     if let Some(gate) = &self.review_gate {
                         gate.notified().await;
                     }
@@ -225,7 +231,12 @@ impl Ports for FakePorts {
                             );
                             let codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText { text } = &response.content_items[0] else { panic!("text evidence"); };
                             let index: serde_json::Value = serde_json::from_str(text).unwrap();
-                            if index["entry"]["path"] == "hindsight.json" {
+                            if index["entry"]["path"] == "hindsight.json"
+                                || matches!(
+                                    index["entry"]["source_id"].as_str(),
+                                    Some("diagnosis_request" | "prior_assessment")
+                                )
+                            {
                                 let mut offset = 0;
                                 let mut document = String::new();
                                 loop {
@@ -239,18 +250,32 @@ impl Ports for FakePorts {
                                     }
                                     offset = chunk["next_offset"].as_u64().unwrap();
                                 }
-                                self.review_prompts.lock().unwrap().push(document);
+                                if index["entry"]["path"] == "hindsight.json" {
+                                    self.review_prompts.lock().unwrap().push(document);
+                                } else {
+                                    self.review_contexts
+                                        .lock()
+                                        .unwrap()
+                                        .push(serde_json::from_str(&document).unwrap());
+                                }
                             }
                             if index["eof"] == true {
                                 break;
                             }
                             cursor = index["next_offset"].as_u64().unwrap();
                         }
+                        if scripted == Some("CHECKPOINT_TIMEOUT") {
+                            let response = evidence.record_checkpoint(serde_json::json!({
+                                "checkpoint_id":"observed-counterexample",
+                                "review":{"assessments":[{"requirement_id":"R1","observations":"The current answer is not ready.",
+                                    "judgment":{"status":"defeated","findings":[{"location":"answer.txt","counterexample":"not yet differs from ready"}],"missing":""}}],
+                                    "terms_gap":[],"missing":""},
+                            })).await;
+                            assert!(response.success, "{response:?}");
+                            return Err(WorkerError::TimedOut);
+                        }
                     }
-                    self.reviews
-                        .lock()
-                        .unwrap()
-                        .pop_front()
+                    scripted
                         .map(str::to_string)
                         .ok_or_else(|| WorkerError::Failed("no scripted review".to_string()))
                 }

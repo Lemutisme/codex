@@ -8,6 +8,7 @@ mod progress;
 mod recovery;
 mod succession;
 mod verification;
+pub(crate) use progress::ProgressAssessment;
 
 use std::collections::HashSet;
 use std::future::Future;
