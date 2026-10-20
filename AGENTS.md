@@ -11,6 +11,10 @@ For ProContract work, follow the user's layer definitions in
 - **Kernel** contains the domain-independent progress/responsibility semantics
   and authorized transitions. Do not promote empirical workflow heuristics into
   kernel invariants.
+- **Time**: a task may have no hard deadline. User time expectations guide strategy;
+  explicit user/benchmark/environment resource limits constrain execution. Durable
+  progress, continuation and cancellation must not depend on a finite global
+  countdown. Existing mandatory task-lifetime assumptions are migration work.
 
 Keep these layers decoupled. Choosing when to diagnose, review, hand off, change
 methods, or replay checks belongs to strategy; implementing those operations

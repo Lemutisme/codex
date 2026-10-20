@@ -71,6 +71,35 @@ existing policy/code coupling to examine. They are not definitions of the
 kernel or the essential harness. Changing them must preserve the actual task
 grant and the historical experiment records.
 
+## Task lifetime, expectations and execution limits
+
+User clarification, 2026-10-20: real long-horizon tasks may have no time limit,
+although users may have expectations about when useful results will arrive.
+
+A continuing responsibility does not require a finite execution deadline. Treat
+absence of a hard deadline explicitly, not as a large finite sentinel or an
+implicitly renewed sequence of expiring tasks. Persisting progress, handing off,
+resuming and cancelling must work independently of a global countdown.
+
+Keep three facts distinct:
+
+- A user time expectation guides priorities, scope of intermediate deliveries,
+  communication and method choice through strategy context. It does not silently
+  become authority to terminate the task or redefine completion.
+- An explicit user/benchmark limit or actual environment restriction is enforced
+  by harness. Missing time limits do not change other permissions or allocations.
+- An action's chosen allocation or environment timeout bounds that execution when
+  applicable. Ending an attempt does not by itself end the underlying responsibility
+  or erase its completed results. Do not replace a mandatory global deadline with
+  another universal mandatory action slice.
+
+The current required `SuccessionSettings.total_secs`, nonoptional persisted
+deadline and finite-grant prerequisite for progress are implementation limitations
+to migrate. Ordinary tasks must not inherit benchmark deadlines by default.
+Existing admitted finite grants and frozen experiment records retain their original
+meaning. This agreement records the target semantics; it does not claim that the
+current runtime already supports open-ended task lifetimes.
+
 ## Development rule
 
 For a proposed change, identify the smallest required capability or invariant and
