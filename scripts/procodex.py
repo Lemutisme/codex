@@ -70,8 +70,8 @@ def main(argv=None):
     parser.add_argument(
         "--task-seconds",
         type=int,
-        default=14400,
-        help="original-intake wall-clock deadline for automatic succession; never reset by a new session",
+        default=None,
+        help="optional hard wall-clock limit from original intake; omit for no task deadline. Existing admitted limits are preserved on resume",
     )
     parser.add_argument(
         "--container-only",
@@ -85,8 +85,8 @@ def main(argv=None):
         if not separator or not value or name in inputs:
             parser.error("--input requires unique NAME=FILE declarations")
         inputs[name] = value
-    if (args.successor_sessions is not None and not 0 <= args.successor_sessions <= 2**32-1) or not 1 <= args.task_seconds <= (2**64-1)//1000:
-        parser.error("succession requires an optional nonnegative count and a positive task duration")
+    if (args.successor_sessions is not None and not 0 <= args.successor_sessions <= 2**32-1) or (args.task_seconds is not None and not 1 <= args.task_seconds <= (2**64-1)//1000):
+        parser.error("session count must be nonnegative and an explicit task duration must be positive")
     if args.check is not None and (
         not args.check.strip() or len(args.check.encode()) > 4096
     ):
@@ -178,6 +178,8 @@ def main(argv=None):
         inputs=inputs,
         strategy=args.strategy,
     )
+    admitted_settings = json.loads((home / "pro_contract/settings.json").read_text())
+    admitted_seconds = (admitted_settings.get("succession") or {}).get("total_secs")
     if rest and rest[0] in ("doctor", "status"):
         if rest[0] == "status":
             database = home / "pro_contract/ledger_1.sqlite"
@@ -205,7 +207,7 @@ def main(argv=None):
                     pro_contract=True,
                     automatic_general_rsi=False,
                     fresh_executor_sessions=args.successor_sessions,
-                    succession_task_seconds=args.task_seconds,
+                    succession_task_seconds=admitted_seconds,
                     approval_policy=config["approval_policy"],
                     sandbox_mode=config["sandbox_mode"],
                     check=args.check,
@@ -261,8 +263,9 @@ def main(argv=None):
         "[procodex] Native contracts enabled. No background benchmark or automatic general-task RSI.",
         file=sys.stderr,
     )
+    allocation = "no hard task deadline" if admitted_seconds is None else f"original {admitted_seconds}s hard task limit"
     print(
-        f"[procodex] Continuations share the original {args.task_seconds}s task grant; explicit session ceiling: {args.successor_sessions}. No task/budget reset.",
+        f"[procodex] Continuations share {allocation}; existing authority and accounting persist.",
         file=sys.stderr,
     )
     os.chdir(workspace)

@@ -20,6 +20,7 @@ fn fixture(directory: PathBuf, lifetime: Duration) -> Result<InspectionGrant, St
         directory,
         Digest::of(b"frozen subject"),
         &crate::Terms {
+            context: Vec::new(),
             intake_text: "original task".into(),
             requirements: vec![],
             out_of_scope: vec![],

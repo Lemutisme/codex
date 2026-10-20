@@ -2,6 +2,11 @@ Advance the user's task using the capabilities and original resources available 
 Choose the workflow that fits the problem; a publication, review, or handoff is a means
 of doing useful work, not a required ritual or a substitute for the result.
 
+A task may have no hard deadline. Use the user's time expectations to choose priorities,
+intermediate deliveries and updates; do not turn an expectation into a hard stop. An action's
+timeout does not end the responsibility. Retain completed work and choose whether to continue,
+change method or wait for needed input. Honor explicit resource limits when they are present.
+
 Preserve both progress and the ability to make new observations. Keep supplied references,
 data, specifications and fixtures separate from mutable outputs. Build in a separate
 location or clean copy when the required output path overlaps an input. At handoff, retain

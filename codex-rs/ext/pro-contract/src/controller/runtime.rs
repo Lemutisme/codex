@@ -347,9 +347,21 @@ impl ThreadRuntime {
             }
             state.phase = Phase::Drafting;
         }
-        if let Some(grant) = &self.settings.succession {
+        // Progress needs durable task identity/accounting, not permission to replace
+        // executors or a finite lifetime. Preserve legacy same-thread repair when
+        // succession is absent; the fallback grant admits no fresh executors.
+        let task_grant = self.settings.succession.clone().or_else(|| {
+            self.settings
+                .progress
+                .as_ref()
+                .map(|_| crate::SuccessionSettings {
+                    max_sessions: Some(0),
+                    total_secs: None,
+                })
+        });
+        if let Some(grant) = task_grant {
             let budget = super::succession_budget::now_ms()
-                .and_then(|now| super::succession_budget::Budget::new(grant.clone(), now));
+                .and_then(|now| super::succession_budget::Budget::new(grant, now));
             let admitted = match budget {
                 Ok(budget) => {
                     budget
@@ -476,7 +488,7 @@ impl ThreadRuntime {
         let (message, sealed) = tokio::join!(
             self.run_worker(
                 drafter::prompt(&input),
-                drafter::schema(),
+                drafter::schema_for(&text),
                 "pro_contract_draft",
             ),
             self.probe(&text, &base, &base_dir, reference_help.as_deref()),
@@ -881,10 +893,10 @@ impl ThreadRuntime {
     }
 
     /// A new turn supersedes whatever the previous one froze.
-    pub(crate) async fn turn_started(self: &Arc<Self>) {
+    pub(crate) async fn turn_started(self: &Arc<Self>) -> u64 {
         self.cancel_successor().await;
         self.arm_deadline().await;
-        let continuing = {
+        let (continuing, epoch) = {
             let mut state = self.state.lock().await;
             let continuing = state.phase == Phase::Resting
                 && state.contract.as_ref().is_some_and(|active| {
@@ -895,7 +907,7 @@ impl ThreadRuntime {
             }
             state.frozen = None;
             state.last_idle = None;
-            continuing
+            (continuing, state.epoch)
         };
         if continuing {
             self.record_status(
@@ -905,6 +917,7 @@ impl ThreadRuntime {
             )
             .await;
         }
+        epoch
     }
 
     /// Freezes the candidate at the turn-end boundary, before completion is emitted.
@@ -945,6 +958,15 @@ impl ThreadRuntime {
 
     /// The thread came to rest: a completed turn is the executor's handoff.
     pub(crate) async fn thread_idle(self: &Arc<Self>, cause: ThreadIdleCause) {
+        self.thread_idle_for(cause, None).await;
+    }
+
+    pub(crate) async fn turn_aborted(self: &Arc<Self>, epoch: u64) {
+        self.thread_idle_for(ThreadIdleCause::Interrupted, Some(epoch))
+            .await;
+    }
+
+    async fn thread_idle_for(self: &Arc<Self>, cause: ThreadIdleCause, owner: Option<u64>) {
         if cause == ThreadIdleCause::Completed
             && let Err(reason) = self.commit_delivery().await
         {
@@ -954,6 +976,9 @@ impl ThreadRuntime {
         }
         let phase = {
             let mut state = self.state.lock().await;
+            if owner.is_some_and(|epoch| epoch != state.epoch) {
+                return;
+            }
             state.last_idle = Some(cause);
             state.phase
         };

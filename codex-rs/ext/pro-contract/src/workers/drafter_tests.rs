@@ -33,6 +33,55 @@ fn input() -> DraftInput<'static> {
 }
 
 #[test]
+fn context_and_source_catalog_are_explicit_without_weakening_real_constraints() {
+    let request =
+        "Write the report. Prefer a quick result. Python is allowed. Do not delete the input.";
+    let input = DraftInput {
+        intake_text: request,
+        ..input()
+    };
+    let shape = super::schema_for(request);
+    for field in ["requirements", "process_constraints", "context"] {
+        assert_eq!(
+            shape["properties"][field]["items"]["properties"]["source_id"]["enum"],
+            json!(["request:0"])
+        );
+    }
+    let mut response = json!({"decision":"contract","reason":"", "requirements":[
+        {"id":"R1","text":"Write the report.","source_id":"request:0","inferred":false}],
+        "context":[{"kind":"preference","text":"Prefer a quick result.","source_id":"request:0"},
+            {"kind":"permission","text":"Python is allowed.","source_id":"request:0"}],
+        "process_constraints":[{"text":"Do not delete the input.","source_id":"request:0"}],
+        "out_of_scope":[],"differential_cases":[]});
+    let Draft::Contract { terms, .. } = parse(&response.to_string(), &input).unwrap() else {
+        panic!("contract");
+    };
+    assert_eq!(terms.context.len(), 2);
+    assert_eq!(terms.obligations().len(), 2);
+    assert_eq!(
+        terms.obligations()[1].scope,
+        crate::ObligationScope::Execution
+    );
+    assert!(
+        terms
+            .context
+            .iter()
+            .all(|item| item.source_quote == request)
+    );
+    response["context"][0]["source_id"] = json!("0");
+    assert!(
+        parse(&response.to_string(), &input).is_err(),
+        "an unissued source alias must not be normalized into authority"
+    );
+    let incomplete = super::schema_for(&"large request ".repeat(1000));
+    assert_eq!(
+        incomplete["properties"]["decision"]["enum"],
+        json!(["none"])
+    );
+    assert_eq!(incomplete["properties"]["requirements"]["maxItems"], 0);
+}
+
+#[test]
 fn artifact_only_obligations_are_reviewed_without_inventing_executable_checks() {
     let input = DraftInput {
         intake_text: "Prove the claim.",
@@ -134,6 +183,7 @@ fn host_references_resolve_all_authority_fields_without_model_transcription() {
     assert_eq!(
         terms,
         Terms {
+            context: Vec::new(),
             intake_text: INTAKE.to_string(),
             requirements: vec![Requirement {
                 id: "R1".to_string(),
@@ -198,6 +248,7 @@ fn a_contract_draft_becomes_terms_and_an_evidence_policy() {
         draft,
         Draft::Contract {
             terms: Terms {
+                context: Vec::new(),
                 intake_text: INTAKE.to_string(),
                 requirements: vec![Requirement {
                     id: "R1".to_string(),

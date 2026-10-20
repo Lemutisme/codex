@@ -76,7 +76,7 @@ impl ReviewEvidence {
             "catalog_protocol":"scoped-obligations-v1",
             "terms_hash":crate::digest_of("terms", terms),
             "intake_text":terms.intake_text, "obligations":terms.obligations(),
-            "out_of_scope":terms.out_of_scope,
+            "out_of_scope":terms.out_of_scope,"context":terms.context,
             "meaning":"This catalog is derived from the frozen terms. It grants no new authority. requirement_id in the response schema refers to these exact obligation IDs."
         }))
             .map_err(|error| WorkerError::Malformed(error.to_string()))?;

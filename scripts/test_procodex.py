@@ -12,6 +12,28 @@ import procodex_config as procodex
 
 @unittest.skipUnless(sys.platform == "linux", "Linux Docker launcher")
 class ConfigurationTests(unittest.TestCase):
+    def test_default_task_has_no_deadline_and_resume_does_not_invent_one(self):
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,_=procodex.configure(*args,continuous_work=True)
+        first=json.loads((home/'pro_contract/settings.json').read_text())
+        self.assertEqual(first['succession'],{'total_secs':None})
+        same,_=procodex.configure(*args,continuous_work=True,task_seconds=60)
+        self.assertEqual(json.loads((same/'pro_contract/settings.json').read_text())['succession'],first['succession'])
+
+    def test_new_default_cannot_remove_a_previously_admitted_finite_limit(self):
+        args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
+        home,_=procodex.configure(*args,continuous_work=True,task_seconds=21600)
+        same,_=procodex.configure(*args,continuous_work=True)
+        self.assertEqual(home,same)
+        self.assertEqual(json.loads((same/'pro_contract/settings.json').read_text())['succession'],{'total_secs':21600})
+
+    def test_explicit_limit_applies_even_without_progress_or_successors(self):
+        home,_=procodex.configure(self.root/"package",self.workspace,self.root/"procodex",self.source,"unused",None,
+                                 continuous_work=False,successor_sessions=0,task_seconds=60)
+        settings=json.loads((home/'pro_contract/settings.json').read_text())
+        self.assertEqual(settings['succession'],{'max_sessions':0,'total_secs':60})
+        self.assertNotIn('progress',settings)
+
     def test_time_only_continuations_do_not_reintroduce_a_default_count_on_resume(self):
         args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
         home,_=procodex.configure(*args,successor_sessions=None,task_seconds=3600,continuous_work=True)

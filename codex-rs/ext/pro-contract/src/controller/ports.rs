@@ -78,7 +78,7 @@ pub(crate) struct SuccessorTurn {
     pub id: ThreadId,
     pub environment_id: String,
     pub packet: String,
-    pub deadline_ms: u64,
+    pub deadline_ms: Option<u64>,
     pub cancel: watch::Receiver<bool>,
     pub evidence: super::archive::EvidenceAccess,
     pub progress: Option<super::evidence_tool::ProgressAccess>,

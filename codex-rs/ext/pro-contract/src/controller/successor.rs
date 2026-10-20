@@ -38,12 +38,20 @@ pub(super) async fn run(
     mut turn: SuccessorTurn,
 ) -> Result<SuccessorExit, String> {
     let admission = async {
-        let remaining_ms = turn
-            .deadline_ms
-            .checked_sub(super::succession_budget::now_ms()?)
-            .filter(|ms| *ms > 0)
-            .ok_or("executor time allowance exhausted before startup")?;
-        let deadline = tokio::time::Instant::now() + Duration::from_millis(remaining_ms);
+        let deadline = match turn.deadline_ms {
+            Some(end) => {
+                let remaining_ms = end
+                    .checked_sub(super::succession_budget::now_ms()?)
+                    .filter(|ms| *ms > 0)
+                    .ok_or("executor time allowance exhausted before startup")?;
+                Some(
+                    tokio::time::Instant::now()
+                        .checked_add(Duration::from_millis(remaining_ms))
+                        .ok_or("executor deadline is not representable")?,
+                )
+            }
+            None => None,
+        };
         if *turn.cancel.borrow() {
             return Err("successor cancelled before startup".into());
         }
@@ -135,7 +143,7 @@ pub(super) async fn run(
         .await
         .map_err(|e| e.to_string())?;
     let result = async {
-        if tokio::time::Instant::now() >= deadline || *turn.cancel.borrow()
+        if deadline.is_some_and(|end| tokio::time::Instant::now() >= end) || *turn.cancel.borrow()
             || parent.conversation_history_snapshot().await.user_message_revision() != authorization_revision
         {
             return Err("executor time allowance or owner cancellation during startup".into());
@@ -144,7 +152,12 @@ pub(super) async fn run(
             StartIfIdleSubmission::Started { turn_id } => turn_id,
             StartIfIdleSubmission::NotSubmitted { reason } => return Err(format!("{reason:?}")),
         };
-        let deadline = tokio::time::sleep_until(deadline);
+        let deadline = async move {
+            match deadline {
+                Some(end) => tokio::time::sleep_until(end).await,
+                None => std::future::pending::<()>().await,
+            }
+        };
         tokio::pin!(deadline);
         let mut last_error = None;
         loop {

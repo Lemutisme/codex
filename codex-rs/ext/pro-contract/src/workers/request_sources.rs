@@ -53,6 +53,18 @@ impl<'a> RequestSources<'a> {
         output
     }
 
+    pub(super) fn ids(&self) -> Vec<String> {
+        if !self.complete {
+            return Vec::new();
+        }
+        self.spans
+            .iter()
+            .enumerate()
+            .filter(|(_, text)| text.chars().any(char::is_alphanumeric))
+            .map(|(index, _)| format!("request:{index}"))
+            .collect()
+    }
+
     pub(super) fn resolve(&self, id: &str) -> Result<String, WorkerError> {
         let index = id
             .strip_prefix("request:")

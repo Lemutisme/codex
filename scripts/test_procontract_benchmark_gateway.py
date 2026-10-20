@@ -19,6 +19,105 @@ def payload(output=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_owner_close_during_connection_cannot_dispatch_afterward(self):
+        connecting=threading.Event();release=threading.Event();received=[]
+        class Upstream(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*_):pass
+            def do_POST(self):received.append(True);self.send_error(500)
+        upstream=http.server.ThreadingHTTPServer(('127.0.0.1',0),Upstream)
+        threading.Thread(target=upstream.serve_forever,daemon=True).start()
+        original=http.client.HTTPConnection.connect
+        def connect(connection):
+            if connection.port==upstream.server_port:
+                connecting.set();release.wait(5)
+            return original(connection)
+        with tempfile.TemporaryDirectory() as root:
+            budget=Budget(Path(root)/'budget.sqlite',seconds=None,requests=None)
+            gateway=Gateway(budget,f'http://127.0.0.1:{upstream.server_port}/v1')
+            thread=threading.Thread(target=gateway.serve_forever,daemon=True);thread.start();budget.arm()
+            def post():
+                conn=http.client.HTTPConnection('127.0.0.1',gateway.server_port,timeout=3)
+                try:
+                    conn.request('POST','/v1/responses',body=payload());conn.getresponse().read()
+                except (OSError,http.client.HTTPException):pass
+                finally:conn.close()
+            try:
+                with patch.object(http.client.HTTPConnection,'connect',connect), concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    response=pool.submit(post);self.assertTrue(connecting.wait(2))
+                    gateway.shutdown();gateway.server_close();thread.join();release.set()
+                    response.result(timeout=2)
+                    for _ in range(100):
+                        with budget.lock:
+                            finished=budget.db.execute('select finished from requests').fetchone()[0]
+                        if finished is not None:break
+                        time.sleep(.01)
+                    self.assertIsNotNone(finished)
+                self.assertEqual(received,[])
+                self.assertEqual(budget.status()['used'],1)
+            finally:
+                release.set();gateway.server_close();budget.close()
+        upstream.shutdown();upstream.server_close()
+
+    def test_untimed_allocation_requires_admission_and_survives_restart_without_renewal(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'budget.sqlite'
+            budget=Budget(path,seconds=None,requests=None)
+            with self.assertRaisesRegex(ValueError,'unarmed'):
+                budget.reserve(b'x',b'x',[])
+            original=budget.arm()
+            self.assertIsNone(original['deadline'])
+            with patch('procontract_benchmark_gateway.time.time',return_value=original['started']+10**9):
+                self.assertIsNone(budget.reserve(b'x',b'x',[])[1])
+            budget.close()
+            reopened=Budget(path,seconds=None,requests=None)
+            self.assertEqual(reopened.arm()['started'],original['started'])
+            self.assertEqual(reopened.status()['used'],1)
+            reopened.close()
+            with self.assertRaisesRegex(ValueError,'profile changed'):
+                Budget(path,seconds=60,requests=None)
+
+    def test_absent_persisted_deadline_cannot_widen_an_admitted_finite_grant(self):
+        with tempfile.TemporaryDirectory() as root:
+            budget=Budget(Path(root)/'budget.sqlite',seconds=60)
+            budget.arm()
+            with budget.db:budget.db.execute('UPDATE budget SET deadline=NULL')
+            with self.assertRaisesRegex(ValueError,'unarmed'):
+                budget.reserve(b'x',b'x',[])
+            budget.close()
+
+    def test_untimed_http_stream_can_be_closed_by_its_owner(self):
+        entered=threading.Event();release=threading.Event()
+        class Upstream(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*_):pass
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
+                self.wfile.write(b'data: {"type":"response.created","response":{"id":"open"}}\n\n');self.wfile.flush()
+                entered.set();release.wait(5)
+        upstream=http.server.ThreadingHTTPServer(('127.0.0.1',0),Upstream)
+        threading.Thread(target=upstream.serve_forever,daemon=True).start()
+        with tempfile.TemporaryDirectory() as root:
+            budget=Budget(Path(root)/'budget.sqlite',seconds=None,requests=None)
+            gateway=Gateway(budget,f'http://127.0.0.1:{upstream.server_port}/v1')
+            thread=threading.Thread(target=gateway.serve_forever,daemon=True);thread.start();budget.arm()
+            def post():
+                conn=http.client.HTTPConnection('127.0.0.1',gateway.server_port,timeout=3)
+                try:
+                    conn.request('POST','/v1/responses',body=payload())
+                    r=conn.getresponse();return r.status,r.read()
+                finally:conn.close()
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    response=pool.submit(post)
+                    self.assertTrue(entered.wait(2))
+                    gateway.shutdown();gateway.server_close();thread.join()
+                    self.assertEqual(response.result(timeout=2)[0],200)
+                self.assertEqual(budget.status()['used'],1)
+                self.assertIsNone(budget.status()['deadline'])
+            finally:
+                release.set();gateway.server_close();budget.close()
+        upstream.shutdown();upstream.server_close()
+
     def test_shared_budget_is_atomic_and_survives_restart(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root)/'budget.sqlite'

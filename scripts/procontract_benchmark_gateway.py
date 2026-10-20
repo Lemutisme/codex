@@ -82,7 +82,7 @@ def prepare_payload(raw, model, effort):
 
 
 class Budget:
-    """Account for every attempt; requests=None means only time limits dispatch."""
+    """Account for every attempt; None independently removes a time or count ceiling."""
 
     def __init__(self, path, *, seconds=21600, requests=1000, model="gpt-5.6-luna", effort="max"):
         self.path = Path(path)
@@ -105,7 +105,8 @@ class Budget:
     def arm(self):
         with self.lock, self.db:
             now = time.time()
-            self.db.execute("UPDATE budget SET started=?,deadline=? WHERE started IS NULL", (now, now+self.profile['seconds']))
+            seconds = self.profile['seconds']
+            self.db.execute("UPDATE budget SET started=?,deadline=? WHERE started IS NULL", (now, None if seconds is None else now+seconds))
         return self.status()
 
     def status(self):
@@ -136,9 +137,10 @@ class Budget:
         with self.lock:
             try:
                 self.db.execute("BEGIN IMMEDIATE")
-                deadline = self.db.execute("SELECT deadline FROM budget").fetchone()[0]
+                started, deadline = self.db.execute("SELECT started,deadline FROM budget").fetchone()
                 used = self.db.execute("SELECT count(*) FROM requests").fetchone()[0]
-                if deadline is None or time.time() >= deadline:
+                if (started is None or (deadline is None and self.profile['seconds'] is not None)
+                        or (deadline is not None and time.time() >= deadline)):
                     raise ValueError("wall_time_exhausted_or_unarmed")
                 if self.profile['requests'] is not None and used >= self.profile['requests']:
                     raise ValueError("model_request_budget_exhausted")
@@ -171,6 +173,7 @@ class Gateway(http.server.ThreadingHTTPServer):
         if self.upstream.scheme == "http" and self.upstream.hostname not in ("127.0.0.1", "localhost"):
             raise ValueError("plaintext upstream must be loopback")
         self.api_key = api_key
+        self.closing = threading.Event()
         self.connection_lock = threading.Lock()
         self.connections = set()
         super().__init__(("127.0.0.1", 0), Handler)
@@ -180,6 +183,7 @@ class Gateway(http.server.ThreadingHTTPServer):
         return f"http://127.0.0.1:{self.server_port}/v1"
 
     def server_close(self):
+        self.closing.set()
         with self.connection_lock:
             for endpoint in self.connections:
                 try:
@@ -223,7 +227,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.refuse(str(error), 409)
         upstream = self.server.upstream
         cls = http.client.HTTPSConnection if upstream.scheme == 'https' else http.client.HTTPConnection
-        connection = cls(upstream.hostname, upstream.port, timeout=max(.001, deadline-time.time()))
+        connection = cls(upstream.hostname, upstream.port, timeout=None if deadline is None else max(.001, deadline-time.time()))
         sockets = [self.connection]
         with self.server.connection_lock:
             self.server.connections.add(self.connection)
@@ -237,9 +241,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 except OSError:
                     pass
 
-        timer = threading.Timer(max(0, deadline-time.time()), expire)
-        timer.daemon = True
-        timer.start()
+        timer = None
+        if deadline is not None:
+            timer = threading.Timer(max(0, deadline-time.time()), expire)
+            timer.daemon = True
+            timer.start()
         began = False
         try:
             connection.connect()
@@ -248,6 +254,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.server.connections.add(connection.sock)
             if expired.is_set():
                 raise TimeoutError("task deadline reached")
+            if self.server.closing.is_set():
+                raise TimeoutError("gateway closed before dispatch")
             headers = {"Content-Type": "application/json", "Accept-Encoding": "identity"}
             if self.server.api_key:
                 headers['Authorization'] = 'Bearer ' + self.server.api_key
@@ -263,7 +271,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header('Connection', 'close')
             self.end_headers()
             began = True
-            self.connection.settimeout(max(.001, deadline-time.time()))
+            self.connection.settimeout(None if deadline is None else max(.001, deadline-time.time()))
             pending = bytearray()
             while chunk := response.read1(65536):
                 pending.extend(chunk)
@@ -283,10 +291,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.wfile.flush()
         except (OSError, ValueError, http.client.HTTPException) as error:
             budget.checkpoint(request, failure=type(error).__name__)
-            if not began and not expired.is_set():
+            if not began and not expired.is_set() and not self.server.closing.is_set():
                 self.refuse('upstream transport failed', 502)
         finally:
-            timer.cancel()
+            if timer:
+                timer.cancel()
             with self.server.connection_lock:
                 self.server.connections.difference_update(sockets)
             connection.close()

@@ -72,6 +72,7 @@ def custom_call(body, code, name):
 class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
         deadline_fixture = getattr(self, "deadline_fixture", False)
+        owner_cancel = getattr(self, "owner_cancel_fixture", False)
         observation_fixture = getattr(self, "observation_fixture", False)
         missing_access = getattr(self, "missing_access_fixture", False)
         correction_exhausted = getattr(self, "correction_exhausted_fixture", False)
@@ -354,6 +355,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 ],
                                 out_of_scope=[],
                                 process_constraints=[],
+                                context=[],
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
@@ -500,7 +502,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                         observations="Some local examples pass." if findings else "",
                                         judgment=judgment))
                                 message = dict(assessments=rows, terms_gap=message["terms_gap"], missing=message["missing"])
-                        elif deadline_fixture and role == "executor":
+                        elif (deadline_fixture or owner_cancel) and role == "executor" and (not owner_cancel or counts[role] == 1):
                             heartbeat = "import time\nfrom pathlib import Path\nPath('answer.txt').write_text('ready\\n')\nfor i in range(900):\n Path('heartbeat.txt').write_text(str(i))\n time.sleep(.1)\n"
                             code = "text(await tools.exec_command(" + json.dumps(dict(cmd="python3 -c " + shlex.quote(heartbeat),yield_time_ms=30000,max_output_tokens=1000)) + "));"
                             items = [custom_call(body, code, "wait-for-original-deadline")]
@@ -545,7 +547,7 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                                 code='text(await tools.exec_command({cmd:"printf \'ready\\n\' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));'
                             items = [custom_call(body, code, f"progress-{stage}")]
                             message = None
-                        elif counts[role] == 1 or (repair_review and role == "executor" and counts[role] == 3):
+                        elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or (repair_review and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
                                 if (succession or repair_review) and role == "executor" and counts[role] == 1
@@ -661,8 +663,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 None if repair_review else 'python3 -c \'from pathlib import Path; assert Path("answer.txt").read_text().strip() == "ready"; print("NATIVE-CHECK-PASSED")\'',
                 isolation="container-only",
                 successor_sessions=2 if succession else 0,
-                task_seconds=75 if late_successor else 60 if deadline_fixture else 3600,
-                continuous_work=progression or successor_progress or deadline_fixture or protocol_correction or late_successor,
+                task_seconds=getattr(self, "task_seconds", 75 if late_successor else 60 if deadline_fixture else 3600),
+                continuous_work=progression or successor_progress or deadline_fixture or owner_cancel or protocol_correction or late_successor,
                 inputs={"source.txt": root/"source-input.txt"} if input_strategy else None,
                 strategy=root/"strategy" if input_strategy else None,
             )
@@ -731,9 +733,12 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 cwd=workspace,
             )
 
+            completed_turns = []
             def handle(value):
                 if "id" in value and "method" in value:
                     server.refuse(value)
+                if value.get('method') == 'turn/completed':
+                    completed_turns.append(value['params']['turn'])
 
             status = None
             try:
@@ -756,7 +761,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     ),
                     handle,
                 )["thread"]["id"]
-                server.request(
+                started_turn = server.request(
                     "turn/start",
                     dict(
                         threadId=thread,
@@ -770,6 +775,9 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     ),
                     handle,
                 )
+                interrupted = False
+                resumed_turn = None
+                cancelled_grant = None
                 deadline = time.monotonic() + 120
                 while time.monotonic() < deadline:
                     try:
@@ -787,7 +795,30 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                             ).fetchone()
                         if row:
                             status = json.loads(row[0])
+                            if owner_cancel and not interrupted and status.get('contract_id') and (workspace/'heartbeat.txt').exists():
+                                server.request('turn/interrupt', {'threadId':thread,'turnId':started_turn['turn']['id']},handle)
+                                interrupted = True
                             if status.get("resting"):
+                                if owner_cancel and resumed_turn is None:
+                                    self.assertTrue(interrupted)
+                                    self.assertEqual(status.get('class'),'no_handoff',status)
+                                    with sqlite3.connect(database) as connection:
+                                        cancelled_grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
+                                    self.assertIsNone(cancelled_grant['deadline_ms'])
+                                    self.assertEqual(server.close()['status'],'exited')
+                                    if server.process.stdout: server.process.stdout.close()
+                                    heartbeat=(workspace/'heartbeat.txt').read_text()
+                                    time.sleep(.4)
+                                    self.assertEqual((workspace/'heartbeat.txt').read_text(),heartbeat,'interrupted command is still writing')
+                                    server=AppServer([str(package/'bin/codex'),'--enable','pro_contract','--disable','hooks','app-server'],env,root/'rpc.jsonl',root/'stderr.log',cwd=workspace)
+                                    server.request('initialize',{'clientInfo':{'name':'open-task-recovery','version':'1'},'capabilities':{'experimentalApi':True}},handle)
+                                    server.notify('initialized')
+                                    restored=server.request('thread/resume',{'threadId':thread},handle)
+                                    self.assertEqual(restored['thread']['id'],thread)
+                                    resumed_turn=server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':'Continue the same task from the retained work.','text_elements':[]}]},handle)['turn']['id']
+                                    continue
+                                if owner_cancel and not any(t['id']==resumed_turn and t['status']=='completed' for t in completed_turns):
+                                    continue
                                 break
                 self.assertEqual(errors, [])
                 if input_strategy:
@@ -797,6 +828,21 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
                 self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
+                if getattr(self, 'task_seconds', 'finite') is None:
+                    with sqlite3.connect(database) as connection:
+                        grant_row=connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()
+                        grant=json.loads(grant_row[0]) if grant_row else None
+                        commands=[json.loads(r[0])['command']['type'] for r in connection.execute('SELECT command_json FROM events ORDER BY seq')]
+                        all_events=[json.loads(r[0])['body'] for r in connection.execute('SELECT event_json FROM experiment_events')]
+                    if grant is not None:
+                        self.assertIsNone(grant['deadline_ms']);self.assertIsNone(grant['grant']['total_secs'])
+                    else:
+                        self.assertNotIn('succession',json.loads((home/'pro_contract/settings.json').read_text()))
+                    self.assertEqual(commands.count('issue'),1)
+                    self.assertFalse(any(e.get('phase')=='original_grant_expired' for e in all_events))
+                    if owner_cancel:
+                        self.assertEqual(grant['started_ms'],cancelled_grant['started_ms'])
+                        self.assertEqual(counts.get('draft'),1)
                 if missing_access:
                     self.assertEqual(status["class"],"reviewer_unable")
                     self.assertIn("No completed feedback access",status["detail"])
@@ -1024,6 +1070,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 real_provider_calls=0,
                                 progress_fixture=progression,resource_limit_fixture=resource_limit,
                                 successor_progress_fixture=successor_progress,deadline_fixture=deadline_fixture,
+                                owner_cancel_fixture=owner_cancel,task_seconds=getattr(self,'task_seconds',75 if late_successor else 60 if deadline_fixture else 3600),
                             ),
                             indent=2,
                         )

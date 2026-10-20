@@ -14,7 +14,7 @@ choices are migration work, not a reason to assign those choices to harness.
 
 ## The unit of continuity
 
-A task persists; an executor is one bounded attempt to advance it. The host owns
+A task persists; an executor is one interruptible attempt to advance it. The host owns
 the original authorization, contract, artifacts, evidence and remaining grant.
 Neither conversation history nor an executor's summary is the responsibility's
 source of truth.
@@ -37,6 +37,33 @@ explicit distinction between a proposed candidate, evidential support, and an
 authorized settlement. These contributions do not require test-time RSI.
 
 ## Implemented behavior
+
+Ordinary `procodex` tasks have no hard task deadline by default. `--task-seconds N`
+installs an explicit limit; reopening a task retains its originally admitted grant.
+Persisted `deadline_ms: null` means no hard task deadline, not an unstarted task or
+a renewable allowance. Progress, successors and diagnostic continuation work under
+either form. A progress-only task needs no permission to launch successors.
+Remaining-budget metadata includes `started_ms`, `elapsed_ms`, and nullable
+`deadline_ms`/`remaining_ms`. Explicit original limits still clamp local actions;
+worker, command and chosen assessment allocations remain distinct.
+
+User interruption records a no-handoff result and preserves outstanding
+responsibility. Native shutdown/restart and thread resume retain the original
+grant; an abort from an older executor epoch cannot stop newer work. No absent
+deadline is replaced by a large sentinel timestamp or periodic task renewal.
+
+Frozen terms now include optional `context` entries for request preferences,
+permissions and background. These guide strategy without entering the obligation
+catalog or granting tool authority. The drafter selects exact request-source IDs
+from the production schema; the host resolves them to original text. The reviewer
+checks classification against that text, including actual requirements incorrectly
+placed in context. Empty context is omitted from serialization so historical terms
+keep their hashes. Existing frozen obligations are never rewritten automatically.
+
+The evaluation gateway independently supports optional time and request ceilings.
+It still requires explicit arming and shuts down owned connections on close.
+ProgramBench defaults remain six hours and 1000 requests; untimed capability
+qualification does not change that benchmark profile.
 
 Frozen terms now have a derived obligation catalog. Existing acceptance requirement IDs
 remain unchanged; the host assigns collision-free IDs to execution constraints. Each
@@ -108,7 +135,7 @@ Existing task settings and grants are preserved. The native configuration is:
 ```
 
 Count ceilings and `executor_slice_secs` are optional explicit grants. New launchers
-inherit the original task deadline without inventing publication/session counts or a
+inherit the optional original task deadline without inventing publication/session counts or a
 30-minute executor window. Admission does not subtract an estimate of future verification
 work: allocating time to implementation and assessment belongs to strategy. A successor
 packet distinguishes its effective executor deadline from the original task deadline;
@@ -166,7 +193,7 @@ files; it does not change the original task grant.
 This first capture adapter requires exactly one exclusively provisioned workspace
 executor. It verifies the label, exact mount and lifecycle before pausing. External host
 editors and multiple threads writing the same workspace are outside this capture contract.
-Original deadlines clamp preparation, verification and continuations. Expiry interrupts
+Explicit original deadlines clamp preparation, verification and continuations. Expiry interrupts
 and awaits the task's native actor shutdown, then records exhaustion or unresolved cleanup;
 it does not delete containers by workspace label. Zero successor sessions still permits a
 finite original task grant.
@@ -224,7 +251,7 @@ condition, not a claim that registered checks cover the task.
 Candidate judgment and evidence readiness are distinct. A failed public check
 can defeat the candidate while sealed reference observations are insufficient.
 The Defeat and the evidence blockage are retained separately. The controller may
-repair the observed candidate failure under its existing finite grant; the blocker
+repair the observed candidate failure under its existing grant; the blocker
 still forbids Support after that repair. A blocker without an actionable Defeat
 does not schedule another solver. Authority, cancellation, confirmed shutdown and
 intake-time budgets govern every continuation.

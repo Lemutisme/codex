@@ -32,6 +32,22 @@ pub struct ProcessConstraint {
     pub source_quote: String,
 }
 
+/// Request context guides strategy; it does not create obligations or execution authority.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextKind {
+    Preference,
+    Permission,
+    Background,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestContext {
+    pub kind: ContextKind,
+    pub text: String,
+    pub source_quote: String,
+}
+
 /// The contract's terms: frozen at Issue and hashed into `terms_hash`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Terms {
@@ -41,6 +57,10 @@ pub struct Terms {
     pub out_of_scope: Vec<OutOfScope>,
     #[serde(default)]
     pub process_constraints: Vec<ProcessConstraint>,
+    /// Non-obligatory context stays explicit instead of being overloaded into constraints.
+    /// Omission preserves the serialization and hashes of historical terms.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub context: Vec<RequestContext>,
 }
 
 /// The object an obligation concerns. Evidence may establish only its recorded scope.
@@ -101,6 +121,27 @@ mod obligation_tests {
     use super::*;
 
     #[test]
+    fn request_context_preserves_legacy_hashes_without_creating_obligations() {
+        let old = serde_json::json!({"intake_text":"Write the report. Prefer a quick result.",
+            "requirements":[{"id":"R1","text":"Write the report.","source_quote":"Write the report.","inferred":false}],
+            "out_of_scope":[],"process_constraints":[]});
+        let mut terms: Terms = serde_json::from_value(old.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&terms).unwrap(), old);
+        let legacy = crate::digest_of("terms", &terms);
+        terms.context.push(RequestContext {
+            kind: ContextKind::Preference,
+            text: "Prefer a quick result.".into(),
+            source_quote: "Prefer a quick result.".into(),
+        });
+        assert_eq!(terms.obligations().len(), 1);
+        assert_eq!(terms.obligations()[0].id, "R1");
+        assert_ne!(crate::digest_of("terms", &terms), legacy);
+        let restored: Terms =
+            serde_json::from_value(serde_json::to_value(&terms).unwrap()).unwrap();
+        assert_eq!(restored, terms);
+    }
+
+    #[test]
     fn historical_cutoffs_keep_their_wire_values_and_new_nulls_remain_absent() {
         let old = serde_json::json!({"class":"checks_and_review","build_command":null,
             "candidate_command":null,"candidate_tests":false,"differential":[],
@@ -138,6 +179,7 @@ mod obligation_tests {
     #[test]
     fn derived_obligations_preserve_terms_bytes_and_have_disjoint_stable_ids() {
         let terms = Terms {
+            context: Vec::new(),
             intake_text: "Produce a report and preserve the inputs.".into(),
             requirements: vec![Requirement {
                 id: "process:0".into(),

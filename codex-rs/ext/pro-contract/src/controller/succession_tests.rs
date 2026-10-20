@@ -10,7 +10,7 @@ async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> La
     let mut lane = lane(ports).await;
     Arc::get_mut(&mut lane.runtime).unwrap().settings.succession = Some(SuccessionSettings {
         max_sessions: Some(max_sessions),
-        total_secs: 3600,
+        total_secs: Some(3600),
     });
     *lane.ports.successor_workspace.lock().unwrap() = Some(lane.workspace.clone());
     *lane.ports.successor_answers.lock().unwrap() = answers
@@ -18,6 +18,77 @@ async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> La
         .map(std::string::ToString::to_string)
         .collect();
     lane
+}
+
+#[tokio::test]
+async fn open_ended_successor_is_cancelled_by_its_owner_without_settling_the_responsibility() {
+    let mut ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail]);
+    ports.successor_gate = Some(Arc::new(Notify::new()));
+    let mut lane = successors(ports, 2, &["must not replace owner work"]).await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .settings
+        .succession
+        .as_mut()
+        .unwrap()
+        .total_secs = None;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "failed").await;
+    lane.wait_for("succeeding").await;
+    lane.runtime.turn_started().await;
+    lane.write_answer("new owner work");
+    let budget: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(budget.deadline_ms, None);
+    assert_eq!((budget.launches, budget.pending), (1, None));
+    assert_eq!(
+        std::fs::read_to_string(lane.workspace.join("answer.txt")).unwrap(),
+        "new owner work"
+    );
+    assert_eq!(
+        lane.contract().await.unwrap().standing,
+        codex_pro_contract::Standing::Outstanding
+    );
+}
+
+#[tokio::test]
+async fn open_ended_successors_share_accounting_and_do_not_acquire_a_local_deadline() {
+    let mut lane = successors(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Fail, StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+        2,
+        &["ready"],
+    )
+    .await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .settings
+        .succession
+        .as_mut()
+        .unwrap()
+        .total_secs = None;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "wrong").await;
+    lane.wait_for("supported").await;
+    let packets = lane.ports.successor_packets.lock().unwrap().clone();
+    let packet: serde_json::Value = serde_json::from_str(&packets[0].1).unwrap();
+    assert!(packet["original_task_deadline_ms"].is_null());
+    assert!(packet["executor_deadline_ms"].is_null());
+    let budget: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(budget.launches, 1);
+    assert_eq!(budget.deadline_ms, None);
 }
 
 #[tokio::test]
@@ -46,8 +117,14 @@ async fn two_fresh_sessions_inherit_lessons_and_only_one_responsibility() {
     let second: serde_json::Value = serde_json::from_str(&packets[1].1).unwrap();
     for (_, packet) in &packets {
         let value: serde_json::Value = serde_json::from_str(packet).unwrap();
-        assert_eq!(value["executor_deadline_ms"], before.deadline_ms);
-        assert_eq!(value["original_task_deadline_ms"], before.deadline_ms);
+        assert_eq!(
+            value["executor_deadline_ms"],
+            serde_json::json!(before.deadline_ms)
+        );
+        assert_eq!(
+            value["original_task_deadline_ms"],
+            serde_json::json!(before.deadline_ms)
+        );
     }
     assert_eq!(second["original_task"], INTAKE);
     assert_eq!(

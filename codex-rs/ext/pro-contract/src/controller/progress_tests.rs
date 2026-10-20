@@ -4,6 +4,77 @@ use crate::{ProgressSettings, SuccessionSettings};
 use pretty_assertions::{assert_eq, assert_ne};
 
 #[tokio::test]
+async fn abort_without_a_deadline_retains_responsibility_and_a_stale_abort_cannot_stop_new_work() {
+    let mut lane = progressing(FakePorts::new(CONTRACT_DRAFT)).await;
+    Arc::get_mut(&mut lane.runtime)
+        .unwrap()
+        .settings
+        .succession
+        .as_mut()
+        .unwrap()
+        .total_secs = None;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let original = lane.runtime.remaining_task_budget().await.unwrap();
+    let old = lane.runtime.turn_started().await;
+    let current = lane.runtime.turn_started().await;
+    lane.runtime.turn_aborted(old).await;
+    assert!(!lane.status().await.unwrap().resting);
+    lane.runtime.turn_aborted(current).await;
+    let stopped = lane.wait_for("not_verified").await;
+    assert_eq!(stopped.class, "no_handoff");
+    assert_eq!(
+        lane.contract().await.unwrap().standing,
+        codex_pro_contract::Standing::Outstanding
+    );
+    lane.runtime.turn_started().await;
+    lane.wait_for("working").await;
+    assert_eq!(
+        lane.runtime.remaining_task_budget().await.unwrap()["started_ms"],
+        original["started_ms"]
+    );
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn progress_and_recovery_do_not_require_succession_or_a_finite_task_lifetime() {
+    let mut lane = progressing(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW, SUPPORT_REVIEW]),
+    )
+    .await;
+    let runtime = Arc::get_mut(&mut lane.runtime).unwrap();
+    runtime.settings.succession = None;
+    runtime.settings.progress.as_mut().unwrap().assessment_secs = 5;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let before = lane.runtime.remaining_task_budget().await.unwrap();
+    assert!(before["deadline_ms"].is_null());
+    assert!(before["remaining_ms"].is_null());
+    assert_eq!(before["session_limit"], 0);
+    let result = lane
+        .runtime
+        .publish_progress("work".into(), "turn".into())
+        .await
+        .unwrap();
+    assert_eq!(result["completion_certified"], false);
+    lane.runtime.restore().await;
+    assert_eq!(
+        lane.runtime
+            .publish_progress("work".into(), "turn".into())
+            .await
+            .unwrap()["handle"],
+        result["handle"]
+    );
+    let after = lane.runtime.remaining_task_budget().await.unwrap();
+    assert_eq!(before["started_ms"], after["started_ms"]);
+    assert!(after["deadline_ms"].is_null());
+    assert_eq!(after["publications_used"], 1);
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn diagnostic_checkpoints_survive_timeout_and_continue_without_replaying_unchanged_checks() {
     use super::super::ProgressAssessment;
     let lane = progressing(
@@ -165,7 +236,6 @@ async fn diagnosis_cannot_import_arbitrary_handles_or_extend_the_original_grant(
         lane.runtime.remaining_task_budget().await.unwrap()["publications_used"],
         0
     );
-    let deadline = crate::controller::succession_budget::now_ms().unwrap() + 40_000;
     let request = ProgressAssessment {
         review: true,
         assessment_secs: Some(u64::MAX),
@@ -183,7 +253,9 @@ async fn diagnosis_cannot_import_arbitrary_handles_or_extend_the_original_grant(
         .unwrap()
         .unwrap();
     let old = budget.clone();
-    budget.deadline_ms = deadline;
+    budget.grant.total_secs = Some(40);
+    let deadline = budget.started_ms + 40_000;
+    budget.deadline_ms = Some(deadline);
     assert!(
         lane.ledger
             .compare_exchange_record(
@@ -211,7 +283,7 @@ async fn progressing(ports: FakePorts) -> Lane {
     let runtime = Arc::get_mut(&mut lane.runtime).unwrap();
     runtime.settings.succession = Some(SuccessionSettings {
         max_sessions: Some(1),
-        total_secs: 3600,
+        total_secs: Some(3600),
     });
     runtime.settings.progress = Some(ProgressSettings {
         executor_label: "procontract.task=test".into(),

@@ -101,7 +101,7 @@ impl ThreadRuntime {
         self.record_status(
             "succeeding",
             &format!(
-                "fresh executor {id}; same responsibility, {} launches; explicit session limit {:?}; original deadline {}",
+                "fresh executor {id}; same responsibility, {} launches; explicit session limit {:?}; original deadline {:?}",
                 reserved.launches, reserved.grant.max_sessions, reserved.deadline_ms
             ),
             /*resting*/ false,
@@ -176,7 +176,10 @@ impl ThreadRuntime {
                 return;
             }
             Ok(SuccessorExit::Stopped(reason)) | Err(reason) => {
-                let class = if now_ms().is_ok_and(|now| now >= reserved.deadline_ms) {
+                let class = if reserved
+                    .deadline_ms
+                    .is_some_and(|end| now_ms().is_ok_and(|now| now >= end))
+                {
                     NotVerifiedClass::BudgetExhausted
                 } else {
                     NotVerifiedClass::NoHandoff
@@ -224,7 +227,7 @@ impl ThreadRuntime {
         residual: String,
         previous_turn: &str,
         epoch: u64,
-    ) -> Result<(Budget, u64, String, ThreadId), String> {
+    ) -> Result<(Budget, Option<u64>, String, ThreadId), String> {
         let key = self.thread_id.to_string();
         let previous: Budget = self
             .ledger
@@ -241,7 +244,14 @@ impl ThreadRuntime {
             .as_ref()
             .and_then(|progress| progress.executor_slice_secs)
         {
-            deadline_ms = deadline_ms.min(now_ms()?.saturating_add(seconds * 1000));
+            let local = now_ms()?
+                .checked_add(
+                    seconds
+                        .checked_mul(1000)
+                        .ok_or("executor allowance overflow")?,
+                )
+                .ok_or("executor deadline overflow")?;
+            deadline_ms = crate::controller::succession_budget::earliest(deadline_ms, Some(local));
         }
         let journal = self.ledger.experiments().await.map_err(|e| e.to_string())?;
         let intake = journal

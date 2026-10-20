@@ -29,6 +29,7 @@ fn fixture(text: &str) -> (tempfile::TempDir, ReviewEvidence) {
         subject,
         store,
         &Terms {
+            context: Vec::new(),
             intake_text: "Write hindsight.json".to_string(),
             requirements: vec![crate::Requirement {
                 id: "R1".to_string(),

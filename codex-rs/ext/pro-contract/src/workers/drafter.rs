@@ -82,6 +82,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
         &(
             instructions(policy),
             schema(),
+            "request-context-and-source-enums-v1",
             cases::OBSERVATION_FORMAT,
             super::request_sources::FORMAT,
         ),
@@ -107,8 +108,38 @@ pub(crate) fn schema() -> Value {
             "text": {"type": "string"},
             "source_id": {"type": "string"},
         }))},
+        "context": {"type":"array", "items":strict_object(json!({
+            "kind":{"type":"string","enum":["preference","permission","background"]},
+            "text":{"type":"string"},"source_id":{"type":"string"},
+        }))},
         "differential_cases": {"type": "array", "items": cases::case_schema()},
     }))
+}
+
+pub(crate) fn schema_for(request: &str) -> Value {
+    let mut value = schema();
+    let ids = RequestSources::new(request).ids();
+    if ids.is_empty() {
+        value["properties"]["decision"]["enum"] = json!(["none"]);
+        for field in [
+            "requirements",
+            "process_constraints",
+            "context",
+            "out_of_scope",
+            "differential_cases",
+        ] {
+            value["properties"][field]["maxItems"] = json!(0);
+        }
+        return value;
+    }
+    for field in ["requirements", "process_constraints", "context"] {
+        value["properties"][field]["items"]["properties"]["source_id"]["enum"] = json!(ids);
+    }
+    let mut nullable: Vec<Value> = ids.into_iter().map(Value::String).collect();
+    nullable.push(Value::Null);
+    value["properties"]["out_of_scope"]["items"]["properties"]["human_source_id"]["enum"] =
+        json!(nullable);
+    value
 }
 
 /// Parses and validates the drafter's final message.
@@ -215,12 +246,24 @@ fn validate_contract(mut raw: RawDraft, input: &DraftInput<'_>) -> Result<Draft,
         };
         constraint.source_quote = Some(span);
     }
+    let context = raw
+        .context
+        .into_iter()
+        .map(|item| {
+            Ok(crate::RequestContext {
+                kind: item.kind,
+                text: item.text,
+                source_quote: sources.resolve(&item.source_id)?,
+            })
+        })
+        .collect::<Result<Vec<_>, WorkerError>>()?;
     if input.reference_command.is_none() && !raw.differential_cases.is_empty() {
         return malformed("differential cases need a reference program".to_string());
     }
     let differential = cases::validate_cases(raw.differential_cases, MAX_DIFFERENTIAL_CASES)?;
     Ok(Draft::Contract {
         terms: Terms {
+            context,
             intake_text: input.intake_text.to_string(),
             requirements: raw
                 .requirements
@@ -283,9 +326,19 @@ struct RawDraft {
     out_of_scope: Vec<RawExclusion>,
     #[serde(default)]
     process_constraints: Vec<RawConstraint>,
+    #[serde(default)]
+    context: Vec<RawContext>,
     differential_cases: Vec<cases::RawCase>,
     #[serde(default, rename = "candidate_tests")]
     _legacy_candidate_tests: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawContext {
+    kind: crate::ContextKind,
+    text: String,
+    source_id: String,
 }
 
 // Legacy quote fields remain readable; newly generated drafts use host-owned source IDs.

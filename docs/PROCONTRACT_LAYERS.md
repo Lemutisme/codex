@@ -93,12 +93,20 @@ Keep three facts distinct:
   or erase its completed results. Do not replace a mandatory global deadline with
   another universal mandatory action slice.
 
-The current required `SuccessionSettings.total_secs`, nonoptional persisted
-deadline and finite-grant prerequisite for progress are implementation limitations
-to migrate. Ordinary tasks must not inherit benchmark deadlines by default.
-Existing admitted finite grants and frozen experiment records retain their original
-meaning. This agreement records the target semantics; it does not claim that the
-current runtime already supports open-ended task lifetimes.
+The native adapter now accepts an optional `SuccessionSettings.total_secs` and
+persists a nullable deadline. Ordinary `procodex` tasks default to no hard task
+deadline. Progress and continuation do not require a finite grant. Explicit
+limits, including historical admitted grants and benchmark profiles, keep their
+original meaning across restarts. Local action/tool limits remain separate.
+Interruption retains responsibility and completed work without certifying handoff
+or completion; a later turn may resume the same task.
+
+The terms adapter keeps non-obligatory request context (preferences, permissions,
+background) separate from acceptance obligations. Strategy interprets that context;
+its storage does not grant execution authority. Independent review still compares
+the classification with the original request, so placing a genuine requirement in
+context cannot silently remove it. This is a request/evidence representation in
+the harness/store, not a new settlement-kernel transition.
 
 ## Development rule
 

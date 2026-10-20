@@ -12,6 +12,12 @@ class ContinuousNativeTests(unittest.TestCase):
         for name,value in flags.items():setattr(case,name,value)
         case.debug()
 
+    def test_open_ended_successor_can_publish_under_the_same_responsibility(self):
+        self.run_case(task_seconds=None, succession_fixture=True, successor_progress_fixture=True)
+
+    def test_open_ended_owner_interrupts_active_execution_and_resumes_without_a_new_grant(self):
+        self.run_case(task_seconds=None, owner_cancel_fixture=True)
+
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 

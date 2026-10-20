@@ -653,6 +653,7 @@ fn the_reviewer_sees_sealed_checks_only_in_aggregate() {
 
 fn terms() -> Terms {
     Terms {
+        context: Vec::new(),
         intake_text: "Implement it. Do not read the reference.".to_string(),
         requirements: vec![Requirement {
             id: "R1".to_string(),

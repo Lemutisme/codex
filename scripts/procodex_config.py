@@ -48,7 +48,7 @@ def configure(
     *,
     isolation="nested",
     successor_sessions=None,
-    task_seconds=14400,
+    task_seconds=None,
     review_compute=False,
     continuous_work=False,
     inputs=None,
@@ -58,9 +58,10 @@ def configure(
     if isolation not in ("nested", "container-only"):
         raise ValueError("unknown execution isolation")
     if (successor_sessions is not None and
-            (type(successor_sessions) is not int or not 0 <= successor_sessions <= 2**32-1)) or not 1 <= task_seconds <= (2**64-1)//1000:
+            (type(successor_sessions) is not int or not 0 <= successor_sessions <= 2**32-1)) or (task_seconds is not None and
+            (type(task_seconds) is not int or not 1 <= task_seconds <= (2**64-1)//1000)):
         raise ValueError(
-            "succession requires an optional nonnegative session count and a positive representable task duration"
+            "session count must be nonnegative and an explicit task duration must be positive and representable"
         )
     if any(c in str(workspace) for c in ("\n", "\0", ",")):
         raise ValueError("workspace path is not representable as a Docker bind mount")
@@ -196,7 +197,7 @@ def configure(
         repair_attempts=1,
         worker=dict(model=None, reasoning_effort=None, deadline_secs=900),
     )
-    if successor_sessions is None or successor_sessions or continuous_work:
+    if successor_sessions is None or successor_sessions or continuous_work or task_seconds is not None:
         settings["succession"] = dict(total_secs=task_seconds)
         if successor_sessions is not None:
             settings["succession"]["max_sessions"] = successor_sessions
@@ -221,7 +222,8 @@ def configure(
     # A resumed task keeps its original capability grant, including when CLI defaults change.
     if existing and existing.get("progress"):
         settings["progress"] = existing["progress"]
-        settings["succession"] = existing["succession"]
+        if "succession" in existing:
+            settings["succession"] = existing["succession"]
     elif continuous_work and existing is None:
         settings["progress"] = dict(executor_label=f"procontract.task={key}",
             assessment_secs=120)

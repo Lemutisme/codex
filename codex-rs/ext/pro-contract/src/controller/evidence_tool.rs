@@ -164,10 +164,13 @@ impl<'call> ToolExecutor<ToolCall<'call>> for EvidenceTool {
 pub(crate) struct ProgressAccess {
     pub runtime: std::sync::Weak<super::runtime::ThreadRuntime>,
     pub epoch: u64,
-    pub deadline_ms: u64,
+    pub deadline_ms: Option<u64>,
 }
 
-struct ProgressTool(Arc<super::runtime::ThreadRuntime>, Option<(u64, u64)>);
+struct ProgressTool(
+    Arc<super::runtime::ThreadRuntime>,
+    Option<(u64, Option<u64>)>,
+);
 impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
     fn tool_name(&self) -> ToolName {
         ToolName::plain("publish_progress")
@@ -175,7 +178,7 @@ impl<'call> ToolExecutor<ToolCall<'call>> for ProgressTool {
     fn spec(&self) -> ToolSpec {
         ToolSpec::Function(ResponsesApiTool {
             name: "publish_progress".into(),
-            description: "Capture a consistent frozen workspace and assess it within the original task grant. review=true requests independent diagnosis; question focuses it and continue_from supplies prior public progress or a diagnostic checkpoint as historical context. Completed checks may be reused only for the same subject, policy and environment. assessment_secs selects this action's time allocation within the original deadline. Stop background jobs first. Repeating request_id reopens the same assessment; new work needs a new ID. Read retained checks, diagnostic checkpoints and final review through contract_read_evidence. This operation does not propose a candidate, grant Support, settle responsibility or finish the task.".into(),
+            description: "Capture a consistent frozen workspace and assess it under the original task authority. review=true requests independent diagnosis; question focuses it and continue_from supplies prior public progress or a diagnostic checkpoint as historical context. Complete checks may be reused only for the same subject, policy and environment. assessment_secs allocates time to this action within any original hard deadline. budget.deadline_ms=null means no hard task deadline, not zero time. Stop background jobs first. Repeating request_id recalls its result; new work needs a new ID. Read retained results through contract_read_evidence. This operation does not propose, grant Support, settle or finish the task.".into(),
             strict: false, defer_loading: None, output_schema: None,
             parameters: parse_tool_input_schema(&json!({"type":"object","properties":{
                 "request_id":{"type":"string","minLength":1,"maxLength":128},

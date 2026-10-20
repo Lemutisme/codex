@@ -14,6 +14,7 @@ use crate::WorkerError;
 
 fn terms() -> Terms {
     Terms {
+        context: Vec::new(),
         intake_text: "Implement the tool. Keep exit codes identical.".to_string(),
         requirements: vec![
             Requirement {

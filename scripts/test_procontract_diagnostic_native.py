@@ -176,7 +176,7 @@ text({changedVersionChecked:true});
             (source/'config.toml').write_text(procodex.toml(dict(model_provider='fixture',model_providers=dict(fixture=dict(name='Fixture',base_url=f'http://127.0.0.1:{provider.server_port}/v1',wire_api='responses',supports_websockets=False,request_max_retries=0,stream_max_retries=0)))))
             home, config = procodex.configure(package,workspace,root/'state',source,os.environ['PROCODEX_TEST_IMAGE'],
                 "python3 -c 'from pathlib import Path; assert Path(\"answer.txt\").read_text().strip()==\"ready\"'",
-                isolation='container-only',successor_sessions=0,task_seconds=180,continuous_work=True)
+                isolation='container-only',successor_sessions=0,task_seconds=getattr(self,'task_seconds',180),continuous_work=True)
             if docker := os.environ.get('PROCODEX_TEST_DOCKER'):
                 path=home/'environments.toml'; path.write_text(path.read_text().replace('program="docker"','program='+json.dumps(docker)))
                 path=home/'pro_contract/settings.json'; settings=json.loads(path.read_text());settings['evaluation']['check']['docker']=docker;path.write_text(json.dumps(settings))
@@ -207,7 +207,11 @@ text({changedVersionChecked:true});
                 with contextlib.closing(sqlite3.connect(home/'pro_contract/ledger_1.sqlite')) as db:
                     events=[json.loads(r[0])['body'] for r in db.execute('select event_json from experiment_events order by seq')]
                     commands=[json.loads(r[0])['command']['type'] for r in db.execute('select command_json from events order by seq')]
+                    allocation=json.loads(db.execute("select json from records where kind='succession'").fetchone()[0])
                 self.assertEqual(commands,['issue','propose','support'])
+                if getattr(self,'task_seconds',180) is None:
+                    self.assertIsNone(allocation['deadline_ms']);self.assertIsNone(allocation['grant']['total_secs'])
+                    self.assertFalse(any(e.get('phase')=='original_grant_expired' for e in events))
                 self.assertEqual(sum(e.get('phase')=='review_checkpoint' for e in events),3)
                 publications=[e for e in events if e.get('phase')=='progress_assessed'];self.assertEqual(len(publications),3)
                 docs=[json.loads((home/'pro_contract/blobs'/e['public_evidence'][:2]/e['public_evidence']).read_text()) for e in publications]

@@ -32,6 +32,7 @@ use codex_extension_api::ThreadIdleInput;
 use codex_extension_api::ThreadLifecycleContributor;
 use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ThreadStopInput;
+use codex_extension_api::TurnAbortInput;
 use codex_extension_api::TurnContextContributionInput;
 use codex_extension_api::TurnInputContext;
 use codex_extension_api::TurnInputContributor;
@@ -218,11 +219,27 @@ impl ThreadLifecycleContributor<Config> for ProContractExtension {
     }
 }
 
+struct ExecutorEpoch(u64);
+
 impl TurnLifecycleContributor for ProContractExtension {
+    fn on_turn_abort<'a>(&'a self, input: TurnAbortInput<'a>) -> ExtensionFuture<'a, ()> {
+        Box::pin(async move {
+            if let Some(runtime) = runtime_of(input.thread_store)
+                && let Some(epoch) = input.turn_store.get::<ExecutorEpoch>()
+            {
+                // User interruption may bypass thread-idle notification. Retain the
+                // responsibility and explicitly record that no handoff occurred.
+                runtime.turn_aborted(epoch.0).await;
+            }
+        })
+    }
+
     fn on_turn_start<'a>(&'a self, input: TurnStartInput<'a>) -> ExtensionFuture<'a, ()> {
         Box::pin(async move {
             if let Some(runtime) = runtime_of(input.thread_store) {
-                runtime.turn_started().await;
+                input
+                    .turn_store
+                    .insert(ExecutorEpoch(runtime.turn_started().await));
             }
         })
     }

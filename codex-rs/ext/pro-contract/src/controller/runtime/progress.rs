@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{Handoff, Phase, ThreadRuntime};
-use crate::controller::succession_budget::{Budget, KIND, now_ms};
+use crate::controller::succession_budget::{Budget, KIND, earliest, now_ms};
 
 const PROGRESS: &str = "progress_grant_v1";
 const CLEANUP_SECONDS: u64 = 10;
@@ -49,9 +49,6 @@ struct Grant {
 
 impl ThreadRuntime {
     pub(super) async fn arm_deadline(self: &std::sync::Arc<Self>) {
-        if self.settings.succession.is_none() {
-            return;
-        }
         {
             let mut state = self.state.lock().await;
             if state.admission.is_none() || state.deadline_watch {
@@ -66,15 +63,16 @@ impl ThreadRuntime {
         let Ok(Some(budget)) = budget else {
             return;
         };
+        let Some(deadline_ms) = budget.deadline_ms else {
+            return;
+        };
         let runtime = std::sync::Arc::clone(self);
         self.spawn(async move {
-            let remaining = budget
-                .deadline_ms
-                .saturating_sub(now_ms().unwrap_or(budget.deadline_ms));
+            let remaining = deadline_ms.saturating_sub(now_ms().unwrap_or(deadline_ms));
             tokio::time::sleep(std::time::Duration::from_millis(remaining)).await;
             // Shutdown invokes stop(), which joins this actor's tasks. Its bounded
             // observer must outlive that JoinSet to commit the actual shutdown result.
-            tokio::spawn(runtime.expire_original_grant(budget.deadline_ms));
+            tokio::spawn(runtime.expire_original_grant(deadline_ms));
         });
     }
 
@@ -116,7 +114,8 @@ impl ThreadRuntime {
         let now = now_ms()?;
         let progress = self.progress_grant().await?;
         Ok(json!({"deadline_ms":budget.deadline_ms,
-            "remaining_ms":budget.deadline_ms.saturating_sub(now),
+            "remaining_ms":budget.deadline_ms.map(|end| end.saturating_sub(now)),
+            "started_ms":budget.started_ms,"elapsed_ms":now.checked_sub(budget.started_ms),
             "sessions_used":budget.launches,"session_limit":budget.grant.max_sessions,
             "publications_used":progress.used,
             "publication_limit":self.settings.progress.as_ref().and_then(|grant| grant.max_publications)}))
@@ -127,26 +126,38 @@ impl ThreadRuntime {
         deadline: Option<u64>,
         maximum: u64,
     ) -> Result<u64, String> {
-        if self.settings.succession.is_none() {
-            return Ok(maximum);
-        }
-        let budget: Budget = self
+        let budget: Option<Budget> = self
             .ledger
             .record(KIND, &self.thread_id.to_string())
             .await
-            .map_err(|e| e.to_string())?
-            .ok_or("original task grant is unavailable")?;
+            .map_err(|e| e.to_string())?;
+        if budget.is_none()
+            && (self.settings.succession.is_some() || self.settings.progress.is_some())
+        {
+            return Err("original task grant is unavailable".into());
+        }
         let now = now_ms()?;
-        if now < budget.started_ms {
+        let task_deadline = budget.as_ref().and_then(|b| b.deadline_ms);
+        if task_deadline.is_some() && budget.as_ref().is_some_and(|b| now < b.started_ms) {
             return Err("host clock moved backwards".into());
         }
-        let end = deadline
-            .unwrap_or(budget.deadline_ms)
-            .min(budget.deadline_ms)
-            .saturating_sub(CLEANUP_SECONDS * 1000);
-        let seconds = maximum.min(end.saturating_sub(now) / 1000);
+        let seconds = earliest(deadline, task_deadline).map_or(maximum, |end| {
+            maximum.min(
+                end.saturating_sub(CLEANUP_SECONDS * 1000)
+                    .saturating_sub(now)
+                    / 1000,
+            )
+        });
         if seconds == 0 {
             return Err("original task or action budget exhausted".into());
+        }
+        if seconds
+            .checked_add(CLEANUP_SECONDS)
+            .and_then(|n| n.checked_mul(1000))
+            .and_then(|ms| now.checked_add(ms))
+            .is_none()
+        {
+            return Err("action allocation is not representable".into());
         }
         Ok(seconds)
     }
@@ -155,14 +166,14 @@ impl ThreadRuntime {
         let Some(settings) = &self.settings.progress else {
             return Ok(());
         };
-        if !(15..=900).contains(&settings.assessment_secs)
+        if settings.assessment_secs == 0
             || settings
                 .executor_slice_secs
                 .is_some_and(|seconds| seconds == 0 || seconds > u64::MAX / 1000)
-            || self.settings.succession.is_none()
         {
             return Err(
-                "progress requires a finite original task grant and valid bounded settings".into(),
+                "progress requires a positive action allocation and valid optional executor limits"
+                    .into(),
             );
         }
         self.action_seconds(None, settings.assessment_secs).await?;
@@ -289,7 +300,7 @@ impl ThreadRuntime {
         &self,
         request: String,
         turn: String,
-        owner: Option<(u64, u64)>,
+        owner: Option<(u64, Option<u64>)>,
     ) -> Result<Value, String> {
         self.publish_progress_with_review(request, turn, owner, false)
             .await
@@ -300,7 +311,7 @@ impl ThreadRuntime {
         &self,
         request: String,
         turn: String,
-        owner: Option<(u64, u64)>,
+        owner: Option<(u64, Option<u64>)>,
         diagnostic_review: bool,
     ) -> Result<Value, String> {
         self.publish_assessment(
@@ -319,7 +330,7 @@ impl ThreadRuntime {
         &self,
         request: String,
         turn: String,
-        owner: Option<(u64, u64)>,
+        owner: Option<(u64, Option<u64>)>,
         options: ProgressAssessment,
     ) -> Result<Value, String> {
         options.validate()?;
@@ -367,7 +378,7 @@ impl ThreadRuntime {
         }
         let seconds = self
             .action_seconds(
-                owner.map(|(_, end)| end),
+                owner.and_then(|(_, end)| end),
                 options.assessment_secs.unwrap_or(settings.assessment_secs),
             )
             .await?;

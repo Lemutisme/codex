@@ -12,16 +12,56 @@ use crate::SuccessionSettings;
 
 pub(super) const KIND: &str = "succession";
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub(super) struct Budget {
     pub grant: SuccessionSettings,
     pub started_ms: u64,
-    pub deadline_ms: u64,
+    pub deadline_ms: Option<u64>,
     pub launches: u32,
     pub pending: Option<String>,
     pub executors: Vec<String>,
     pub lessons: Vec<Lesson>,
     pub previous_executor_claim: String,
+}
+
+impl<'de> Deserialize<'de> for Budget {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // A missing field is corruption, not permission to remove a historical deadline.
+        fn deadline<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u64>, D::Error> {
+            Option::<u64>::deserialize(d)
+        }
+        #[derive(Deserialize)]
+        struct Record {
+            grant: SuccessionSettings,
+            started_ms: u64,
+            #[serde(deserialize_with = "deadline")]
+            deadline_ms: Option<u64>,
+            launches: u32,
+            pending: Option<String>,
+            executors: Vec<String>,
+            lessons: Vec<Lesson>,
+            previous_executor_claim: String,
+        }
+        let value = Record::deserialize(deserializer)?;
+        let mut budget =
+            Budget::new(value.grant, value.started_ms).map_err(serde::de::Error::custom)?;
+        if budget.deadline_ms != value.deadline_ms {
+            return Err(serde::de::Error::custom(
+                "stored deadline differs from the admitted task grant",
+            ));
+        }
+        budget.launches = value.launches;
+        budget.pending = value.pending;
+        budget.executors = value.executors;
+        budget.lessons = value.lessons;
+        budget.previous_executor_claim = value.previous_executor_claim;
+        Ok(budget)
+    }
+}
+
+/// Combine actual bounds; absence contributes no bound and never becomes a sentinel.
+pub(super) fn earliest(a: Option<u64>, b: Option<u64>) -> Option<u64> {
+    a.into_iter().chain(b).min()
 }
 
 /// Host-observed failed artifact and bounded feedback; a hypothesis is not a verified lesson.
@@ -41,15 +81,17 @@ pub(super) fn now_ms() -> Result<u64, String> {
 
 impl Budget {
     pub(super) fn new(grant: SuccessionSettings, now: u64) -> Result<Self, String> {
-        if grant.total_secs == 0 || grant.total_secs > u64::MAX / 1000 {
-            return Err(
-                "succession requires a positive representable original task lifetime".into(),
-            );
+        if grant
+            .total_secs
+            .is_some_and(|seconds| seconds == 0 || seconds > u64::MAX / 1000)
+        {
+            return Err("an explicit task lifetime must be positive and representable".into());
         }
         Ok(Self {
-            deadline_ms: now
-                .checked_add(grant.total_secs * 1000)
-                .ok_or("deadline overflow")?,
+            deadline_ms: grant
+                .total_secs
+                .map(|seconds| now.checked_add(seconds * 1000).ok_or("deadline overflow"))
+                .transpose()?,
             grant,
             started_ms: now,
             launches: 0,
@@ -65,11 +107,14 @@ impl Budget {
         session: String,
         lesson: Lesson,
         now: u64,
-    ) -> Result<(Self, u64), String> {
+    ) -> Result<(Self, Option<u64>), String> {
         if self.pending.is_some() {
             return Err("previous executor lifetime is unresolved; no launch replayed".into());
         }
-        if now < self.started_ms || now >= self.deadline_ms {
+        if self
+            .deadline_ms
+            .is_some_and(|deadline| now < self.started_ms || now >= deadline)
+        {
             return Err("original task deadline exhausted or clock moved backwards".into());
         }
         if self

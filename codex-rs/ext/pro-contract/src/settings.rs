@@ -51,7 +51,7 @@ pub struct ReviewExecution {
 pub struct ProgressSettings {
     /// Provisioner-owned Docker label, not a model-selected container or path.
     pub executor_label: String,
-    /// Optional explicit count grant; absent means the original task deadline bounds use.
+    /// Optional explicit count grant, independent of whether the task has a deadline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_publications: Option<u32>,
     pub assessment_secs: u64,
@@ -60,15 +60,16 @@ pub struct ProgressSettings {
     pub executor_slice_secs: Option<u64>,
 }
 
-/// An operator's finite grant for replacing failed executor contexts, not resetting a task.
+/// An operator's grant for replacing executor contexts, not resetting a task.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SuccessionSettings {
-    /// Optional explicit count grant; absent means the original task deadline bounds use.
+    /// Optional explicit count grant, independent of the optional task deadline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_sessions: Option<u32>,
-    /// Wall-clock lifetime from original intake, including the original executor.
-    pub total_secs: u64,
+    /// Optional hard wall-clock limit from intake. None is no deadline, not a renewed lease.
+    #[serde(default)]
+    pub total_secs: Option<u64>,
 }
 
 /// Explicit quantitative acceptance criteria, when supplied by the task owner.
