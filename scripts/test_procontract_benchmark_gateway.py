@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from procontract_benchmark_gateway import Budget, Gateway, prepare_payload, truncate_output
 
@@ -39,6 +40,50 @@ class GatewayTests(unittest.TestCase):
             reopened.close()
             with self.assertRaisesRegex(ValueError, 'profile changed'):
                 Budget(path, requests=8)
+            with self.assertRaisesRegex(ValueError, 'profile changed'):
+                Budget(path, requests=None)
+
+    def test_time_only_allocation_counts_concurrent_attempts_past_1000(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/'budget.sqlite'
+            budgets = [Budget(path, seconds=60, requests=None) for _ in range(4)]
+            with patch('procontract_benchmark_gateway.time.time', return_value=100):
+                original = budgets[0].arm()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+                    ids = list(pool.map(
+                        lambda i: budgets[i % len(budgets)].reserve(b'x', b'x', [])[0],
+                        range(1024)))
+            self.assertEqual(sorted(ids), list(range(1, 1025)))
+            # Incomplete and failed streams are charged, not refunded.
+            budgets[0].checkpoint(1, failure='disconnected', finished=True)
+            for budget in budgets:
+                budget.close()
+            reopened = Budget(path, seconds=60, requests=None)
+            with patch('procontract_benchmark_gateway.time.time', return_value=159):
+                status = reopened.arm()
+                self.assertEqual(status['deadline'], original['deadline'])
+                self.assertIsNone(status['requests'])
+                self.assertEqual(status['used'], 1024)
+                self.assertEqual(reopened.reserve(b'x', b'x', [])[0], 1025)
+            with patch('procontract_benchmark_gateway.time.time', return_value=160):
+                with self.assertRaisesRegex(ValueError, 'wall_time_exhausted'):
+                    reopened.reserve(b'x', b'x', [])
+            self.assertEqual(reopened.status()['used'], 1025)
+            reopened.close()
+            with self.assertRaisesRegex(ValueError, 'profile changed'):
+                Budget(path, seconds=60, requests=1000)
+            with self.assertRaisesRegex(ValueError, 'profile changed'):
+                Budget(path, seconds=120, requests=None)
+
+    def test_default_request_ceiling_remains_1000(self):
+        with tempfile.TemporaryDirectory() as root:
+            budget = Budget(Path(root)/'budget.sqlite')
+            self.assertEqual(budget.arm()['requests'], 1000)
+            for _ in range(1000):
+                budget.reserve(b'x', b'x', [])
+            with self.assertRaisesRegex(ValueError, 'model_request_budget_exhausted'):
+                budget.reserve(b'x', b'x', [])
+            budget.close()
 
     def test_unarmed_or_expired_never_dispatches(self):
         with tempfile.TemporaryDirectory() as root:
@@ -72,6 +117,11 @@ class GatewayTests(unittest.TestCase):
                 prepare_payload(json.dumps(value), 'gpt-5.6-luna', 'max')
 
     def test_real_http_stream_and_inflight_deadline(self):
+        for request_limit in (2, None):
+            with self.subTest(request_limit=request_limit):
+                self.check_real_http_stream_and_inflight_deadline(request_limit)
+
+    def check_real_http_stream_and_inflight_deadline(self, request_limit):
         received = []
         class Upstream(http.server.BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -87,7 +137,7 @@ class GatewayTests(unittest.TestCase):
         upstream = http.server.ThreadingHTTPServer(('127.0.0.1',0), Upstream)
         threading.Thread(target=upstream.serve_forever, daemon=True).start()
         with tempfile.TemporaryDirectory() as root:
-            budget = Budget(Path(root)/'b.sqlite', seconds=.6, requests=2)
+            budget = Budget(Path(root)/'b.sqlite', seconds=.6, requests=request_limit)
             gateway = Gateway(budget, f'http://127.0.0.1:{upstream.server_port}/v1')
             thread = threading.Thread(target=gateway.serve_forever,daemon=True);thread.start()
             budget.arm()

@@ -82,6 +82,8 @@ def prepare_payload(raw, model, effort):
 
 
 class Budget:
+    """Account for every attempt; requests=None means only time limits dispatch."""
+
     def __init__(self, path, *, seconds=21600, requests=1000, model="gpt-5.6-luna", effort="max"):
         self.path = Path(path)
         self.lock = threading.Lock()
@@ -129,7 +131,8 @@ class Budget:
 
     def reserve(self, original, forwarded, truncations):
         # A transaction precedes network dispatch. Concurrent roles and restarts
-        # cannot issue request 1001; failed/disconnected attempts are not refunded.
+        # cannot exceed an explicit ceiling; failed/disconnected attempts count
+        # even when the allocation has no request ceiling.
         with self.lock:
             try:
                 self.db.execute("BEGIN IMMEDIATE")
@@ -137,7 +140,7 @@ class Budget:
                 used = self.db.execute("SELECT count(*) FROM requests").fetchone()[0]
                 if deadline is None or time.time() >= deadline:
                     raise ValueError("wall_time_exhausted_or_unarmed")
-                if used >= self.profile['requests']:
+                if self.profile['requests'] is not None and used >= self.profile['requests']:
                     raise ValueError("model_request_budget_exhausted")
                 cursor = self.db.execute("INSERT INTO requests(started,original_sha256,forwarded_sha256,truncations) VALUES(?,?,?,?)",
                     (time.time(), digest(original), digest(forwarded), json.dumps(truncations)))
