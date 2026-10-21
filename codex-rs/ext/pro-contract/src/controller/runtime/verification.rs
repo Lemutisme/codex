@@ -624,7 +624,16 @@ impl ThreadRuntime {
         let residual = format!(
             "{residual}{blockage}\nRecover prior public checks and exact retained details with contract_read_evidence; earlier counterexamples remain in the archive."
         );
-        if self.settings.succession.is_some() {
+        // The durable task allocation may exist solely to enforce a deadline.
+        // Zero fresh-executor authority does not revoke the separately authorized
+        // same-thread repair allowance. Exhausted nonzero succession grants retain
+        // their existing meaning; they are not converted into extra local attempts.
+        if self
+            .settings
+            .succession
+            .as_ref()
+            .is_some_and(|grant| grant.max_sessions != Some(0))
+        {
             Box::pin(self.succeed(subject.subject_hash, residual, turn_id, epoch)).await;
             return;
         }
@@ -633,9 +642,20 @@ impl ThreadRuntime {
             self.rest("did_not_pass", &residual).await;
             return;
         }
+        if let Err(reason) = self
+            .action_seconds(None, self.settings.worker.deadline_secs)
+            .await
+        {
+            self.not_verified(NotVerifiedClass::BudgetExhausted, &reason)
+                .await;
+            return;
+        }
         {
             // Working before the repair turn starts, so its end is frozen however fast it is.
             let mut state = self.state.lock().await;
+            if state.epoch != epoch {
+                return;
+            }
             state.repairs_used += 1;
             state.phase = Phase::Working;
             state.repair_note = Some(residual.clone());

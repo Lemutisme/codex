@@ -60,6 +60,10 @@ pub struct DynamicToolCallRequest {
 pub struct DynamicToolResponse {
     pub content_items: Vec<DynamicToolCallOutputContentItem>,
     pub success: bool,
+    /// Explicit machine-readable output for programmatic callers. Absent means
+    /// preserve the historical content representation; never infer JSON from text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structured_content: Option<serde_json::Map<String, JsonValue>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema, TS)]

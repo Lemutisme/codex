@@ -3,6 +3,7 @@ use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::context::FunctionToolOutput;
 use crate::tools::context::ToolInvocation;
+use crate::tools::context::ToolOutput;
 use crate::tools::context::ToolPayload;
 use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::parse_arguments;
@@ -16,6 +17,7 @@ use codex_protocol::items::DynamicToolCallItem;
 use codex_protocol::items::DynamicToolCallStatus;
 use codex_protocol::items::TurnItem;
 use codex_protocol::models::FunctionCallOutputContentItem;
+use codex_protocol::models::ResponseInputItem;
 use codex_tools::ResponsesApiNamespace;
 use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::ToolName;
@@ -33,6 +35,45 @@ pub struct DynamicToolHandler {
     tool_name: ToolName,
     spec: ToolSpec,
     exposure: ToolExposure,
+}
+
+struct DynamicToolOutput {
+    content: FunctionToolOutput,
+    structured: Option<serde_json::Map<String, Value>>,
+}
+
+impl From<DynamicToolResponse> for DynamicToolOutput {
+    fn from(response: DynamicToolResponse) -> Self {
+        Self {
+            content: FunctionToolOutput::from_content(
+                response
+                    .content_items
+                    .into_iter()
+                    .map(FunctionCallOutputContentItem::from)
+                    .collect(),
+                Some(response.success),
+            ),
+            structured: response.structured_content,
+        }
+    }
+}
+
+impl ToolOutput for DynamicToolOutput {
+    fn log_output(&self) -> String {
+        self.content.log_output()
+    }
+    fn success_for_logging(&self) -> bool {
+        self.content.success_for_logging()
+    }
+    fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
+        self.content.to_response_item(call_id, payload)
+    }
+    fn code_mode_result(&self, payload: &ToolPayload) -> Value {
+        self.structured.as_ref().map_or_else(
+            || self.content.code_mode_result(payload),
+            |value| Value::Object(value.clone()),
+        )
+    }
 }
 
 impl DynamicToolHandler {
@@ -150,24 +191,45 @@ impl DynamicToolHandler {
             )
         })?;
 
-        let DynamicToolResponse {
-            content_items,
-            success,
-        } = response;
-        let body = content_items
-            .into_iter()
-            .map(FunctionCallOutputContentItem::from)
-            .collect::<Vec<_>>();
-        Ok(boxed_tool_output(FunctionToolOutput::from_content(
-            body,
-            Some(success),
-        )))
+        Ok(boxed_tool_output(DynamicToolOutput::from(response)))
     }
 }
 
 impl CoreToolRuntime for DynamicToolHandler {
     fn is_third_party_tool(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod structured_output_tests {
+    use super::*;
+    use codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem;
+    use serde_json::json;
+
+    #[test]
+    fn explicit_structured_output_reaches_code_mode_without_reinterpreting_legacy_text() {
+        let payload = ToolPayload::Function {
+            arguments: "{}".into(),
+        };
+        let text = r#"{"next_offset":4,"eof":true}"#;
+        let response = DynamicToolResponse {
+            content_items: vec![DynamicToolCallOutputContentItem::InputText { text: text.into() }],
+            success: true,
+            structured_content: None,
+        };
+        let legacy = DynamicToolOutput::from(response.clone());
+        assert_eq!(legacy.code_mode_result(&payload), json!(text));
+        let mut response = response;
+        response.structured_content = Some(serde_json::from_str(text).unwrap());
+        let structured = DynamicToolOutput::from(response);
+        assert_eq!(structured.code_mode_result(&payload)["next_offset"], 4);
+        assert_eq!(structured.code_mode_result(&payload)["eof"], true);
+        assert_eq!(
+            structured.to_response_item("call", &payload),
+            legacy.to_response_item("call", &payload)
+        );
+        assert!(structured.success_for_logging());
     }
 }
 

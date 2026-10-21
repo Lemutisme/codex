@@ -1178,6 +1178,7 @@ async fn tool_search_returns_deferred_dynamic_tool_and_routes_follow_up_call() -
         .submit(Op::DynamicToolResponse {
             id: request.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: "dynamic-search-ok".to_string(),
                 }],

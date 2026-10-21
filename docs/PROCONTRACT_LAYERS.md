@@ -101,6 +101,18 @@ original meaning across restarts. Local action/tool limits remain separate.
 Interruption retains responsibility and completed work without certifying handoff
 or completion; a later turn may resume the same task.
 
+A task allocation does not itself choose an executor workflow. In the current
+adapter, a deadline-only allocation with zero fresh sessions must preserve a
+separately authorized same-thread repair allowance. It must not create a fresh
+executor, renew the deadline, or convert an exhausted nonzero successor allowance
+into additional local work.
+
+Review transport also preserves independent scope: a rejected support binding
+becomes a gap for that obligation, while unrelated observations and findings
+remain usable. Ambiguous identities or contradictory envelopes still require
+correction. Retaining local results creates neither new authority nor whole-task
+Support, and choosing the next investigation remains strategy work.
+
 The terms adapter keeps non-obligatory request context (preferences, permissions,
 background) separate from acceptance obligations. Strategy interprets that context;
 its storage does not grant execution authority. Independent review still compares

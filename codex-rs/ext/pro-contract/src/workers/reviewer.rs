@@ -150,7 +150,10 @@ pub(crate) fn schema() -> Value {
             "judgment": {"anyOf": [
                 strict_object(json!({
                     "status": {"type":"string", "enum":["supported"]},
-                    "evidence": {"type":"string"},
+                    "evidence": {
+                        "type":"string", "pattern":"^e(0|[1-9][0-9]*)$",
+                        "description":"One exact citation_id issued by read_evidence, for example e12. Put explanations in observations, never in this field. The host checks issuance, source and subject scope."
+                    },
                 })),
                 strict_object(json!({
                     "status": {"type":"string", "enum":["defeated"]},

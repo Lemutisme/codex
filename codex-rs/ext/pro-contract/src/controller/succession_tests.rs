@@ -21,6 +21,43 @@ async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> La
 }
 
 #[tokio::test]
+async fn a_deadline_only_grant_keeps_authorized_same_thread_repair_without_new_executors() {
+    let lane = successors(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Fail, StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+        0,
+        &[],
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let original: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    lane.executor_turn("original", "wrong").await;
+    let repairing = lane.wait_for("repairing").await;
+    assert_eq!(repairing.repairs_used, 1);
+    assert_eq!(lane.ports.repairs.lock().unwrap().len(), 1);
+    lane.executor_turn("repair", "ready").await;
+    lane.wait_for("supported").await;
+    let current: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.started_ms, original.started_ms);
+    assert_eq!(current.deadline_ms, original.deadline_ms);
+    assert_eq!(current.launches, 0);
+    assert_eq!(lane.ports.successor_packets.lock().unwrap().len(), 0);
+    assert_eq!(lane.ports.draft_prompts.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
 async fn open_ended_successor_is_cancelled_by_its_owner_without_settling_the_responsibility() {
     let mut ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail]);
     ports.successor_gate = Some(Arc::new(Notify::new()));

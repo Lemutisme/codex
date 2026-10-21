@@ -93,7 +93,7 @@ pub(crate) fn schema() -> Value {
     strict_object(json!({
         "decision": {"type": "string", "enum": ["contract", "none"]},
         "reason": {"type": "string"},
-        "requirements": {"type": "array", "items": strict_object(json!({
+        "requirements": {"type": "array", "description":"Required properties of the result, including restrictions on what a submitted artifact may depend on. Do not put recommended methods here.", "items": strict_object(json!({
             "id": {"type": "string"},
             "text": {"type": "string"},
             "source_id": {"type": "string"},
@@ -104,11 +104,11 @@ pub(crate) fn schema() -> Value {
             "human_source_id": {"type": ["string", "null"]},
             "non_substantive": {"type": "boolean"},
         }))},
-        "process_constraints": {"type": "array", "items": strict_object(json!({
+        "process_constraints": {"type": "array", "description":"Mandatory or prohibited actions during execution, requiring actor/time-scoped evidence. Result properties belong in requirements; advice belongs in context.", "items": strict_object(json!({
             "text": {"type": "string"},
             "source_id": {"type": "string"},
         }))},
-        "context": {"type":"array", "items":strict_object(json!({
+        "context": {"type":"array", "description":"Preferences, permissions and background, including recommended workflows; these are not acceptance obligations.", "items":strict_object(json!({
             "kind":{"type":"string","enum":["preference","permission","background"]},
             "text":{"type":"string"},"source_id":{"type":"string"},
         }))},

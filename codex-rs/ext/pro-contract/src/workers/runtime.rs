@@ -254,7 +254,12 @@ pub(crate) async fn run_turn(
                             let Some(evidence) = &evidence else { return Ok(message); };
                             let result = evidence.resolve_review(&message);
                             evidence.record_protocol_result(corrections, &message, &result).await?;
-                            if let Err(WorkerError::Malformed(reason)) = &result
+                            let protocol_error = match &result {
+                                Ok(resolved) => resolved.protocol_error(),
+                                Err(WorkerError::Malformed(reason)) => Some(reason.clone()),
+                                Err(_) => None,
+                            };
+                            if let Some(reason) = &protocol_error
                                 && corrections == 0 && tokio::time::Instant::now() < expires {
                                 corrections += 1;
                                 evidence.reserve_protocol_correction(expires.saturating_duration_since(tokio::time::Instant::now())).await?;
@@ -274,7 +279,9 @@ pub(crate) async fn run_turn(
                                 last_error = None;
                                 continue;
                             }
-                            return result;
+                            // Failed support bindings remain scoped gaps. The other
+                            // judgments can still inform work under the original grant.
+                            return result.map(|resolved| resolved.message);
                         }
                         EventMsg::DynamicToolCallRequest(call) if call.turn_id == turn_id => {
                             let response = if call.namespace.is_none() && call.tool == super::review_evidence::TOOL {
@@ -295,16 +302,19 @@ pub(crate) async fn run_turn(
                                 } else { None }
                             } else { None };
                             let mut response = response.unwrap_or_else(|| codex_protocol::dynamic_tools::DynamicToolResponse {
+                                structured_content: None,
                                 content_items: vec![codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText {
                                     text: "Refused: no such evidence capability.".to_string(),
                                 }], success: false,
                             });
-                            // Code mode joins text blocks. Keep each evidence response a
-                            // single JSON object rather than appending a second JSON value.
+                            // These tools produce JSON objects. Preserve that declared value
+                            // for code mode instead of making callers parse a JSON string.
+                            // The text view remains available to direct/legacy consumers.
                             for item in &mut response.content_items {
                                 if let codex_protocol::dynamic_tools::DynamicToolCallOutputContentItem::InputText { text } = item
                                     && let Ok(Value::Object(mut value)) = serde_json::from_str(text) {
                                     value.insert("assessment_remaining_millis".into(), serde_json::json!(expires.saturating_duration_since(tokio::time::Instant::now()).as_millis()));
+                                    response.structured_content = Some(value.clone());
                                     *text = Value::Object(value).to_string();
                                 }
                             }

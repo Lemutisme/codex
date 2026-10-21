@@ -45,6 +45,7 @@ impl ReviewEvidence {
             ),
         };
         DynamicToolResponse {
+            structured_content: None,
             content_items: vec![DynamicToolCallOutputContentItem::InputText { text }],
             success,
         }
@@ -77,10 +78,11 @@ impl ReviewEvidence {
             .ok_or_else(|| malformed("checkpoint journal unavailable".into()))?;
         let message = request.review.to_string();
         let input_hash = Digest::of(message.as_bytes());
-        let receipt = |handle: Digest, reused: bool| {
+        let receipt = |handle: Digest, reused: bool, rejected: Value| {
             json!({
                 "handle":handle,"reused":reused,"subject_hash":self.subject.subject_hash,
                 "scope":"diagnostic_checkpoint","completion_certified":false,
+                "rejected_support":rejected,
             })
         };
         // This isolated worker serializes its tool calls. The durable journal also makes
@@ -102,16 +104,17 @@ impl ReviewEvidence {
                 }
                 let handle = serde_json::from_value(body["handle"].clone())
                     .map_err(|e| malformed(e.to_string()))?;
-                return Ok(receipt(handle, true));
+                return Ok(receipt(handle, true, body["rejected_support"].clone()));
             }
         }
         let resolved = self.resolve_review(&message)?;
-        let review = reviewer::parse(&resolved, &self.terms)?;
+        let review = reviewer::parse(&resolved.message, &self.terms)?;
         let document = json!({
             "kind":"review_checkpoint_v1","scope":"diagnostic_checkpoint",
             "subject_hash":self.subject.subject_hash,"terms_hash":crate::digest_of("terms",&self.terms),
             "binding":binding,"checkpoint_id":request.checkpoint_id,"input_hash":input_hash,
             "review":review,"completion_certified":false,
+            "rejected_support":resolved.rejected,
             "meaning":"Explicit reviewer judgments with validated identities/citations, not host proof or final acceptance. Unassessed obligations remain unassessed; later work may revise these judgments.",
         });
         let handle = self
@@ -124,10 +127,10 @@ impl ReviewEvidence {
                 identities: identities.clone(),
                 body: json!({"phase":"review_checkpoint","binding":binding,
                 "subject_hash":self.subject.subject_hash,"checkpoint_id":request.checkpoint_id,
-                "input_hash":input_hash,"handle":handle}),
+                "input_hash":input_hash,"handle":handle,"rejected_support":resolved.rejected}),
             })
             .await
             .map_err(|e| WorkerError::Failed(e.to_string()))?;
-        Ok(receipt(handle, false))
+        Ok(receipt(handle, false, json!(resolved.rejected)))
     }
 }

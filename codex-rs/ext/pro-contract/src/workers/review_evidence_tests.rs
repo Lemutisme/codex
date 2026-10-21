@@ -46,6 +46,18 @@ fn fixture(text: &str) -> (tempfile::TempDir, ReviewEvidence) {
     (root, evidence)
 }
 
+// Existing provenance controls require every support binding to be valid. The
+// production resolver also retains independent judgments when this strict check fails.
+impl ReviewEvidence {
+    fn strict_review(&self, message: &str) -> Result<String, super::WorkerError> {
+        let resolved = self.resolve_review(message)?;
+        match resolved.protocol_error() {
+            Some(error) => Err(super::WorkerError::Malformed(error)),
+            None => Ok(resolved.message),
+        }
+    }
+}
+
 fn read(evidence: &mut ReviewEvidence, request: Value) -> Value {
     let response = evidence.respond(request);
     assert!(response.success);
@@ -155,6 +167,42 @@ fn bounded_catalog_pages_preserve_every_legacy_entry_and_cursor() {
 }
 
 #[test]
+fn rejected_read_arguments_do_not_exhaust_the_evidence_page_allowance() {
+    let (_root, mut evidence) = fixture("artifact");
+    for _ in 0..super::MAX_READS + 1 {
+        assert!(
+            !evidence
+                .respond(json!({"op":"read","source_id":"human_request"}))
+                .success
+        );
+    }
+    assert!(
+        !evidence
+            .respond(json!({"op":"read","source_id":"unknown","offset":0}))
+            .success
+    );
+    assert_eq!(evidence.calls, 0);
+    assert!(evidence.issued.is_empty());
+    assert_eq!(
+        document(&mut evidence, "human_request").0,
+        evidence.terms.intake_text
+    );
+    assert_eq!(evidence.calls, 1);
+    evidence.calls = super::MAX_READS - 1;
+    assert!(
+        evidence
+            .respond(json!({"op":"read","source_id":"file:0","offset":0}))
+            .success
+    );
+    assert!(
+        !evidence
+            .respond(json!({"op":"read","source_id":"file:0","offset":0}))
+            .success
+    );
+    assert_eq!(evidence.calls, super::MAX_READS);
+}
+
+#[test]
 fn compact_catalog_keeps_scope_and_exact_sources_without_repeated_request_text() {
     let (_root, evidence) = fixture("artifact");
     let mut terms = evidence.terms.clone();
@@ -219,6 +267,105 @@ async fn local_checkpoint_does_not_need_a_redundant_global_missing_field() {
         .remove("missing");
     assert!(!evidence.record_checkpoint(malformed).await.success);
     assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+}
+
+#[test]
+fn a_rejected_binding_preserves_independent_support_and_counterexamples() {
+    let (_root, mut evidence) = fixture("artifact");
+    for id in ["R2", "R3"] {
+        evidence.terms.requirements.push(crate::Requirement {
+            id: id.into(),
+            ..evidence.terms.requirements[0].clone()
+        });
+    }
+    evidence = ReviewEvidence::new(
+        evidence.subject,
+        evidence.store,
+        &evidence.terms,
+        "checks".into(),
+    )
+    .unwrap();
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (_, citation) = document(&mut evidence, "file:0");
+    let review = json!({"assessments":[
+        {"requirement_id":"R1","observations":"Some examples pass.","judgment":{
+            "status":"defeated","findings":[{"location":"artifact","counterexample":"Required behavior is absent."}],"missing":""}},
+        {"requirement_id":"R2","observations":"The file exists.","judgment":{"status":"supported","evidence":citation}},
+        {"requirement_id":"R3","observations":"A separate claim.","judgment":{"status":"supported","evidence":format!("citation_id={}",citation.as_str().unwrap())}}
+    ],"terms_gap":[]});
+    let resolved = evidence.resolve_review(&review.to_string()).unwrap();
+    assert_eq!(resolved.rejected.len(), 1);
+    assert_eq!(resolved.rejected[0].requirement_id, "R3");
+    let parsed = super::super::reviewer::parse(&resolved.message, &evidence.terms).unwrap();
+    assert_eq!(parsed.observations.len(), 3);
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    let super::super::reviewer::ReviewVerdict::Partial {
+        coverage, missing, ..
+    } = parsed.verdict
+    else {
+        panic!("a rejected claim cannot grant whole-task Support")
+    };
+    assert_eq!(coverage.len(), 1);
+    assert_eq!(coverage[0].requirement_id, "R2");
+    assert_eq!(missing.len(), 1);
+    assert_eq!(missing[0].requirement_id, "R3");
+    assert!(
+        missing[0]
+            .reason
+            .contains("expected one issued citation_id")
+    );
+
+    // Ambiguous identities cannot be made legitimate by retaining selected rows.
+    let mut duplicate = review;
+    duplicate["assessments"][2]["requirement_id"] = json!("R2");
+    assert!(evidence.resolve_review(&duplicate.to_string()).is_err());
+}
+
+#[tokio::test]
+async fn a_checkpoint_retains_local_work_and_reports_rejected_support_idempotently() {
+    let (_root, mut evidence, ledger) = checkpoint_fixture().await;
+    evidence
+        .terms
+        .process_constraints
+        .push(crate::ProcessConstraint {
+            text: "Perform the requested action before delivery.".into(),
+            source_quote: "Perform the requested action before delivery.".into(),
+        });
+    let protocol_log = evidence.protocol_log.take();
+    evidence = ReviewEvidence::new(
+        evidence.subject,
+        evidence.store,
+        &evidence.terms,
+        "checks".into(),
+    )
+    .unwrap();
+    evidence.protocol_log = protocol_log;
+    for id in ["human_request", "contract_terms"] {
+        document(&mut evidence, id);
+    }
+    let (_, citation) = document(&mut evidence, "file:0");
+    let request = json!({"checkpoint_id":"local","review":{"assessments":[
+        {"requirement_id":"R1","observations":"Concrete local defect.","judgment":{
+            "status":"defeated","findings":[{"location":"artifact","counterexample":"Wrong contents."}],"missing":""}},
+        {"requirement_id":"process:0","observations":"Artifact is not a history receipt.","judgment":{"status":"supported","evidence":citation}}
+    ],"terms_gap":[]}});
+    let first = evidence.record_checkpoint(request.clone()).await;
+    assert!(first.success);
+    assert!(evidence.record_checkpoint(request).await.success);
+    let events = ledger.experiments().await.unwrap();
+    assert_eq!(events.len(), 1);
+    let event = &events[0].event.body;
+    assert_eq!(event["rejected_support"][0]["requirement_id"], "process:0");
+    let handle = serde_json::from_value(event["handle"].clone()).unwrap();
+    let retained: Value = serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(
+        retained["review"]["verdict"]["findings"][0]["requirement_id"],
+        "R1"
+    );
+    assert_eq!(retained["review"]["verdict"]["coverage"], json!([]));
+    assert_eq!(retained["completion_certified"], false);
 }
 
 #[tokio::test]
@@ -345,8 +492,17 @@ async fn invalid_checkpoint_does_not_discard_prior_valid_work_or_create_new_obli
     let unissued = json!({"checkpoint_id":"false-support","review":{
         "assessments":[{"requirement_id":"R1","observations":"claim",
             "judgment":{"status":"supported","evidence":"e99"}}],"terms_gap":[],"missing":""}});
-    assert!(!evidence.record_checkpoint(unissued).await.success);
-    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+    assert!(evidence.record_checkpoint(unissued).await.success);
+    let events = ledger.experiments().await.unwrap();
+    assert_eq!(events.len(), 2);
+    let handle = serde_json::from_value(events[1].event.body["handle"].clone()).unwrap();
+    let retained: Value = serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(retained["review"]["verdict"]["coverage"], json!([]));
+    assert_eq!(
+        retained["review"]["verdict"]["missing"][0]["requirement_id"],
+        "R1"
+    );
+    assert_eq!(retained["review"]["verdict"]["type"], "partial");
 }
 
 #[test]
@@ -367,7 +523,7 @@ fn prior_diagnosis_is_context_and_cannot_be_cited_as_current_artifact_or_executi
         "judgment":{"status":"supported","evidence":prior}}],"terms_gap":[],"missing":""});
     assert!(
         evidence
-            .resolve_review(&response.to_string())
+            .strict_review(&response.to_string())
             .unwrap_err()
             .to_string()
             .contains("not observed evidence")
@@ -399,7 +555,7 @@ fn execution_coverage_requires_scoped_host_evidence_and_rejects_self_attestation
         {"requirement_id":"R1","evidence":artifact},{"requirement_id":"process:0","evidence":citation}],
         "findings":[],"gaps":[],"terms_gap":[],"missing":"","residual":""}).to_string()
     };
-    assert!(evidence.resolve_review(&response(claim)).is_err());
+    assert!(evidence.strict_review(&response(claim)).is_err());
     // Even a successful computation over artifact bytes cannot attest a past read.
     evidence.computations.push(
         json!({"execution":{"state":"completed","shutdown_confirmed":true,"truncated":false},
@@ -407,8 +563,8 @@ fn execution_coverage_requires_scoped_host_evidence_and_rejects_self_attestation
         .to_string(),
     );
     let (_, computation) = document(&mut evidence, "computation:0");
-    assert!(evidence.resolve_review(&response(computation)).is_err());
-    assert!(evidence.resolve_review(&response(observed)).is_ok());
+    assert!(evidence.strict_review(&response(computation)).is_err());
+    assert!(evidence.strict_review(&response(observed)).is_ok());
     assert!(evidence.with_host_observations(json!({"kind":"host_observations_v1",
         "subject_hash":codex_pro_contract::Digest::of(b"foreign"),"terms_hash":crate::digest_of("terms",&terms)})).is_err());
 }
@@ -438,7 +594,7 @@ fn a_host_check_receipt_can_evidence_a_check_execution_obligation() {
         {"requirement_id":"process:0","evidence":check}],
         "findings":[],"gaps":[],"terms_gap":[],"missing":"","residual":""})
     .to_string();
-    let resolved = evidence.resolve_review(&message).unwrap();
+    let resolved = evidence.strict_review(&message).unwrap();
     let value: Value = serde_json::from_str(&resolved).unwrap();
     let citation: Value =
         serde_json::from_str(value["coverage"][1]["evidence"].as_str().unwrap()).unwrap();
@@ -462,7 +618,7 @@ fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
         "requirement_id":"R1", "observations":"Some local behavior is visible.",
         "judgment":{"status":"supported", "evidence":citation}
     }],"terms_gap":[],"missing":""});
-    let resolved = evidence.resolve_review(&message.to_string()).unwrap();
+    let resolved = evidence.strict_review(&message.to_string()).unwrap();
     let value: Value = serde_json::from_str(&resolved).unwrap();
     let bound: Value =
         serde_json::from_str(value["coverage"][0]["evidence"].as_str().unwrap()).unwrap();
@@ -472,11 +628,11 @@ fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
         "Some local behavior is visible."
     );
     message["assessments"][0]["judgment"]["evidence"] = json!("e99999");
-    assert!(evidence.resolve_review(&message.to_string()).is_err());
+    assert!(evidence.strict_review(&message.to_string()).is_err());
     message["assessments"][0]["judgment"] = json!({"status":"defeated",
         "findings":[{"location":"artifact", "counterexample":"The boundary case fails."}], "missing":""});
     let parsed = super::super::reviewer::parse(
-        &evidence.resolve_review(&message.to_string()).unwrap(),
+        &evidence.strict_review(&message.to_string()).unwrap(),
         &evidence.terms,
     )
     .unwrap();
@@ -506,10 +662,10 @@ fn computation_intent_is_not_an_artificial_requirement_boundary() {
     let (_, citation) = document(&mut evidence, "computation:0");
     let response = json!({"assessments":[{"requirement_id":"R2", "observations":"Same observed bytes also establish their length.",
         "judgment":{"status":"supported", "evidence":citation}}], "terms_gap":[], "missing":""}).to_string();
-    assert!(evidence.resolve_review(&response).is_ok());
+    assert!(evidence.strict_review(&response).is_ok());
     computation["subject_hash"] = json!(codex_pro_contract::Digest::of(b"another subject"));
     evidence.computations[0] = computation.to_string();
-    let error = evidence.resolve_review(&response).unwrap_err().to_string();
+    let error = evidence.strict_review(&response).unwrap_err().to_string();
     assert!(
         error.contains("R2")
             && error.contains(citation.as_str().unwrap())
@@ -520,7 +676,7 @@ fn computation_intent_is_not_an_artificial_requirement_boundary() {
     evidence.computations[0] = computation.to_string();
     assert!(
         evidence
-            .resolve_review(&response)
+            .strict_review(&response)
             .unwrap_err()
             .to_string()
             .contains("truncated")
@@ -548,7 +704,7 @@ fn delivery_response_is_subject_bound_and_truncated_text_cannot_support_coverage
             json!({"verdict":"support", "coverage":[{"requirement_id":"R1","evidence":citation}],
             "findings":[],"terms_gap":[],"missing":"","residual":""})
             .to_string();
-        assert_eq!(evidence.resolve_review(&review).is_ok(), complete);
+        assert_eq!(evidence.strict_review(&review).is_ok(), complete);
     }
 }
 
@@ -642,13 +798,13 @@ print('sum=6; original frozen bytes; isolated writable scratch')
         "findings":[],"terms_gap":[],"missing":"","residual":""})
         .to_string()
     };
-    assert!(evidence.resolve_review(&supported(citation)).is_ok());
+    assert!(evidence.strict_review(&supported(citation)).is_ok());
     let response = evidence.inspect(json!({"source_ids":[],"requirements":["R1"],"python":"assert False, 'counterexample'"}),std::time::Duration::from_secs(20)).await;
     assert!(response.success);
     let (text, citation) = document(&mut evidence, "computation:1");
     let failed: Value = serde_json::from_str(&text).unwrap();
     assert_ne!(failed["execution"]["state"], "completed");
-    assert!(evidence.resolve_review(&supported(citation)).is_err());
+    assert!(evidence.strict_review(&supported(citation)).is_err());
     let refused = evidence
         .inspect(
             json!({"source_ids":[],"requirements":["R1"],"python":"print('third')"}),
@@ -688,7 +844,7 @@ fn frozen_data_is_paged_and_support_references_resolve_without_model_hashes() {
         );
         assert_eq!(chunk["eof"], true);
     }
-    let result = evidence.resolve_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":handle}]}).to_string()).unwrap();
+    let result = evidence.strict_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":handle}]}).to_string()).unwrap();
     let result: Value = serde_json::from_str(&result).unwrap();
     let cited: Value =
         serde_json::from_str(result["coverage"][0]["evidence"].as_str().unwrap()).unwrap();
@@ -711,13 +867,13 @@ fn arbitrary_paths_writes_and_unissued_or_request_only_citations_are_refused() {
         assert!(!evidence.respond(request).success);
     }
     for handle in ["e0", "file:0", "e99999"] {
-        assert!(evidence.resolve_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":handle}]}).to_string()).is_err());
+        assert!(evidence.strict_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":handle}]}).to_string()).is_err());
     }
     let chunk = read(
         &mut evidence,
         json!({"op":"read","source_id":"human_request","offset":0}),
     );
-    assert!(evidence.resolve_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":chunk["citation_id"]}]}).to_string()).is_err());
+    assert!(evidence.strict_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":chunk["citation_id"]}]}).to_string()).is_err());
 }
 
 #[test]

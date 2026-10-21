@@ -191,6 +191,7 @@ async fn fresh_v2_subagent_can_call_parent_dynamic_tool_when_enabled() -> Result
         .submit(Op::DynamicToolResponse {
             id: call.call_id,
             response: DynamicToolResponse {
+                structured_content: None,
                 content_items: vec![DynamicToolCallOutputContentItem::InputText {
                     text: ECHO_RESULT.to_string(),
                 }],

@@ -39,6 +39,7 @@ pub(crate) async fn on_call_response(
         success,
     } = response.clone();
     let core_response = CoreDynamicToolResponse {
+        structured_content: None,
         content_items: content_items
             .into_iter()
             .map(CoreDynamicToolCallOutputContentItem::from)

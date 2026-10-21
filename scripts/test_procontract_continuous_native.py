@@ -30,6 +30,9 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 
+    def test_code_mode_reads_structured_evidence_and_recovers_from_invalid_arguments(self):
+        self.run_case(structured_pages_fixture=True)
+
     def test_selected_strategy_and_requested_diagnosis_with_readonly_inputs(self):
         self.run_case(progress_fixture=True,diagnostic_review_fixture=True,input_strategy_fixture=True)
 
@@ -97,6 +100,16 @@ class ContinuousNativeTests(unittest.TestCase):
 
     def test_local_observations_and_a_counterexample_reach_real_repair(self):
         self.run_case(partial_review_fixture=True, scoped_judgment_fixture=True,
+            task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
+
+    def test_rejected_support_does_not_discard_an_independent_defect_or_renew_the_task(self):
+        self.run_case(task_seconds=None, partial_review_fixture=True,
+            scoped_judgment_fixture=True, local_binding_fault_fixture=True,
+            task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
+
+    def test_rejected_support_keeps_local_repair_with_a_deadline_and_no_fresh_executors(self):
+        self.run_case(task_seconds=120, partial_review_fixture=True,
+            scoped_judgment_fixture=True, local_binding_fault_fixture=True,
             task_text="Make answer.txt contain ready. Check the supplied numerical attachment without assuming its correctness.")
 
     def test_reactive_dialogue_survives_observation_handoff_and_successor_execution(self):

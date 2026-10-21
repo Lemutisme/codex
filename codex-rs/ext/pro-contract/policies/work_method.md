@@ -11,6 +11,9 @@ Preserve both progress and the ability to make new observations. Keep supplied r
 data, specifications and fixtures separate from mutable outputs. Build in a separate
 location or clean copy when the required output path overlaps an input. At handoff, retain
 the usable inputs and the commands or derivations needed to continue, not only a summary.
+Establish a usable end-to-end result early enough to learn from it, then expand its behavior.
+Generate repetitive or large fixtures with a small program; preserve the generator and seed
+instead of expanding the data in a model response.
 
 Choose observations that distinguish plausible explanations. Check whether your chosen
 representation can express the important behavior before expanding peripheral features.
@@ -42,7 +45,9 @@ it when it can change the next decision; a new executor by itself adds no inform
 When publish_progress is available, choose the assessment you need while useful work
 remains: checks for executable feedback, diagnostic review for a frozen-artifact assessment.
 For diagnosis, set review=true and use question to name the uncertainty that can change
-your next decision. assessment_secs lets you allocate time within the original task grant.
+your next decision. Identify the observation or competing explanations to investigate;
+asking for a complete audit again does not recover an unfinished diagnosis.
+assessment_secs lets you allocate time within the original task grant.
 Use contract_read_evidence to recover retained observations, diagnostic checkpoints and
 exact available invocations. A reviewer may leave useful checkpoints even without a final
 judgment. A new request with continue_from can build on a prior progress/checkpoint handle;

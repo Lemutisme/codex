@@ -106,6 +106,8 @@ class NativeEvidenceTest(unittest.TestCase):
         probe_fixture = getattr(self, "probe_fixture", False)
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
+        local_binding_fault = getattr(self, "local_binding_fault_fixture", False)
+        structured_pages = getattr(self, "structured_pages_fixture", False)
         scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
         cross_requirement_computation = getattr(self, "cross_requirement_computation_fixture", False)
         computation = getattr(self, "computation_fixture", False) or cross_requirement_computation
@@ -443,11 +445,31 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 ]
                             if dialogue_probe:
                                 message["cases"]=[dialog_case(case["id"],case["args"]) for case in message["cases"]]
-                        elif role == "review" and counts[role] % 2 == 1 and not (protocol_correction and counts[role]==3):
+                        elif role == "review" and (
+                            counts[role] in (1, 4) if local_binding_fault else
+                            counts[role] % 2 == 1 and not (protocol_correction and counts[role]==3)
+                        ):
                             if computation:
                                 # A mutable workspace change must not change inspected bytes.
                                 (workspace/"numbers.npz").write_bytes(b"changed after candidate capture")
-                            items = [custom_call(body, review_code, "review-evidence")]
+                            prefix = r'''
+const catalog = await tools.read_evidence({op:"list",source_id:"",offset:0});
+if(typeof catalog!=="object" || !Array.isArray(catalog.entries))throw new Error("catalog must be structured");
+const rejected = await tools.read_evidence({op:"read",source_id:"human_request"});
+if(typeof rejected!=="string" || !rejected.startsWith("Refused:"))throw new Error("invalid query must stay rejected");
+let documentText="", offset=0;
+for (;;) {
+ const page = await tools.read_evidence({op:"read",source_id:"contract_terms",offset});
+ if(typeof page!=="object" || typeof page.text!=="string")throw new Error("page must be structured");
+ documentText+=page.text;
+ if(page.eof)break;
+ if(!Number.isInteger(page.next_offset) || page.next_offset<=offset)throw new Error("cursor did not advance");
+ offset=page.next_offset;
+}
+if(!JSON.parse(documentText).obligations.length)throw new Error("catalog missing obligations");
+text({structuredEvidencePages:true});
+''' if structured_pages else ""
+                            items = [custom_call(body, prefix + review_code, "review-evidence")]
                             message = None
                         elif role == "review":
                             candidates = [
@@ -512,7 +534,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                     message["coverage"].append(dict(requirement_id="R2",evidence=candidates[-1]))
                             if partial_review:
                                 message.update(verdict="partial",gaps=[dict(requirement_id="R2",reason="numeric format is not yet assessable")])
-                                if counts[role]==2:
+                                if counts[role]==2 or (local_binding_fault and counts[role]==3):
                                     message.update(coverage=[],findings=[dict(requirement_id="R1",location="answer.txt",counterexample="contains not ready instead of ready" if progression else "contains first failed instead of ready")])
                             if scoped_judgment:
                                 if "assessments" not in props:
@@ -533,6 +555,11 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                         observations="Some local examples pass." if findings else "",
                                         judgment=judgment))
                                 message = dict(assessments=rows, terms_gap=message["terms_gap"], missing=message["missing"])
+                            if local_binding_fault:
+                                # Both the first answer and its correction contain a bad
+                                # binding on R2. R1's real defect must still reach repair.
+                                message["assessments"][1]["judgment"] = dict(
+                                    status="supported", evidence="citation_id="+candidates[-1])
                         elif (deadline_fixture or owner_cancel) and role == "executor" and (not owner_cancel or counts[role] == 1):
                             heartbeat = "import time\nfrom pathlib import Path\nPath('answer.txt').write_text('ready\\n')\nfor i in range(900):\n Path('heartbeat.txt').write_text(str(i))\n time.sleep(.1)\n"
                             code = "text(await tools.exec_command(" + json.dumps(dict(cmd="python3 -c " + shlex.quote(heartbeat),yield_time_ms=30000,max_output_tokens=1000)) + "));"
@@ -923,6 +950,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     with sqlite3.connect(database) as connection:
                         attempts=[json.loads(x[0])["body"] for x in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in x[0]]
                     self.assertEqual([(x["attempt"],x["valid"]) for x in attempts],[(0,False),(1,not correction_exhausted)])
+                if structured_pages:
+                    self.assertTrue(any('"structuredEvidencePages":true' in text.replace(" ", "") for request in requests for text in text_values(request)))
                 if delivery_evidence:
                     with sqlite3.connect(database) as connection:
                         deliveries=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events WHERE kind='capture'") if 'task_delivery' in r[0]]
@@ -960,11 +989,21 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual(status["class"],"budget_exhausted")
                 if repair_review:
                     self.assertEqual(status["class"], "reviewer_unable" if partial_review else "terms_gap")
-                    self.assertEqual(counts.get("review"), 6 if progression else 4)
+                    self.assertEqual(counts.get("review"), 6 if progression or local_binding_fault else 4)
                     self.assertEqual(status["repairs_used"], 0 if progression else 1)
                     with contextlib.closing(sqlite3.connect(database.as_uri()+"?mode=ro",uri=True)) as connection:
                         commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events WHERE contract_id=? ORDER BY seq",(thread+".1",))]
                     self.assertEqual(commands,["issue","propose"] if progression else ["issue","propose","defeat","propose"])
+                    if local_binding_fault:
+                        with sqlite3.connect(database) as connection:
+                            protocol=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in r[0]]
+                        self.assertEqual([(p["attempt"],p["valid"]) for p in protocol],[(0,False),(1,False)]*2)
+                        for p in protocol:
+                            h=p["resolved_response"]
+                            retained=json.loads((home/"pro_contract/blobs"/h[:2]/h).read_text())
+                            self.assertEqual(retained["verdict"],"partial")
+                            self.assertTrue(any(g["requirement_id"]=="R2" for g in retained["gaps"]))
+                        self.assertEqual((workspace/"answer.txt").read_text().strip(),"ready")
                 if progression:
                     self.assertEqual(counts.get("executor"), 5)
                     self.assertEqual(any("sameTurnFeedback" in text for request in requests for text in text_values(request)),not missing_access)
@@ -1139,6 +1178,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 task_bytes=len(task_text.encode()),
                                 probe_fixture=probe_fixture,
                                 computation_fixture=computation,partial_review_fixture=partial_review,
+                                local_binding_fault_fixture=local_binding_fault,
                                 dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
                                 real_provider_calls=0,
                                 transport_failure_fixture=transport_failure,injected_failures=injected_failures,
@@ -1168,6 +1208,15 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                             public = destination / "public-evidence"
                             for (raw,) in source_db.execute("SELECT event_json FROM experiment_events"):
                                 event = json.loads(raw)
+                                body = event.get("body", {})
+                                if body.get("phase") in ("review_protocol_result", "review_checkpoint"):
+                                    for key in ("raw_response", "resolved_response", "handle"):
+                                        h = body.get(key)
+                                        if isinstance(h, str):
+                                            blob = home/"pro_contract/blobs"/h[:2]/h
+                                            if blob.is_file():
+                                                public.mkdir(exist_ok=True)
+                                                shutil.copy2(blob, public/h)
                                 handle = event.get("body", {}).get("public_evidence")
                                 public_event = event.get("kind") == "verification" or event.get("body",{}).get("phase") == "progress_assessed"
                                 if not public_event or not isinstance(handle, str):
