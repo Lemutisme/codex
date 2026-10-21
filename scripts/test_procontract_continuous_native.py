@@ -18,6 +18,15 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_open_ended_owner_interrupts_active_execution_and_resumes_without_a_new_grant(self):
         self.run_case(task_seconds=None, owner_cancel_fixture=True)
 
+    def test_review_interruption_resumes_the_original_responsibility_after_restart(self):
+        self.run_case(task_seconds=120, transport_failure_fixture="review")
+
+    def test_executor_interruption_resumes_the_original_responsibility_after_restart(self):
+        self.run_case(task_seconds=120, transport_failure_fixture="executor")
+
+    def test_successor_interruption_resumes_without_reissuing_or_renewing_the_grant(self):
+        self.run_case(task_seconds=120, succession_fixture=True, transport_failure_fixture="successor")
+
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 

@@ -142,6 +142,7 @@ pub(super) async fn run(
         .spawn_internal_session(parent_id, options)
         .await
         .map_err(|e| e.to_string())?;
+    let mut interrupted = false;
     let result = async {
         if deadline.is_some_and(|end| tokio::time::Instant::now() >= end) || *turn.cancel.borrow()
             || parent.conversation_history_snapshot().await.user_message_revision() != authorization_revision
@@ -172,7 +173,10 @@ pub(super) async fn run(
                     if event.id != turn_id { continue; }
                     match event.msg {
                         EventMsg::TurnComplete(complete) if complete.turn_id == turn_id => {
-                            if let Some(error) = last_error { return Err(error); }
+                            if let Some(error) = last_error {
+                                interrupted = true;
+                                return Err(error);
+                            }
                             return Ok(SuccessorHandoff {
                                 turn_id,
                                 summary: crate::workers::bounded(complete.last_agent_message.as_deref().unwrap_or_default(), /*cap*/ 1200),
@@ -180,7 +184,7 @@ pub(super) async fn run(
                             });
                         }
                         EventMsg::TurnAborted(_) => return Err("successor aborted without a handoff".into()),
-                        EventMsg::Error(error) => last_error = Some(error.message),
+                        EventMsg::Error(error) if error.affects_turn_status() => last_error = Some(error.message),
                         _ => {}
                     }
                 }
@@ -195,6 +199,7 @@ pub(super) async fn run(
     shutdown.map_err(|error| format!("successor shutdown unconfirmed: {error}"))?;
     Ok(match result {
         Ok(handoff) => SuccessorExit::Handoff(handoff),
+        Err(reason) if interrupted => SuccessorExit::Interrupted(reason),
         Err(reason) => SuccessorExit::Stopped(reason),
     })
 }

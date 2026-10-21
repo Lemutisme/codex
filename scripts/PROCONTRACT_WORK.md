@@ -181,6 +181,40 @@ subject, revision, check policy, environment/inputs and harness identity still m
 changed subject is checked anew. Earlier versions remain readable. Remaining assessment
 time is returned inside the existing JSON tool response, preserving code-mode parsing.
 
+Reviewer evidence discovery now supports `read_evidence({op:"list", source_id:"", offset:0})`.
+It returns multiple `entries` within the existing response byte bound and a `next_offset`;
+the historical single-entry `index` operation is unchanged. Text reads still follow the
+returned byte offsets. Candidate entries expose the actual `inspection_path` when the
+computation capability is available. Large file catalogs stay paged rather than entering
+every model request as a giant schema enum.
+
+The `scoped-obligations-v2` catalog retains each exact source quote once, referenced by
+`source_quote_index` in obligation/context rows. The original human request has its own
+source and identity; it is not repeated in the derived catalog. Original terms, hashes,
+obligation scopes and citation checks are unchanged. Computation schemas enumerate legal
+obligation IDs and require canonical file IDs. Input/scope validation happens before an
+execution reservation; admitted actions, including failed or unresolved executions, remain
+spent. A malformed request that never dispatches does not consume an execution slot.
+
+New review responses express missing evidence on the affected judgments. The redundant
+top-level `missing` field is no longer required by the schema; historical values still
+parse and remain effective. A checkpoint may retain a local observation with an unresolved
+judgment without claiming whole-obligation support. Final responses and early checkpoints
+use the same binding checks.
+
+Native actor errors now report `execution_interrupted`, distinct from a substantive
+reviewer's inability to judge and from a user cancellation. Confirmed shutdown releases
+the actor's reservation, not the original responsibility or resource grant. Starting an
+authorized turn on the same thread, including after app-server restart, resumes retained
+work without another Issue or a reset allowance. `resting` means no controller action is
+scheduled; it is not task completion. The benchmark runner records the interruption when
+its profile submits a stopped attempt. Scheduling a continuation remains the caller's
+strategy; this mechanism does not introduce an automatic retry count or new workflow.
+
+Gateway budget closure is serialized with accounting writes. A late callback cannot use
+the closed SQLite connection or dispatch a new request; incomplete admitted requests remain
+charged. This does not infer completion of an interrupted model response.
+
 The replaceable work-method and reviewer contexts choose what to investigate, when to
 checkpoint or continue, and how much effort to allocate. No new kernel command, automatic
 retry rule, task-specific exception or RSI orchestration implements this capability.

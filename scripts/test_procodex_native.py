@@ -37,7 +37,7 @@ def text_values(value):
                 pass
 
 
-def custom_call(body, code, name):
+def named_call(body, tool_name, payload, call_id):
     roots = list(body.get("tools", []))
     for value in body.get("input", []):
         if value.get("type") == "additional_tools":
@@ -47,22 +47,36 @@ def custom_call(body, code, name):
         for item in items:
             if item.get("type") == "namespace":
                 yield from walk(item.get("tools", []), item["name"])
-            elif item.get("name") == "exec":
+            elif item.get("name") == tool_name:
                 yield item, namespace
 
     found = list(walk(roots))
     if len(found) != 1:
-        raise AssertionError("one code-mode exec expected")
+        raise AssertionError(f"one code-mode {tool_name} expected")
     tool, namespace = found[0]
-    if tool["type"] != "custom":
-        raise AssertionError("custom exec expected")
     return dict(
-        type="custom_tool_call",
-        call_id=name,
-        name="exec",
-        input=code,
+        type="custom_tool_call" if tool["type"] == "custom" else "function_call",
+        call_id=call_id,
+        name=tool_name,
+        **({"input":payload} if tool["type"] == "custom" else {"arguments":json.dumps(payload)}),
         **({"namespace": namespace} if namespace else {}),
     )
+
+
+def custom_call(body, code, name):
+    return named_call(body, "exec", code, name)
+
+
+def pending_cell_wait(body, call_id):
+    """Scripted execution must await yielded cells just as an actual agent does."""
+    for item in reversed(body.get("input", [])):
+        if item.get("type") in ("custom_tool_call_output", "function_call_output"):
+            for text in text_values(item.get("output")):
+                match = re.search(r"^Script running with cell ID (\S+)", text)
+                if match:
+                    return named_call(body,"wait",dict(cell_id=match.group(1),yield_time_ms=1000,max_tokens=4000),call_id)
+            return None
+    return None
 
 
 @unittest.skipUnless(
@@ -73,6 +87,7 @@ class NativeEvidenceTest(unittest.TestCase):
     def test_real_executor_and_reviewer_use_frozen_handles(self):
         deadline_fixture = getattr(self, "deadline_fixture", False)
         owner_cancel = getattr(self, "owner_cancel_fixture", False)
+        transport_failure = getattr(self, "transport_failure_fixture", None)
         observation_fixture = getattr(self, "observation_fixture", False)
         missing_access = getattr(self, "missing_access_fixture", False)
         correction_exhausted = getattr(self, "correction_exhausted_fixture", False)
@@ -143,6 +158,7 @@ print(VALUE)
             worker_keys = {}
             requests = []
             errors = []
+            injected_failures = []
             review_code = r"""
 function decode(x) {
  if (typeof x === "string") { try { return decode(JSON.parse(x)); } catch (_) { return x; } }
@@ -237,6 +253,12 @@ for (let offset=0; offset<50;) {
  if(page.eof)break;offset=page.next_offset;
 }
 if(!binary)throw new Error("binary source missing");
+for(let i=0;i<3;i++) {
+ let invalid;
+ try { invalid=decode(await tools.inspect_evidence({source_ids:[id],requirements:[],python:"print('not admitted " + i + "')"})); }
+ catch(error) { invalid=String(error); }
+ if(invalid?.source_id)throw new Error("invalid computation was dispatched");
+}
 const code="import struct,zipfile\nfrom pathlib import Path\nassert Path('/evidence/"+id.replace(":","-")+"').read_text().strip()=='ready'\ndata=zipfile.ZipFile('/evidence/"+binary.replace(":","-")+"').read('x.npy')\nn=struct.unpack('<H',data[8:10])[0]\nassert struct.unpack('<3d',data[10+n:])==(1.,2.,3.)\nprint('ready: frozen numeric sum is 6')\n";
 const computation=decode(await tools.inspect_evidence({source_ids:[id,binary],requirements:["R1"],python:code}));
 if(computation.execution_state!=="completed")throw new Error(JSON.stringify(computation));
@@ -331,7 +353,13 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             text_values(body.get("input", []))
                         ):
                             role = "successor"
-                        counts[role] = counts.get(role, 0) + 1
+                        if role == transport_failure and not injected_failures:
+                            injected_failures.append(dict(role=role, request=len(requests)))
+                            self.send_error(503, "injected provider interruption")
+                            return
+                        waiting = pending_cell_wait(body,f"wait-{len(requests)}") if role in ("executor","successor") else None
+                        if waiting is None:
+                            counts[role] = counts.get(role, 0) + 1
                         if late_successor and role == "successor" and counts[role] == 2:
                             # Real native clock/HTTP wait: this handoff fits the original
                             # grant but exceeds the former guessed verification reserve.
@@ -341,7 +369,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             raise AssertionError('selected strategy did not reach this executor context')
                         if input_strategy and role in ('executor','successor') and '/inputs/source.txt' not in '\n'.join(text_values(body)):
                             raise AssertionError('declared input capability did not reach this executor context')
-                        if role == "draft":
+                        if waiting is not None:
+                            items = [waiting]
+                            message = None
+                        elif role == "draft":
                             message = dict(
                                 decision="contract",
                                 reason="",
@@ -547,7 +578,7 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                                 code='text(await tools.exec_command({cmd:"printf \'ready\\n\' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));'
                             items = [custom_call(body, code, f"progress-{stage}")]
                             message = None
-                        elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or (repair_review and role == "executor" and counts[role] == 3):
+                        elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or ((repair_review or transport_failure) and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
                                 if (succession or repair_review) and role == "executor" and counts[role] == 1
@@ -636,6 +667,16 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
             provider = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Provider)
             provider.daemon_threads = True
             threading.Thread(target=provider.serve_forever, daemon=True).start()
+            provider_url = f"http://127.0.0.1:{provider.server_port}/v1"
+            gateway = request_budget = None
+            if transport_failure:
+                from procontract_benchmark_gateway import Budget, Gateway
+                request_budget = Budget(root/'requests.sqlite', seconds=getattr(self,'task_seconds',120), requests=1000)
+                gateway = Gateway(request_budget, provider_url, api_key="LOCAL_FIXTURE_ONLY")
+                gateway_thread = threading.Thread(target=gateway.serve_forever,daemon=True)
+                gateway_thread.start()
+                original_request_grant = request_budget.arm()
+                provider_url = gateway.base_url
             (source / "config.toml").write_text(
                 procodex.toml(
                     dict(
@@ -643,7 +684,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         model_providers=dict(
                             fixture=dict(
                                 name="Local fixture",
-                                base_url=f"http://127.0.0.1:{provider.server_port}/v1",
+                                base_url=provider_url,
                                 env_key="PROCODEX_FIXTURE_KEY",
                                 wire_api="responses",
                                 supports_websockets=False,
@@ -799,6 +840,22 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 server.request('turn/interrupt', {'threadId':thread,'turnId':started_turn['turn']['id']},handle)
                                 interrupted = True
                             if status.get("resting"):
+                                if transport_failure and resumed_turn is None:
+                                    self.assertEqual(status.get('class'),'execution_interrupted',status)
+                                    with sqlite3.connect(database) as connection:
+                                        cancelled_grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
+                                        original_commands=[json.loads(r[0])['command']['type'] for r in connection.execute('SELECT command_json FROM events ORDER BY seq')]
+                                    self.assertNotIn('support',original_commands)
+                                    self.assertIsNone(cancelled_grant['pending'])
+                                    self.assertEqual(server.close()['status'],'exited')
+                                    if server.process.stdout:server.process.stdout.close()
+                                    server=AppServer([str(package/'bin/codex'),'--enable','pro_contract','--disable','hooks','app-server'],env,root/'rpc.jsonl',root/'stderr.log',cwd=workspace)
+                                    server.request('initialize',{'clientInfo':{'name':'interrupted-task-recovery','version':'1'},'capabilities':{'experimentalApi':True}},handle)
+                                    server.notify('initialized')
+                                    restored=server.request('thread/resume',{'threadId':thread},handle)
+                                    self.assertEqual(restored['thread']['id'],thread)
+                                    resumed_turn=server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':'Continue the same task from its retained work.','text_elements':[]}]},handle)['turn']['id']
+                                    continue
                                 if owner_cancel and resumed_turn is None:
                                     self.assertTrue(interrupted)
                                     self.assertEqual(status.get('class'),'no_handoff',status)
@@ -817,7 +874,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                     self.assertEqual(restored['thread']['id'],thread)
                                     resumed_turn=server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':'Continue the same task from the retained work.','text_elements':[]}]},handle)['turn']['id']
                                     continue
-                                if owner_cancel and not any(t['id']==resumed_turn and t['status']=='completed' for t in completed_turns):
+                                if (owner_cancel or transport_failure) and not any(t['id']==resumed_turn and t['status']=='completed' for t in completed_turns):
                                     continue
                                 break
                 self.assertEqual(errors, [])
@@ -827,6 +884,20 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual((home/'inputs/files/source.txt').read_text(),'immutable source\n')
                 self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
                 self.assertIsNotNone(status)
+                if transport_failure:
+                    self.assertEqual(len(injected_failures),1)
+                    with sqlite3.connect(database) as connection:
+                        restored_grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
+                        commands=[json.loads(r[0])['command']['type'] for r in connection.execute('SELECT command_json FROM events ORDER BY seq')]
+                    self.assertEqual(restored_grant,cancelled_grant)
+                    self.assertEqual(commands.count('issue'),1)
+                    self.assertEqual(commands.count('support'),1)
+                    self.assertEqual(counts.get('draft'),1)
+                    counts_after = request_budget.status()
+                    self.assertEqual(counts_after['used'],len(requests))
+                    self.assertEqual(counts_after['started'],original_request_grant['started'])
+                    self.assertEqual(counts_after['deadline'],original_request_grant['deadline'])
+                    self.assertEqual(request_budget.db.execute('SELECT count(*) FROM requests WHERE http_status=503').fetchone()[0],1)
                 self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
                 if getattr(self, 'task_seconds', 'finite') is None:
                     with sqlite3.connect(database) as connection:
@@ -912,7 +983,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         handle=first['public_evidence']
                         record=json.loads((home/'pro_contract/blobs'/handle[:2]/handle).read_text())
                         self.assertTrue(record['diagnostic_review'])
-                        self.assertEqual(record['public']['review']['verdict']['type'],'defeat')
+                        self.assertIn(record['public']['review']['verdict']['type'],('defeat','partial'))
                         self.assertEqual(len(record['public']['findings']),1)
                 if probe_fixture:
                     self.assertEqual(len(worker_keys.get("explore", set())), 2)
@@ -922,7 +993,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         grant = json.loads(connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()[0])
                     self.assertEqual(grant["used"], 1)
                     self.assertIsNone(grant["pending"])
-                if succession:
+                if succession and not transport_failure:
                     self.assertTrue(any("publicEvidenceRecall" in text and "true" in text
                         for request in requests for item in request.get("input", [])
                         if item.get("type") in ("custom_tool_call_output", "function_call_output")
@@ -1046,6 +1117,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 server.close()
                 server.process.stdout.close()
                 server._log.close()
+                if gateway:
+                    gateway.shutdown();gateway.server_close();gateway_thread.join()
                 provider.shutdown()
                 provider.server_close()
                 output = os.environ.get("PROCODEX_TEST_REPORT")
@@ -1068,6 +1141,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 computation_fixture=computation,partial_review_fixture=partial_review,
                                 dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
                                 real_provider_calls=0,
+                                transport_failure_fixture=transport_failure,injected_failures=injected_failures,
+                                request_budget=request_budget.status() if request_budget else None,
                                 progress_fixture=progression,resource_limit_fixture=resource_limit,
                                 successor_progress_fixture=successor_progress,deadline_fixture=deadline_fixture,
                                 owner_cancel_fixture=owner_cancel,task_seconds=getattr(self,'task_seconds',75 if late_successor else 60 if deadline_fixture else 3600),
@@ -1078,6 +1153,9 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     (destination / "requests.json").write_text(
                         json.dumps(requests, indent=2)
                     )
+                    if request_budget:
+                        with sqlite3.connect(destination/'requests.sqlite') as saved:
+                            request_budget.db.backup(saved)
                     if computation or partial_checks or dialogue_probe or progression or successor_progress:
                         shutil.copytree(home/"pro_contract/work",destination/"work",dirs_exist_ok=True,symlinks=True)
                     database = home / "pro_contract/ledger_1.sqlite"
@@ -1105,6 +1183,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                     observation=document.get("host_observations") or document.get("public",{}).get("host_observations")
                                     if observation:
                                         shutil.copy2(home/"pro_contract/blobs"/observation[:2]/observation,public/observation)
+                if request_budget: request_budget.close()
 
 
 if __name__ == "__main__":

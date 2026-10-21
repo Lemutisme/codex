@@ -36,6 +36,10 @@ pub enum WorkerError {
     Aborted,
     #[error("worker turn failed: {0}")]
     Failed(String),
+    /// Native execution ended with an error instead of an assessment. The
+    /// responsibility and original grant remain available to an authorized caller.
+    #[error("worker execution interrupted: {0}")]
+    Interrupted(String),
     #[error("worker output is malformed: {0}")]
     Malformed(String),
 }

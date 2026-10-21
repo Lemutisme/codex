@@ -1,5 +1,5 @@
 //! Durable, non-renewing authorization for one frozen review's computations.
-//! Reservations survive malformed requests, failure and restart. Unknown action effects
+//! Reservations follow input validation and survive dispatch failure and restart. Unknown action effects
 //! must be reconciled before dispatch; a missing completion is never permission to retry.
 
 use std::io::Write;

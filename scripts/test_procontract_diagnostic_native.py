@@ -84,7 +84,7 @@ class DiagnosticNativeTest(unittest.TestCase):
 await readDocument(tools.read_evidence,{op:"read",source_id:"contract_terms"});
 for(let offset=0;;){const p=decode(await tools.read_evidence({op:"read",source_id:"human_request",offset}));if(p.eof)break;offset=p.next_offset;}
 let id;
-for(let offset=0;;){const p=decode(await tools.read_evidence({op:"index",source_id:"",offset}));if(p.entry?.path==="answer.txt"){id=p.entry.source_id;break;}if(p.eof)break;offset=p.next_offset;}
+for(let offset=0;;){const p=decode(await tools.read_evidence({op:"list",source_id:"",offset}));const found=p.entries.find(x=>x.path==="answer.txt");if(found){id=found.source_id;break;}if(p.eof)break;offset=p.next_offset;}
 const artifact=decode(await tools.read_evidence({op:"read",source_id:id,offset:0}));
 text({fixtureCitation:artifact.citation_id,fixtureAnswer:artifact.text});
 '''
@@ -99,7 +99,7 @@ if(focus.question.includes("Continue")) {
 }
 const ready=artifact.text.trim()==="ready";
 const judgment=ready?{status:"supported",evidence:artifact.citation_id}:{status:"defeated",findings:[{location:"answer.txt",counterexample:"observed not ready; required ready"}],missing:""};
-const r=decode(await tools.record_review({checkpoint_id:"local-result",review:{assessments:[{requirement_id:"R1",observations:artifact.text,judgment}],terms_gap:[],missing:""}}));
+const r=decode(await tools.record_review({checkpoint_id:"local-result",review:{assessments:[{requirement_id:"R1",observations:artifact.text,judgment}],terms_gap:[]}}));
 if(!r.handle || r.completion_certified!==false)throw new Error("checkpoint receipt missing");
 text({checkpointRecorded:r.handle});
 '''

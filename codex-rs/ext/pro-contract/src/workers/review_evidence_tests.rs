@@ -88,6 +88,202 @@ async fn checkpoint_fixture() -> (tempfile::TempDir, ReviewEvidence, crate::Ledg
     (root, evidence, ledger)
 }
 
+#[test]
+fn bounded_catalog_pages_preserve_every_legacy_entry_and_cursor() {
+    let (root, mut evidence) = fixture("artifact");
+    for index in 0..80 {
+        std::fs::write(
+            root.path()
+                .join("workspace")
+                .join(format!("输入-{index:03}.txt")),
+            "data",
+        )
+        .unwrap();
+    }
+    evidence.subject = capture(
+        &root.path().join("workspace"),
+        &CapturePolicy {
+            version: 1,
+            excluded_paths: vec![],
+            max_file_bytes: 1 << 20,
+            max_total_bytes: 1 << 24,
+        },
+        &evidence.store,
+    )
+    .unwrap();
+    evidence.order = (0..evidence.subject.manifest.entries.len()).collect();
+    let count = evidence.documents.len() + evidence.order.len();
+    let legacy: Vec<Value> = (0..count)
+        .map(|offset| {
+            read(
+                &mut evidence,
+                json!({"op":"index","source_id":"","offset":offset}),
+            )["entry"]
+                .clone()
+        })
+        .collect();
+    let (mut entries, mut offset, mut pages) = (Vec::new(), 0, 0);
+    loop {
+        let page = read(
+            &mut evidence,
+            json!({"op":"list","source_id":"","offset":offset}),
+        );
+        let rows = page["entries"].as_array().unwrap();
+        assert!(rows.len() > 1);
+        entries.extend(rows.iter().cloned());
+        pages += 1;
+        let next = page["next_offset"].as_u64().unwrap() as usize;
+        assert_eq!(next, offset + rows.len());
+        offset = next;
+        if page["eof"] == true {
+            break;
+        }
+    }
+    assert_eq!(entries, legacy);
+    assert!(pages > 1 && pages < count);
+    let end = read(
+        &mut evidence,
+        json!({"op":"list","source_id":"","offset":offset}),
+    );
+    assert_eq!(end["entries"], json!([]));
+    assert_eq!(end["eof"], true);
+    assert!(
+        !evidence
+            .respond(json!({"op":"list","source_id":"","offset":usize::MAX}))
+            .success
+    );
+}
+
+#[test]
+fn compact_catalog_keeps_scope_and_exact_sources_without_repeated_request_text() {
+    let (_root, evidence) = fixture("artifact");
+    let mut terms = evidence.terms.clone();
+    terms.requirements.push(crate::Requirement {
+        id: "R2".into(),
+        ..terms.requirements[0].clone()
+    });
+    terms.context.push(crate::RequestContext {
+        kind: crate::ContextKind::Preference,
+        text: "A concise report is preferred".into(),
+        source_quote: terms.intake_text.clone(),
+    });
+    let mut evidence =
+        ReviewEvidence::new(evidence.subject, evidence.store, &terms, "checks".into()).unwrap();
+    let catalog: Value =
+        serde_json::from_str(&document(&mut evidence, "contract_terms").0).unwrap();
+    assert_eq!(catalog["source_quotes"], json!([terms.intake_text]));
+    assert_eq!(catalog["human_request"]["source_id"], "human_request");
+    assert!(catalog.get("intake_text").is_none());
+    assert_eq!(
+        catalog["terms_hash"],
+        json!(crate::digest_of("terms", &terms))
+    );
+    for (row, obligation) in catalog["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(terms.obligations())
+    {
+        assert_eq!(row["id"], obligation.id);
+        assert_eq!(row["scope"], json!(obligation.scope));
+        assert_eq!(
+            catalog["source_quotes"][row["source_quote_index"].as_u64().unwrap() as usize],
+            obligation.source_quote
+        );
+    }
+    assert_eq!(catalog["context"][0]["source_quote_index"], 0);
+}
+
+#[tokio::test]
+async fn local_checkpoint_does_not_need_a_redundant_global_missing_field() {
+    let (_root, evidence, ledger) = checkpoint_fixture().await;
+    let request = json!({"checkpoint_id":"local","review":{
+        "assessments":[{"requirement_id":"R1","observations":"The available observation is partial.",
+            "judgment":{"status":"unresolved","missing":"Need an artifact observation."}}],"terms_gap":[]}});
+    assert!(evidence.record_checkpoint(request.clone()).await.success);
+    let event = ledger.experiments().await.unwrap().remove(0).event;
+    let handle = serde_json::from_value(event.body["handle"].clone()).unwrap();
+    let retained: Value = serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(retained["completion_certified"], false);
+    assert_ne!(retained["review"]["verdict"]["type"], "support");
+    assert!(
+        retained
+            .to_string()
+            .contains("Need an artifact observation.")
+    );
+    let mut malformed = request;
+    malformed["checkpoint_id"] = json!("invalid");
+    malformed["review"]["assessments"][0]["judgment"]
+        .as_object_mut()
+        .unwrap()
+        .remove("missing");
+    assert!(!evidence.record_checkpoint(malformed).await.success);
+    assert_eq!(ledger.experiments().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn invalid_inspection_does_not_spend_an_execution_reservation() {
+    let (root, mut evidence) = fixture("artifact");
+    let directory = root.path().join("inspection");
+    evidence = evidence
+        .with_execution(
+            crate::CheckEnvironment {
+                inputs: vec![],
+                docker: "/nonexistent-test-docker".into(),
+                image: "pinned".into(),
+                user: "1000:1000".into(),
+                candidate_mount: "/candidate".into(),
+                timeout_secs: 10,
+                build_command: None,
+                candidate_command: None,
+            },
+            crate::ReviewExecution {
+                max_calls: 1,
+                timeout_secs: 5,
+                max_output_bytes: 4096,
+            },
+            directory.clone(),
+            std::time::Duration::from_secs(60),
+        )
+        .unwrap();
+    let spec = serde_json::to_value(evidence.inspection_tool()).unwrap();
+    assert!(spec.to_string().contains("^file:"));
+    let deadline = std::fs::read(directory.join("grant.json")).unwrap();
+    for request in [
+        json!({"source_ids":["file:0"],"requirements":[],"python":"print('wrong scope')"}),
+        json!({"source_ids":["contract_terms"],"requirements":["R1"],"python":"print('not a file')"}),
+        json!({"source_ids":["file:0"],"requirements":["invented"],"python":"print('wrong ID')"}),
+    ] {
+        assert!(
+            !evidence
+                .inspect(request, std::time::Duration::from_secs(30))
+                .await
+                .success
+        );
+        assert!(!directory.join("reservation-0.json").exists());
+    }
+    let _ = evidence
+        .inspect(
+            json!({"source_ids":["file:0"],"requirements":["R1"],"python":"print('admitted')"}),
+            std::time::Duration::from_secs(30),
+        )
+        .await;
+    assert!(directory.join("reservation-0.json").exists());
+    assert_eq!(
+        std::fs::read(directory.join("grant.json")).unwrap(),
+        deadline
+    );
+    assert!(
+        !evidence
+            .inspect(
+                json!({"source_ids":[],"requirements":["R1"],"python":"print('again')"}),
+                std::time::Duration::from_secs(30)
+            )
+            .await
+            .success
+    );
+}
+
 #[tokio::test]
 async fn checkpoints_resolve_citations_are_durable_and_do_not_relabel_changed_work() {
     let (_root, mut evidence, ledger) = checkpoint_fixture().await;

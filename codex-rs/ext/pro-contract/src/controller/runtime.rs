@@ -81,11 +81,12 @@ pub struct StatusRecord {
     /// `succeeding`, `did_not_pass` or `not_verified`.
     pub phase: String,
     pub detail: String,
-    /// No further automation will happen without new human input.
+    /// The controller has no scheduled action. This is not task completion:
+    /// an authorized caller can start another turn under the same responsibility.
     pub resting: bool,
     pub repairs_used: u32,
     /// Why the lane rests `not_verified` (`infrastructure`, `insufficient_evidence`,
-    /// `reviewer_unable`, `terms_gap` or `no_handoff`); empty otherwise.
+    /// `reviewer_unable`, `execution_interrupted`, `terms_gap` or `no_handoff`); empty otherwise.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub class: String,
 }
@@ -864,7 +865,11 @@ impl ThreadRuntime {
 
     async fn executor_stopped(&self, cause: ThreadIdleCause) {
         self.not_verified(
-            NotVerifiedClass::NoHandoff,
+            if cause == ThreadIdleCause::Failed {
+                NotVerifiedClass::ExecutionInterrupted
+            } else {
+                NotVerifiedClass::NoHandoff
+            },
             &format!("the executor turn ended without a handoff ({cause:?})"),
         )
         .await;

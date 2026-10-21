@@ -22,6 +22,28 @@ use crate::StepOutcome;
 use crate::StepReceipt;
 use crate::Terms;
 use crate::WorkerError;
+
+#[test]
+fn native_execution_interruption_is_distinct_from_a_review_judgment() {
+    let review = Err(WorkerError::Interrupted(
+        "response stream disconnected".into(),
+    ));
+    assert!(matches!(
+        review_verdict(Some(&review)),
+        Verdict::NotVerified {
+            class: NotVerifiedClass::ExecutionInterrupted,
+            ..
+        }
+    ));
+    let timeout = Err(WorkerError::TimedOut);
+    assert!(matches!(
+        review_verdict(Some(&timeout)),
+        Verdict::NotVerified {
+            class: NotVerifiedClass::ReviewerUnable,
+            ..
+        }
+    ));
+}
 use crate::workers::reviewer::Coverage;
 use crate::workers::reviewer::Finding;
 use crate::workers::reviewer::Review;

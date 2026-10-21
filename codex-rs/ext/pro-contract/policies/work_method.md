@@ -16,6 +16,10 @@ Choose observations that distinguish plausible explanations. Check whether your 
 representation can express the important behavior before expanding peripheral features.
 Use the actual relevant conditions: execution mode, input/state, assumptions and interfaces.
 Distinguish a variable measurement from the other properties that an observation establishes.
+If repeated comparisons alternate without a relevant change, investigate which property
+varies and retain that uncertainty. Choose a discriminating observation of the required
+behavior; copying a measured duration or ordering into the implementation does not explain
+the variation. Passing the retained matrix still leaves unexamined interfaces and states.
 When an observation depends on a helper, fixture or service, establish that dependency
 is working before interpreting the result. A convenient substitute interface and a failed
 setup exercise different behavior from a successful interaction with the required interface.
@@ -52,3 +56,8 @@ distinct. Missing observations do not erase successful work or certify an unexam
 Name remaining gaps accurately at delivery. Choose further work according to the user's
 objective and the original remaining budget. Progress publication is not task completion;
 independent support and authorized settlement remain separate host decisions.
+
+An interrupted model or tool attempt is an execution observation. Once its effects and
+shutdown are known, use the retained state and original grant to decide whether to resume,
+wait or change approach. A transport error does not decide artifact quality. Avoid replaying
+an action whose effects are still unknown, or replacing an outstanding task with a fresh grant.

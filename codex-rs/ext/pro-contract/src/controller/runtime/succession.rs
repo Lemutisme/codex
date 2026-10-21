@@ -139,7 +139,7 @@ impl ThreadRuntime {
                 "shutdown_confirmed": result.is_ok(),
                 "admission_rejected": matches!(&result, Ok(SuccessorExit::Rejected(_))),
                 "reason": match &result {
-                    Ok(SuccessorExit::Rejected(reason) | SuccessorExit::Stopped(reason)) => Some(reason),
+                    Ok(SuccessorExit::Rejected(reason) | SuccessorExit::Stopped(reason) | SuccessorExit::Interrupted(reason)) => Some(reason),
                     _ => None,
                 },
                 "error": result.as_ref().err(),
@@ -170,6 +170,11 @@ impl ThreadRuntime {
         }
         let handoff = match result {
             Ok(SuccessorExit::Handoff(handoff)) => handoff,
+            Ok(SuccessorExit::Interrupted(reason)) => {
+                self.not_verified(NotVerifiedClass::ExecutionInterrupted, &reason)
+                    .await;
+                return;
+            }
             Ok(SuccessorExit::Rejected(reason)) => {
                 self.not_verified(NotVerifiedClass::Infrastructure, &reason)
                     .await;

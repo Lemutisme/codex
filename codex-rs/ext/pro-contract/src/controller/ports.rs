@@ -95,5 +95,8 @@ pub(crate) enum SuccessorExit {
     /// Admission failed before a child existed; safe to clear the pending reservation.
     Rejected(String),
     Handoff(SuccessorHandoff),
+    /// A native turn error, after confirmed executor shutdown. Continuation is
+    /// available under the retained responsibility, not a newly issued grant.
+    Interrupted(String),
     Stopped(String),
 }

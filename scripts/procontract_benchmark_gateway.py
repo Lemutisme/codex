@@ -87,6 +87,7 @@ class Budget:
     def __init__(self, path, *, seconds=21600, requests=1000, model="gpt-5.6-luna", effort="max"):
         self.path = Path(path)
         self.lock = threading.Lock()
+        self.closed = False
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA synchronous=FULL")
@@ -103,14 +104,19 @@ class Budget:
             raise ValueError("durable budget profile changed")
 
     def arm(self):
-        with self.lock, self.db:
-            now = time.time()
-            seconds = self.profile['seconds']
-            self.db.execute("UPDATE budget SET started=?,deadline=? WHERE started IS NULL", (now, None if seconds is None else now+seconds))
+        with self.lock:
+            if self.closed:
+                raise ValueError("budget_closed")
+            with self.db:
+                now = time.time()
+                seconds = self.profile['seconds']
+                self.db.execute("UPDATE budget SET started=?,deadline=? WHERE started IS NULL", (now, None if seconds is None else now+seconds))
         return self.status()
 
     def status(self):
         with self.lock:
+            if self.closed:
+                raise ValueError("budget_closed")
             started, deadline = self.db.execute("SELECT started,deadline FROM budget").fetchone()
             used = self.db.execute("SELECT count(*) FROM requests").fetchone()[0]
             rejection = self.db.execute("SELECT reason FROM rejections ORDER BY rowid DESC LIMIT 1").fetchone()
@@ -118,14 +124,20 @@ class Budget:
                     last_rejection=rejection[0] if rejection else None)
 
     def reject(self, reason):
-        with self.lock, self.db:
-            self.db.execute("INSERT INTO rejections(at,reason) VALUES(?,?)", (time.time(), reason))
+        with self.lock:
+            if self.closed:
+                return
+            with self.db:
+                self.db.execute("INSERT INTO rejections(at,reason) VALUES(?,?)", (time.time(), reason))
 
     def observe_identity(self, request, response):
         model=response.get('model')
         effort=(response.get('reasoning') or {}).get('effort')
-        with self.lock, self.db:
-            self.db.execute('INSERT OR REPLACE INTO response_identity VALUES(?,?,?)',(request,model,effort))
+        with self.lock:
+            if self.closed:
+                return
+            with self.db:
+                self.db.execute('INSERT OR REPLACE INTO response_identity VALUES(?,?,?)',(request,model,effort))
         if (model is not None and model!=self.profile['model']) or (effort is not None and effort!=self.profile['effort']):
             self.reject('upstream_model_or_effort_mismatch')
             raise ValueError('upstream_model_or_effort_mismatch')
@@ -135,6 +147,8 @@ class Budget:
         # cannot exceed an explicit ceiling; failed/disconnected attempts count
         # even when the allocation has no request ceiling.
         with self.lock:
+            if self.closed:
+                raise ValueError("budget_closed")
             try:
                 self.db.execute("BEGIN IMMEDIATE")
                 started, deadline = self.db.execute("SELECT started,deadline FROM budget").fetchone()
@@ -153,12 +167,21 @@ class Budget:
                 raise
 
     def checkpoint(self, request, *, status=None, terminal=None, usage=None, failure=None, finished=False):
-        with self.lock, self.db:
-            self.db.execute("UPDATE requests SET http_status=COALESCE(?,http_status),terminal=COALESCE(?,terminal),usage=COALESCE(?,usage),failure=COALESCE(?,failure),finished=COALESCE(?,finished) WHERE id=?",
-                (status, terminal, json.dumps(usage) if usage is not None else None, failure, time.time() if finished else None, request))
+        with self.lock:
+            if self.closed:
+                return
+            with self.db:
+                self.db.execute("UPDATE requests SET http_status=COALESCE(?,http_status),terminal=COALESCE(?,terminal),usage=COALESCE(?,usage),failure=COALESCE(?,failure),finished=COALESCE(?,finished) WHERE id=?",
+                    (status, terminal, json.dumps(usage) if usage is not None else None, failure, time.time() if finished else None, request))
 
     def close(self):
-        self.db.close()
+        # Socket cancellation can leave a late HTTP callback. Serialize SQLite
+        # closure with every writer; late callbacks cannot touch the closed handle
+        # or turn a retained incomplete request into an invented completion.
+        with self.lock:
+            if not self.closed:
+                self.closed = True
+                self.db.close()
 
 
 class Gateway(http.server.ThreadingHTTPServer):

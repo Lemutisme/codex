@@ -19,6 +19,39 @@ def payload(output=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_owner_close_waits_for_a_sqlite_writer_and_fences_late_callbacks(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'budget.sqlite'
+            budget=Budget(path,seconds=None,requests=None);grant=budget.arm()
+            request,_=budget.reserve(b'x',b'x',[])
+            entered=threading.Event();release=threading.Event();closed=threading.Event();errors=[]
+            def hold():
+                entered.set();release.wait(5);return 1
+            budget.db.create_function('hold_checkpoint',0,hold)
+            budget.db.execute('CREATE TRIGGER checkpoint_writer AFTER UPDATE OF http_status ON requests BEGIN SELECT hold_checkpoint(); END')
+            def write():
+                try:budget.checkpoint(request,status=200)
+                except Exception as error:errors.append(error)
+            def close():
+                budget.close();closed.set()
+            writer=threading.Thread(target=write);writer.start()
+            self.assertTrue(entered.wait(2))
+            closer=threading.Thread(target=close);closer.start()
+            try:self.assertFalse(closed.wait(.05))
+            finally:release.set();writer.join(2);closer.join(2)
+            self.assertTrue(closed.is_set());self.assertFalse(errors)
+            budget.checkpoint(request,terminal='response.completed',finished=True)
+            budget.observe_identity(request,{'model':'late'})
+            budget.reject('late');budget.close()
+            with self.assertRaisesRegex(ValueError,'budget_closed'):
+                budget.reserve(b'x',b'x',[])
+            reopened=Budget(path,seconds=None,requests=None)
+            self.assertEqual(reopened.arm()['started'],grant['started'])
+            self.assertEqual(reopened.status()['used'],1)
+            self.assertEqual(reopened.db.execute('SELECT http_status,terminal FROM requests').fetchone(),(200,None))
+            self.assertEqual(reopened.db.execute('SELECT count(*) FROM response_identity').fetchone()[0],0)
+            reopened.close()
+
     def test_owner_close_during_connection_cannot_dispatch_afterward(self):
         connecting=threading.Event();release=threading.Event();received=[]
         class Upstream(http.server.BaseHTTPRequestHandler):

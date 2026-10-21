@@ -135,7 +135,8 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             policy,
             schema(),
             "scoped-observations-and-exclusive-conclusions-v3",
-            "diagnostic-checkpoints-v1",
+            "diagnostic-checkpoints-v2-derived-missing",
+            "scoped-obligations-v2-interned-request-sources",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )
@@ -169,7 +170,6 @@ pub(crate) fn schema() -> Value {
             "reason": {"type": "string"},
             "affected_requirements": {"type": "array", "items": {"type": "string"}},
         }))},
-        "missing": {"type": "string"},
     }));
     value["description"] = json!(OUTPUT_CONVENTIONS);
     value
@@ -229,6 +229,9 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
 struct ScopedReview {
     assessments: Vec<Assessment>,
     terms_gap: Vec<TermsGap>,
+    // Retain historical free-standing gaps. New responses express gaps on the
+    // relevant judgment; omitting this redundant aggregate cannot erase them.
+    #[serde(default)]
     missing: String,
 }
 

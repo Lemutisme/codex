@@ -281,7 +281,12 @@ def read_status(ledger: Path, thread_id: str) -> dict | None:
 def is_done(
     arm: str, status: dict | None, *, turn_active: bool, turns_completed: int
 ) -> bool:
-    """The executor has handed off and, under ON, the automation lane has come to rest."""
+    """Legacy name: this attempt is idle, not necessarily successfully completed.
+
+    The evaluation profile decides whether to submit this stopped attempt. An
+    authorized coordinator may instead resume the same thread/grant; resting alone
+    does not attest completion or require another human instruction.
+    """
     if turn_active or turns_completed == 0:
         return False
     return arm == "off" or bool(status and status.get("resting"))
@@ -867,6 +872,8 @@ def run(
                     turn_active=turns.active,
                     turns_completed=turns.completed,
                 ):
+                    if status and status.get("class") == "execution_interrupted":
+                        summary["stopped"] = "execution_interrupted"
                     break
                 elif lane_silent(args.arm, status, first_completion_at, now):
                     summary["stopped"] = "no_status_record"

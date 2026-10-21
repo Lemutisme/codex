@@ -41,6 +41,9 @@ pub(crate) enum NotVerifiedClass {
     InsufficientEvidence,
     /// The reviewer failed or could not judge.
     ReviewerUnable,
+    /// An actor failed to finish its execution; this is not a negative or
+    /// inconclusive judgment about the candidate. No automatic retry is implied.
+    ExecutionInterrupted,
     /// An execution obligation failed; rewriting an artifact cannot undo a past action.
     ExecutionConstraint,
     /// The reviewer found the terms unfaithful to the request.
@@ -56,6 +59,7 @@ impl NotVerifiedClass {
             NotVerifiedClass::BudgetExhausted => "budget_exhausted",
             NotVerifiedClass::InsufficientEvidence => "insufficient_evidence",
             NotVerifiedClass::ReviewerUnable => "reviewer_unable",
+            NotVerifiedClass::ExecutionInterrupted => "execution_interrupted",
             NotVerifiedClass::ExecutionConstraint => "execution_constraint",
             NotVerifiedClass::TermsGap => "terms_gap",
             NotVerifiedClass::NoHandoff => "no_handoff",
@@ -362,7 +366,11 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
         }
         Some(Err(error)) => {
             return not_verified(
-                NotVerifiedClass::ReviewerUnable,
+                if matches!(error, WorkerError::Interrupted(_)) {
+                    NotVerifiedClass::ExecutionInterrupted
+                } else {
+                    NotVerifiedClass::ReviewerUnable
+                },
                 format!("review failed: {error}"),
             );
         }

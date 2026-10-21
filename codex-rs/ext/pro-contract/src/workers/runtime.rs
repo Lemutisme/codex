@@ -187,13 +187,8 @@ pub(crate) async fn run_turn(
                 super::review_evidence::checkpoints::TOOL,
             ));
         }
-        if evidence
-            .as_ref()
-            .is_some_and(super::review_evidence::ReviewEvidence::can_compute)
-        {
-            options
-                .dynamic_tools
-                .push(super::review_evidence::ReviewEvidence::inspection_tool());
+        if let Some(evidence) = evidence.as_ref().filter(|e| e.can_compute()) {
+            options.dynamic_tools.push(evidence.inspection_tool());
             tools.push(codex_extension_api::ToolName::plain(
                 super::review_evidence::INSPECT_TOOL,
             ));
@@ -251,11 +246,11 @@ pub(crate) async fn run_turn(
                     }
                     match event.msg {
                         EventMsg::TurnComplete(complete) if complete.turn_id == turn_id => {
-                            let message = complete.last_agent_message.ok_or_else(|| {
-                                WorkerError::Failed(
-                                    last_error.take().unwrap_or_else(|| "no final message".to_string()),
-                                )
-                            })?;
+                            if let Some(error) = last_error.take() {
+                                return Err(WorkerError::Interrupted(error));
+                            }
+                            let message = complete.last_agent_message.ok_or_else(||
+                                WorkerError::Failed("no final message".to_string()))?;
                             let Some(evidence) = &evidence else { return Ok(message); };
                             let result = evidence.resolve_review(&message);
                             evidence.record_protocol_result(corrections, &message, &result).await?;
@@ -317,7 +312,7 @@ pub(crate) async fn run_turn(
                                 .map_err(|error| WorkerError::Failed(error.to_string()))?;
                         }
                         EventMsg::TurnAborted(_) => return Err(WorkerError::Aborted),
-                        EventMsg::Error(error) => last_error = Some(error.message),
+                        EventMsg::Error(error) if error.affects_turn_status() => last_error = Some(error.message),
                         _ => {}
                     }
                 }
