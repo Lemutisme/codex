@@ -449,11 +449,13 @@ async fn checkpoints_resolve_citations_are_durable_and_do_not_relabel_changed_wo
     let retained: Value = serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
     assert_eq!(retained["completion_certified"], false);
     assert_eq!(retained["review"]["verdict"]["type"], "support");
-    assert!(
-        retained["review"]["verdict"]["coverage"][0]["evidence"]
-            .as_str()
-            .unwrap()
-            .contains("sha256")
+    let key = retained["review"]["verdict"]["coverage"][0]["evidence"]
+        .as_str()
+        .unwrap();
+    assert_eq!(retained["review"]["citations"][key]["quote"], "artifact");
+    assert_eq!(
+        retained["review"]["citations"][key]["subject_hash"],
+        json!(evidence.subject.subject_hash)
     );
     let mut changed = request.clone();
     changed["review"]["assessments"][0]["observations"] = json!("changed work");
@@ -596,8 +598,7 @@ fn a_host_check_receipt_can_evidence_a_check_execution_obligation() {
     .to_string();
     let resolved = evidence.strict_review(&message).unwrap();
     let value: Value = serde_json::from_str(&resolved).unwrap();
-    let citation: Value =
-        serde_json::from_str(value["coverage"][1]["evidence"].as_str().unwrap()).unwrap();
+    let citation = &value["citations"][value["coverage"][1]["evidence"].as_str().unwrap()];
     assert_eq!(citation["source_id"], "check_receipts");
     assert!(
         citation["quote"]
@@ -620,8 +621,7 @@ fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
     }],"terms_gap":[],"missing":""});
     let resolved = evidence.strict_review(&message.to_string()).unwrap();
     let value: Value = serde_json::from_str(&resolved).unwrap();
-    let bound: Value =
-        serde_json::from_str(value["coverage"][0]["evidence"].as_str().unwrap()).unwrap();
+    let bound = &value["citations"][value["coverage"][0]["evidence"].as_str().unwrap()];
     assert_eq!(bound["source_id"], "file:0");
     assert_eq!(
         value["observations"][0]["detail"],
@@ -638,6 +638,118 @@ fn scoped_judgments_resolve_support_citations_without_promoting_observations() {
     .unwrap();
     assert_eq!(parsed.actionable_findings().len(), 1);
     assert_eq!(parsed.observations.len(), 1);
+}
+
+#[test]
+fn shared_citations_keep_repeated_support_compact_and_bound() {
+    let (_root, previous) = fixture(&"x".repeat(4096));
+    let mut terms = previous.terms.clone();
+    terms.requirements = (0..19)
+        .map(|i| crate::Requirement {
+            id: format!("R{i}"),
+            ..terms.requirements[0].clone()
+        })
+        .collect();
+    let mut evidence =
+        ReviewEvidence::new(previous.subject, previous.store, &terms, "checks".into()).unwrap();
+    for source in ["human_request", "contract_terms"] {
+        document(&mut evidence, source);
+    }
+    let (_, first) = document(&mut evidence, "file:0");
+    let (_, second) = document(&mut evidence, "file:0");
+    assert_ne!(first, second); // Different issued handles, same immutable range.
+    let message = json!({"assessments": terms.requirements.iter().enumerate().map(|(i, r)| json!({
+        "requirement_id":r.id,"observations":"", "judgment":{"status":"supported", "evidence":if i % 2 == 0 { &first } else { &second }}
+    })).collect::<Vec<_>>(), "terms_gap":[]}).to_string();
+    let resolved = evidence.strict_review(&message).unwrap();
+    assert!(
+        evidence.issued.last().unwrap()["quote"]
+            .as_str()
+            .unwrap()
+            .len()
+            * terms.requirements.len()
+            > 65536
+    );
+    assert!(resolved.len() < 16_384);
+    let review = super::super::reviewer::parse(&resolved, &terms).unwrap();
+    let super::super::reviewer::ReviewVerdict::Support { coverage } = &review.verdict else {
+        panic!("valid support must survive host rendering")
+    };
+    assert_eq!(coverage.len(), 19);
+    assert_eq!(review.citations.len(), 1);
+    let citation = &review.citations[&coverage[0].evidence];
+    assert!(coverage.iter().all(|c| c.evidence == coverage[0].evidence));
+    assert_eq!(citation.subject_hash, evidence.subject.subject_hash);
+    assert_eq!(citation.terms_hash, crate::digest_of("terms", &terms));
+    assert_eq!(citation.start, 0);
+    assert_eq!(citation.end, 4096);
+    assert_eq!(citation.quote, "x".repeat(4096));
+    assert_eq!(
+        coverage[0].evidence,
+        crate::digest_of("review_citation", citation).to_string()
+    );
+    let mut other_terms = citation.clone();
+    other_terms.terms_hash = codex_pro_contract::Digest::of(b"different terms");
+    assert_ne!(
+        coverage[0].evidence,
+        crate::digest_of("review_citation", &other_terms).to_string()
+    );
+    let mut other_subject = citation.clone();
+    other_subject.subject_hash = codex_pro_contract::Digest::of(b"different subject");
+    assert_ne!(
+        coverage[0].evidence,
+        crate::digest_of("review_citation", &other_subject).to_string()
+    );
+}
+
+#[test]
+fn host_evidence_is_not_limited_as_model_output_and_survives_storage() {
+    let original: String = (0..20)
+        .map(|i| format!("{i:04}{}", "x".repeat(4092)))
+        .collect();
+    let (_root, previous) = fixture(&original);
+    let mut terms = previous.terms.clone();
+    terms.requirements = (0..20)
+        .map(|i| crate::Requirement {
+            id: format!("R{i}"),
+            ..terms.requirements[0].clone()
+        })
+        .collect();
+    let mut evidence =
+        ReviewEvidence::new(previous.subject, previous.store, &terms, "checks".into()).unwrap();
+    for source in ["human_request", "contract_terms"] {
+        document(&mut evidence, source);
+    }
+    let assessments: Vec<_> = (0..20).map(|i| {
+        let page = read(&mut evidence, json!({"op":"read","source_id":"file:0","offset":i*4096}));
+        json!({"requirement_id":format!("R{i}"),"observations":"", "judgment":{"status":"supported","evidence":page["citation_id"]}})
+    }).collect();
+    let message = json!({"assessments":assessments,"terms_gap":[]}).to_string();
+    assert!(message.len() < 65536);
+    let resolved = evidence.strict_review(&message).unwrap();
+    assert!(resolved.len() > 65536);
+    let review = super::super::reviewer::parse(&resolved, &terms).unwrap();
+    let handle = evidence
+        .store
+        .put(&serde_json::to_vec(&review).unwrap())
+        .unwrap();
+    let restored: super::super::reviewer::Review =
+        serde_json::from_slice(&evidence.store.get(&handle).unwrap()).unwrap();
+    assert_eq!(restored, review);
+    assert_eq!(restored.citations.len(), 20);
+    for citation in restored.citations.values() {
+        assert_eq!(citation.quote, original[citation.start..citation.end]);
+        assert_eq!(
+            citation.sha256,
+            codex_pro_contract::Digest::of(original.as_bytes())
+        );
+    }
+    // A large model response remains outside the same original wire allowance.
+    assert!(
+        evidence
+            .resolve_review(&format!("{message}{}", " ".repeat(65536)))
+            .is_err()
+    );
 }
 
 #[test]
@@ -846,8 +958,7 @@ fn frozen_data_is_paged_and_support_references_resolve_without_model_hashes() {
     }
     let result = evidence.strict_review(&json!({"verdict":"support","findings":[],"terms_gap":[],"missing":"","residual":"","coverage":[{"requirement_id":"R1","evidence":handle}]}).to_string()).unwrap();
     let result: Value = serde_json::from_str(&result).unwrap();
-    let cited: Value =
-        serde_json::from_str(result["coverage"][0]["evidence"].as_str().unwrap()).unwrap();
+    let cited = &result["citations"][result["coverage"][0]["evidence"].as_str().unwrap()];
     assert_eq!(cited["source_id"], "file:0");
     assert_eq!(
         cited["quote"].as_str().unwrap(),

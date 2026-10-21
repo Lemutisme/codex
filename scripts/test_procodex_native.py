@@ -107,6 +107,7 @@ class NativeEvidenceTest(unittest.TestCase):
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
         local_binding_fault = getattr(self, "local_binding_fault_fixture", False)
+        shared_citations = getattr(self, "shared_citations_fixture", False)
         structured_pages = getattr(self, "structured_pages_fixture", False)
         scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
         cross_requirement_computation = getattr(self, "cross_requirement_computation_fixture", False)
@@ -122,6 +123,8 @@ class NativeEvidenceTest(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             (workspace / "answer.txt").write_text("not ready\n")
+            if shared_citations:
+                (workspace / "citation.txt").write_text("ready " + "x" * 4090)
             if input_strategy:
                 (root/'source-input.txt').write_text('immutable source\n')
                 (root/'strategy').mkdir()
@@ -191,6 +194,8 @@ for (let offset = 0; offset < 50;) {
 const artifact = decode(await tools.read_evidence({op:"read",source_id:id,offset:0}));
 text({fixtureCitation:artifact.citation_id, artifact:artifact.text, denied});
 """
+            if shared_citations:
+                review_code = review_code.replace('value.entry.path === "answer.txt"', 'value.entry.path === "citation.txt"')
             if delivery_evidence:
                 review_code += r'''
 async function fullDocument(source) {
@@ -392,6 +397,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 differential_cases=[],
                                 candidate_tests=False,
                             )
+                            if shared_citations:
+                                message["requirements"] = [dict(id=f"R{i}", text=f"Retain citation.txt property {i}.", source_id="request:0", inferred=False) for i in range(19)]
                             if repair_review:
                                 message["requirements"].append(dict(id="R2", text="Check the numerical attachment" if partial_review else "Preserve an unrequested extra artifact", source_id="request:0", inferred=True))
                             if cross_requirement_computation:
@@ -500,6 +507,8 @@ text({structuredEvidencePages:true});
                                 missing="",
                                 residual="",
                             )
+                            if shared_citations:
+                                message["coverage"] = [dict(requirement_id=f"R{i}", evidence=candidates[-1]) for i in range(19)]
                             if diagnostic_review and counts[role] == 2:
                                 message.update(verdict="defeat",coverage=[],
                                     findings=[dict(requirement_id="R1",location="answer.txt",counterexample="The frozen answer is not ready.")],
@@ -950,6 +959,19 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     with sqlite3.connect(database) as connection:
                         attempts=[json.loads(x[0])["body"] for x in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in x[0]]
                     self.assertEqual([(x["attempt"],x["valid"]) for x in attempts],[(0,False),(1,not correction_exhausted)])
+                if shared_citations:
+                    with sqlite3.connect(database) as connection:
+                        attempts = [json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in r[0]]
+                    self.assertEqual(len(attempts), 1)
+                    self.assertTrue(attempts[0]["valid"])
+                    h = attempts[0]["resolved_response"]
+                    resolved = json.loads((home/"pro_contract/blobs"/h[:2]/h).read_text())
+                    self.assertEqual(len(resolved["coverage"]), 19)
+                    self.assertEqual(len(resolved["citations"]), 1)
+                    key = resolved["coverage"][0]["evidence"]
+                    self.assertTrue(all(c["evidence"] == key for c in resolved["coverage"]))
+                    self.assertEqual(len(resolved["citations"][key]["quote"].encode()), 4096)
+                    self.assertLess(len(json.dumps(resolved)), 16384)
                 if structured_pages:
                     self.assertTrue(any('"structuredEvidencePages":true' in text.replace(" ", "") for request in requests for text in text_values(request)))
                 if delivery_evidence:

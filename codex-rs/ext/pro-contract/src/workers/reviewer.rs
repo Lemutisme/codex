@@ -2,6 +2,8 @@
 //! the terms, bounded frozen artifacts and host-scoped observations. An executor's final
 //! response is a communication artifact, not independent proof of its assertions.
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -14,7 +16,23 @@ use crate::Terms;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Coverage {
     pub requirement_id: String,
+    /// Issued ID on the model wire; stable key in `Review.citations` after resolution.
+    /// Historical reviews retain their original inline evidence.
     pub evidence: String,
+}
+
+/// One host-bound evidence range, shared by every judgment that cites it.
+/// Stored with the review so public paging and diagnostic continuation retain it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Citation {
+    pub subject_hash: codex_pro_contract::Digest,
+    pub terms_hash: codex_pro_contract::Digest,
+    pub source_id: String,
+    pub sha256: codex_pro_contract::Digest,
+    pub start: usize,
+    pub end: usize,
+    pub quote: String,
 }
 
 /// A scoped observation is not a conclusion that the entire obligation is satisfied.
@@ -77,6 +95,9 @@ pub enum ReviewVerdict {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Review {
     pub verdict: ReviewVerdict,
+    /// Host-derived evidence, not additional model output or authority.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub citations: BTreeMap<String, Citation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<Observation>,
     /// Where the terms may have missed, widened or weakened part of the human request.
@@ -137,6 +158,7 @@ pub(crate) fn policy_digest(policy: &str) -> codex_pro_contract::Digest {
             "scoped-observations-and-exclusive-conclusions-v3",
             "diagnostic-checkpoints-v2-derived-missing",
             "scoped-obligations-v2-interned-request-sources",
+            "shared-bound-review-citations-v1",
             super::review_evidence::ReviewEvidence::tool(),
         ),
     )
@@ -204,6 +226,7 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
         )));
     }
     let terms_gap = raw.terms_gap.clone();
+    let citations = raw.citations.clone();
     if let Some(id) = terms_gap
         .iter()
         .filter_map(|gap| gap.affected_requirements.as_ref())
@@ -216,6 +239,7 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
     }
     Ok(Review {
         verdict: verdict(raw, terms)?,
+        citations,
         observations,
         terms_gap,
         execution_obligations: terms
@@ -278,6 +302,7 @@ fn decode(message: &str) -> Result<RawReview, WorkerError> {
     let scoped: ScopedReview = serde_json::from_str(message).map_err(malformed)?;
     let mut raw = RawReview {
         verdict: "partial".into(),
+        citations: BTreeMap::new(),
         coverage: Vec::new(),
         findings: Vec::new(),
         gaps: Vec::new(),
@@ -499,6 +524,8 @@ fn verdict(raw: RawReview, terms: &Terms) -> Result<ReviewVerdict, WorkerError> 
 #[serde(deny_unknown_fields)]
 struct RawReview {
     verdict: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    citations: BTreeMap<String, Citation>,
     coverage: Vec<Coverage>,
     findings: Vec<Finding>,
     terms_gap: Vec<TermsGap>,

@@ -30,6 +30,10 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_same_turn_publication_feedback_repair_and_final_acceptance(self):
         self.run_case(progress_fixture=True)
 
+    def test_repeated_citations_reach_support_without_host_expansion_failure(self):
+        self.run_case(shared_citations_fixture=True,
+            task_text="Make answer.txt contain ready and retain all nineteen properties of the supplied citation.txt fixture.")
+
     def test_code_mode_reads_structured_evidence_and_recovers_from_invalid_arguments(self):
         self.run_case(structured_pages_fixture=True)
 

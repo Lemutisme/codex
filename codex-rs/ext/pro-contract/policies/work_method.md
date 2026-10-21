@@ -47,7 +47,11 @@ remains: checks for executable feedback, diagnostic review for a frozen-artifact
 For diagnosis, set review=true and use question to name the uncertainty that can change
 your next decision. Identify the observation or competing explanations to investigate;
 asking for a complete audit again does not recover an unfinished diagnosis.
-assessment_secs lets you allocate time within the original task grant.
+assessment_secs lets you allocate time within the original task grant. Include the
+reviewer's inference and evidence-reading cost, using observed latency when available.
+After a timeout, inspect retained work and choose whether to narrow the question,
+continue it with a suitable allocation, or use another method; repeating the same
+unfinished audit with the same allocation does not address its observed cost.
 Use contract_read_evidence to recover retained observations, diagnostic checkpoints and
 exact available invocations. A reviewer may leave useful checkpoints even without a final
 judgment. A new request with continue_from can build on a prior progress/checkpoint handle;

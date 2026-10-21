@@ -113,6 +113,13 @@ remain usable. Ambiguous identities or contradictory envelopes still require
 correction. Retaining local results creates neither new authority nor whole-task
 Support, and choosing the next investigation remains strategy work.
 
+Resolved reviews retain a shared citation table. Coverage references a stable key;
+the corresponding source hash, byte range, quotation, subject and terms bindings
+are stored once in that review. Existing public paging, checkpoints and diagnostic
+continuation carry the table with its judgments. The model-message allowance is
+distinct from host-derived evidence representation; reusing evidence does not make
+an otherwise valid response too large. Legacy inline reviews remain readable.
+
 The terms adapter keeps non-obligatory request context (preferences, permissions,
 background) separate from acceptance obligations. Strategy interprets that context;
 its storage does not grant execution authority. Independent review still compares

@@ -93,7 +93,7 @@ pub(crate) fn schema() -> Value {
     strict_object(json!({
         "decision": {"type": "string", "enum": ["contract", "none"]},
         "reason": {"type": "string"},
-        "requirements": {"type": "array", "description":"Required properties of the result, including restrictions on what a submitted artifact may depend on. Do not put recommended methods here.", "items": strict_object(json!({
+        "requirements": {"type": "array", "description":"Required properties of the delivered result, including the behavior of a program when run. Its runtime actions/prohibitions are artifact properties, not agent work history. Do not put recommended methods here.", "items": strict_object(json!({
             "id": {"type": "string"},
             "text": {"type": "string"},
             "source_id": {"type": "string"},
@@ -104,8 +104,8 @@ pub(crate) fn schema() -> Value {
             "human_source_id": {"type": ["string", "null"]},
             "non_substantive": {"type": "boolean"},
         }))},
-        "process_constraints": {"type": "array", "description":"Mandatory or prohibited actions during execution, requiring actor/time-scoped evidence. Result properties belong in requirements; advice belongs in context.", "items": strict_object(json!({
-            "text": {"type": "string"},
+        "process_constraints": {"type": "array", "description":"Required or prohibited actions by the agent/tools while carrying out this assignment. The text identifies that actor and stage. Do not duplicate the delivered program's runtime behavior here; advice belongs in context.", "items": strict_object(json!({
+            "text": {"type": "string", "description":"The required/prohibited work action, naming who performs it and when within this assignment."},
             "source_id": {"type": "string"},
         }))},
         "context": {"type":"array", "description":"Preferences, permissions and background, including recommended workflows; these are not acceptance obligations.", "items":strict_object(json!({

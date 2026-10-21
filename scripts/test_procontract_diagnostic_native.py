@@ -153,6 +153,14 @@ text({continuedHandle:continued.handle,checkpointSurvived:true});
 text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));
 const changed=decode(await tools.publish_progress({request_id:"changed",review:true,question:"Continue checking answer.txt after repair.",continue_from:prior,assessment_secs:40}));
 if(changed.checks_reused)throw new Error("old checks applied to changed subject");
+const retained=await readDocument(tools.contract_read_evidence,{op:"read",handle:changed.handle});
+const checkpoint=await readDocument(tools.contract_read_evidence,{op:"read",handle:retained.public.review_checkpoints[0]});
+for(const review of [retained.public.review,checkpoint.review]) {
+ const coverage=review.verdict.coverage;
+ if(coverage.length!==1)throw new Error("supported local judgment lost");
+ const citation=review.citations[coverage[0].evidence];
+ if(citation.quote!=="ready\n" || citation.subject_hash!==retained.subject_hash)throw new Error("shared citation content or subject lost during public paging");
+}
 text({changedVersionChecked:true});
 '''
                             else:

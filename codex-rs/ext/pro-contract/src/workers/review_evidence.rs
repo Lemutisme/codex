@@ -600,6 +600,7 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
         );
         let mut rejected = Vec::new();
         let mut accepted = Vec::new();
+        let mut citations = std::collections::BTreeMap::new();
         for mut row in coverage {
             let id = row["requirement_id"].as_str().ok_or_else(|| {
                 WorkerError::Malformed("review coverage has no requirement ID".into())
@@ -609,7 +610,9 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
             })?;
             match self.resolve_citation(id, handle) {
                 Ok(citation) => {
-                    row["evidence"] = Value::String(citation.to_string());
+                    let key = crate::digest_of("review_citation", &citation).to_string();
+                    row["evidence"] = json!(key);
+                    citations.entry(key).or_insert(citation);
                     accepted.push(row);
                 }
                 Err(reason) => rejected.push(super::reviewer::MissingEvidence {
@@ -622,6 +625,9 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
             }
         }
         result["coverage"] = json!(accepted);
+        // Replace any model-supplied table. Only issued, scope-checked citations
+        // can enter the host-owned representation, once per distinct bound range.
+        result["citations"] = json!(citations);
         if !rejected.is_empty() {
             result["verdict"] = json!("partial");
             result["gaps"]
@@ -633,18 +639,20 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
         // Revalidate the composed result before exposing it to any controller.
         // Every rejected claim is now a gap, so it cannot contribute to Support.
         super::reviewer::parse(&resolved, &self.terms)?;
-        if resolved.len() > 64 << 10 {
-            return Err(WorkerError::InputBudget(
-                "resolved review citations exceed 64 KiB".into(),
-            ));
-        }
+        // The 64 KiB limit applies to the untrusted model response above. Host
+        // evidence is bounded by the existing read capability, then paged from
+        // the retained review; rendering it must not invalidate accepted claims.
         Ok(ResolvedReview {
             message: resolved,
             rejected,
         })
     }
 
-    fn resolve_citation(&self, requirement_id: &str, handle: &str) -> Result<Value, &'static str> {
+    fn resolve_citation(
+        &self,
+        requirement_id: &str,
+        handle: &str,
+    ) -> Result<super::reviewer::Citation, &'static str> {
         if self
             .required_coverage
             .iter()
@@ -709,7 +717,10 @@ No host shell, network or arbitrary paths are available. {computation} {} Return
         {
             return Err("source is request/catalog context, not observed evidence");
         }
-        Ok(citation.clone())
+        let mut bound = citation.clone();
+        bound["subject_hash"] = json!(self.subject.subject_hash);
+        bound["terms_hash"] = json!(crate::digest_of("terms", &self.terms));
+        serde_json::from_value(bound).map_err(|_| "invalid issued citation")
     }
 }
 
