@@ -1,6 +1,8 @@
-"""Opt-in real native/controller/evidence integration, exclusively against a local fake provider.
+"""Opt-in native/controller/evidence integration with a scripted local provider.
 
-Set PROCODEX_NATIVE_PACKAGE and PROCODEX_TEST_IMAGE; no real credential or model is used.
+Set PROCODEX_NATIVE_PACKAGE and PROCODEX_TEST_IMAGE. The default fixture uses no
+real model. An optional continuation callback is audited by its caller; synthetic
+fixture usage does not measure that backend's requests or tokens.
 """
 
 import http.server
@@ -1250,7 +1252,9 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 computation_fixture=computation,partial_review_fixture=partial_review,
                                 local_binding_fault_fixture=local_binding_fault,
                                 dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
-                                real_provider_calls=0,
+                                real_provider_calls=0 if continuation_model is None else None,
+                                continuation_backend="scripted" if continuation_model is None else "injected_callback",
+                                usage_scope="Synthetic local-provider usage; an injected callback requires its own backend accounting.",
                                 transport_failure_fixture=transport_failure,injected_failures=injected_failures,
                                 request_budget=request_budget.status() if request_budget else None,
                                 progress_fixture=progression,resource_limit_fixture=resource_limit,
