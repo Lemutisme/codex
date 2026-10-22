@@ -40,6 +40,8 @@ use crate::controller::ports::Ports;
 use crate::controller::ports::WorkerIdentity;
 use crate::workers::runtime::WorkerTurn;
 
+#[path = "continuation_tests.rs"]
+mod continuation_tests;
 #[path = "progress_tests.rs"]
 mod progress_tests;
 #[path = "runtime_recovery_tests.rs"]
@@ -80,6 +82,9 @@ struct FakePorts {
     review_contexts: Mutex<Vec<serde_json::Value>>,
     review_deadlines: Mutex<Vec<Duration>>,
     review_gate: Option<Arc<Notify>>,
+    continuation_choices: Mutex<VecDeque<String>>,
+    continuation_prompts: Mutex<Vec<String>>,
+    continuation_gate: Option<Arc<Notify>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
     worker_model: &'static str,
@@ -115,6 +120,9 @@ impl FakePorts {
             review_contexts: Mutex::new(Vec::new()),
             review_deadlines: Mutex::new(Vec::new()),
             review_gate: None,
+            continuation_choices: Mutex::default(),
+            continuation_prompts: Mutex::default(),
+            continuation_gate: None,
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
             worker_model: "model-a",
@@ -215,6 +223,27 @@ impl Ports for FakePorts {
                         .pop_front()
                         .or_else(|| self.probe.map(str::to_string))
                         .ok_or_else(|| WorkerError::Failed("the prober failed".to_string()))
+                }
+                "pro_contract_continuation" => {
+                    let facts: serde_json::Value =
+                        serde_json::from_str(turn.prompt.rsplit_once("\n\n").unwrap().1).unwrap();
+                    self.continuation_prompts.lock().unwrap().push(turn.prompt);
+                    if let Some(gate) = &self.continuation_gate {
+                        gate.notified().await;
+                    }
+                    if let Some(choice) = self.continuation_choices.lock().unwrap().pop_front() {
+                        return if choice == "INTERRUPTED" {
+                            Err(WorkerError::Interrupted(
+                                "selection provider stopped".into(),
+                            ))
+                        } else {
+                            Ok(choice)
+                        };
+                    }
+                    let keep_working = facts["assessment"]["decision"] == "defeat";
+                    Ok(serde_json::json!({"action":if keep_working { facts["available_actions"][0].clone() } else { serde_json::json!("rest") },
+                        "requirements":if keep_working { facts["allowed_requirements"].clone() } else { serde_json::json!([]) },
+                        "next_step":if keep_working { "Inspect the retained counterexample, repair it and replay its check." } else { "No further useful action selected by the fixture strategy." }}).to_string())
                 }
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);
@@ -909,7 +938,8 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
                 default.work_method,
                 default.drafter,
                 default.prober,
-                default.reviewer
+                default.reviewer,
+                default.continuation
             ]),
         ),
         "a controller can recompute the bundle identity from the files"

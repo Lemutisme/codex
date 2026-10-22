@@ -65,6 +65,27 @@ pub struct TermsGap {
     /// omitted request element; None is an older unscoped gap and conservatively blocks repair.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub affected_requirements: Option<Vec<String>>,
+    /// Older retained reviews predate anchored discrepancies. Their original
+    /// restrictions are preserved; new workers use the explicit relation below.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discrepancy: Option<TermsDiscrepancy>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TermsDiscrepancy {
+    pub kind: DiscrepancyKind,
+    /// Exact original-request text. An added obligation can have no source;
+    /// in that case the entire original request is the comparison boundary.
+    pub request_quote: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiscrepancyKind {
+    Omitted,
+    Added,
+    Altered,
 }
 
 /// The reviewer's judgment of the candidate against the terms.
@@ -108,6 +129,13 @@ pub struct Review {
 }
 
 impl Review {
+    pub(crate) fn scope_disputed(&self, id: &str) -> bool {
+        self.terms_gap.iter().any(|gap| {
+            gap.affected_requirements
+                .as_ref()
+                .is_none_or(|ids| ids.iter().any(|candidate| candidate == id))
+        })
+    }
     /// Only findings outside explicitly identified scope disputes can direct a bounded repair.
     pub(crate) fn actionable_findings(&self) -> Vec<&Finding> {
         let findings = match &self.verdict {
@@ -120,11 +148,7 @@ impl Review {
             .iter()
             .filter(|finding| {
                 !self.execution_obligations.contains(&finding.requirement_id)
-                    && self.terms_gap.iter().all(|gap| {
-                        gap.affected_requirements
-                            .as_ref()
-                            .is_some_and(|ids| !ids.contains(&finding.requirement_id))
-                    })
+                    && !self.scope_disputed(&finding.requirement_id)
             })
             .collect()
     }
@@ -190,10 +214,14 @@ pub(crate) fn schema() -> Value {
                 })),
             ]},
         }))},
-        "terms_gap": {"type": "array", "items": strict_object(json!({
+        "terms_gap": {"type": "array", "description":"Only discrepancies between the original request and derived terms. Evidence gaps, finite coverage and artifact defects belong in assessments, even when they prevent support.", "items": strict_object(json!({
             "element": {"type": "string"},
-            "reason": {"type": "string"},
+            "reason": {"type": "string", "description":"Explain exactly what the original request requires and how the derived terms omit, add or alter it. Missing proof of compliance is not a discrepancy."},
             "affected_requirements": {"type": "array", "items": {"type": "string"}},
+            "discrepancy": strict_object(json!({
+                "kind":{"type":"string","enum":["omitted","added","altered"]},
+                "request_quote":{"type":["string","null"],"description":"Verbatim relevant original-request text. Only added obligations may use null when no request text authorizes them; compare with the complete request."},
+            })),
         }))},
     }));
     value["description"] = json!(OUTPUT_CONVENTIONS);
@@ -227,6 +255,24 @@ pub(crate) fn parse(message: &str, terms: &Terms) -> Result<Review, WorkerError>
     }
     let terms_gap = raw.terms_gap.clone();
     let citations = raw.citations.clone();
+    for gap in &terms_gap {
+        if let Some(discrepancy) = &gap.discrepancy {
+            let valid_quote = discrepancy
+                .request_quote
+                .as_ref()
+                .is_some_and(|quote| !quote.trim().is_empty() && terms.intake_text.contains(quote));
+            if !(valid_quote
+                || (discrepancy.kind == DiscrepancyKind::Added
+                    && discrepancy.request_quote.is_none()))
+                || gap.reason.trim().is_empty()
+                || gap.affected_requirements.is_none()
+                || (discrepancy.kind != DiscrepancyKind::Omitted
+                    && gap.affected_requirements.as_ref().is_none_or(Vec::is_empty))
+            {
+                return Err(WorkerError::Malformed("terms discrepancy needs an exact request anchor and affected catalog IDs; absent evidence belongs in the obligation judgment".into()));
+            }
+        }
+    }
     if let Some(id) = terms_gap
         .iter()
         .filter_map(|gap| gap.affected_requirements.as_ref())

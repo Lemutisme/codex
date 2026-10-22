@@ -256,9 +256,7 @@ fn residual(
     sealed: Option<&SealedTally>,
     policy: &EvidencePolicy,
 ) -> String {
-    let mut residual = String::from(
-        "Independent verification of your handoff did not pass. Fix these unmet requirements, then end your turn:\n",
-    );
+    let mut residual = String::from("Independent verification found these unmet requirements:\n");
     if let Some(tally) = sealed {
         let families: Vec<&str> = tally
             .failing_families
@@ -293,7 +291,7 @@ fn residual(
         .collect::<Vec<_>>()
         .join(", ");
     residual.push_str(&format!(
-        "Failed checks ({} total; abbreviated IDs): {index}. Details below are only examples, not the whole repair scope. Preserve stdin/TTY/flag conditions; test neighboring modes before generalizing a fix.\n",
+        "Failed checks ({} total; abbreviated IDs): {index}. Details below are abbreviated observations, not a complete account of the failed checks.\n",
         failures.len()
     ));
     let mut shown = 0;
@@ -429,9 +427,7 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
     match &review.verdict {
         ReviewVerdict::Support { .. } => Verdict::Support,
         ReviewVerdict::Defeat { residual, .. } => {
-            let mut text = String::from(
-                "Independent review of your handoff found unmet requirements. Fix them, then end your turn:\n",
-            );
+            let mut text = String::from("Independent review found these unmet requirements:\n");
             for finding in findings {
                 text.push_str(&format!(
                     "- {} at {}: {}\n",
@@ -461,7 +457,7 @@ pub(crate) fn review_verdict(review: Option<&Result<Review, WorkerError>>) -> Ve
                 );
             }
             let mut text = String::from(
-                "Independent review found these scoped counterexamples. Repair only these requirements; other judgments and evidence gaps remain recorded:\n",
+                "Independent review found these scoped counterexamples; other judgments and evidence gaps remain recorded:\n",
             );
             for finding in findings {
                 text.push_str(&format!(

@@ -109,7 +109,7 @@ impl ThreadRuntime {
         };
         let mut replayed: Option<Contract> = None;
         let mut previous_hash = Digest::ZERO;
-        let mut defeats = 0_u32;
+        let mut defeats = Vec::new();
         for event in self.ledger.events().await.map_err(|e| e.to_string())? {
             if event.prev_hash != previous_hash
                 || event.hash
@@ -120,10 +120,9 @@ impl ThreadRuntime {
             }
             previous_hash = event.hash;
             if event.contract_id == id {
-                defeats = defeats.saturating_add(u32::from(matches!(
-                    event.command.command,
-                    Command::Defeat { .. }
-                )));
+                if let Command::Defeat { defeater, .. } = event.command.command {
+                    defeats.push(defeater);
+                }
                 let next =
                     transition(replayed.as_ref(), &event.command).map_err(|e| e.to_string())?;
                 if event.state_hash != digest_of("contract_state", &next) {
@@ -135,17 +134,37 @@ impl ThreadRuntime {
         if replayed.as_ref() != Some(&contract) {
             return Err("contract differs from its accepted history".to_string());
         }
-        {
-            let mut state = self.state.lock().await;
-            state.repairs_used = state
-                .repairs_used
-                .max(defeats.min(self.settings.repair_attempts));
-        }
         self.ledger
             .verify_experiment_chain()
             .await
             .map_err(|e| e.to_string())?;
         let journal = self.ledger.experiments().await.map_err(|e| e.to_string())?;
+        // Legacy controllers coupled Defeat to repair admission. New assessments
+        // carry a continuation policy identity and reserve work separately.
+        let legacy_defeats = defeats
+            .iter()
+            .filter(|defeater| {
+                !journal.iter().any(|r| {
+                    r.hash == **defeater && r.event.identities.policies.contains_key("continuation")
+                })
+            })
+            .count()
+            .min(self.settings.repair_attempts as usize) as u32;
+        {
+            let mut state = self.state.lock().await;
+            state.repairs_used = state.repairs_used.max(legacy_defeats);
+        }
+        for row in &journal {
+            let body = &row.event.body;
+            if body["phase"] == "continuation_decision"
+                && body["contract_id"] == serde_json::json!(id)
+            {
+                let used: u32 = serde_json::from_value(body["local_repairs_used"].clone())
+                    .map_err(|e| e.to_string())?;
+                let mut state = self.state.lock().await;
+                state.repairs_used = state.repairs_used.max(used);
+            }
+        }
         let issue = journal
             .iter()
             .rev()

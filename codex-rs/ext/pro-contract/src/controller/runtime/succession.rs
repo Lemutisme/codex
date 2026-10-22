@@ -276,7 +276,7 @@ impl ThreadRuntime {
                     .as_ref()
                     .is_none_or(|f| f.turn_id != previous_turn)
             {
-                return Err("owner superseded the failed handoff".into());
+                return Err("owner superseded the assessed handoff".into());
             }
             let active = state
                 .contract
@@ -287,7 +287,7 @@ impl ThreadRuntime {
             "contract_id": active.contract.id.0,
             "immutable_bindings": active.contract.bindings,
             "requirements": active.terms,
-            "remaining_failures_and_prior_failed_artifacts": reserved.lessons,
+            "prior_assessments_and_selected_work": reserved.lessons,
             "previous_executor_claim_untrusted": reserved.previous_executor_claim,
             "executor_deadline_ms": deadline_ms,
             "original_task_deadline_ms": reserved.deadline_ms,

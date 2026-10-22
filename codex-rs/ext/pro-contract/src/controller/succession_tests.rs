@@ -165,7 +165,7 @@ async fn two_fresh_sessions_inherit_lessons_and_only_one_responsibility() {
     }
     assert_eq!(second["original_task"], INTAKE);
     assert_eq!(
-        second["remaining_failures_and_prior_failed_artifacts"]
+        second["prior_assessments_and_selected_work"]
             .as_array()
             .unwrap()
             .len(),

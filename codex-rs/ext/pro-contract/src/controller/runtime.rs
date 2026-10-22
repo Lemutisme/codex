@@ -2,6 +2,7 @@
 //! review → judgment and evidence readiness → bounded continuation. Authority is kernel-owned;
 //! public working evidence is retained independently of executor history and status summaries.
 
+mod continuation;
 mod delivery;
 mod preparation;
 mod progress;
@@ -78,7 +79,7 @@ pub struct StatusRecord {
     pub thread_id: String,
     pub contract_id: Option<String>,
     /// `abstained`, `idle`, `drafting`, `working`, `checking`, `repairing`, `supported`,
-    /// `succeeding`, `did_not_pass` or `not_verified`.
+    /// `deciding`, `succeeding`, `did_not_pass` or `not_verified`.
     pub phase: String,
     pub detail: String,
     /// The controller has no scheduled action. This is not task completion:

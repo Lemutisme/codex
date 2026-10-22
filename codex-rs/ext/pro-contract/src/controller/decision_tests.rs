@@ -413,7 +413,7 @@ fn verbose_repeated_symptoms_do_not_hide_other_failed_modes() {
     };
     assert!(residual.contains("public:parallel"), "{residual}");
     assert!(residual.contains("public:stdin"), "{residual}");
-    assert!(residual.contains("not the whole repair scope"));
+    assert!(residual.contains("abbreviated observations"));
     assert!(residual.len() <= EXECUTOR_TEXT_CAP);
     assert!(!residual.contains(SEALED_SECRET));
 }
@@ -595,6 +595,7 @@ fn a_review_defeat_carries_its_findings_and_a_terms_gap_overrides_support() {
         observations: vec![],
         execution_obligations: vec![],
         terms_gap: vec![TermsGap {
+            discrepancy: None,
             affected_requirements: None,
             element: "error messages".to_string(),
             reason: "not covered".to_string(),
@@ -626,6 +627,7 @@ fn a_scope_dispute_blocks_acceptance_without_blocking_an_unaffected_repair() {
             residual: "invent unrequested scope".into(),
         },
         terms_gap: vec![TermsGap {
+            discrepancy: None,
             element: "unrequested extra work".into(),
             reason: "widened".into(),
             affected_requirements: Some(vec!["R2".into()]),
@@ -645,6 +647,7 @@ fn a_scope_dispute_blocks_acceptance_without_blocking_an_unaffected_repair() {
         observations: vec![],
         execution_obligations: vec![],
         terms_gap: vec![TermsGap {
+            discrepancy: None,
             affected_requirements: None,
             ..review.terms_gap[0].clone()
         }],

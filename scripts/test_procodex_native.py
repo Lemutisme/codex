@@ -37,6 +37,20 @@ def text_values(value):
                 pass
 
 
+def continuation_facts(body):
+    texts=list(text_values(body.get("input", [])));parts={}
+    for text in texts:
+        for match in re.finditer(r"<external_pro_contract_packet_(\d+)>(.*?)</external_pro_contract_packet_\1>",text,re.S):
+            parts[int(match.group(1))]=match.group(2)
+    if parts:texts.append("".join(parts[k] for k in sorted(parts)))
+    for text in texts:
+        for match in re.finditer(r'\{',text):
+            try:value,_=json.JSONDecoder().raw_decode(text[match.start():])
+            except ValueError:continue
+            if "available_actions" in value and "assessment" in value:return value
+    raise AssertionError("continuation capability packet missing")
+
+
 def named_call(body, tool_name, payload, call_id):
     roots = list(body.get("tools", []))
     for value in body.get("input", []):
@@ -107,6 +121,9 @@ class NativeEvidenceTest(unittest.TestCase):
         scoped_review = getattr(self, "scoped_review_fixture", False)
         partial_review = getattr(self, "partial_review_fixture", False)
         local_binding_fault = getattr(self, "local_binding_fault_fixture", False)
+        continuation_model = getattr(self, "continuation_model", None)
+        continuation_unknown = getattr(self, "continuation_unknown_fixture", False)
+        continuation_rest = getattr(self, "continuation_rest_fixture", False)
         shared_citations = getattr(self, "shared_citations_fixture", False)
         structured_pages = getattr(self, "structured_pages_fixture", False)
         scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
@@ -346,7 +363,9 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                         )
                         props = schema.get("properties", {})
                         role = (
-                            "draft"
+                            "continuation"
+                            if "action" in props and "next_step" in props
+                            else "draft"
                             if "differential_cases" in props
                             else "review"
                             if "coverage" in props or "assessments" in props
@@ -411,6 +430,13 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["process_constraints"]=[dict(text="Submit with your final assistant response.",source_id="request:0")]
                             if partial_checks:
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
+                        elif role == "continuation":
+                            facts=continuation_facts(body)
+                            keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown) and not continuation_rest
+                            message=dict(action=facts["available_actions"][0] if keep_working else "rest",
+                                requirements=facts["allowed_requirements"] if keep_working else [],
+                                next_step="Read the retained evidence, inspect answer.txt and replay its check." if keep_working else "No further useful work selected by this fixture strategy.")
+                            if continuation_model is not None:message=continuation_model(body)
                         elif role in ("explore", "probe"):
                             packet_parts = {}
                             for text in text_values(body.get("input", [])):
@@ -507,6 +533,8 @@ text({structuredEvidencePages:true});
                                 missing="",
                                 residual="",
                             )
+                            if continuation_unknown and counts[role]==2:
+                                message.update(verdict="cannot_judge",coverage=[],missing="Need a further artifact observation; no defect or scope discrepancy established.")
                             if shared_citations:
                                 message["coverage"] = [dict(requirement_id=f"R{i}", evidence=candidates[-1]) for i in range(19)]
                             if diagnostic_review and counts[role] == 2:
@@ -614,6 +642,10 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                                 code='text(await tools.exec_command({cmd:"printf \'ready\\n\' > answer.txt",yield_time_ms:1000,max_output_tokens:1000}));'
                             items = [custom_call(body, code, f"progress-{stage}")]
                             message = None
+                        elif continuation_unknown and role=="executor" and counts[role]==3:
+                            command="python3 -c 'from pathlib import Path; assert Path(\"answer.txt\").read_text().strip()==\"ready\"'"
+                            code='text(await tools.contract_read_evidence({op:"index",offset:0}));text(await tools.exec_command('+json.dumps(dict(cmd=command,yield_time_ms=1000,max_output_tokens=1000))+'));'
+                            items=[custom_call(body,code,"inspect-unresolved-artifact")];message=None
                         elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or ((repair_review or transport_failure) and role == "executor" and counts[role] == 3):
                             answer = (
                                 "first failed"
@@ -918,7 +950,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual(json.loads((workspace/'input-check.json').read_text()),
                         {'content':'immutable source\n','write_denied':True,'unlink_denied':True})
                     self.assertEqual((home/'inputs/files/source.txt').read_text(),'immutable source\n')
-                self.assertEqual((workspace / "answer.txt").read_text(), "ready\n")
+                self.assertEqual((workspace / "answer.txt").read_text(), "first failed\n" if continuation_rest else "ready\n")
                 self.assertIsNotNone(status)
                 if transport_failure:
                     self.assertEqual(len(injected_failures),1)
@@ -934,7 +966,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual(counts_after['started'],original_request_grant['started'])
                     self.assertEqual(counts_after['deadline'],original_request_grant['deadline'])
                     self.assertEqual(request_budget.db.execute('SELECT count(*) FROM requests WHERE http_status=503').fetchone()[0],1)
-                self.assertEqual(status["phase"], "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
+                self.assertEqual(status["phase"], "did_not_pass" if continuation_rest else "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
                 if getattr(self, 'task_seconds', 'finite') is None:
                     with sqlite3.connect(database) as connection:
                         grant_row=connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()
@@ -959,6 +991,22 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     with sqlite3.connect(database) as connection:
                         attempts=[json.loads(x[0])["body"] for x in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in x[0]]
                     self.assertEqual([(x["attempt"],x["valid"]) for x in attempts],[(0,False),(1,not correction_exhausted)])
+                if continuation_rest:
+                    self.assertEqual(counts.get("continuation"),1)
+                    self.assertEqual(counts.get("successor",0),0)
+                    self.assertEqual(status["repairs_used"],0)
+                    with sqlite3.connect(database) as connection:
+                        commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
+                    self.assertEqual(commands,["issue","propose","defeat"])
+                if continuation_unknown and not transport_failure:
+                    with sqlite3.connect(database) as connection:
+                        commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
+                        selections=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'continuation_decision' in r[0]]
+                    self.assertEqual(commands,["issue","propose","propose","support"])
+                    self.assertEqual(len(selections),1)
+                    self.assertEqual(selections[0]["choice"]["action"],"resume")
+                    self.assertEqual(selections[0]["local_repairs_used"],1)
+                    self.assertEqual(counts.get("draft"),1)
                 if shared_citations:
                     with sqlite3.connect(database) as connection:
                         attempts = [json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'review_protocol_result' in r[0]]
@@ -986,7 +1034,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         self.assertTrue(document["complete"])
                         self.assertEqual(document["subject_hash"],delivered["subject_hash"])
                         self.assertEqual(document["turn_id"],delivered["turn_id"])
-                if not partial_checks and not deadline_fixture:self.assertGreaterEqual(counts.get("review", 0), 2)
+                if not partial_checks and not deadline_fixture and not continuation_rest:self.assertGreaterEqual(counts.get("review", 0), 2)
                 if deadline_fixture:
                     until=time.monotonic()+20
                     expired=[]
@@ -1054,7 +1102,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         grant = json.loads(connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()[0])
                     self.assertEqual(grant["used"], 1)
                     self.assertIsNone(grant["pending"])
-                if succession and not transport_failure:
+                if succession and not transport_failure and not continuation_rest:
                     self.assertTrue(any("publicEvidenceRecall" in text and "true" in text
                         for request in requests for item in request.get("input", [])
                         if item.get("type") in ("custom_tool_call_output", "function_call_output")

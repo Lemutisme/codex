@@ -70,3 +70,11 @@ An interrupted model or tool attempt is an execution observation. Once its effec
 shutdown are known, use the retained state and original grant to decide whether to resume,
 wait or change approach. A transport error does not decide artifact quality. Avoid replaying
 an action whose effects are still unknown, or replacing an outstanding task with a fresh grant.
+
+After an assessment, distinguish a request/terms discrepancy from missing evidence
+and a concrete artifact defect. Existing unknowns do not erase a usable counterexample.
+Use the selected continuation plan and retained evidence to identify the underlying
+rule, choose a discriminating experiment, and preserve runnable regressions. Preserve
+stdin/TTY/flag conditions and inspect neighboring behaviors before generalizing a fix.
+When evidence cannot be obtained with the available capabilities, explain that limit;
+repeating an unavailable method does not make the result better supported.

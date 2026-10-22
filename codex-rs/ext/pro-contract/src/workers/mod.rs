@@ -1,6 +1,7 @@
 //! Hidden isolated workers; only reviewers receive a frozen read-only evidence capability.
 
 pub(crate) mod cases;
+pub(crate) mod continuation;
 pub(crate) mod drafter;
 mod packet;
 pub(crate) mod policies;

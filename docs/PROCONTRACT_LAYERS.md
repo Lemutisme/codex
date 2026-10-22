@@ -127,6 +127,36 @@ the classification with the original request, so placing a genuine requirement i
 context cannot silently remove it. This is a request/evidence representation in
 the harness/store, not a new settlement-kernel transition.
 
+## Assessment and continuation
+
+An assessment does not itself choose the next execution. The review wire now
+describes request/terms discrepancies as omitted, added or altered obligations,
+anchored to the original request and affected catalog IDs. Evidence gaps and finite
+coverage remain obligation judgments. Historical unanchored records retain their
+original interpretation; they are not silently rewritten by a newer strategy.
+Anchors establish source identity, not the truth of the model's interpretation.
+
+After an eligible unsuccessful assessment, `continuation.md` selects an offered
+action, undisputed obligation IDs and a concrete next step. The harness checks
+that selection, retains it against the exact verification and public evidence,
+and dispatches the existing continuation capability. It does not revise the
+assessment or create Support. An unresolved observation can lead to investigation
+without a fabricated Defeat; a real Defeat can be retained while strategy rests.
+
+Local continuation is reserved before dispatch and remains spent across recovery.
+Owner input fences stale selections, and native interruption remains distinct from
+an artifact failure. Original deadlines and successor reservations still apply.
+The existing interpretation of local versus fresh-executor allowances is preserved:
+an exhausted nonzero successor grant cannot become additional local attempts.
+This compatibility boundary is not a new kernel invariant.
+
+Verification summaries and successor transport describe observations, authority
+and context. Their former instructions about which experiment to do first and
+when to repair/hand off live in replaceable strategy text. Initial preparation,
+final-verification scheduling and the single review-protocol correction remain
+legacy code-selected workflow; this is a partial migration, not a claim that all
+orchestration has moved out of code. No RSI coordinator is introduced.
+
 ## Development rule
 
 For a proposed change, identify the smallest required capability or invariant and

@@ -15,7 +15,7 @@ use super::ThreadRuntime;
 use super::lane;
 use crate::StepOutcome;
 
-async fn restart(lane: &mut Lane) {
+pub(super) async fn restart(lane: &mut Lane) {
     lane.runtime.stop().await;
     let old = &lane.runtime;
     let runtime = Arc::new(ThreadRuntime::new(

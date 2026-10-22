@@ -14,6 +14,7 @@ pub(crate) struct Policies {
     pub drafter: String,
     pub prober: String,
     pub reviewer: String,
+    pub continuation: String,
 }
 
 impl Default for Policies {
@@ -23,12 +24,13 @@ impl Default for Policies {
             drafter: drafter::DEFAULT_INSTRUCTIONS.to_string(),
             prober: prober::DEFAULT_INSTRUCTIONS.to_string(),
             reviewer: reviewer::DEFAULT_INSTRUCTIONS.to_string(),
+            continuation: super::continuation::DEFAULT_INSTRUCTIONS.to_string(),
         }
     }
 }
 
 impl Policies {
-    /// Reads `work_method.md`, `drafter.md`, `prober.md` and `reviewer.md`; a missing file
+    /// Reads executor, judgment and continuation prompts from the bundle; a missing file
     /// keeps the built-in text, an unreadable one is an error.
     pub(crate) fn load(dir: &Path) -> std::io::Result<Self> {
         let read = |name: &str, default: &str| match std::fs::read_to_string(dir.join(name)) {
@@ -41,6 +43,7 @@ impl Policies {
             drafter: read("drafter.md", drafter::DEFAULT_INSTRUCTIONS)?,
             prober: read("prober.md", prober::DEFAULT_INSTRUCTIONS)?,
             reviewer: read("reviewer.md", reviewer::DEFAULT_INSTRUCTIONS)?,
+            continuation: read("continuation.md", super::continuation::DEFAULT_INSTRUCTIONS)?,
         })
     }
 }

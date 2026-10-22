@@ -34,6 +34,15 @@ class ContinuousNativeTests(unittest.TestCase):
         self.run_case(shared_citations_fixture=True,
             task_text="Make answer.txt contain ready and retain all nineteen properties of the supplied citation.txt fixture.")
 
+    def test_strategy_continues_unknown_evidence_without_a_fabricated_defeat(self):
+        self.run_case(continuation_unknown_fixture=True,task_seconds=None)
+
+    def test_continuation_interruption_preserves_the_original_grant_on_resume(self):
+        self.run_case(continuation_unknown_fixture=True,transport_failure_fixture="continuation",task_seconds=120)
+
+    def test_strategy_can_rest_after_a_known_defect(self):
+        self.run_case(continuation_rest_fixture=True,succession_fixture=True)
+
     def test_code_mode_reads_structured_evidence_and_recovers_from_invalid_arguments(self):
         self.run_case(structured_pages_fixture=True)
 

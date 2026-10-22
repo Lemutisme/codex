@@ -41,6 +41,10 @@ pub(crate) fn identities(
         ),
         ("prober".to_string(), prober::policy_digest(&bundle.prober)),
         (
+            "continuation".to_string(),
+            crate::digest_of("continuation_policy", &bundle.continuation),
+        ),
+        (
             "reviewer".to_string(),
             reviewer::policy_digest(&bundle.reviewer),
         ),
@@ -54,6 +58,7 @@ pub(crate) fn identities(
                     &bundle.drafter,
                     &bundle.prober,
                     &bundle.reviewer,
+                    &bundle.continuation,
                 ),
             ),
         ),

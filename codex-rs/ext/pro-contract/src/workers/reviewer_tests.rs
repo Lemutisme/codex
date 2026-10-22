@@ -83,6 +83,35 @@ fn an_execution_finding_cannot_become_an_artifact_repair_instruction() {
     assert_eq!(parsed.execution_findings()[0].requirement_id, "process:0");
 }
 
+#[test]
+fn a_terms_discrepancy_is_anchored_to_the_request_and_remains_scope_local() {
+    let mut value = review("partial");
+    value["findings"] =
+        json!([{"requirement_id":"R1","location":"artifact","counterexample":"wrong output"}]);
+    value["terms_gap"] = json!([{"element":"exit codes","reason":"The derived requirement must preserve the requested exit-code scope.","affected_requirements":["R2"],"discrepancy":{"kind":"altered","request_quote":"Keep exit codes identical."}}]);
+    let parsed = parse(&message(value.clone()), &terms()).unwrap();
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert!(parsed.scope_disputed("R2"));
+    value["terms_gap"][0]["discrepancy"]["request_quote"] =
+        json!("The user required a complete execution transcript.");
+    assert!(parse(&message(value.clone()), &terms()).is_err());
+    value["terms_gap"][0]["discrepancy"]["request_quote"] = Value::Null;
+    assert!(parse(&message(value.clone()), &terms()).is_err());
+    value["terms_gap"][0]["discrepancy"]["kind"] = json!("added");
+    assert!(parse(&message(value), &terms()).is_ok());
+}
+
+#[test]
+fn finite_coverage_gap_does_not_dispute_or_erase_a_concrete_counterexample() {
+    let mut value = review("partial");
+    value["findings"] = json!([{"requirement_id":"R1","location":"query","counterexample":"This input returns the wrong value."}]);
+    value["gaps"] = json!([{"requirement_id":"R1","reason":"Finite observations do not cover all inputs."},{"requirement_id":"R2","reason":"The historical receipt is unavailable."}]);
+    let parsed = parse(&message(value), &terms()).unwrap();
+    assert!(parsed.terms_gap.is_empty());
+    assert_eq!(parsed.actionable_findings().len(), 1);
+    assert!(!matches!(parsed.verdict, ReviewVerdict::Support { .. }));
+}
+
 fn message(value: Value) -> String {
     serde_json::to_string(&value).expect("json")
 }
@@ -275,6 +304,7 @@ fn a_terms_gap_is_kept_beside_the_verdict() {
     assert_eq!(
         review.terms_gap,
         vec![TermsGap {
+            discrepancy: None,
             affected_requirements: None,
             element: "error messages".to_string(),
             reason: "requested but not a requirement".to_string()

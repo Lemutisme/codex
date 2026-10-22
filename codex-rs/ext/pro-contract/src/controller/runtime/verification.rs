@@ -19,7 +19,6 @@ use super::super::decision::NotVerifiedClass;
 use super::super::decision::Verdict;
 use super::super::decision::decide;
 use super::Handoff;
-use super::Phase;
 use super::ThreadRuntime;
 use crate::CheckReceipts;
 use crate::Subject;
@@ -491,8 +490,37 @@ impl ThreadRuntime {
                     residual,
                     blocker,
                     verification,
+                    public,
+                    public_evidence,
                 )
                 .await
+            }
+            Verdict::NotVerified { class, reason }
+                if matches!(
+                    class,
+                    NotVerifiedClass::ReviewerUnable
+                        | NotVerifiedClass::TermsGap
+                        | NotVerifiedClass::ExecutionConstraint
+                        | NotVerifiedClass::InsufficientEvidence
+                ) =>
+            {
+                self.choose_continuation(
+                    Handoff {
+                        response,
+                        epoch,
+                        contract,
+                        subject,
+                        turn_id,
+                        policy,
+                        terms,
+                        base,
+                    },
+                    public,
+                    public_evidence,
+                    verification,
+                    Verdict::NotVerified { class, reason },
+                )
+                .await;
             }
             Verdict::NotVerified { class, reason } => self.not_verified(class, &reason).await,
         }
@@ -581,17 +609,14 @@ impl ThreadRuntime {
         residual: String,
         blocker: Option<super::super::decision::EvidenceBlocker>,
         verification: Digest,
+        public: super::super::work::PublicEvidence,
+        public_evidence: Digest,
     ) {
-        let Handoff {
-            contract,
-            subject,
-            turn_id,
-            epoch,
-            ..
-        } = handoff;
+        let contract = &handoff.contract;
+        let subject = &handoff.subject;
         let defeated = self
             .apply(
-                &contract,
+                contract,
                 Role::Verifier,
                 Provenance::Automation,
                 Command::Defeat {
@@ -612,66 +637,13 @@ impl ThreadRuntime {
             .await;
             return;
         }
-        // A usable counterexample and an incomplete acceptance basis are independent facts.
-        // Fixing the former spends the existing grant; it never clears the latter or grants
-        // Support. No fresh solver is scheduled for a blocker without a candidate Defeat.
-        let blockage = blocker.map_or_else(String::new, |blocker| {
-            format!(
-                "\nAcceptance remains blocked ({}): {}. Repair the observed candidate failures; do not claim that this restores missing evidence.",
-                blocker.class.as_str(), blocker.reason
-            )
-        });
-        let residual = format!(
-            "{residual}{blockage}\nRecover prior public checks and exact retained details with contract_read_evidence; earlier counterexamples remain in the archive."
-        );
-        // The durable task allocation may exist solely to enforce a deadline.
-        // Zero fresh-executor authority does not revoke the separately authorized
-        // same-thread repair allowance. Exhausted nonzero succession grants retain
-        // their existing meaning; they are not converted into extra local attempts.
-        if self
-            .settings
-            .succession
-            .as_ref()
-            .is_some_and(|grant| grant.max_sessions != Some(0))
-        {
-            Box::pin(self.succeed(subject.subject_hash, residual, turn_id, epoch)).await;
-            return;
-        }
-        let allowance_left = self.state.lock().await.repairs_used < self.settings.repair_attempts;
-        if !allowance_left {
-            self.rest("did_not_pass", &residual).await;
-            return;
-        }
-        if let Err(reason) = self
-            .action_seconds(None, self.settings.worker.deadline_secs)
-            .await
-        {
-            self.not_verified(NotVerifiedClass::BudgetExhausted, &reason)
-                .await;
-            return;
-        }
-        {
-            // Working before the repair turn starts, so its end is frozen however fast it is.
-            let mut state = self.state.lock().await;
-            if state.epoch != epoch {
-                return;
-            }
-            state.repairs_used += 1;
-            state.phase = Phase::Working;
-            state.repair_note = Some(residual.clone());
-        }
-        match self.ports.submit_repair(residual.clone(), turn_id).await {
-            Ok(()) => {
-                self.record_status("repairing", &residual, /*resting*/ false)
-                    .await;
-            }
-            Err(reason) => {
-                self.rest(
-                    "did_not_pass",
-                    &format!("repair could not start: {reason}\n{residual}"),
-                )
-                .await;
-            }
-        }
+        self.choose_continuation(
+            handoff,
+            public,
+            public_evidence,
+            verification,
+            Verdict::Defeat { residual, blocker },
+        )
+        .await;
     }
 }

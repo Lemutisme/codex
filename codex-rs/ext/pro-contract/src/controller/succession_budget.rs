@@ -64,7 +64,7 @@ pub(super) fn earliest(a: Option<u64>, b: Option<u64>) -> Option<u64> {
     a.into_iter().chain(b).min()
 }
 
-/// Host-observed failed artifact and bounded feedback; a hypothesis is not a verified lesson.
+/// Frozen artifact and bounded assessment/selection context; a hypothesis is not a verified lesson.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Lesson {
     pub subject: Digest,
