@@ -19,6 +19,24 @@ def payload(output=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_nontext_tool_result_is_explicit_recoverable_feedback(self):
+        output = [{"type":"input_text","text":"Local documentation loaded."},
+                  {"type":"input_image","image_url":"data:image/png;base64,LOCAL_IMAGE_BYTES"}]
+        forwarded, audit = prepare_payload(payload(output), 'gpt-5.6-luna', 'max')
+        value = json.loads(forwarded)
+        text = value['input'][0]['output'][0]['text']
+        self.assertIn('Tool observation incomplete', text)
+        self.assertIn('Local documentation loaded.', text)
+        self.assertNotIn('LOCAL_IMAGE_BYTES', forwarded.decode())
+        self.assertNotIn('image_url', forwarded.decode())
+        self.assertEqual(value['input'][0]['call_id'], 'c')
+        self.assertEqual(audit[0]['kind'], 'unavailable_observation')
+        self.assertEqual(audit[0]['content_types'], ['input_image'])
+        # Re-sending retained history does not erase the explicit failure or add it twice.
+        replay, adjustments = prepare_payload(forwarded, 'gpt-5.6-luna', 'max')
+        self.assertEqual(json.loads(replay), value)
+        self.assertEqual(adjustments, [])
+
     def test_owner_close_waits_for_a_sqlite_writer_and_fences_late_callbacks(self):
         with tempfile.TemporaryDirectory() as root:
             path=Path(root)/'budget.sqlite'

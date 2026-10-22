@@ -157,6 +157,34 @@ final-verification scheduling and the single review-protocol correction remain
 legacy code-selected workflow; this is a partial migration, not a claim that all
 orchestration has moved out of code. No RSI coordinator is introduced.
 
+Continuation wire choices are now a tagged union: rest carries a reason, while
+resume/successor carry work scopes and a next step. The output schema and parser
+express the same alternatives. Repeated IDs do not widen a scope and are normalized;
+unoffered actions and scopes still cannot create authority. Old stored selections
+remain readable as historical records and are never replayed as new requests.
+
+The selection's durable event hash links successor reservation/return or local
+submission acknowledgements. A returned successor may identify a captured delivery
+by its exact turn. Strategy receives these records alongside the current assessment
+and the offered executor capabilities. Submission, return, artifact change and a
+successful repair remain distinct; an absent link, including a legacy record, is
+unknown rather than proof of nonexecution. Local submission does not claim a
+completed turn. This adds observation transport in the harness, not a kernel state
+transition or an instruction to retry.
+
+The text benchmark adapter disables the native image-viewing tool. If another tool
+still returns nontext content, the gateway delivers an explicit incomplete-observation
+notice and retains available text plus an audit hash. It never forwards the omitted
+content or changes the model/request/time grant. A modality mismatch in a tool result
+therefore remains actionable feedback rather than terminating the entire task. This
+profile-specific limit does not remove image capability from ordinary ProContract use.
+
+Automatic turn admission also queues its additional context and instruction together.
+Both are available in the first sampling step, alongside pending mailbox input. Starting
+with context while deferring its instruction caused an avoidable second model response
+for large worker packets. This is a general native harness input-assembly correction;
+it does not convert an automatic turn into user authorization or change task grants.
+
 ## Development rule
 
 For a proposed change, identify the smallest required capability or invariant and

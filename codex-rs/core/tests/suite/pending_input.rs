@@ -93,9 +93,18 @@ async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyho
     submit_queue_only_agent_mail(test.codex.as_ref(), "pending mailbox input").await;
     let submission = test
         .codex
-        .start_turn_if_idle(TurnInputRequest::new(TurnInput::ResponseItem(
-            responses::user_message_item("automatic response item"),
-        )))
+        .start_turn_if_idle(
+            TurnInputRequest::new(TurnInput::ResponseItem(responses::user_message_item(
+                "automatic response item",
+            )))
+            .with_additional_context(std::collections::BTreeMap::from([(
+                "worker_packet".to_string(),
+                codex_protocol::protocol::AdditionalContextEntry {
+                    value: "context required by the automatic instruction".to_string(),
+                    kind: codex_protocol::protocol::AdditionalContextKind::Untrusted,
+                },
+            )])),
+        )
         .await?;
     let StartIfIdleSubmission::Started { turn_id } = submission else {
         panic!("automatic input should start a turn");
@@ -103,6 +112,7 @@ async fn idle_response_items_include_pending_mailbox_in_first_request() -> anyho
     wait_for_turn_complete(test.codex.as_ref()).await;
 
     let request = response.single_request();
+    assert!(request.has_content_kinds(&["additional_content.worker_packet"]));
     let request_body = request.body_json();
     responses::assert_root_turn(&request_body, Some(&turn_id))?;
     responses::assert_parent_turn(&request_body, /*expected*/ None)?;

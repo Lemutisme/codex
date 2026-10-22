@@ -241,9 +241,12 @@ impl Ports for FakePorts {
                         };
                     }
                     let keep_working = facts["assessment"]["decision"] == "defeat";
-                    Ok(serde_json::json!({"action":if keep_working { facts["available_actions"][0].clone() } else { serde_json::json!("rest") },
-                        "requirements":if keep_working { facts["allowed_requirements"].clone() } else { serde_json::json!([]) },
-                        "next_step":if keep_working { "Inspect the retained counterexample, repair it and replay its check." } else { "No further useful action selected by the fixture strategy." }}).to_string())
+                    let choice = if keep_working {
+                        serde_json::json!({"action":facts["available_actions"][0],"requirements":facts["allowed_requirements"],"next_step":"Inspect the retained counterexample, repair it and replay its check."})
+                    } else {
+                        serde_json::json!({"action":"rest","reason":"No further useful action selected by the fixture strategy."})
+                    };
+                    Ok(serde_json::json!({"choice":choice}).to_string())
                 }
                 "pro_contract_review" => {
                     self.review_prompts.lock().unwrap().push(turn.prompt);

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use codex_pro_contract::Digest;
-use codex_pro_contract_store::ExperimentKind;
+use codex_pro_contract_store::{ExperimentKind, ExperimentRecord};
 use serde_json::json;
 
 use super::{Handoff, Phase, ThreadRuntime};
@@ -11,6 +11,43 @@ use crate::controller::decision::{NotVerifiedClass, Verdict};
 use crate::controller::succession_budget::{Budget, KIND};
 use crate::controller::work::PublicEvidence;
 use crate::workers::continuation::{self, Action};
+
+/// Correlate by the durable selection identity, never by whichever execution
+/// happened most recently. Older records without this link stay unknown.
+fn previous_selection(
+    journal: &[ExperimentRecord],
+    contract: &codex_pro_contract::ContractId,
+) -> Option<serde_json::Value> {
+    let selection = journal.iter().rev().find(|r| {
+        r.event.body["phase"] == "continuation_decision"
+            && r.event.body["contract_id"] == json!(contract)
+    })?;
+    let body = &selection.event.body;
+    let executions: Vec<_> = journal
+        .iter()
+        .filter(|r| r.event.body["continuation"] == json!(selection.hash))
+        .map(|r| json!({"record":r.hash,"event":r.event.body}))
+        .collect();
+    let delivered_turn = executions
+        .iter()
+        .rev()
+        .find_map(|r| r["event"]["handoff_turn_id"].as_str());
+    let delivery = delivered_turn
+        .and_then(|turn| {
+            journal.iter().find(|r| {
+                r.event.body["phase"] == "task_delivery"
+                    && r.event.body["turn_id"] == turn
+                    && r.event.body["thread_id"] == body["thread_id"]
+            })
+        })
+        .map(|r| json!({"record":r.hash,"event":r.event.body}));
+    Some(
+        json!({"record":selection.hash,"choice":body["choice"],"error":body["error"],
+        "verification":body["verification"],"subject_hash":body["subject_hash"],
+        "public_evidence":body["public_evidence"],"execution_records":executions,"delivery":delivery,
+        "meaning":"Selection, dispatch, executor return, captured delivery and assessed effects are distinct facts. Linked records describe what the host observed, not proof that the plan succeeded. Missing links, including legacy records, do not mean the action did not happen."}),
+    )
+}
 
 impl ThreadRuntime {
     /// Return only capabilities already admitted by the existing configuration.
@@ -110,18 +147,7 @@ impl ThreadRuntime {
             return;
         }
         let previous_choice = match self.ledger.experiments().await {
-            Ok(journal) => {
-            journal.into_iter().rev().find(|r| {
-                r.event.body["phase"] == "continuation_decision"
-                    && r.event.body["contract_id"] == json!(handoff.contract.id)
-            }).map(|r| {
-                let b = r.event.body;
-                json!({"choice":b["choice"],"error":b["error"],
-                    "verification":b["verification"],"subject_hash":b["subject_hash"],
-                    "public_evidence":b["public_evidence"],
-                    "meaning":"Previous selection is a historical intention, not proof that it was executed or achieved its expected result. Compare it with current observations; older assessments remain in the public archive."})
-            })
-            }
+            Ok(journal) => previous_selection(&journal, &handoff.contract.id),
             Err(reason) => Some(json!({"unavailable":reason.to_string()})),
         };
         let observation_scope = public.host_observations.map(|handle| {
@@ -140,6 +166,7 @@ impl ThreadRuntime {
         // choose work from the already bound judgments and explicit capabilities.
         let facts = json!({
             "contract_id":handoff.contract.id, "subject_hash":handoff.subject.subject_hash,
+            "assessed_turn_id":handoff.turn_id,
             "verification":verification,"public_evidence":public_handle,
             "original_request":handoff.terms.intake_text,
             "obligations":obligations.iter().map(|o| json!({"id":o.id,"scope":o.scope,"text":o.text})).collect::<Vec<_>>(),
@@ -150,6 +177,10 @@ impl ThreadRuntime {
             "previous_choice":previous_choice,
             "capabilities":{"public_evidence_read":true,"frozen_progress_assessment":self.progress_enabled(),
                 "independent_diagnosis":self.progress_enabled(),"environment":self.profile.environment_id,
+                "executor":{"actions":actions.iter().filter(|a| **a != Action::Rest).collect::<Vec<_>>(),
+                    "workspace":"The original mutable workspace and retained task files remain available.",
+                    "tools":"An offered resume or successor uses the task's native execution/file tools in the declared environment, under the original permissions and resource limits. The tool-less selector does not need to run those tools itself.",
+                    "reference_command":self.profile.reference_command,"task_inputs":self.input_capabilities()},
                 "public_checks":public.checks.iter().map(|c| json!({"step":c.receipt.step,"command":c.command,"invocation":c.invocation})).collect::<Vec<_>>(),
                 "host_observation_scope":observation_scope,
                 "assessment_scope":"Progress assessment observes the configured checks and frozen artifacts. It does not retrospectively attest arbitrary executor commands; self-authored logs do not become host receipts."},
@@ -181,7 +212,7 @@ impl ThreadRuntime {
             if state.epoch != handoff.epoch || state.phase != Phase::Verifying {
                 return;
             }
-            if matches!(&choice, Ok(c) if c.action == Action::Resume) {
+            if matches!(&choice, Ok(c) if c.action() == Action::Resume) {
                 state.repairs_used = state.repairs_used.saturating_add(1);
             }
             state.repairs_used
@@ -203,11 +234,14 @@ impl ThreadRuntime {
                 }),
             )
             .await;
-        if let Err(reason) = recorded {
-            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
-                .await;
-            return;
-        }
+        let decision = match recorded {
+            Ok(decision) => decision,
+            Err(reason) => {
+                self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                    .await;
+                return;
+            }
+        };
         if self.state.lock().await.epoch != handoff.epoch {
             return;
         }
@@ -226,20 +260,31 @@ impl ThreadRuntime {
                 return;
             }
         };
-        if choice.action == Action::Rest {
-            self.finish_continuation(class, &format!("{detail}\nStrategy: {}", choice.next_step))
-                .await;
-            return;
-        }
+        let (requirements, next_step) = match &choice {
+            continuation::Choice::Rest { reason } => {
+                self.finish_continuation(class, &format!("{detail}\nStrategy: {reason}"))
+                    .await;
+                return;
+            }
+            continuation::Choice::Resume {
+                requirements,
+                next_step,
+            }
+            | continuation::Choice::Successor {
+                requirements,
+                next_step,
+            } => (requirements, next_step),
+        };
         let note = format!(
             "Continue the original task within these selected obligation scopes: {}.\nStrategy next step: {}\nFrozen assessment (unchanged): {}\nRead retained public evidence {} with contract_read_evidence. Other scope disputes and evidence gaps remain recorded; continuing does not certify acceptance or authorize work on disputed obligations.",
-            choice.requirements.join(", "),
-            choice.next_step,
+            requirements.join(", "),
+            next_step,
             detail,
             public_handle,
         );
-        if choice.action == Action::Successor {
+        if choice.action() == Action::Successor {
             Box::pin(self.succeed(
+                decision,
                 handoff.subject.subject_hash,
                 note,
                 handoff.turn_id,
@@ -266,11 +311,22 @@ impl ThreadRuntime {
             state.phase = Phase::Working;
             state.repair_note = Some(note.clone());
         }
-        match self
+        let result = self
             .ports
             .submit_repair(note.clone(), handoff.turn_id)
-            .await
-        {
+            .await;
+        self.record_event(
+            ExperimentKind::Execution,
+            None,
+            json!({
+                "phase":"continuation_submission","continuation":decision,
+                "thread_id":self.thread_id.to_string(),"action":"resume",
+                "submitted":result.is_ok(),"error":result.as_ref().err(),
+                "meaning":"Submission acknowledgement, not an execution or correctness receipt."
+            }),
+        )
+        .await;
+        match result {
             Ok(()) => self.record_status("repairing", &note, false).await,
             Err(reason) => {
                 self.rest(

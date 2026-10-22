@@ -57,6 +57,7 @@ impl ThreadRuntime {
 
     pub(super) async fn succeed(
         self: Arc<Self>,
+        decision: Digest,
         subject: Digest,
         residual: String,
         previous_turn: String,
@@ -109,6 +110,7 @@ impl ThreadRuntime {
         .await;
         self.record_event(ExperimentKind::Execution, /*check_pipeline*/ None, json!({
             "thread_id": self.thread_id.to_string(), "executor_thread_id": id.to_string(),
+            "continuation": decision,
             "phase": "successor_reserved", "launch": reserved.launches,
             "deadline_ms": reserved.deadline_ms, "executor_deadline_ms":deadline_ms, "packet_sha256": super::digest_of("successor_packet", &packet)
         })).await;
@@ -135,6 +137,18 @@ impl ThreadRuntime {
             /*check_pipeline*/ None,
             json!({
                 "thread_id": self.thread_id.to_string(), "executor_thread_id": id.to_string(),
+                "continuation": decision,
+                "exit": match &result {
+                    Ok(SuccessorExit::Handoff(_)) => "handoff",
+                    Ok(SuccessorExit::Interrupted(_)) => "interrupted",
+                    Ok(SuccessorExit::Rejected(_)) => "rejected",
+                    Ok(SuccessorExit::Stopped(_)) => "stopped",
+                    Err(_) => "unknown",
+                },
+                "handoff_turn_id": match &result {
+                    Ok(SuccessorExit::Handoff(handoff)) => Some(format!("{id}:{}", handoff.turn_id)),
+                    _ => None,
+                },
                 "phase": if matches!(&result, Ok(SuccessorExit::Rejected(_))) { "successor_rejected" } else { "successor_returned" },
                 "shutdown_confirmed": result.is_ok(),
                 "admission_rejected": matches!(&result, Ok(SuccessorExit::Rejected(_))),

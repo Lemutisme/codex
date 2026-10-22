@@ -15,6 +15,12 @@ import test_procodex_native as fixture
 @unittest.skipUnless(os.environ.get('PROCODEX_NATIVE_PACKAGE'), 'requires native release and Docker')
 class NativeBenchmarkGatewayTests(unittest.TestCase):
     def test_executor_and_review_share_the_wire_budget(self):
+        self.run_gateway_case()
+
+    def test_unavailable_image_observation_does_not_end_the_original_task(self):
+        self.run_gateway_case(text_route=True)
+
+    def run_gateway_case(self, text_route=False):
         original = procodex.configure
         resources = []
 
@@ -27,6 +33,7 @@ class NativeBenchmarkGatewayTests(unittest.TestCase):
             thread.start();budget.arm()
             resources.append((home, budget, gateway, thread))
             provider.update(base_url=gateway.base_url, request_max_retries=0, stream_max_retries=0)
+            config['features']['view_image'] = False
             (home/'config.toml').write_text(procodex.toml(config))
             path=home/'environments.toml'
             path.write_text(path.read_text().replace('--max-process-seconds 1800','--max-process-seconds 180'))
@@ -48,6 +55,7 @@ class NativeBenchmarkGatewayTests(unittest.TestCase):
         case=fixture.NativeEvidenceTest('test_real_executor_and_reviewer_use_frozen_handles')
         case.progress_fixture=True
         case.observation_fixture=True
+        case.text_route_fixture=text_route
         case.task_text='Make answer.txt contain ready. Obtain the retained feedback bytes before repairing the artifact.'
         try:
             with patch.object(procodex, 'configure', configure):
@@ -59,6 +67,10 @@ class NativeBenchmarkGatewayTests(unittest.TestCase):
             self.assertLess(status['used'],1000)
             rows=budget.db.execute('SELECT http_status,terminal,failure FROM requests').fetchall()
             self.assertTrue(all(r==(200,'response.completed',None) for r in rows),rows)
+            if text_route:
+                adjustments=[v for row in budget.db.execute('SELECT truncations FROM requests') for v in json.loads(row[0])]
+                self.assertTrue(any(v.get('kind')=='unavailable_observation' for v in adjustments))
+                self.assertIsNone(status['last_rejection'])
             report=os.environ.get('PROCODEX_TEST_REPORT')
             if report:
                 Path(report).mkdir(parents=True,exist_ok=True)

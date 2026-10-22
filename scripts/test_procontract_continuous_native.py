@@ -7,6 +7,9 @@ import test_procodex_native as fixture
 @unittest.skipUnless(os.environ.get("PROCODEX_NATIVE_PACKAGE") and os.environ.get("PROCODEX_TEST_IMAGE"),
                      "requires a native package and an existing isolated image")
 class ContinuousNativeTests(unittest.TestCase):
+    def test_next_selection_observes_actual_successor_delivery_without_claiming_success(self):
+        self.run_case(task_seconds=None, succession_fixture=True, continuation_history_fixture=True)
+
     def run_case(self, **flags):
         case=fixture.NativeEvidenceTest("test_real_executor_and_reviewer_use_frozen_handles")
         for name,value in flags.items():setattr(case,name,value)

@@ -239,6 +239,8 @@ def app_server_command(codex_bin: Path, arm: str) -> list[str]:
         "--disable",
         "hooks",
         "--disable",
+        "view_image",
+        "--disable",
         "multi_agent",
         "--disable",
         "multi_agent_v2",

@@ -58,11 +58,32 @@ def prepare_payload(raw, model, effort):
         if isinstance(output, str):
             before = output
             item["output"] = truncate_output(output)
-        elif isinstance(output, list) and all(
-                isinstance(part, dict) and part.get("type") in ("input_text", "text")
-                and isinstance(part.get("text"), str) for part in output):
-            before = "\n".join(part["text"] for part in output)
-            item["output"] = [{"type": "input_text", "text": truncate_output(before)}]
+        elif isinstance(output, list):
+            texts, unavailable = [], []
+            for part in output:
+                if not isinstance(part, dict):
+                    raise ValueError("malformed tool observation")
+                kind = part.get("type")
+                if kind in ("input_text", "text") and isinstance(part.get("text"), str):
+                    texts.append(part["text"])
+                elif kind in ("input_image", "input_file", "input_audio"):
+                    unavailable.append(kind)
+                else:
+                    raise ValueError("malformed tool observation")
+            before = "\n".join(texts)
+            content = truncate_output(before)
+            if unavailable:
+                # A tool-result modality mismatch is feedback to the agent, not
+                # a failed provider request or permission to widen the profile.
+                # Keep the loss explicit and auditable; never forward these bytes.
+                warning = ("Tool observation incomplete: this evaluation route accepts text only. "
+                           + ", ".join(sorted(set(unavailable)))
+                           + " content was not delivered. Use the available text execution/file interface.")
+                content = warning + ("\n" + content if content else "")
+                outputs.append({"call_id": item.get("call_id"), "kind": "unavailable_observation",
+                                "content_types": unavailable,
+                                "sha256": digest(json.dumps(output, sort_keys=True).encode())})
+            item["output"] = [{"type": "input_text", "text": content}]
         else:
             raise ValueError("only text tool observations are admitted")
         if len(before) >= 10000:

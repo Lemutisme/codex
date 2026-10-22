@@ -3,9 +3,16 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 
 fn choose(ports: &FakePorts, action: &str, requirements: serde_json::Value) {
-    ports.continuation_choices.lock().unwrap().push_back(json!({
-        "action":action,"requirements":requirements,"next_step":"Inspect the retained output with the available tools."
-    }).to_string());
+    let choice = if action == "rest" {
+        json!({"action":"rest","reason":"No useful work selected."})
+    } else {
+        json!({"action":action,"requirements":requirements,"next_step":"Inspect the retained output with the available tools."})
+    };
+    ports
+        .continuation_choices
+        .lock()
+        .unwrap()
+        .push_back(json!({"choice":choice}).to_string());
 }
 
 #[tokio::test]
@@ -51,6 +58,17 @@ async fn a_later_choice_sees_the_prior_intention_and_observation_capability() {
     lane.wait_for("working").await;
     lane.executor_turn("first", "done").await;
     lane.wait_for("repairing").await;
+    lane.runtime
+        .append_event(
+            codex_pro_contract_store::ExperimentKind::Execution,
+            None,
+            json!({
+                "phase":"successor_returned","continuation":codex_pro_contract::Digest::ZERO,
+                "exit":"handoff","handoff_turn_id":"unrelated-turn"
+            }),
+        )
+        .await
+        .unwrap();
     lane.executor_turn("second", "done").await;
     lane.wait_for("not_verified").await;
     let facts: serde_json::Value = {
@@ -63,6 +81,26 @@ async fn a_later_choice_sees_the_prior_intention_and_observation_capability() {
         json!(["R1"])
     );
     assert!(facts["previous_choice"]["public_evidence"].is_string());
+    let execution = &facts["previous_choice"]["execution_records"][0]["event"];
+    assert_eq!(
+        facts["previous_choice"]["execution_records"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(execution["phase"], "continuation_submission");
+    assert_eq!(execution["submitted"], true);
+    assert_eq!(
+        execution["continuation"],
+        facts["previous_choice"]["record"]
+    );
+    assert!(facts["previous_choice"]["delivery"].is_null());
+    assert_eq!(facts["assessed_turn_id"], "second");
+    assert_eq!(
+        facts["capabilities"]["executor"]["actions"],
+        json!(["resume"])
+    );
     assert_eq!(
         facts["capabilities"]["public_checks"][0]["command"],
         "observe-answer"

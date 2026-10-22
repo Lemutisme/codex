@@ -21,6 +21,45 @@ async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> La
 }
 
 #[tokio::test]
+async fn a_following_selection_observes_the_actual_executor_return_and_captured_subject() {
+    let lane = successors(
+        FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Fail, StepOutcome::Fail, StepOutcome::Pass])
+            .reviews(&[SUPPORT_REVIEW]),
+        2,
+        &["still wrong", "done"],
+    )
+    .await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "wrong").await;
+    lane.wait_for("supported").await;
+    let prompts = lane.ports.continuation_prompts.lock().unwrap();
+    assert_eq!(prompts.len(), 2);
+    let facts: serde_json::Value =
+        serde_json::from_str(prompts[1].rsplit_once("\n\n").unwrap().1).unwrap();
+    let previous = &facts["previous_choice"];
+    let records = previous["execution_records"].as_array().unwrap();
+    assert_eq!(records.len(), 2);
+    assert!(
+        records
+            .iter()
+            .all(|r| r["event"]["continuation"] == previous["record"])
+    );
+    let returned = &records[1]["event"];
+    assert_eq!(returned["exit"], "handoff");
+    assert_eq!(returned["shutdown_confirmed"], true);
+    assert_eq!(returned["handoff_turn_id"], facts["assessed_turn_id"]);
+    assert_eq!(
+        previous["delivery"]["event"]["subject_hash"],
+        facts["subject_hash"]
+    );
+    assert_ne!(previous["subject_hash"], facts["subject_hash"]);
+    // A successful executor return did not erase the new failing assessment.
+    assert_eq!(facts["assessment"]["decision"], "defeat");
+}
+
+#[tokio::test]
 async fn a_deadline_only_grant_keeps_authorized_same_thread_repair_without_new_executors() {
     let lane = successors(
         FakePorts::new(CONTRACT_DRAFT)

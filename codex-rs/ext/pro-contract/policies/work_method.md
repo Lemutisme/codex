@@ -60,6 +60,12 @@ conditions before using earlier conclusions. Its frontier covers registered publ
 not all requirements. An empty failure list is not coverage. Preserve a usable artifact
 and do not spend the whole task allocation repeatedly rechecking unchanged facts.
 
+When choosing the next investigation, compare the known residuals with task areas that
+have little or no observation. A nearly passing fixed suite can still miss an entire
+interface. Use the request and available documentation to identify those areas; prioritize
+questions that may change the implementation or the delivery decision. A missing receipt
+about past execution and an untested behavior call for different kinds of evidence.
+
 Keep established results, concrete defects, unexamined behavior and unsupported assumptions
 distinct. Missing observations do not erase successful work or certify an unexamined claim.
 Name remaining gaps accurately at delivery. Choose further work according to the user's

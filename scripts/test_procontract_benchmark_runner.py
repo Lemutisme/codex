@@ -213,6 +213,8 @@ class CodexHomeTest(unittest.TestCase):
     def test_without_instructions_the_executor_keeps_its_defaults(self):
         config = tomllib.loads(runner.config_toml("  \n"))
         self.assertNotIn("developer_instructions", config)
+        command = runner.app_server_command(Path('/codex'), 'on')
+        self.assertIn(['--disable', 'view_image'], [command[i:i+2] for i in range(len(command)-1)])
 
     def test_a_task_without_a_reference_has_nothing_to_build_or_compare(self):
         evaluation = runner.settings(Path("/w"), "image:tag", reference=False)[
@@ -286,6 +288,8 @@ class CodexHomeTest(unittest.TestCase):
                 "--disable",
                 "hooks",
                 "--disable",
+                "view_image",
+                "--disable",
                 "multi_agent",
                 "--disable",
                 "multi_agent_v2",
@@ -302,6 +306,8 @@ class CodexHomeTest(unittest.TestCase):
                 "/bin/codex",
                 "--disable",
                 "hooks",
+                "--disable",
+                "view_image",
                 "--disable",
                 "multi_agent",
                 "--disable",

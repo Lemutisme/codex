@@ -105,6 +105,7 @@ class NativeEvidenceTest(unittest.TestCase):
         owner_cancel = getattr(self, "owner_cancel_fixture", False)
         transport_failure = getattr(self, "transport_failure_fixture", None)
         observation_fixture = getattr(self, "observation_fixture", False)
+        text_route = getattr(self, "text_route_fixture", False)
         missing_access = getattr(self, "missing_access_fixture", False)
         correction_exhausted = getattr(self, "correction_exhausted_fixture", False)
         protocol_correction = getattr(self, "protocol_correction_fixture", False) or correction_exhausted
@@ -126,6 +127,7 @@ class NativeEvidenceTest(unittest.TestCase):
         continuation_model = getattr(self, "continuation_model", None)
         continuation_unknown = getattr(self, "continuation_unknown_fixture", False)
         continuation_rest = getattr(self, "continuation_rest_fixture", False)
+        continuation_history = getattr(self, "continuation_history_fixture", False)
         shared_citations = getattr(self, "shared_citations_fixture", False)
         structured_pages = getattr(self, "structured_pages_fixture", False)
         scoped_judgment = getattr(self, "scoped_judgment_fixture", False)
@@ -366,7 +368,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                         props = schema.get("properties", {})
                         role = (
                             "continuation"
-                            if "action" in props and "next_step" in props
+                            if "choice" in props
                             else "draft"
                             if "differential_cases" in props
                             else "review"
@@ -388,6 +390,12 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                         waiting = pending_cell_wait(body,f"wait-{len(requests)}") if role in ("executor","successor") else None
                         if waiting is None:
                             counts[role] = counts.get(role, 0) + 1
+                        if text_route and role == "executor" and counts[role] == 2:
+                            observations = "\n".join(text_values([v.get("output") for v in body.get("input", []) if v.get("type", "").endswith("_call_output")]))
+                            if "Tool observation incomplete" not in observations or "native-image-tool-disabled" not in observations:
+                                raise AssertionError("text route must expose the unsupported observation and keep executing")
+                            if "image_url" in json.dumps([v.get("output") for v in body.get("input", []) if v.get("type", "").endswith("_call_output")]):
+                                raise AssertionError("image crossed the text gateway")
                         if late_successor and role == "successor" and counts[role] == 2:
                             # Real native clock/HTTP wait: this handoff fits the original
                             # grant but exceeds the former guessed verification reserve.
@@ -434,10 +442,16 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
                         elif role == "continuation":
                             facts=continuation_facts(body)
-                            keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown) and not continuation_rest
-                            message=dict(action=facts["available_actions"][0] if keep_working else "rest",
-                                requirements=facts["allowed_requirements"] if keep_working else [],
-                                next_step="Read the retained evidence, inspect answer.txt and replay its check." if keep_working else "No further useful work selected by this fixture strategy.")
+                            keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown or continuation_history) and not continuation_rest
+                            if continuation_history and counts[role] == 2:
+                                previous=facts['previous_choice']
+                                returned=[r['event'] for r in previous['execution_records'] if r['event']['phase']=='successor_returned']
+                                if len(returned)!=1 or returned[0]['exit']!='handoff' or previous['delivery']['event']['subject_hash']!=facts['subject_hash']:
+                                    raise AssertionError('actual prior successor result missing from continuation context')
+                            choice=(dict(action=facts["available_actions"][0], requirements=facts["allowed_requirements"],
+                                next_step="Read the retained evidence, inspect answer.txt and replay its check.") if keep_working else
+                                dict(action="rest",reason="No further useful work selected by this fixture strategy."))
+                            message=dict(choice=choice)
                             if continuation_model is not None:message=continuation_model(body)
                         elif role in ("explore", "probe"):
                             packet_parts = {}
@@ -535,7 +549,7 @@ text({structuredEvidencePages:true});
                                 missing="",
                                 residual="",
                             )
-                            if continuation_unknown and counts[role]==2:
+                            if (continuation_unknown or continuation_history) and counts[role]==2:
                                 message.update(verdict="cannot_judge",coverage=[],missing="Need a further artifact observation; no defect or scope discrepancy established.")
                             if shared_citations:
                                 message["coverage"] = [dict(requirement_id=f"R{i}", evidence=candidates[-1]) for i in range(19)]
@@ -648,7 +662,7 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                             command="python3 -c 'from pathlib import Path; assert Path(\"answer.txt\").read_text().strip()==\"ready\"'"
                             code='text(await tools.contract_read_evidence({op:"index",offset:0}));text(await tools.exec_command('+json.dumps(dict(cmd=command,yield_time_ms=1000,max_output_tokens=1000))+'));'
                             items=[custom_call(body,code,"inspect-unresolved-artifact")];message=None
-                        elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or ((repair_review or transport_failure) and role == "executor" and counts[role] == 3):
+                        elif counts[role] == 1 or (owner_cancel and role == "executor" and counts[role] == 2) or ((repair_review or transport_failure) and role == "executor" and counts[role] == 3) or (continuation_history and role == "successor" and counts[role] == 3):
                             answer = (
                                 "first failed"
                                 if (succession or repair_review) and role == "executor" and counts[role] == 1
@@ -668,6 +682,16 @@ text(await tools.exec_command({cmd:"printf 'ready\n' > answer.txt",yield_time_ms
                             message = None
                         else:
                             message = final_response
+                        if text_route and role == "executor" and counts[role] == 1 and waiting is None:
+                            prefix = '''
+if (ALL_TOOLS.some(t => t.name === "view_image")) throw new Error("image tool advertised on text route");
+let imageBlocked = false;
+try { await tools.view_image({path:"/workspace/example.png"}); }
+catch (e) { imageBlocked = true; text("native-image-tool-disabled: " + String(e)); }
+if (!imageBlocked) throw new Error("unexpected image capability");
+image("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+'''
+                            items[0]["input"] = prefix + items[0]["input"]
                         if message is not None:
                             items = [
                                 dict(
@@ -1111,7 +1135,10 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         for text in text_values(item)),
                         "the real successor must consume retained public evidence before repairing")
                     self.assertEqual(len(worker_keys.get("draft", set())), 1)
-                    self.assertEqual(counts.get("successor"), 2)
+                    self.assertEqual(counts.get("successor"), 4 if continuation_history else 2)
+                    if continuation_history:
+                        self.assertEqual(counts.get("continuation"), 2,
+                            "each complete selection input must reach the model in one request")
                     successor_requests = [
                         body
                         for body in requests
@@ -1170,8 +1197,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 (thread,),
                             ).fetchone()[0]
                         )
-                    self.assertEqual(commands, ["issue", "propose", "defeat", "propose"] + ([] if partial_checks else ["support"]))
-                    self.assertEqual((budget["launches"], budget["pending"]), (1, None))
+                    self.assertEqual(commands, ["issue", "propose", "defeat", "propose"] + (["propose"] if continuation_history else []) + ([] if partial_checks else ["support"]))
+                    self.assertEqual((budget["launches"], budget["pending"]), (2 if continuation_history else 1, None))
                     self.assertNotEqual(budget["executors"], [thread])
                     if partial_checks:
                         self.assertEqual(status["class"],"infrastructure")
