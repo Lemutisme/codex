@@ -79,13 +79,8 @@ impl ThreadRuntime {
             .action_seconds(deadline_ms, self.settings.worker.deadline_secs)
             .await
             .unwrap_or(0);
-        // Public executable checks already provide actionable progress. Full review belongs
-        // to acceptance; ReviewOnly tasks still need a bounded local review during work.
-        let review_needed = formal
-            || diagnostic_review
-            || (policy.build_command.is_none()
-                && policy.differential.is_empty()
-                && !policy.candidate_tests);
+        // Checking an artifact and asking for judgment are separate capabilities.
+        let review_needed = formal || diagnostic_review;
         let mut host_observations = None;
         let assessment_id = digest_of(
             "assessment_action",
@@ -141,7 +136,7 @@ impl ThreadRuntime {
                             owner_thread: &self.thread_id.to_string(),
                             turn: &handoff.turn_id,
                             epoch: handoff.epoch,
-                            formal,
+                            capture: handoff.capture,
                         },
                     )
                     .await
@@ -209,6 +204,8 @@ impl ThreadRuntime {
                                 trigger: "pro_contract_review",
                                 deadline: Duration::from_secs(review_seconds),
                                 evidence: Some(evidence),
+                                archive: None,
+                                resources: self.settings.resource_snapshot.clone(),
                             })
                             .await
                     }
@@ -272,6 +269,16 @@ impl ThreadRuntime {
             checks.as_ref().ok(),
             review.as_ref().and_then(|r| r.as_ref().ok()),
             &verdict,
+        );
+        public.assessment_scope = Some(
+            if formal {
+                "verification"
+            } else if diagnostic_review {
+                "diagnosis"
+            } else {
+                "checks"
+            }
+            .into(),
         );
         public.delivery_message = handoff.response.handle();
         public.review_error = review
@@ -355,6 +362,7 @@ impl ThreadRuntime {
             return;
         }
         let Handoff {
+            capture,
             response,
             epoch,
             contract,
@@ -379,6 +387,7 @@ impl ThreadRuntime {
         let assessment = self
             .assess_snapshot(
                 &Handoff {
+                    capture,
                     response: response.clone(),
                     epoch,
                     contract: contract.clone(),
@@ -478,6 +487,7 @@ impl ThreadRuntime {
             Verdict::Defeat { residual, blocker } => {
                 self.defeat(
                     Handoff {
+                        capture,
                         response,
                         epoch,
                         contract,
@@ -506,6 +516,7 @@ impl ThreadRuntime {
             {
                 self.choose_continuation(
                     Handoff {
+                        capture,
                         response,
                         epoch,
                         contract,

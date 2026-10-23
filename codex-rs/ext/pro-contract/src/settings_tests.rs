@@ -47,6 +47,7 @@ fn an_evaluation_profile_loads_with_defaults() {
     assert_eq!(
         Settings::load(home.path()).expect("load"),
         Some(Settings {
+            resource_snapshot: None,
             review_execution: None,
             progress: None,
             evaluation: Some(EvaluationProfile {

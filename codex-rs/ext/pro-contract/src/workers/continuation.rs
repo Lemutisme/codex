@@ -10,6 +10,9 @@ pub(crate) const DEFAULT_INSTRUCTIONS: &str = include_str!("../../policies/conti
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Action {
+    Check,
+    Diagnose,
+    Verify,
     Resume,
     Successor,
     Rest,
@@ -18,6 +21,15 @@ pub(crate) enum Action {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum Choice {
+    Check {
+        reason: String,
+    },
+    Diagnose {
+        question: String,
+    },
+    Verify {
+        reason: String,
+    },
     Resume {
         requirements: Vec<String>,
         next_step: String,
@@ -34,6 +46,9 @@ pub(crate) enum Choice {
 impl Choice {
     pub(crate) fn action(&self) -> Action {
         match self {
+            Self::Check { .. } => Action::Check,
+            Self::Diagnose { .. } => Action::Diagnose,
+            Self::Verify { .. } => Action::Verify,
             Self::Resume { .. } => Action::Resume,
             Self::Successor { .. } => Action::Successor,
             Self::Rest { .. } => Action::Rest,
@@ -45,10 +60,15 @@ pub(crate) fn schema(actions: &[Action], requirements: &[String]) -> Value {
     // A nested union is supported by structured-output providers. Rest has no
     // work targets; the schema cannot request a combination the parser rejects.
     let variants: Vec<_> = actions.iter().map(|action| {
-        if *action == Action::Rest {
+        if matches!(action, Action::Rest | Action::Check | Action::Verify) {
             super::strict_object(json!({
                 "action":{"type":"string","enum":[action]},
-                "reason":{"type":"string","minLength":1,"description":"Why no useful authorized work is selected. Rest is not acceptance."},
+                "reason":{"type":"string","minLength":1,"description":"Why this offered operation is useful, or why work should rest. Selecting an operation is not acceptance."},
+            }))
+        } else if *action == Action::Diagnose {
+            super::strict_object(json!({
+                "action":{"type":"string","enum":[action]},
+                "question":{"type":"string","minLength":1,"description":"The concrete uncertainty to investigate on the frozen artifact. This requests scoped diagnosis, not whole-task acceptance."},
             }))
         } else {
             super::strict_object(json!({
@@ -84,7 +104,9 @@ pub(crate) fn parse(
         ));
     }
     match &mut choice {
-        Choice::Rest { reason } if !reason.trim().is_empty() => {}
+        Choice::Rest { reason } | Choice::Check { reason } | Choice::Verify { reason }
+            if !reason.trim().is_empty() => {}
+        Choice::Diagnose { question } if !question.trim().is_empty() => {}
         Choice::Resume {
             requirements: ids,
             next_step,

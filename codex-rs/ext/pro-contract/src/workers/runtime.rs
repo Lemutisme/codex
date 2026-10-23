@@ -79,6 +79,8 @@ pub(crate) struct WorkerTurn {
     pub trigger: &'static str,
     pub deadline: Duration,
     pub evidence: Option<super::review_evidence::ReviewEvidence>,
+    pub archive: Option<crate::controller::archive::EvidenceAccess>,
+    pub resources: Option<std::path::PathBuf>,
 }
 
 /// Derives a worker configuration from the parent thread's configuration.
@@ -150,6 +152,7 @@ pub(crate) async fn run_turn(
     mut config: Config,
     turn: WorkerTurn,
 ) -> Result<String, WorkerError> {
+    crate::resources::require_model_capacity(turn.resources.as_deref())?;
     // Admission, evidence calls and protocol correction consume this same deadline.
     let expires = tokio::time::Instant::now() + turn.deadline;
     let schema = turn.schema.clone();
@@ -174,7 +177,7 @@ pub(crate) async fn run_turn(
     options
         .thread_extension_init
         .insert(SessionIsolation::Isolated);
-    let allowed = if evidence.is_some() {
+    let mut allowed = if evidence.is_some() {
         options.dynamic_tools = vec![super::review_evidence::ReviewEvidence::tool()];
         let mut tools = vec![
             codex_extension_api::ToolName::plain(super::review_evidence::TOOL),
@@ -197,6 +200,21 @@ pub(crate) async fn run_turn(
     } else {
         Vec::new()
     };
+    if let Some(archive) = turn.archive {
+        options.thread_extension_init.insert(archive);
+        let mut extensions = codex_extension_api::ExtensionRegistryBuilder::<Config>::new();
+        extensions.tool_contributor(Arc::new(crate::controller::evidence_tool::EvidenceTools));
+        extensions
+            .tool_lifecycle_contributor(Arc::new(crate::controller::evidence_tool::EvidenceTools));
+        options
+            .thread_extension_init
+            .insert(codex_extension_api::IsolatedSessionExtensions(Arc::new(
+                extensions.build(),
+            )));
+        allowed.extend(
+            ["contract_read_evidence", "exec", "wait"].map(codex_extension_api::ToolName::plain),
+        );
+    }
     options.thread_extension_init.insert(ToolPolicy {
         allowed_tools: Some(allowed),
         require_managed_sandbox: false,

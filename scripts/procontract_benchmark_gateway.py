@@ -9,6 +9,8 @@ import hashlib
 import http.client
 import http.server
 import json
+import os
+import tempfile
 from pathlib import Path
 import socket
 import sqlite3
@@ -107,6 +109,7 @@ class Budget:
 
     def __init__(self, path, *, seconds=21600, requests=1000, model="gpt-5.6-luna", effort="max"):
         self.path = Path(path)
+        self.resource_path = self.path.with_suffix(".resources.json")
         self.lock = threading.Lock()
         self.closed = False
         self.db = sqlite3.connect(path, check_same_thread=False)
@@ -116,6 +119,7 @@ class Budget:
         self.db.execute("CREATE TABLE IF NOT EXISTS requests (id INTEGER PRIMARY KEY, started REAL, original_sha256 TEXT, forwarded_sha256 TEXT, truncations TEXT, finished REAL, http_status INTEGER, terminal TEXT, usage TEXT, failure TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS rejections (at REAL, reason TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS response_identity (request_id INTEGER PRIMARY KEY, model TEXT, effort TEXT)")
+        self.db.execute("CREATE TABLE IF NOT EXISTS request_context (request_id INTEGER PRIMARY KEY, snapshot_json TEXT NOT NULL)")
         self.profile = dict(seconds=seconds, requests=requests, model=model, effort=effort)
         encoded = json.dumps(self.profile, sort_keys=True)
         with self.db:
@@ -132,7 +136,40 @@ class Budget:
                 now = time.time()
                 seconds = self.profile['seconds']
                 self.db.execute("UPDATE budget SET started=?,deadline=? WHERE started IS NULL", (now, None if seconds is None else now+seconds))
+            self._publish_resources_locked()
         return self.status()
+
+    def _resource_snapshot_locked(self, current_request_included=False):
+        started,deadline=self.db.execute("SELECT started,deadline FROM budget").fetchone()
+        used=self.db.execute("SELECT count(*) FROM requests").fetchone()[0]
+        unresolved=self.db.execute("SELECT count(*) FROM requests WHERE finished IS NULL").fetchone()[0]
+        now=time.time();limit=self.profile['requests']
+        return {
+            'schema':'task_resources/v1','source':'task_allocator',
+            'allocation_id':digest((str(self.path.resolve())+':'+str(started)).encode()),
+            'observed_at':now,
+            'model_requests':{'limit':limit,'reserved':used,'remaining':None if limit is None else max(0,limit-used),
+                              'without_completion':unresolved,'current_request_included':current_request_included},
+            'time':{'started_at':started,'deadline':deadline,'remaining_seconds':None if deadline is None else max(0,deadline-now)},
+            'scope':'One original allocation shared by all task roles. Failed and interrupted calls stay charged. Counts without completion include calls whose outcome is unknown. Null means this allocator declares no limit in that dimension. This snapshot does not reserve future capacity or describe acceptance or user time preferences.',
+        }
+
+    def _publish_resources_locked(self):
+        # The file is an optional host view of already committed allocator facts.
+        # Serialize its publication with other database owners so an older view
+        # cannot replace a newer reservation after a restart/concurrent dispatch.
+        temporary=None
+        try:
+            self.db.execute('BEGIN IMMEDIATE')
+            snapshot=self._resource_snapshot_locked()
+            with tempfile.NamedTemporaryFile(mode='w',dir=self.path.parent,prefix='.resources-',delete=False) as f:
+                temporary=f.name;json.dump(snapshot,f);f.flush();os.fsync(f.fileno())
+            os.replace(temporary,self.resource_path);temporary=None
+            self.db.commit()
+        except (OSError, sqlite3.Error):
+            self.db.rollback()  # The request transaction was already committed.
+        finally:
+            if temporary is not None:Path(temporary).unlink(missing_ok=True)
 
     def status(self):
         with self.lock:
@@ -164,6 +201,14 @@ class Budget:
             raise ValueError('upstream_model_or_effort_mismatch')
 
     def reserve(self, original, forwarded, truncations):
+        request, deadline, _ = self._reserve(original, forwarded, truncations, resource_context=False)
+        return request, deadline
+
+    def reserve_with_context(self, original, forwarded, truncations):
+        """Reserve this call and project the allocator's actual state to every role."""
+        return self._reserve(original, forwarded, truncations, resource_context=True)
+
+    def _reserve(self, original, forwarded, truncations, *, resource_context):
         # A transaction precedes network dispatch. Concurrent roles and restarts
         # cannot exceed an explicit ceiling; failed/disconnected attempts count
         # even when the allocation has no request ceiling.
@@ -181,8 +226,24 @@ class Budget:
                     raise ValueError("model_request_budget_exhausted")
                 cursor = self.db.execute("INSERT INTO requests(started,original_sha256,forwarded_sha256,truncations) VALUES(?,?,?,?)",
                     (time.time(), digest(original), digest(forwarded), json.dumps(truncations)))
+                request = cursor.lastrowid
+                if resource_context:
+                    snapshot = self._resource_snapshot_locked(current_request_included=True)
+                    value = json.loads(forwarded)
+                    # Append rather than rewriting the stable prompt prefix. This
+                    # projection is refreshed at dispatch, never stored as user authority.
+                    value.setdefault('input', []).append({
+                        'type': 'message', 'role': 'developer',
+                        'content': [{'type': 'input_text', 'text': '<task_resource_snapshot>\n'
+                                    + json.dumps(snapshot, ensure_ascii=False)
+                                    + '\n</task_resource_snapshot>'}],
+                    })
+                    forwarded = json.dumps(value, ensure_ascii=False).encode()
+                    self.db.execute('UPDATE requests SET forwarded_sha256=? WHERE id=?', (digest(forwarded), request))
+                    self.db.execute('INSERT INTO request_context VALUES(?,?)', (request, json.dumps(snapshot)))
                 self.db.commit()
-                return cursor.lastrowid, deadline
+                self._publish_resources_locked()
+                return request, deadline, forwarded
             except BaseException:
                 self.db.rollback()
                 raise
@@ -265,7 +326,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         budget = self.server.budget
         try:
             forwarded, truncations = prepare_payload(raw, budget.profile['model'], budget.profile['effort'])
-            request, deadline = budget.reserve(raw, forwarded, truncations)
+            request, deadline, forwarded = budget.reserve_with_context(raw, forwarded, truncations)
         except (ValueError, TypeError, AttributeError, sqlite3.Error) as error:
             budget.reject(str(error))
             return self.refuse(str(error), 409)

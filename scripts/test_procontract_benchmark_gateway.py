@@ -1,6 +1,7 @@
 import concurrent.futures
 import http.client
 import http.server
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -19,6 +20,42 @@ def payload(output=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_resource_projection_counts_this_call_and_survives_restart_without_renewal(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'budget.sqlite'
+            budget=Budget(path,seconds=None,requests=2);budget.arm()
+            raw=payload('observed');request,deadline,forwarded=budget.reserve_with_context(raw,raw,[])
+            view=json.loads(budget.db.execute('select snapshot_json from request_context where request_id=?',(request,)).fetchone()[0])
+            self.assertIsNone(deadline)
+            self.assertEqual(view['model_requests'],dict(limit=2,reserved=1,remaining=1,without_completion=1,current_request_included=True))
+            self.assertIsNone(view['time']['deadline'])
+            self.assertIn('task_resource_snapshot',json.loads(forwarded)['input'][-1]['content'][0]['text'])
+            self.assertEqual(budget.db.execute('select forwarded_sha256 from requests').fetchone()[0],hashlib.sha256(forwarded).hexdigest())
+            budget.checkpoint(request,failure='interrupted',finished=True);budget.close()
+            budget=Budget(path,seconds=None,requests=2)
+            _,_,_=budget.reserve_with_context(raw,raw,[])
+            final=json.loads(budget.db.execute('select snapshot_json from request_context order by request_id desc').fetchone()[0])
+            self.assertEqual(final['allocation_id'],view['allocation_id'])
+            self.assertEqual(final['model_requests']['remaining'],0)
+            self.assertEqual(final['model_requests']['reserved'],2)
+            self.assertEqual(final['model_requests']['without_completion'],1)
+            self.assertEqual(json.loads(budget.resource_path.read_text())['model_requests']['remaining'],0)
+            with self.assertRaisesRegex(ValueError,'model_request_budget_exhausted'):budget.reserve_with_context(raw,raw,[])
+            budget.close()
+
+    def test_concurrent_roles_observe_the_shared_reservation_without_inventing_a_deadline(self):
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'budget.sqlite';budgets=[Budget(path,seconds=None,requests=None) for _ in range(3)]
+            budgets[0].arm();raw=payload()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+                replies=list(pool.map(lambda i:budgets[i%3].reserve_with_context(raw,raw,[]),range(12)))
+            records=[json.loads(row[0]) for row in budgets[0].db.execute('select snapshot_json from request_context')]
+            self.assertEqual(sorted(v['model_requests']['reserved'] for v in records),list(range(1,13)))
+            self.assertTrue(all(v['model_requests']['remaining'] is None and v['time']['deadline'] is None for v in records))
+            self.assertEqual(len({v['allocation_id'] for v in records}),1)
+            self.assertEqual(json.loads(budgets[0].resource_path.read_text())['model_requests']['reserved'],12)
+            for budget in budgets:budget.close()
+
     def test_nontext_tool_result_is_explicit_recoverable_feedback(self):
         output = [{"type":"input_text","text":"Local documentation loaded."},
                   {"type":"input_image","image_url":"data:image/png;base64,LOCAL_IMAGE_BYTES"}]

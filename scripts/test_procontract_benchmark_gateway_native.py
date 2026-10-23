@@ -31,6 +31,9 @@ class NativeBenchmarkGatewayTests(unittest.TestCase):
             gateway = Gateway(budget, provider['base_url'], api_key='LOCAL_FIXTURE_ONLY')
             thread = threading.Thread(target=gateway.serve_forever, daemon=True)
             thread.start();budget.arm()
+            settings_path=home/'pro_contract/settings.json'
+            settings=json.loads(settings_path.read_text());settings['resource_snapshot']=str(budget.resource_path)
+            settings_path.write_text(json.dumps(settings))
             resources.append((home, budget, gateway, thread))
             provider.update(base_url=gateway.base_url, request_max_retries=0, stream_max_retries=0)
             config['features']['view_image'] = False
@@ -67,6 +70,10 @@ class NativeBenchmarkGatewayTests(unittest.TestCase):
             self.assertLess(status['used'],1000)
             rows=budget.db.execute('SELECT http_status,terminal,failure FROM requests').fetchall()
             self.assertTrue(all(r==(200,'response.completed',None) for r in rows),rows)
+            contexts=[json.loads(row[0]) for row in budget.db.execute('SELECT snapshot_json FROM request_context ORDER BY request_id')]
+            self.assertEqual([v['model_requests']['reserved'] for v in contexts],list(range(1,status['used']+1)))
+            self.assertEqual(contexts[-1]['model_requests']['remaining'],1000-status['used'])
+            self.assertEqual(len({v['allocation_id'] for v in contexts}),1)
             if text_route:
                 adjustments=[v for row in budget.db.execute('SELECT truncations FROM requests') for v in json.loads(row[0])]
                 self.assertTrue(any(v.get('kind')=='unavailable_observation' for v in adjustments))

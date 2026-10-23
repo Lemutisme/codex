@@ -1,10 +1,16 @@
 """Host-only collection qualification: fixed identities, explicit import failures."""
 import json
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from procontract_evaluator_readiness import collection_evaluator
+from procontract_evaluator_readiness import COLLECTOR, collection_evaluator
 
 
 class Base:
@@ -41,6 +47,33 @@ class Base:
 
 
 class CollectionTest(unittest.TestCase):
+    @unittest.skipUnless(importlib.util.find_spec('xdist'), 'requires pinned pytest/xdist wheels')
+    def test_serial_readiness_keeps_worker_loadgroup_names_without_running_tests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);output=root/'collection.json'
+            (root/'pc_probe.py').write_text(COLLECTOR.replace('/tmp/procontract-collection.json',str(output)))
+            (root/'conftest.py').write_text('''import pytest
+def pytest_collection_modifyitems(items):
+ for item in items:
+  if item.name=='test_dynamic':item.add_marker(pytest.mark.xdist_group('late'))
+''')
+            (root/'test_sample.py').write_text('''import pytest
+@pytest.mark.xdist_group('database')
+@pytest.mark.xdist_group('database')
+def test_grouped(): raise AssertionError('test body must not run')
+@pytest.mark.xdist_group('z')
+@pytest.mark.xdist_group(name='a')
+def test_multiple(): raise AssertionError('test body must not run')
+def test_plain(): raise AssertionError('test body must not run')
+def test_dynamic(): raise AssertionError('test body must not run')
+''')
+            env={**os.environ,'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1','PYTHONPATH':str(root)+os.pathsep+os.environ.get('PYTHONPATH','')}
+            p=subprocess.run([sys.executable,'-m','pytest','-p','xdist.plugin','-p','pc_probe','-n','2','--dist=loadgroup','--collect-only','-q'],cwd=root,env=env,capture_output=True,text=True,timeout=30)
+            self.assertEqual(p.returncode,0,p.stdout+p.stderr)
+            result=json.loads(output.read_text())
+            self.assertEqual(set(result['names']),{'test_sample.test_grouped@database','test_sample.test_multiple@a_z','test_sample.test_plain','test_sample.test_dynamic'})
+            self.assertTrue(result['collection_only']);self.assertEqual(result['errors'],0)
+
     def setUp(self):
         patch = mock.patch("procontract_evaluator_readiness.retain_image_reference", return_value="image-reference-hash")
         self.reference = patch.start()

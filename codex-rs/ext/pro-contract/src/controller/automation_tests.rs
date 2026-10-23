@@ -84,6 +84,8 @@ struct FakePorts {
     review_gate: Option<Arc<Notify>>,
     continuation_choices: Mutex<VecDeque<String>>,
     continuation_prompts: Mutex<Vec<String>>,
+    handoff_choices: Mutex<VecDeque<String>>,
+    handoff_prompts: Mutex<Vec<String>>,
     continuation_gate: Option<Arc<Notify>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
@@ -122,6 +124,8 @@ impl FakePorts {
             review_gate: None,
             continuation_choices: Mutex::default(),
             continuation_prompts: Mutex::default(),
+            handoff_choices: Mutex::default(),
+            handoff_prompts: Mutex::default(),
             continuation_gate: None,
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
@@ -227,6 +231,11 @@ impl Ports for FakePorts {
                 "pro_contract_continuation" => {
                     let facts: serde_json::Value =
                         serde_json::from_str(turn.prompt.rsplit_once("\n\n").unwrap().1).unwrap();
+                    if facts["assessment"]["stage"] == "handoff" {
+                        self.handoff_prompts.lock().unwrap().push(turn.prompt);
+                        return Ok(self.handoff_choices.lock().unwrap().pop_front().unwrap_or_else(||
+                            serde_json::json!({"choice":{"action":"verify","reason":"Fixture strategy selects acceptance."}}).to_string()));
+                    }
                     self.continuation_prompts.lock().unwrap().push(turn.prompt);
                     if let Some(gate) = &self.continuation_gate {
                         gate.notified().await;
@@ -241,8 +250,13 @@ impl Ports for FakePorts {
                         };
                     }
                     let keep_working = facts["assessment"]["decision"] == "defeat";
-                    let choice = if keep_working {
-                        serde_json::json!({"action":facts["available_actions"][0],"requirements":facts["allowed_requirements"],"next_step":"Inspect the retained counterexample, repair it and replay its check."})
+                    let execution = facts["available_actions"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|v| matches!(v.as_str(), Some("resume" | "successor")));
+                    let choice = if keep_working && execution.is_some() {
+                        serde_json::json!({"action":execution,"requirements":facts["allowed_requirements"],"next_step":"Inspect the retained counterexample, repair it and replay its check."})
                     } else {
                         serde_json::json!({"action":"rest","reason":"No further useful action selected by the fixture strategy."})
                     };
@@ -481,6 +495,7 @@ async fn lane_with(ports: FakePorts, reference: Option<&str>) -> Lane {
         reference_command: reference.map(str::to_string),
     };
     let settings = Settings {
+        resource_snapshot: None,
         review_execution: None,
         progress: None,
         evaluation: Some(profile.clone()),
@@ -811,10 +826,16 @@ async fn a_verification_is_an_immutable_event_with_identities() {
             ExperimentKind::Draft,
             ExperimentKind::Issue,
             ExperimentKind::Capture,
+            ExperimentKind::Execution,
+            ExperimentKind::Execution,
             ExperimentKind::Verification
         ]
     );
-    let verification = &events[4].event;
+    let verification = &events
+        .iter()
+        .find(|r| r.event.kind == ExperimentKind::Verification)
+        .unwrap()
+        .event;
     assert_eq!(verification.body["verdict"], "support");
     assert_eq!(verification.identities.model.as_deref(), Some("model-a"));
     assert!(verification.identities.policies.contains_key("reviewer"));
@@ -911,6 +932,8 @@ async fn sealed_cases_are_issued_checked_and_never_shown_to_the_executor() {
             ExperimentKind::Probe,
             ExperimentKind::Issue,
             ExperimentKind::Capture,
+            ExperimentKind::Execution,
+            ExperimentKind::Execution,
             ExperimentKind::Verification
         ]
     );

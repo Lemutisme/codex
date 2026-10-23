@@ -55,7 +55,12 @@ impl EvidenceAccess {
         let journal = self.ledger.experiments().await.map_err(|e| e.to_string())?;
         let mut records = Vec::new();
         for row in journal {
-            if row.event.kind != ExperimentKind::Verification
+            if !(row.event.kind == ExperimentKind::Verification
+                || (row.event.kind == ExperimentKind::Execution
+                    && matches!(
+                        row.event.body["phase"].as_str(),
+                        Some("handoff_ready" | "work_assessed")
+                    )))
                 || row.event.body["contract_id"].as_str() != Some(&self.contract_id.0)
             {
                 continue;
@@ -78,6 +83,51 @@ impl EvidenceAccess {
             records.push((handle, record, bytes));
         }
         Ok((contract, records))
+    }
+
+    /// A check-only observation must not silently erase a known scope dispute.
+    pub(super) async fn review_history(&self) -> Result<Vec<PublicEvidence>, String> {
+        let (contract, records) = self.records().await?;
+        let mut by_handle: std::collections::BTreeMap<_, _> = records
+            .into_iter()
+            .map(|(handle, record, _)| (handle, record))
+            .collect();
+        for (handle, document, _) in self.progress_records().await? {
+            let record: PublicEvidence =
+                serde_json::from_value(document["public"].clone()).map_err(|e| e.to_string())?;
+            if record.contract_id != self.contract_id
+                || json!(record.subject_hash) != document["subject_hash"]
+            {
+                return Err("progress review differs from its published subject".into());
+            }
+            by_handle.insert(handle, record);
+        }
+        let mut history = Vec::new();
+        for row in self
+            .ledger
+            .experiments()
+            .await
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .rev()
+        {
+            let Some(value) = row.event.body.get("public_evidence") else {
+                continue;
+            };
+            let Ok(handle) = serde_json::from_value::<Digest>(value.clone()) else {
+                continue;
+            };
+            if let Some(record) = by_handle.remove(&handle)
+                && record.revision == contract.revision
+                && record.review.is_some()
+            {
+                history.push(record);
+            }
+        }
+        history.reverse();
+        // A delayed judgment of an older generation must not supersede a newer one.
+        history.sort_by_key(|record| record.generation);
+        Ok(history)
     }
 
     async fn progress_records(&self) -> Result<Vec<(Digest, Value, Vec<u8>)>, String> {
@@ -240,6 +290,7 @@ impl EvidenceAccess {
                 "handle":handle, "generation":record.generation, "revision":record.revision,
                 "subject_hash":record.subject_hash, "public_checks":record.checks.len(),
                 "review_findings":record.findings.len(), "pipeline_complete":record.pipeline_complete,
+                "assessment_scope":record.assessment_scope,
                 "inspections":record.inspections, "delivery_message":record.delivery_message, "host_observations":record.host_observations,
                 "review_checkpoints":record.review_checkpoints,
             })).chain(progress.iter().map(|(handle, document, _)| json!({

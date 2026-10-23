@@ -77,6 +77,15 @@ async fn a_deadline_only_grant_keeps_authorized_same_thread_repair_without_new_e
         .await
         .unwrap()
         .unwrap();
+    let visible = lane.runtime.remaining_task_budget().await.unwrap();
+    assert_eq!(
+        visible["deadline_ms"],
+        serde_json::json!(original.deadline_ms)
+    );
+    assert!(
+        visible["publications_used"].is_null(),
+        "no publication grant must not hide the task deadline"
+    );
     lane.executor_turn("original", "wrong").await;
     let repairing = lane.wait_for("repairing").await;
     assert_eq!(repairing.repairs_used, 1);

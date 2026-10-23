@@ -125,6 +125,8 @@ class NativeEvidenceTest(unittest.TestCase):
         partial_review = getattr(self, "partial_review_fixture", False)
         local_binding_fault = getattr(self, "local_binding_fault_fixture", False)
         continuation_model = getattr(self, "continuation_model", None)
+        selection_model = getattr(self, "selection_model", None)
+        expected_phase = getattr(self, "expected_phase", None)
         continuation_unknown = getattr(self, "continuation_unknown_fixture", False)
         continuation_rest = getattr(self, "continuation_rest_fixture", False)
         continuation_history = getattr(self, "continuation_history_fixture", False)
@@ -383,11 +385,13 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             text_values(body.get("input", []))
                         ):
                             role = "successor"
+                        if role == "continuation" and continuation_facts(body)["assessment"].get("stage") == "handoff":
+                            role = "planning"
                         if role == transport_failure and not injected_failures:
                             injected_failures.append(dict(role=role, request=len(requests)))
                             self.send_error(503, "injected provider interruption")
                             return
-                        waiting = pending_cell_wait(body,f"wait-{len(requests)}") if role in ("executor","successor") else None
+                        waiting = pending_cell_wait(body,f"wait-{len(requests)}") if role in ("executor","successor","planning","continuation") else None
                         if waiting is None:
                             counts[role] = counts.get(role, 0) + 1
                         if text_route and role == "executor" and counts[role] == 2:
@@ -440,6 +444,12 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 message["process_constraints"]=[dict(text="Submit with your final assistant response.",source_id="request:0")]
                             if partial_checks:
                                 message["differential_cases"]=[dialog_case("D1",["ready"]),dialog_case("D2",["block"])]
+                        elif role == "planning":
+                            message=dict(choice=dict(action="verify",reason="The fixture strategy requests acceptance."))
+                            if selection_model is not None:
+                                selected=selection_model(body)
+                                if isinstance(selected,list):items=selected;message=None
+                                else:message=selected
                         elif role == "continuation":
                             facts=continuation_facts(body)
                             keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown or continuation_history) and not continuation_rest
@@ -453,6 +463,10 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 dict(action="rest",reason="No further useful work selected by this fixture strategy."))
                             message=dict(choice=choice)
                             if continuation_model is not None:message=continuation_model(body)
+                            if selection_model is not None:
+                                selected=selection_model(body)
+                                if isinstance(selected,list):items=selected;message=None
+                                else:message=selected
                         elif role in ("explore", "probe"):
                             packet_parts = {}
                             for text in text_values(body.get("input", [])):
@@ -992,7 +1006,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual(counts_after['started'],original_request_grant['started'])
                     self.assertEqual(counts_after['deadline'],original_request_grant['deadline'])
                     self.assertEqual(request_budget.db.execute('SELECT count(*) FROM requests WHERE http_status=503').fetchone()[0],1)
-                self.assertEqual(status["phase"], "did_not_pass" if continuation_rest else "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported", status)
+                self.assertEqual(status["phase"], expected_phase or ("did_not_pass" if continuation_rest else "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported"), status)
                 if getattr(self, 'task_seconds', 'finite') is None:
                     with sqlite3.connect(database) as connection:
                         grant_row=connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()
@@ -1027,7 +1041,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 if continuation_unknown and not transport_failure:
                     with sqlite3.connect(database) as connection:
                         commands=[json.loads(r[0])["command"]["type"] for r in connection.execute("SELECT command_json FROM events ORDER BY seq")]
-                        selections=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'continuation_decision' in r[0]]
+                        selections=[json.loads(r[0])["body"] for r in connection.execute("SELECT event_json FROM experiment_events") if 'continuation_decision' in r[0] and json.loads(r[0])["body"].get('assessment_scope') != 'handoff']
                     self.assertEqual(commands,["issue","propose","propose","support"])
                     self.assertEqual(len(selections),1)
                     self.assertEqual(selections[0]["choice"]["action"],"resume")
@@ -1060,7 +1074,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         self.assertTrue(document["complete"])
                         self.assertEqual(document["subject_hash"],delivered["subject_hash"])
                         self.assertEqual(document["turn_id"],delivered["turn_id"])
-                if not partial_checks and not deadline_fixture and not continuation_rest:self.assertGreaterEqual(counts.get("review", 0), 2)
+                if not partial_checks and not deadline_fixture and not continuation_rest and expected_phase != 'not_verified':self.assertGreaterEqual(counts.get("review", 0), 2)
                 if deadline_fixture:
                     until=time.monotonic()+20
                     expired=[]
@@ -1259,6 +1273,18 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     gateway.shutdown();gateway.server_close();gateway_thread.join()
                 provider.shutdown()
                 provider.server_close()
+                self.native_counts = dict(counts)
+                self.native_status = status
+                database = home / "pro_contract/ledger_1.sqlite"
+                if database.exists():
+                    with sqlite3.connect(database.as_uri()+'?mode=ro',uri=True) as connection:
+                        self.native_commands=[json.loads(v[0])['command']['type'] for v in connection.execute('SELECT command_json FROM events ORDER BY seq')]
+                        self.native_events=[json.loads(v[0]) for v in connection.execute('SELECT event_json FROM experiment_events ORDER BY seq')]
+                    self.native_public={}
+                    for event in self.native_events:
+                        if handle := event['body'].get('public_evidence'):
+                            blob=home/'pro_contract/blobs'/handle[:2]/handle
+                            if blob.exists():self.native_public[handle]=json.loads(blob.read_text())
                 output = os.environ.get("PROCODEX_TEST_REPORT")
                 if output:
                     import shutil
@@ -1279,8 +1305,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 computation_fixture=computation,partial_review_fixture=partial_review,
                                 local_binding_fault_fixture=local_binding_fault,
                                 dialogue_probe_fixture=dialogue_probe,partial_checks_fixture=partial_checks,
-                                real_provider_calls=0 if continuation_model is None else None,
-                                continuation_backend="scripted" if continuation_model is None else "injected_callback",
+                                real_provider_calls=0 if continuation_model is None and selection_model is None else None,
+                                continuation_backend="scripted" if continuation_model is None and selection_model is None else "injected_callback",
                                 usage_scope="Synthetic local-provider usage; an injected callback requires its own backend accounting.",
                                 transport_failure_fixture=transport_failure,injected_failures=injected_failures,
                                 request_budget=request_budget.status() if request_budget else None,
@@ -1319,7 +1345,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                                 public.mkdir(exist_ok=True)
                                                 shutil.copy2(blob, public/h)
                                 handle = event.get("body", {}).get("public_evidence")
-                                public_event = event.get("kind") == "verification" or event.get("body",{}).get("phase") == "progress_assessed"
+                                public_event = event.get("kind") == "verification" or event.get("body",{}).get("phase") in ("progress_assessed","handoff_ready","work_assessed")
                                 if not public_event or not isinstance(handle, str):
                                     continue
                                 blob = home / "pro_contract/blobs" / handle[:2] / handle

@@ -112,12 +112,16 @@ impl ThreadRuntime {
             .map_err(|e| e.to_string())?
             .ok_or("original task grant unavailable")?;
         let now = now_ms()?;
-        let progress = self.progress_grant().await?;
+        let progress = if self.settings.progress.is_some() {
+            Some(self.progress_grant().await?)
+        } else {
+            None
+        };
         Ok(json!({"deadline_ms":budget.deadline_ms,
             "remaining_ms":budget.deadline_ms.map(|end| end.saturating_sub(now)),
             "started_ms":budget.started_ms,"elapsed_ms":now.checked_sub(budget.started_ms),
             "sessions_used":budget.launches,"session_limit":budget.grant.max_sessions,
-            "publications_used":progress.used,
+            "publications_used":progress.map(|grant| grant.used),
             "publication_limit":self.settings.progress.as_ref().and_then(|grant| grant.max_publications)}))
     }
 
@@ -476,7 +480,7 @@ impl ThreadRuntime {
             "executor_ids":executor_ids,
             "capture_boundary":"confirmed pause of the exclusively provisioned workspace executor; confirmed resume"})).await?;
         // Adaptive feedback never queries withheld acceptance cases.
-        policy.sealed.clear();
+        policy = super::selection::public_checks_policy(&policy);
         let checks_policy_hash = super::digest_of(
             "progress_checks_v1",
             &(
@@ -496,10 +500,7 @@ impl ThreadRuntime {
         );
         // Artifact-only checks may be reused; diagnosis also depends on the evolving
         // execution observations. A new diagnosis request gets a new frozen basis.
-        let includes_review = diagnostic_review
-            || (policy.build_command.is_none()
-                && policy.differential.is_empty()
-                && !policy.candidate_tests);
+        let includes_review = diagnostic_review;
         for (_, handle) in previous.completed.iter().filter(|_| !includes_review) {
             let old: Value =
                 serde_json::from_slice(&self.store.get(handle).map_err(|e| e.to_string())?)
@@ -540,6 +541,7 @@ impl ThreadRuntime {
             .join("candidate");
         self.materialize(&subject, &work).await?;
         let handoff = Handoff {
+            capture: super::super::observations::CaptureKind::Progress,
             response: super::delivery::ResponseCapture::Absent,
             epoch,
             contract,

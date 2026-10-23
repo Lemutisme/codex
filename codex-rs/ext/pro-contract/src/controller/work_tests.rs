@@ -95,7 +95,16 @@ async fn unresolved_inspection_blocks_support_and_repair_while_retaining_the_loc
         assert!(lane.ports.repairs.lock().unwrap().is_empty());
         assert!(lane.contract().await.unwrap().support.is_none());
         let index = query(&lane, Operation::Index, None, 0).await;
-        let handle = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+        let handle = serde_json::from_value(
+            index["entries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|e| e["assessment_scope"] == "verification")
+                .unwrap()["handle"]
+                .clone(),
+        )
+        .unwrap();
         let public: Value = serde_json::from_str(&read(&lane, handle).await).unwrap();
         assert!(public["review"].is_object());
         if !corrupt {
@@ -118,7 +127,16 @@ async fn computations_are_retained_with_the_task_but_unlinked_or_foreign_blobs_a
     lane.executor_turn("first", "done").await;
     lane.wait_for("supported").await;
     let index = query(&lane, Operation::Index, None, 0).await;
-    let handle: Digest = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+    let handle: Digest = serde_json::from_value(
+        index["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["assessment_scope"] == "verification")
+            .unwrap()["handle"]
+            .clone(),
+    )
+    .unwrap();
     let mut record: crate::controller::work::PublicEvidence =
         serde_json::from_str(&read(&lane, handle).await).unwrap();
     let document =
@@ -201,7 +219,16 @@ async fn public_evidence_survives_summary_bounds_restart_and_later_verifications
     lane.executor_turn("first", "failed").await;
     lane.wait_for("repairing").await;
     let index = query(&lane, Operation::Index, None, 0).await;
-    let handle: Digest = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+    let handle: Digest = serde_json::from_value(
+        index["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["assessment_scope"] == "verification")
+            .unwrap()["handle"]
+            .clone(),
+    )
+    .unwrap();
     let original = read(&lane, handle).await;
     let record: Value = serde_json::from_str(&original).unwrap();
     assert_eq!(record["checks"][0]["receipt"]["detail"], detail);
@@ -212,7 +239,7 @@ async fn public_evidence_survives_summary_bounds_restart_and_later_verifications
     }
     lane.runtime.restore().await;
     assert_eq!(read(&lane, handle).await, original);
-    assert_eq!(query(&lane, Operation::Index, None, 0).await["total"], 5);
+    assert_eq!(query(&lane, Operation::Index, None, 0).await["total"], 10);
     assert_eq!(
         query(&lane, Operation::Frontier, None, 0).await["entries"][0]["step"],
         "build"
@@ -407,7 +434,16 @@ async fn evidence_reader_excludes_sealed_cases_and_rejects_foreign_or_arbitrary_
     lane.executor_turn("first", "failed").await;
     lane.wait_for("repairing").await;
     let index = query(&lane, Operation::Index, None, 0).await;
-    let handle: Digest = serde_json::from_value(index["entries"][0]["handle"].clone()).unwrap();
+    let handle: Digest = serde_json::from_value(
+        index["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["assessment_scope"] == "verification")
+            .unwrap()["handle"]
+            .clone(),
+    )
+    .unwrap();
     let public = read(&lane, handle).await;
     assert!(!public.contains("--sealed-secret"));
     assert!(!public.contains("sealed:s1"));

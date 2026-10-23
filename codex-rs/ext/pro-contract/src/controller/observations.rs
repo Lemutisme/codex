@@ -133,6 +133,12 @@ impl EvidenceAccess {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CaptureKind {
+    Delivery,
+    Progress,
+}
+
 pub(super) struct AssessmentScope<'a> {
     pub contract: &'a codex_pro_contract::Contract,
     pub terms: &'a crate::Terms,
@@ -141,7 +147,7 @@ pub(super) struct AssessmentScope<'a> {
     pub owner_thread: &'a str,
     pub turn: &'a str,
     pub epoch: u64,
-    pub formal: bool,
+    pub capture: CaptureKind,
 }
 
 /// Freeze the observation prefix belonging to this handoff, not the latest mutable history.
@@ -163,7 +169,7 @@ pub(super) async fn snapshot(
             b["turn_id"] == scope.turn
                 && b["subject_hash"] == json!(scope.subject.subject_hash)
                 && b["execution_epoch"] == scope.epoch
-                && if scope.formal {
+                && if scope.capture == CaptureKind::Delivery {
                     b["phase"] == "task_delivery" && b["thread_id"] == scope.owner_thread
                 } else {
                     b["phase"] == "progress_snapshot" && b["contract_id"] == scope.contract.id.0
@@ -244,7 +250,7 @@ pub(super) async fn snapshot(
         }
     }
     let total: usize = counts.values().sum();
-    let delivery = scope.formal.then(|| json!({
+    let delivery = (scope.capture == CaptureKind::Delivery).then(|| json!({
         "receipt":cutoff.hash,"sequence":cutoff.seq,
         "owner_thread":cutoff.event.body["thread_id"],
         "turn_id":cutoff.event.body["turn_id"],

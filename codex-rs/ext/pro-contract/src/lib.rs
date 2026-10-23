@@ -11,6 +11,7 @@ mod controller;
 mod execution;
 mod inspection;
 mod inspection_grant;
+mod resources;
 mod settings;
 mod workers;
 

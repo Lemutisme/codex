@@ -136,12 +136,21 @@ coverage remain obligation judgments. Historical unanchored records retain their
 original interpretation; they are not silently rewritten by a newer strategy.
 Anchors establish source identity, not the truth of the model's interpretation.
 
-After an eligible unsuccessful assessment, `continuation.md` selects an offered
-action, undisputed obligation IDs and a concrete next step. The harness checks
-that selection, retains it against the exact verification and public evidence,
-and dispatches the existing continuation capability. It does not revise the
-assessment or create Support. An unresolved observation can lead to investigation
-without a fabricated Defeat; a real Defeat can be retained while strategy rests.
+After capture/proposal and after selected observations, `continuation.md` chooses
+among the offered capabilities: public checks, focused diagnosis, full acceptance
+verification, executor continuation, successor, or rest. A handoff does not itself
+schedule full review. The selector can read the task's immutable public archive;
+it has no mutable execution tool. The harness retains the choice and dispatches
+the selected operation under the original authority and resources.
+
+Local checks and diagnosis retain their observations without issuing Support or
+Defeat. Only selected full verification uses the original acceptance policy and
+its kernel transitions. A local observation may guide repair before formal review,
+and a captured partial delivery may rest without a completion claim. Capture source
+(delivery or in-turn publication) is independent of the assessment's purpose.
+Local operations omit withheld acceptance cases and their eligibility gates;
+the original issued policy remains unchanged for full verification. Complete public
+check receipts can be reused by a diagnosis in the same immutable selection loop.
 
 Local continuation is reserved before dispatch and remains spent across recovery.
 Owner input fences stale selections, and native interruption remains distinct from
@@ -152,13 +161,14 @@ This compatibility boundary is not a new kernel invariant.
 
 Verification summaries and successor transport describe observations, authority
 and context. Their former instructions about which experiment to do first and
-when to repair/hand off live in replaceable strategy text. Initial preparation,
-final-verification scheduling and the single review-protocol correction remain
-legacy code-selected workflow; this is a partial migration, not a claim that all
+when to repair/hand off live in replaceable strategy text. Initial preparation and
+the single review-protocol correction remain legacy code-selected workflow;
+this is a partial migration, not a claim that all
 orchestration has moved out of code. No RSI coordinator is introduced.
 
-Continuation wire choices are now a tagged union: rest carries a reason, while
-resume/successor carry work scopes and a next step. The output schema and parser
+Continuation wire choices are a tagged union: check/verify/rest carry a reason,
+diagnose carries a question, and resume/successor carry work scopes and a next step.
+The output schema and parser
 express the same alternatives. Repeated IDs do not widen a scope and are normalized;
 unoffered actions and scopes still cannot create authority. Old stored selections
 remain readable as historical records and are never replayed as new requests.
@@ -184,6 +194,30 @@ Both are available in the first sampling step, alongside pending mailbox input. 
 with context while deferring its instruction caused an avoidable second model response
 for large worker packets. This is a general native harness input-assembly correction;
 it does not convert an automatic turn into user authorization or change task grants.
+
+## Allocator observations
+
+The shared model gateway projects an allocator snapshot into every request after
+reserving that call. It records the exact forwarded payload hash and snapshot.
+The remaining count includes the current call and all task roles; failed calls
+stay spent. Absent time or count limits remain absent. These are observed resources,
+not workflow instructions, future reservations, acceptance claims or user time
+preferences.
+
+The same committed allocator state is published atomically to a provisioner-owned
+host file. Optional `resource_snapshot` settings connect that view to the native
+controller. Known exhaustion prevents a new selector or worker from starting; a
+previously selected non-model check may finish and retain its results. Missing or
+inconsistent views remain unavailable, while the allocator still authoritatively
+admits every request. The view cannot renew a grant. No fixed review reserve or
+universal task countdown is introduced. A missing publication grant also does not
+hide a separately declared native task deadline.
+
+Public archive records identify their observation scope. Scope restrictions survive
+check-only or unrelated partial observations; a new explicit judgment on that
+obligation can revise them. Older-generation judgments cannot supersede newer ones
+merely by arriving later. These are harness evidence relations, not extra kernel
+states or benchmark-specific success rules.
 
 ## Development rule
 

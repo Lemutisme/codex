@@ -18,11 +18,22 @@ from pathlib import Path
 import pytest
 from _pytest.junitxml import mangle_test_address
 
+class _WorkerCollectionNames:
+    def pytest_collection_modifyitems(self, config, items):
+        from xdist.remote import WorkerInteractor
+        WorkerInteractor.pytest_collection_modifyitems(None, config, items)
+
 @pytest.hookimpl(trylast=True)
 def pytest_configure(config):
     config.option.collectonly = True
     if hasattr(config.option, "numprocesses"):
         config.option.numprocesses = 0
+    # Register at worker-setup time, preserving ordering relative to conftest
+    # hooks. Applying this at collection_finish would also rename marks added
+    # later by a conftest, unlike the official worker.
+    if config.getoption("dist", default=None) == "loadgroup":
+        config.option.loadgroup = True
+        config.pluginmanager.register(_WorkerCollectionNames(), "pc_worker_collection_names")
 
 def pytest_collection_finish(session):
     prefix = session.config.getoption("junitprefix", default=None)

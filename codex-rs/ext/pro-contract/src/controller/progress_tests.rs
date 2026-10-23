@@ -487,7 +487,7 @@ async fn feedback_access_is_bound_to_completed_native_call_and_frozen_before_han
             owner_thread: &lane.thread_id.to_string(),
             turn: "delivered",
             epoch,
-            formal: true,
+            capture: crate::controller::observations::CaptureKind::Delivery,
         },
     )
     .await

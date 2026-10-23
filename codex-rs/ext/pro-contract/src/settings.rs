@@ -11,6 +11,10 @@ pub const SETTINGS_FILE: &str = "settings.json";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
+    /// Optional provisioner-owned view of the shared allocator, outside the task workspace.
+    /// It informs admission but cannot renew or expand the allocator's grant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource_snapshot: Option<PathBuf>,
     /// The pre-authorized evaluation Principal grant (spec §13.1). Without it no contract is
     /// ever issued in this slice.
     pub evaluation: Option<EvaluationProfile>,

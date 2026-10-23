@@ -7,6 +7,7 @@ mod delivery;
 mod preparation;
 mod progress;
 mod recovery;
+mod selection;
 mod succession;
 mod verification;
 pub(crate) use progress::ProgressAssessment;
@@ -120,7 +121,9 @@ struct Base {
 }
 
 /// Everything verification needs about one handoff.
+#[derive(Clone)]
 struct Handoff {
+    capture: super::observations::CaptureKind,
     response: delivery::ResponseCapture,
     epoch: u64,
     contract: Contract,
@@ -770,6 +773,7 @@ impl ThreadRuntime {
         schema: serde_json::Value,
         trigger: &'static str,
     ) -> Result<String, crate::WorkerError> {
+        crate::resources::require_model_capacity(self.settings.resource_snapshot.as_deref())?;
         self.ports
             .run_worker(WorkerTurn {
                 prompt,
@@ -781,6 +785,8 @@ impl ThreadRuntime {
                         .map_err(crate::WorkerError::Start)?,
                 ),
                 evidence: None,
+                archive: None,
+                resources: self.settings.resource_snapshot.clone(),
             })
             .await
     }
@@ -1016,6 +1022,7 @@ impl ThreadRuntime {
                 (Some(frozen), _) if state.proposed_turns.contains(&frozen.turn_id) => return,
                 (Some(frozen), Some(active)) => {
                     let values = Handoff {
+                        capture: super::observations::CaptureKind::Delivery,
                         response: frozen.response.clone(),
                         epoch: state.epoch,
                         contract: active.contract.clone(),
@@ -1067,7 +1074,7 @@ impl ThreadRuntime {
                 return;
             }
         };
-        self.verify(Handoff {
+        self.select_handoff(Handoff {
             contract: proposed,
             ..handoff
         })

@@ -41,6 +41,8 @@ pub enum WorkerError {
     /// responsibility and original grant remain available to an authorized caller.
     #[error("worker execution interrupted: {0}")]
     Interrupted(String),
+    #[error("worker resources exhausted: {0}")]
+    ResourceExhausted(String),
     #[error("worker output is malformed: {0}")]
     Malformed(String),
 }

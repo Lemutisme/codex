@@ -40,6 +40,9 @@ pub(super) struct PublicEvidence {
     pub environment_digest: Option<Digest>,
     pub evaluator_digest: Option<Digest>,
     pub pipeline_complete: bool,
+    /// Operation that produced this record; absent in older retained evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assessment_scope: Option<String>,
     /// The checker already bounds detail; exact recall preserves those available bytes only.
     pub capture_boundary: String,
     pub checks: Vec<PublicCheck>,
@@ -118,6 +121,7 @@ impl PublicEvidence {
             environment_digest: receipts.map(|r| r.environment_digest),
             evaluator_digest: receipts.map(|r| r.evaluator_digest),
             pipeline_complete: receipts.is_some_and(|r| r.complete),
+            assessment_scope: None,
             capture_boundary: "Checker receipts retain at most 4,000 detail bytes per step, with omission markers; they are not complete raw process streams. This archive preserves the received public receipt and invocation exactly. Sealed cases are excluded.".into(),
             checks, findings, blocker, review: review.cloned(), execution: receipts.and_then(|r| r.execution.clone()),
             inspections: Vec::new(), review_error: None, review_checkpoints: Vec::new(), delivery_message: None, host_observations: None, inspection_actions: Vec::new(),
