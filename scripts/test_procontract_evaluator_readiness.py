@@ -10,7 +10,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from procontract_evaluator_readiness import COLLECTOR, collection_evaluator
+from procontract_evaluator_readiness import COLLECTOR, collection_evaluator, empty_junit_collection
 
 
 class Base:
@@ -47,6 +47,14 @@ class Base:
 
 
 class CollectionTest(unittest.TestCase):
+    def test_empty_official_junit_does_not_require_a_pytest_collection_file(self):
+        value=json.loads(empty_junit_collection('<testsuites><testsuite tests="0" errors="0" failures="0" skipped="0"/></testsuites>'))
+        self.assertEqual(value['names'],[])
+        self.assertEqual(value['identity_source'],'official_empty_junit')
+        for xml in ['<testsuites><testcase name="unexpected"/></testsuites>',
+                    '<testsuite tests="1"/>','<testsuite errors="1"/>','<anything/>']:
+            with self.subTest(xml=xml),self.assertRaises(RuntimeError):empty_junit_collection(xml)
+
     @unittest.skipUnless(importlib.util.find_spec('xdist'), 'requires pinned pytest/xdist wheels')
     def test_serial_readiness_keeps_worker_loadgroup_names_without_running_tests(self):
         with tempfile.TemporaryDirectory() as directory:

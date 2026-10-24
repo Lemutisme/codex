@@ -9,7 +9,9 @@ import shlex
 import os
 import subprocess
 import tempfile
+import threading
 import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -80,12 +82,26 @@ def retain_image_reference(env, image, log_buf):
                 raise RuntimeError("reference extraction container cleanup unconfirmed")
 
 
+def empty_junit_collection(text):
+    """A declared empty branch can use an ordinary empty JUnit producer."""
+    root = ET.fromstring(text)
+    if root.tag not in ('testsuite', 'testsuites') or list(root.iter('testcase')):
+        raise RuntimeError('declared empty branch produced test cases or invalid JUnit')
+    for node in root.iter():
+        if node.tag in ('testsuite', 'testsuites') and any(
+                int(node.get(key, '0')) != 0 for key in ('tests', 'errors', 'failures', 'skipped')):
+            raise RuntimeError('declared empty branch produced nonempty JUnit counts')
+    return json.dumps({'names': [], 'errors': 0, 'collection_only': True,
+                       'identity_source': 'official_empty_junit'})
+
+
 def collection_evaluator(base):
     class CollectionEvaluator(base):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.collected = {}
             self.reference_hash = None
+            self._collection_context = threading.local()
 
         def _compile_executable(self, env, log_buf):
             # Collection can call the program at module import (e.g. --help).
@@ -126,11 +142,17 @@ def collection_evaluator(base):
 
         def _copy_file_from_container(self, **kwargs):
             if kwargs.get("step_name") == "results_read":
+                if getattr(self._collection_context, 'declared_empty', False):
+                    return empty_junit_collection(super()._copy_file_from_container(**kwargs))
                 kwargs["container_path"] = "/tmp/procontract-collection.json"
             return super()._copy_file_from_container(**kwargs)
 
         def _evaluate_branch(self, branch, image):
-            observed = json.loads(self._run_test_branch(branch, image, self.result.log))
+            self._collection_context.declared_empty = not self.tests_by_branch[branch]
+            try:
+                observed = json.loads(self._run_test_branch(branch, image, self.result.log))
+            finally:
+                del self._collection_context.declared_empty
             names = observed.get("names")
             if (observed.get("collection_only") is not True or observed.get("errors") != 0
                     or not isinstance(names, list) or not all(isinstance(n, str) for n in names)
