@@ -12,18 +12,41 @@ import xml.etree.ElementTree as ET
 
 from procontract_evaluator_scope import PLUGIN
 from procontract_evaluator_scope import PLUGIN_NAME
+from procontract_evaluator_scope import scoped_evaluator
 
 
 @unittest.skipUnless(importlib.util.find_spec("pytest"), "requires pytest")
 class PytestModuleScopeTest(unittest.TestCase):
-    def run_pytest(self, *, ignored, collect=False, prefix=None, workers=0):
+    def test_only_official_archive_files_are_collected_even_from_workspace_root(self):
+        for workers in (0, 2):
+            with self.subTest(workers=workers), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);plugins=root/'plugins';plugins.mkdir()
+                (plugins/(PLUGIN_NAME+'.py')).write_text(PLUGIN)
+                payload={'ignored':[], 'root':str(root), 'files':['eval/conftest.py','eval/test_official.py']}
+                (plugins/'scope.json').write_text(json.dumps(payload))
+                (root/'eval').mkdir();(root/'tests').mkdir()
+                (root/'eval/conftest.py').write_text('import pytest\n@pytest.fixture\ndef official_fixture(): return 42\n')
+                (root/'eval/test_official.py').write_text('def test_pass(official_fixture): assert official_fixture==42\ndef test_failure(): assert False\n')
+                (root/'tests/test_candidate.py').write_text("from pathlib import Path\nPath('candidate-imported').touch()\ndef test_injected(): assert True\n")
+                env={**os.environ,'PYTEST_DISABLE_PLUGIN_AUTOLOAD':'1','PYTEST_PLUGINS':PLUGIN_NAME,'PYTHONPATH':str(plugins)}
+                env.pop('PYTEST_ADDOPTS',None)
+                args=[sys.executable,'-m','pytest','-q','--junitxml',str(root/'results.xml')]
+                if workers:args+=['-p','xdist.plugin','-n',str(workers)]
+                result=subprocess.run(args,cwd=root,env=env,capture_output=True,text=True,timeout=30)
+                self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+                self.assertFalse((root/'candidate-imported').exists())
+                cases=ET.parse(root/'results.xml').findall('.//testcase')
+                self.assertEqual({c.get('name') for c in cases},{'test_pass','test_failure'})
+                self.assertEqual(sum(c.find('failure') is not None for c in cases),1)
+
+    def run_pytest(self, *, ignored, collect=False, prefix=None, workers=0, eligible=None):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         plugins = root / "plugins"
         plugins.mkdir()
         (plugins / (PLUGIN_NAME + ".py")).write_text(PLUGIN)
-        payload = json.dumps({"ignored": ignored}, sort_keys=True).encode()
+        payload = json.dumps({"ignored": ignored, "eligible":eligible or []}, sort_keys=True).encode()
         (plugins / "scope.json").write_bytes(payload)
         tests = root / "tests"
         tests.mkdir()
@@ -63,6 +86,15 @@ class PytestModuleScopeTest(unittest.TestCase):
                     self.assertEqual({c.get("name") for c in cases}, {"test_pass", "test_real_failure"})
                     self.assertEqual(sum(c.find("failure") is not None for c in cases), 1)
 
+    def test_ignored_module_diagnostic_does_not_hide_explicitly_eligible_descendants(self):
+        root,result,receipt=self.run_pytest(
+            ignored=["tests.test_unavailable", "tests.test_eligible"],
+            eligible=["tests.test_eligible.test_pass"])
+        self.assertEqual(result.returncode,1,result.stdout+result.stderr)
+        self.assertEqual(receipt['excluded_modules'],['tests.test_unavailable'])
+        cases=ET.parse(root/'result.xml').findall('.//testcase')
+        self.assertEqual({c.get('name') for c in cases},{'test_pass','test_real_failure'})
+
     def test_leaf_exclusion_does_not_erase_its_module_or_an_unignored_import_error(self):
         root, result, receipt = self.run_pytest(ignored=["tests.test_unavailable.test_hidden"])
         self.assertNotEqual(result.returncode, 0)
@@ -90,6 +122,19 @@ class PytestModuleScopeTest(unittest.TestCase):
         cases = ET.parse(root / "result.xml").findall(".//testcase")
         self.assertEqual({c.get("name") for c in cases}, {"test_pass", "test_real_failure"})
 
+
+class EmptyEligibleScopeTest(unittest.TestCase):
+    def test_fully_excluded_branch_does_not_require_its_unrelated_setup(self):
+        class Base:
+            tests_by_branch={'branch':['tests.unavailable']}
+            ignored_tests={'branch/tests.unavailable'}
+            def _run_test_branch(self,*args,**kwargs):
+                raise AssertionError('excluded branch setup must not run')
+        evaluator=scoped_evaluator(Base)()
+        log=[]
+        xml=evaluator._run_test_branch('branch','image',log)
+        self.assertEqual(ET.fromstring(xml).findall('.//testcase'),[])
+        self.assertEqual(log[0]['eligible_count'],0)
 
 if __name__ == "__main__":
     unittest.main()

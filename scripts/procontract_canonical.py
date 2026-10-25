@@ -423,6 +423,7 @@ def evaluator_env():
         "PROCONTRACT_SWEEP_ID",
         "PROCONTRACT_SWEEP_EPISODE",
         "PROGRAMBENCH_CONTAINER_PREFIX",
+        "PC_TASK",
     )
     env = {key: os.environ[key] for key in keep if key in os.environ}
     env.update(

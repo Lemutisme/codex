@@ -137,7 +137,9 @@ def collection_evaluator(base):
                     'export PYTEST_PLUGINS="_pc_collection_probe${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}"; '
                     'export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --collect-only"; ' + command
                 )
-                kwargs["timeout"] = 60
+                # Preserve the supplied action allowance. The outer readiness
+                # process already enforces its declared total deadline; import
+                # setup can legitimately compile trusted test helpers.
             return super()._run_step(command, **kwargs)
 
         def _copy_file_from_container(self, **kwargs):
@@ -148,6 +150,14 @@ def collection_evaluator(base):
             return super()._copy_file_from_container(**kwargs)
 
         def _evaluate_branch(self, branch, image):
+            expected = {name for name in self.tests_by_branch[branch]
+                        if f"{branch}/{name}" not in self.ignored_tests}
+            if not expected:
+                self.collected[branch] = []
+                self.result.log.append({"step":"empty_official_scope", "branch":branch,
+                    "eligible_count":0,"returncode":0,
+                    "meaning":"Official scope has no eligible tests; no branch setup or test bodies executed."})
+                return
             self._collection_context.declared_empty = not self.tests_by_branch[branch]
             try:
                 observed = json.loads(self._run_test_branch(branch, image, self.result.log))

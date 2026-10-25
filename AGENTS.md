@@ -28,3 +28,10 @@ requested later, actually enable and verify `/goal` under comparable resources.
 Previous OFF attempts used ordinary turns without `/goal`; retain their raw
 results as historical observations and state this limitation rather than using
 them to claim long-horizon superiority.
+
+Resource update, 2026-10-25: the new ProgramBench study uses independent attempts
+for all 200 instances, GPT-5.6-Luna/max, one shared six-hour solver deadline and
+no total model-request ceiling. Preserve accounting across roles and keep the old
+1000-request cohort separate. Do not resume graded solvers or present the new
+time-only study as resource-matched to Vals. Execution remains offline, with the
+declared command/environment limits.

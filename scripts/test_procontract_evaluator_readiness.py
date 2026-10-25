@@ -47,6 +47,23 @@ class Base:
 
 
 class CollectionTest(unittest.TestCase):
+    def test_collection_preserves_the_supplied_setup_allowance(self):
+        class RecordingBase(Base):
+            def _run_step(self, command, **kwargs):
+                self.last_kwargs=kwargs
+                return {"output":"", "returncode":0}
+        evaluator=collection_evaluator(RecordingBase)()
+        evaluator._run_step("pytest",env=None,log_buf=[],step_name="run_tests",timeout=321)
+        self.assertEqual(evaluator.last_kwargs["timeout"],321)
+
+    def test_all_officially_excluded_tests_need_no_branch_setup(self):
+        evaluator=collection_evaluator(Base)()
+        evaluator.ignored_tests={'branch/suite.test_a','branch/suite.test_b'}
+        result=evaluator.readiness()
+        self.assertEqual(result['total'],0)
+        self.assertEqual(evaluator.commands,['ordinary_compile'])
+        self.assertEqual(evaluator.result.log[-1]['step'],'empty_official_scope')
+
     def test_empty_official_junit_does_not_require_a_pytest_collection_file(self):
         value=json.loads(empty_junit_collection('<testsuites><testsuite tests="0" errors="0" failures="0" skipped="0"/></testsuites>'))
         self.assertEqual(value['names'],[])
