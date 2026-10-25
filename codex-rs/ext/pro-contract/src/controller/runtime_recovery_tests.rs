@@ -126,6 +126,10 @@ async fn changed_capture_policy_blocks_recovery_without_erasing_responsibility()
     assert_eq!(lane.contract().await, Some(contract.clone()));
     let blocked = lane.status().await.unwrap();
     assert_eq!(
+        lane.runtime.state.lock().await.phase,
+        super::super::Phase::RecoveryBlocked
+    );
+    assert_eq!(
         (
             blocked.contract_id,
             blocked.phase.as_str(),

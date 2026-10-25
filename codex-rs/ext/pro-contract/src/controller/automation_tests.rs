@@ -89,6 +89,7 @@ struct FakePorts {
     continuation_gate: Option<Arc<Notify>>,
     check_outcomes: Mutex<VecDeque<StepOutcome>>,
     repair_error: Option<String>,
+    repair_gate: Option<Arc<Notify>>,
     worker_model: &'static str,
     /// The candidate's answer.txt at each check run.
     checked: Mutex<Vec<String>>,
@@ -99,6 +100,7 @@ struct FakePorts {
     successor_packets: Mutex<Vec<(ThreadId, String)>>,
     successor_gate: Option<Arc<Notify>>,
     successor_rejection: Option<String>,
+    successor_interruptions: Mutex<VecDeque<bool>>,
 }
 
 impl FakePorts {
@@ -129,6 +131,7 @@ impl FakePorts {
             continuation_gate: None,
             check_outcomes: Mutex::new(VecDeque::new()),
             repair_error: None,
+            repair_gate: None,
             worker_model: "model-a",
             checked: Mutex::new(Vec::new()),
             repairs: Mutex::new(Vec::new()),
@@ -137,6 +140,7 @@ impl FakePorts {
             successor_packets: Mutex::new(Vec::new()),
             successor_gate: None,
             successor_rejection: None,
+            successor_interruptions: Mutex::default(),
         }
     }
 
@@ -193,6 +197,18 @@ impl Ports for FakePorts {
                 .clone()
                 .ok_or("no workspace")?;
             std::fs::write(workspace.join("answer.txt"), &answer).map_err(|e| e.to_string())?;
+            if self
+                .successor_interruptions
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or(false)
+            {
+                return Ok(SuccessorExit::Interrupted {
+                    turn_id: "fresh-turn".into(),
+                    reason: "injected response interruption after writing".into(),
+                });
+            }
             Ok(SuccessorExit::Handoff(SuccessorHandoff {
                 turn_id: "fresh-turn".into(),
                 summary: format!("executor claims: {answer}"),
@@ -441,6 +457,9 @@ impl Ports for FakePorts {
                 .lock()
                 .unwrap()
                 .push((residual, previous_turn_id));
+            if let Some(gate) = &self.repair_gate {
+                gate.notified().await;
+            }
             self.repair_error.clone().map_or(Ok(()), Err)
         })
     }

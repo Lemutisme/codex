@@ -7,7 +7,7 @@ use codex_pro_contract::Digest;
 use codex_pro_contract_store::{ExperimentKind, ExperimentRecord};
 use serde_json::json;
 
-use super::{Handoff, Phase, ThreadRuntime};
+use super::{Phase, ThreadRuntime, WorkSnapshot};
 use crate::controller::decision::{NotVerifiedClass, Verdict};
 use crate::controller::succession_budget::{Budget, KIND};
 use crate::controller::work::PublicEvidence;
@@ -100,12 +100,13 @@ impl ThreadRuntime {
 
     pub(super) async fn choose_continuation(
         self: Arc<Self>,
-        handoff: Handoff,
+        handoff: WorkSnapshot,
         mut public: PublicEvidence,
         mut public_handle: Digest,
         mut verification: Digest,
         mut outcome: Verdict,
     ) {
+        let epoch = handoff.epoch;
         let mut reusable_checks = None;
         loop {
             if self.state.lock().await.epoch != handoff.epoch {
@@ -114,8 +115,12 @@ impl ThreadRuntime {
             if let Err(reason) =
                 crate::resources::require_model_capacity(self.settings.resource_snapshot.as_deref())
             {
-                self.not_verified(NotVerifiedClass::BudgetExhausted, &reason.to_string())
-                    .await;
+                self.not_verified_for(
+                    epoch,
+                    NotVerifiedClass::BudgetExhausted,
+                    &reason.to_string(),
+                )
+                .await;
                 return;
             }
             let (assessment, detail, class) = match &outcome {
@@ -137,7 +142,7 @@ impl ThreadRuntime {
             let review_history = match self.evidence_access().review_history().await {
                 Ok(previous) => previous,
                 Err(reason) => {
-                    self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                    self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                         .await;
                     return;
                 }
@@ -191,7 +196,7 @@ impl ThreadRuntime {
                 Ok(actions) => actions,
                 Err((class, reason)) => {
                     if self.state.lock().await.epoch == handoff.epoch {
-                        self.not_verified(class, &reason).await;
+                        self.not_verified_for(epoch, class, &reason).await;
                     }
                     return;
                 }
@@ -222,11 +227,15 @@ impl ThreadRuntime {
             // The selector can read the immutable archive when this projection is insufficient.
             let facts = json!({
                 "contract_id":handoff.contract.id, "subject_hash":handoff.subject.subject_hash,
+                "responsibility":{"id":handoff.contract.id,"revision":handoff.contract.revision,
+                    "version":handoff.contract.version,"generation":handoff.contract.generation,
+                    "standing":handoff.contract.standing,"candidate":handoff.contract.candidate},
                 "assessed_turn_id":handoff.turn_id,
                 "verification":verification,"public_evidence":public_handle,
                 "original_request":handoff.terms.intake_text,
                 "obligations":obligations.iter().map(|o| json!({"id":o.id,"scope":o.scope,"text":o.text})).collect::<Vec<_>>(),
                 "assessment":{"stage":public.assessment_scope.as_deref().unwrap_or("verification"),
+                    "revision":public.revision,"generation":public.generation,
                     "subject_hash":public.subject_hash,"decision":assessment,"detail":detail,
                     "review":review.map(|r| json!({"verdict":r.verdict,"terms_gap":r.terms_gap,"observations":r.observations})),
                     "public_check_outcomes":public.checks.iter().map(|c|json!({"step":c.receipt.step,"outcome":c.receipt.outcome})).collect::<Vec<_>>()},
@@ -263,8 +272,13 @@ impl ThreadRuntime {
             if self.state.lock().await.epoch != handoff.epoch {
                 return;
             }
-            self.record_status("deciding", "selecting work under the original grant", false)
-                .await;
+            self.record_status_for(
+                epoch,
+                "deciding",
+                "selecting work under the original grant",
+                false,
+            )
+            .await;
             let response = match self
                 .action_seconds(None, self.settings.worker.deadline_secs)
                 .await
@@ -323,7 +337,7 @@ impl ThreadRuntime {
             let decision = match recorded {
                 Ok(decision) => decision,
                 Err(reason) => {
-                    self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                    self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                         .await;
                     return;
                 }
@@ -335,6 +349,7 @@ impl ThreadRuntime {
                 Ok(choice) => choice,
                 Err(reason) => {
                     self.finish_continuation(
+                        epoch,
                         if interrupted {
                             Some(NotVerifiedClass::ExecutionInterrupted)
                         } else {
@@ -370,7 +385,7 @@ impl ThreadRuntime {
                     {
                         Ok(assessment) => assessment,
                         Err(reason) => {
-                            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                            self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                                 .await;
                             return;
                         }
@@ -388,7 +403,8 @@ impl ThreadRuntime {
                         return;
                     }
                     if !assessment.effects_resolved {
-                        self.not_verified(
+                        self.not_verified_for(
+                            epoch,
                             NotVerifiedClass::Infrastructure,
                             "selected observation has unresolved execution effects",
                         )
@@ -398,7 +414,7 @@ impl ThreadRuntime {
                     let (handle, basis) = match retained {
                         Ok(value) => value,
                         Err(reason) => {
-                            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                            self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                                 .await;
                             return;
                         }
@@ -423,8 +439,12 @@ impl ThreadRuntime {
             }
             let (requirements, next_step) = match &choice {
                 continuation::Choice::Rest { reason } => {
-                    self.finish_continuation(class, &format!("{detail}\nStrategy: {reason}"))
-                        .await;
+                    self.finish_continuation(
+                        epoch,
+                        class,
+                        &format!("{detail}\nStrategy: {reason}"),
+                    )
+                    .await;
                     return;
                 }
                 continuation::Choice::Resume {
@@ -465,7 +485,7 @@ impl ThreadRuntime {
                 .action_seconds(None, self.settings.worker.deadline_secs)
                 .await
             {
-                self.not_verified(NotVerifiedClass::BudgetExhausted, &reason)
+                self.not_verified_for(epoch, NotVerifiedClass::BudgetExhausted, &reason)
                     .await;
                 return;
             }
@@ -493,11 +513,16 @@ impl ThreadRuntime {
             )
             .await;
             match result {
-                Ok(()) => self.record_status("repairing", &note, false).await,
+                Ok(()) => {
+                    self.record_status_for(handoff.epoch, "repairing", &note, false)
+                        .await
+                }
                 Err(reason) => {
-                    self.rest(
+                    self.record_status_for(
+                        handoff.epoch,
                         "did_not_pass",
                         &format!("repair could not start: {reason}\n{note}"),
+                        true,
                     )
                     .await
                 }
@@ -506,10 +531,13 @@ impl ThreadRuntime {
         }
     }
 
-    async fn finish_continuation(&self, class: Option<NotVerifiedClass>, detail: &str) {
+    async fn finish_continuation(&self, epoch: u64, class: Option<NotVerifiedClass>, detail: &str) {
         match class {
-            Some(class) => self.not_verified(class, detail).await,
-            None => self.rest("did_not_pass", detail).await,
+            Some(class) => self.not_verified_for(epoch, class, detail).await,
+            None => {
+                self.record_status_for(epoch, "did_not_pass", detail, true)
+                    .await
+            }
         }
     }
 }

@@ -59,7 +59,7 @@ impl EvidenceAccess {
                 || (row.event.kind == ExperimentKind::Execution
                     && matches!(
                         row.event.body["phase"].as_str(),
-                        Some("handoff_ready" | "work_assessed")
+                        Some("handoff_ready" | "work_ready" | "work_assessed")
                     )))
                 || row.event.body["contract_id"].as_str() != Some(&self.contract_id.0)
             {

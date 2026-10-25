@@ -21,3 +21,10 @@ methods, or replay checks belongs to strategy; implementing those operations
 belongs to harness. Moving a hard-coded workflow into a configuration file does
 not, by itself, make it a context-level strategy. Existing coupling is migration
 work, not a precedent for new coupling.
+
+Benchmark preference, 2026-10-24: validate ProContract only by default. Do not add
+native Codex comparison runs. If a native or remote Codex comparison is explicitly
+requested later, actually enable and verify `/goal` under comparable resources.
+Previous OFF attempts used ordinary turns without `/goal`; retain their raw
+results as historical observations and state this limitation rather than using
+them to claim long-horizon superiority.

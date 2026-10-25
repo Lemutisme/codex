@@ -542,7 +542,7 @@ pub(crate) fn brief_text(
     policy: &EvidencePolicy,
 ) -> String {
     let mut text = format!(
-        "{}\nThis task is under a contract. When you end your turn, the workspace is handed off to an independent verifier.\n{}\n",
+        "{}\nThis task is under a contract. When your turn ends, the host retains the workspace. The continuation strategy can select further work, local observation, acceptance verification or rest.\n{}\n",
         brief_header(contract_id, revision),
         evidence_line(policy)
     );

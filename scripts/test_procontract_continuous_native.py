@@ -7,6 +7,22 @@ import test_procodex_native as fixture
 @unittest.skipUnless(os.environ.get("PROCODEX_NATIVE_PACKAGE") and os.environ.get("PROCODEX_TEST_IMAGE"),
                      "requires a native package and an existing isolated image")
 class ContinuousNativeTests(unittest.TestCase):
+    def test_failed_root_before_issue_continues_without_another_user_turn(self):
+        self.run_case(task_seconds=120, transport_failure_fixture="executor", autonomous_fixture=True,
+                      failure_before_issue_fixture=True, stream_disconnect_fixture=True)
+
+    def test_failed_root_after_write_can_verify_without_replaying_execution(self):
+        self.run_case(task_seconds=None, transport_failure_fixture="executor", autonomous_fixture=True,
+                      failure_after_write_fixture=True)
+
+    def test_failed_successor_continues_under_the_original_grant(self):
+        self.run_case(task_seconds=120, succession_fixture=True, transport_failure_fixture="successor",
+                      autonomous_fixture=True, failure_after_write_fixture=True, stream_disconnect_fixture=True)
+
+    def test_successor_output_truncation_retains_work_for_selected_acceptance(self):
+        self.run_case(task_seconds=120, succession_fixture=True, transport_failure_fixture="successor",
+                      autonomous_fixture=True, failure_after_write_fixture=True, output_truncation_fixture=True)
+
     def test_next_selection_observes_actual_successor_delivery_without_claiming_success(self):
         self.run_case(task_seconds=None, succession_fixture=True, continuation_history_fixture=True)
 

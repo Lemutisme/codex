@@ -30,8 +30,13 @@ pub(super) struct Control {
 impl ThreadRuntime {
     /// Runs before a new owner turn or teardown. Invalidate pending decisions first, then
     /// join the old executor before the owner can use the workspace again.
+    #[allow(
+        clippy::await_holding_invalid_type,
+        reason = "Owner invalidation and status publication share a short ordering lock; executor shutdown happens after releasing it"
+    )]
     pub(super) async fn cancel_successor(&self) {
         let control = {
+            let _publication = self.status_updates.lock().await;
             let mut state = self.state.lock().await;
             state.epoch += 1;
             if matches!(state.phase, Phase::Succeeding | Phase::Verifying)
@@ -70,7 +75,8 @@ impl ThreadRuntime {
             Ok(value) => value,
             Err(reason) => {
                 if self.state.lock().await.epoch == epoch {
-                    self.rest("did_not_pass", &reason).await;
+                    self.record_status_for(epoch, "did_not_pass", &reason, true)
+                        .await;
                 }
                 return;
             }
@@ -99,7 +105,8 @@ impl ThreadRuntime {
                 .await;
             return;
         }
-        self.record_status(
+        self.record_status_for(
+            epoch,
             "succeeding",
             &format!(
                 "fresh executor {id}; same responsibility, {} launches; explicit session limit {:?}; original deadline {:?}",
@@ -140,10 +147,14 @@ impl ThreadRuntime {
                 "continuation": decision,
                 "exit": match &result {
                     Ok(SuccessorExit::Handoff(_)) => "handoff",
-                    Ok(SuccessorExit::Interrupted(_)) => "interrupted",
+                    Ok(SuccessorExit::Interrupted { .. }) => "interrupted",
                     Ok(SuccessorExit::Rejected(_)) => "rejected",
                     Ok(SuccessorExit::Stopped(_)) => "stopped",
                     Err(_) => "unknown",
+                },
+                "executor_turn_id": match &result {
+                    Ok(SuccessorExit::Interrupted { turn_id, .. }) => Some(format!("{id}:{turn_id}")),
+                    _ => None,
                 },
                 "handoff_turn_id": match &result {
                     Ok(SuccessorExit::Handoff(handoff)) => Some(format!("{id}:{}", handoff.turn_id)),
@@ -153,7 +164,7 @@ impl ThreadRuntime {
                 "shutdown_confirmed": result.is_ok(),
                 "admission_rejected": matches!(&result, Ok(SuccessorExit::Rejected(_))),
                 "reason": match &result {
-                    Ok(SuccessorExit::Rejected(reason) | SuccessorExit::Stopped(reason) | SuccessorExit::Interrupted(reason)) => Some(reason),
+                    Ok(SuccessorExit::Rejected(reason) | SuccessorExit::Stopped(reason) | SuccessorExit::Interrupted { reason, .. }) => Some(reason),
                     _ => None,
                 },
                 "error": result.as_ref().err(),
@@ -184,13 +195,33 @@ impl ThreadRuntime {
         }
         let handoff = match result {
             Ok(SuccessorExit::Handoff(handoff)) => handoff,
-            Ok(SuccessorExit::Interrupted(reason)) => {
-                self.not_verified(NotVerifiedClass::ExecutionInterrupted, &reason)
-                    .await;
+            Ok(SuccessorExit::Interrupted { turn_id, reason }) => {
+                let captured = match self.capture_workspace().await {
+                    Ok(subject) => subject,
+                    Err(error) => {
+                        self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &error)
+                            .await;
+                        return;
+                    }
+                };
+                {
+                    let mut state = self.state.lock().await;
+                    if state.epoch != epoch {
+                        return;
+                    }
+                    state.frozen = Some(Frozen {
+                        response: super::delivery::ResponseCapture::Absent,
+                        turn_id: format!("{id}:{turn_id}"),
+                        subject: captured,
+                    });
+                    state.last_idle = Some(ThreadIdleCause::Failed);
+                    state.phase = Phase::Working;
+                }
+                Box::pin(self.select_interrupted(reason, epoch)).await;
                 return;
             }
             Ok(SuccessorExit::Rejected(reason)) => {
-                self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                     .await;
                 return;
             }
@@ -203,14 +234,14 @@ impl ThreadRuntime {
                 } else {
                     NotVerifiedClass::NoHandoff
                 };
-                self.not_verified(class, &reason).await;
+                self.not_verified_for(epoch, class, &reason).await;
                 return;
             }
         };
         let captured = match self.capture_workspace().await {
             Ok(subject) => subject,
             Err(reason) => {
-                self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+                self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                     .await;
                 return;
             }
@@ -233,7 +264,7 @@ impl ThreadRuntime {
             state.phase = Phase::Working;
         }
         if let Err(reason) = self.commit_delivery().await {
-            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+            self.not_verified_for(epoch, NotVerifiedClass::Infrastructure, &reason)
                 .await;
             return;
         }

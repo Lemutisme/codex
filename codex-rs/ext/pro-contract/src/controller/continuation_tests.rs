@@ -15,6 +15,322 @@ fn choose(ports: &FakePorts, action: &str, requirements: serde_json::Value) {
         .push_back(json!({"choice":choice}).to_string());
 }
 
+fn observe(ports: &FakePorts, action: &str) {
+    let choice = if action == "diagnose" {
+        json!({"action":"diagnose","question":"Does the retained artifact satisfy R1?"})
+    } else {
+        json!({"action":action,"reason":"Reassess the same retained work using another observation."})
+    };
+    ports
+        .continuation_choices
+        .lock()
+        .unwrap()
+        .push_back(json!({"choice":choice}).to_string());
+}
+
+#[tokio::test]
+async fn late_submission_outcomes_cannot_replace_a_new_owner_turn_status() {
+    for error in [None, Some("late submission rejection".to_string())] {
+        let gate = Arc::new(Notify::new());
+        let mut ports = FakePorts::new(CONTRACT_DRAFT)
+            .checks(&[StepOutcome::Pass])
+            .reviews(&[CANNOT_JUDGE_REVIEW]);
+        ports.repair_gate = Some(gate.clone());
+        ports.repair_error = error;
+        choose(&ports, "resume", json!(["R1"]));
+        let lane = lane(ports).await;
+        lane.runtime.intake(INTAKE.into()).await;
+        lane.wait_for("working").await;
+        lane.executor_turn("first", "done").await;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while lane.ports.repairs.lock().unwrap().is_empty() {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .unwrap();
+        lane.runtime.turn_started().await;
+        lane.runtime
+            .record_status("working", "new owner turn", false)
+            .await;
+        let expected = lane.status().await;
+        gate.notify_one();
+        let mut tasks = std::mem::take(&mut *lane.runtime.tasks.lock().unwrap());
+        while let Some(result) = tasks.join_next().await {
+            result.unwrap();
+        }
+        assert_eq!(
+            lane.status().await,
+            expected,
+            "old acknowledgement is historical, not the current disposition"
+        );
+        assert_eq!(
+            lane.runtime.state.lock().await.phase,
+            super::super::Phase::Working
+        );
+        let journal = lane.ledger.experiments().await.unwrap();
+        assert_eq!(
+            journal
+                .iter()
+                .filter(|r| r.event.body["phase"] == "continuation_submission")
+                .count(),
+            1
+        );
+        assert_eq!(lane.ports.repairs.lock().unwrap().len(), 1);
+        assert_eq!(
+            lane.status().await.unwrap().repairs_used,
+            1,
+            "a superseded result does not refund the original admission"
+        );
+    }
+}
+
+#[tokio::test]
+async fn selected_verification_after_defeat_uses_current_responsibility() {
+    let ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Fail, StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    observe(&ports, "verify");
+    let lane = lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("delivery", "done").await;
+    lane.wait_for("supported").await;
+    let commands: Vec<_> = lane
+        .ledger
+        .events()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|e| e.command.command.kind())
+        .collect();
+    use codex_pro_contract::CommandKind::*;
+    assert_eq!(commands, vec![Issue, Propose, Defeat, Propose, Support]);
+    let prompts = lane.ports.continuation_prompts.lock().unwrap();
+    let facts: serde_json::Value =
+        serde_json::from_str(prompts[0].rsplit_once("\n\n").unwrap().1).unwrap();
+    assert_eq!(facts["responsibility"]["version"], 3);
+    assert_eq!(facts["responsibility"]["generation"], 2);
+    assert!(facts["responsibility"]["candidate"].is_null());
+    assert_eq!(facts["assessment"]["generation"], 1);
+    let public: serde_json::Value = serde_json::from_slice(
+        &lane
+            .runtime
+            .store
+            .get(&serde_json::from_value(facts["public_evidence"].clone()).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        public["generation"], 1,
+        "advancing responsibility must not rewrite historical evidence"
+    );
+}
+
+#[tokio::test]
+async fn local_observations_after_defeat_preserve_work_for_selected_verification() {
+    for interrupted in [false, true] {
+        for action in ["check", "diagnose"] {
+            let ports = FakePorts::new(CONTRACT_DRAFT)
+                .checks(&[StepOutcome::Fail, StepOutcome::Pass, StepOutcome::Pass])
+                .reviews(&[SUPPORT_REVIEW, SUPPORT_REVIEW]);
+            if interrupted {
+                observe(&ports, "verify");
+            }
+            observe(&ports, action);
+            observe(&ports, "verify");
+            let lane = lane(ports).await;
+            lane.runtime.intake(INTAKE.into()).await;
+            lane.wait_for("working").await;
+            if interrupted {
+                lane.runtime.turn_started().await;
+                lane.write_answer("done");
+                lane.runtime.turn_stopped("interrupted".into()).await;
+                lane.runtime.thread_idle(ThreadIdleCause::Failed).await;
+            } else {
+                lane.executor_turn("delivery", "done").await;
+            }
+            lane.wait_for("supported").await;
+            let events = lane.ledger.events().await.unwrap();
+            let commands: Vec<_> = events.iter().map(|e| e.command.command.kind()).collect();
+            use codex_pro_contract::CommandKind::*;
+            assert_eq!(
+                commands,
+                vec![Issue, Propose, Defeat, Propose, Support],
+                "{interrupted}/{action}"
+            );
+            let subject = lane
+                .contract()
+                .await
+                .unwrap()
+                .candidate
+                .unwrap()
+                .subject_hash;
+            let journal = lane.ledger.experiments().await.unwrap();
+            let observations: Vec<_> = journal
+                .iter()
+                .filter(|r| r.event.body["phase"] == "work_assessed")
+                .collect();
+            assert_eq!(observations.len(), 1);
+            assert_eq!(
+                observations[0].event.body["generation"], 2,
+                "local observation does not propose"
+            );
+            assert_eq!(observations[0].event.body["subject_hash"], json!(subject));
+            assert!(lane.ports.repairs.lock().unwrap().is_empty());
+        }
+    }
+}
+
+#[tokio::test]
+async fn resting_after_defeat_does_not_create_another_proposal() {
+    let ports = FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Fail]);
+    choose(&ports, "rest", json!([]));
+    let lane = lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("delivery", "done").await;
+    lane.wait_for("did_not_pass").await;
+    let contract = lane.contract().await.unwrap();
+    assert_eq!(contract.version, 3);
+    assert!(contract.candidate.is_none());
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn repeated_defeats_retire_only_their_proposals_without_losing_the_artifact() {
+    let ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Fail, StepOutcome::Fail, StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    observe(&ports, "verify");
+    observe(&ports, "verify");
+    let lane = lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("delivery", "done").await;
+    lane.wait_for("supported").await;
+    let contract = lane.contract().await.unwrap();
+    assert_eq!(contract.version, 7);
+    assert_eq!(contract.generation, 5);
+    let journal = lane.ledger.experiments().await.unwrap();
+    let verifications: Vec<_> = journal
+        .iter()
+        .filter(|r| r.event.kind == ExperimentKind::Verification)
+        .collect();
+    assert_eq!(
+        verifications
+            .iter()
+            .map(|r| r.event.body["generation"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        vec![1, 3, 5]
+    );
+    for event in verifications {
+        assert_eq!(
+            event.event.body["subject_hash"],
+            json!(contract.candidate.unwrap().subject_hash)
+        );
+    }
+    assert_eq!(
+        *lane.ports.checked.lock().unwrap(),
+        vec!["done", "done", "done"]
+    );
+}
+
+#[tokio::test]
+async fn root_failure_during_preparation_retains_work_for_strategy_without_a_delivery() {
+    let gate = Arc::new(Notify::new());
+    let mut ports = FakePorts::new(CONTRACT_DRAFT);
+    ports.draft_gate = Some(gate.clone());
+    choose(&ports, "rest", json!([]));
+    let lane = lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("drafting").await;
+    lane.runtime.turn_started().await;
+    lane.write_answer("partial work");
+    lane.runtime.turn_stopped("failed-root".into()).await;
+    lane.runtime.thread_idle(ThreadIdleCause::Failed).await;
+    assert_eq!(lane.status().await.unwrap().phase, "drafting");
+    assert!(!lane.status().await.unwrap().resting);
+    gate.notify_one();
+    let status = lane.wait_for("not_verified").await;
+    assert_eq!(status.class, "execution_interrupted");
+    assert!(lane.ports.repairs.lock().unwrap().is_empty());
+    assert!(lane.ports.checked.lock().unwrap().is_empty());
+    assert_eq!(
+        lane.ledger.events().await.unwrap().len(),
+        1,
+        "capturing partial work must not Propose it"
+    );
+    let journal = lane.ledger.experiments().await.unwrap();
+    assert!(
+        !journal
+            .iter()
+            .any(|r| r.event.body["phase"] == "task_delivery")
+    );
+    assert!(
+        journal
+            .iter()
+            .any(|r| r.event.body["phase"] == "interrupted_snapshot")
+    );
+    let handle = journal
+        .iter()
+        .find(|r| r.event.body["phase"] == "work_ready")
+        .unwrap()
+        .event
+        .body["public_evidence"]
+        .clone();
+    let page = lane
+        .runtime
+        .evidence_access()
+        .read(
+            serde_json::from_value(json!({"op":"read", "handle":handle})).unwrap(),
+            16384,
+        )
+        .await
+        .unwrap();
+    let retained: serde_json::Value = serde_json::from_str(page["text"].as_str().unwrap()).unwrap();
+    assert_eq!(retained["assessment_scope"], "interruption");
+    let prompts = lane.ports.continuation_prompts.lock().unwrap();
+    let facts: serde_json::Value =
+        serde_json::from_str(prompts[0].rsplit_once("\n\n").unwrap().1).unwrap();
+    assert_eq!(facts["assessment"]["stage"], "interruption");
+}
+
+#[tokio::test]
+async fn failed_root_can_select_local_work_without_an_extra_user_instruction() {
+    let ports = FakePorts::new(CONTRACT_DRAFT);
+    choose(&ports, "resume", json!(["R1"]));
+    let lane = lane(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.runtime.turn_started().await;
+    lane.write_answer("partial");
+    lane.runtime.turn_stopped("failed-root".into()).await;
+    lane.runtime.thread_idle(ThreadIdleCause::Failed).await;
+    lane.wait_for("repairing").await;
+    let repairs = lane.ports.repairs.lock().unwrap().clone();
+    assert_eq!(repairs.len(), 1);
+    assert_eq!(repairs[0].1, "failed-root");
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn a_superseded_interruption_cannot_rest_or_dispatch_work_for_the_new_owner_turn() {
+    let lane = lane(FakePorts::new(CONTRACT_DRAFT)).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let old_epoch = lane.runtime.turn_started().await;
+    lane.write_answer("old partial work");
+    lane.runtime.turn_stopped("old-failure".into()).await;
+    lane.runtime.turn_started().await;
+    Arc::clone(&lane.runtime)
+        .select_interrupted("late failure".into(), old_epoch)
+        .await;
+    assert_eq!(lane.status().await.unwrap().phase, "working");
+    assert!(lane.ports.continuation_prompts.lock().unwrap().is_empty());
+    assert!(lane.ports.repairs.lock().unwrap().is_empty());
+}
+
 #[tokio::test]
 async fn known_exhaustion_retains_the_handoff_without_starting_a_selector() {
     let mut lane = lane(FakePorts::new(CONTRACT_DRAFT)).await;

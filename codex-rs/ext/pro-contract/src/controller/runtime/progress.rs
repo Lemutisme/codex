@@ -4,7 +4,7 @@ use codex_pro_contract_store::ExperimentKind;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{Handoff, Phase, ThreadRuntime};
+use super::{Phase, ThreadRuntime, WorkSnapshot};
 use crate::controller::succession_budget::{Budget, KIND, earliest, now_ms};
 
 const PROGRESS: &str = "progress_grant_v1";
@@ -540,7 +540,7 @@ impl ThreadRuntime {
             .join(reserved.used.to_string())
             .join("candidate");
         self.materialize(&subject, &work).await?;
-        let handoff = Handoff {
+        let handoff = WorkSnapshot {
             capture: super::super::observations::CaptureKind::Progress,
             response: super::delivery::ResponseCapture::Absent,
             epoch,

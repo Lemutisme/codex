@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use codex_pro_contract::Command;
-use codex_pro_contract::Contract;
 use codex_pro_contract::Coordinate;
 use codex_pro_contract::Digest;
 use codex_pro_contract::Provenance;
@@ -18,10 +17,9 @@ use super::super::decision;
 use super::super::decision::NotVerifiedClass;
 use super::super::decision::Verdict;
 use super::super::decision::decide;
-use super::Handoff;
 use super::ThreadRuntime;
+use super::WorkSnapshot;
 use crate::CheckReceipts;
-use crate::Subject;
 use crate::digest_of;
 use crate::workers::reviewer;
 use crate::workers::runtime::WorkerTurn;
@@ -46,14 +44,14 @@ pub(super) struct Diagnosis {
 impl ThreadRuntime {
     pub(super) async fn assess_snapshot(
         &self,
-        handoff: &Handoff,
+        handoff: &WorkSnapshot,
         work: &std::path::Path,
         deadline_ms: Option<u64>,
         formal: bool,
         diagnostic_review: bool,
         diagnosis: Option<&Diagnosis>,
     ) -> Assessment {
-        let Handoff {
+        let WorkSnapshot {
             contract,
             subject,
             terms,
@@ -347,21 +345,45 @@ impl ThreadRuntime {
         }
     }
 
-    pub(super) async fn verify(self: Arc<Self>, handoff: Handoff) {
+    pub(super) async fn verify(self: Arc<Self>, mut handoff: WorkSnapshot) {
+        let operation_epoch = handoff.epoch;
         if let Err(reason) = self.progress_ready().await {
-            self.not_verified(NotVerifiedClass::Infrastructure, &reason)
+            self.not_verified_for(operation_epoch, NotVerifiedClass::Infrastructure, &reason)
                 .await;
             return;
         }
         if let super::delivery::ResponseCapture::Unavailable { reason } = &handoff.response {
-            self.not_verified(
+            self.not_verified_for(
+                operation_epoch,
                 NotVerifiedClass::Infrastructure,
                 &format!("delivery response could not be retained: {reason}"),
             )
             .await;
             return;
         }
-        let Handoff {
+        {
+            let state = self.state.lock().await;
+            if state.epoch != handoff.epoch || state.phase != super::Phase::Verifying {
+                return;
+            }
+        }
+        // Verification needs a current proposal for these exact bytes. Capture
+        // origin does not determine whether the candidate still exists: Defeat
+        // can retire any proposal while retaining the work for later observation.
+        if handoff.contract.candidate.is_none_or(|candidate| {
+            candidate.generation != handoff.contract.generation
+                || candidate.subject_hash != handoff.subject.subject_hash
+        }) && let Err(error) = self.propose_work(&mut handoff).await
+        {
+            self.not_verified_for(
+                operation_epoch,
+                NotVerifiedClass::Infrastructure,
+                &format!("proposal of observed work failed: {error}"),
+            )
+            .await;
+            return;
+        }
+        let WorkSnapshot {
             capture,
             response,
             epoch,
@@ -377,7 +399,8 @@ impl ThreadRuntime {
             .join(contract.generation.to_string())
             .join("candidate");
         if let Err(error) = self.materialize(&subject, &work).await {
-            self.not_verified(
+            self.not_verified_for(
+                operation_epoch,
                 NotVerifiedClass::Infrastructure,
                 &format!("materialization failed: {error}"),
             )
@@ -386,7 +409,7 @@ impl ThreadRuntime {
         }
         let assessment = self
             .assess_snapshot(
-                &Handoff {
+                &WorkSnapshot {
                     capture,
                     response: response.clone(),
                     epoch,
@@ -424,7 +447,8 @@ impl ThreadRuntime {
         {
             Ok(handle) => handle,
             Err(reason) => {
-                self.not_verified(
+                self.not_verified_for(
+                    operation_epoch,
                     NotVerifiedClass::Infrastructure,
                     &format!("working evidence could not be retained: {reason}"),
                 )
@@ -457,7 +481,8 @@ impl ThreadRuntime {
         let verification = match verification {
             Ok(handle) => handle,
             Err(reason) => {
-                self.not_verified(
+                self.not_verified_for(
+                    operation_epoch,
                     NotVerifiedClass::Infrastructure,
                     &format!("verification was not committed: {reason}"),
                 )
@@ -468,35 +493,36 @@ impl ThreadRuntime {
         if self.state.lock().await.epoch != epoch {
             return; // Owner input superseded this frozen handoff; do not schedule stale work.
         }
+        let handoff = WorkSnapshot {
+            capture,
+            response,
+            epoch,
+            contract,
+            subject,
+            turn_id,
+            policy,
+            terms,
+            base,
+        };
         match verdict {
             Verdict::Support => {
                 let basis = digest_of(
                     "basis",
                     &(
-                        contract.bindings.terms_hash,
-                        base.subject,
-                        contract.bindings.evidence_policy_hash,
+                        handoff.contract.bindings.terms_hash,
+                        handoff.base.subject,
+                        handoff.contract.bindings.evidence_policy_hash,
                         checks.as_ref().ok().map(|r| r.environment_digest),
                         public.host_observations,
-                        response.handle(),
+                        handoff.response.handle(),
                     ),
                 );
-                self.support(contract, &subject, basis, checks.ok(), review, verification)
+                self.support(handoff, basis, checks.ok(), review, verification)
                     .await
             }
             Verdict::Defeat { residual, blocker } => {
                 self.defeat(
-                    Handoff {
-                        capture,
-                        response,
-                        epoch,
-                        contract,
-                        subject,
-                        turn_id,
-                        policy,
-                        terms,
-                        base,
-                    },
+                    handoff,
                     residual,
                     blocker,
                     verification,
@@ -515,17 +541,7 @@ impl ThreadRuntime {
                 ) =>
             {
                 self.choose_continuation(
-                    Handoff {
-                        capture,
-                        response,
-                        epoch,
-                        contract,
-                        subject,
-                        turn_id,
-                        policy,
-                        terms,
-                        base,
-                    },
+                    handoff,
                     public,
                     public_evidence,
                     verification,
@@ -533,22 +549,33 @@ impl ThreadRuntime {
                 )
                 .await;
             }
-            Verdict::NotVerified { class, reason } => self.not_verified(class, &reason).await,
+            Verdict::NotVerified { class, reason } => {
+                self.not_verified_for(operation_epoch, class, &reason).await
+            }
         }
     }
 
     async fn support(
         &self,
-        contract: Contract,
-        subject: &Subject,
+        handoff: WorkSnapshot,
         basis: Digest,
         receipts: Option<CheckReceipts>,
         review: Option<Result<reviewer::Review, crate::WorkerError>>,
         verification: Digest,
     ) {
+        let WorkSnapshot {
+            contract,
+            subject,
+            epoch,
+            ..
+        } = handoff;
         let Some(receipts) = receipts else {
-            self.not_verified(NotVerifiedClass::Infrastructure, "support without receipts")
-                .await;
+            self.not_verified_for(
+                epoch,
+                NotVerifiedClass::Infrastructure,
+                "support without receipts",
+            )
+            .await;
             return;
         };
         let review = review.and_then(Result::ok);
@@ -598,14 +625,16 @@ impl ThreadRuntime {
             .await
         {
             Ok(_) => {
-                self.rest(
+                self.record_status_for(
+                    epoch,
                     "supported",
                     "checks passed · review supported · on evidence within the executor's reach (diligence)",
+                    true,
                 )
                 .await
             }
             Err(error) => {
-                self.not_verified(
+                self.not_verified_for(epoch,
                     NotVerifiedClass::Infrastructure,
                     &format!("support failed: {error}"),
                 )
@@ -616,13 +645,14 @@ impl ThreadRuntime {
 
     async fn defeat(
         self: Arc<Self>,
-        handoff: Handoff,
+        mut handoff: WorkSnapshot,
         residual: String,
         blocker: Option<super::super::decision::EvidenceBlocker>,
         verification: Digest,
         public: super::super::work::PublicEvidence,
         public_evidence: Digest,
     ) {
+        let epoch = handoff.epoch;
         let contract = &handoff.contract;
         let subject = &handoff.subject;
         let defeated = self
@@ -640,14 +670,20 @@ impl ThreadRuntime {
                 &format!("defeat:{}:{}", contract.id.0, contract.generation),
             )
             .await;
-        if let Err(error) = defeated {
-            self.not_verified(
-                NotVerifiedClass::Infrastructure,
-                &format!("defeat failed: {error}"),
-            )
-            .await;
-            return;
+        match defeated {
+            Ok(contract) => handoff.contract = contract,
+            Err(error) => {
+                self.not_verified_for(
+                    epoch,
+                    NotVerifiedClass::Infrastructure,
+                    &format!("defeat failed: {error}"),
+                )
+                .await;
+                return;
+            }
         }
+        // The operation context advances; public evidence still identifies the
+        // generation and subject that were actually assessed before this Defeat.
         self.choose_continuation(
             handoff,
             public,

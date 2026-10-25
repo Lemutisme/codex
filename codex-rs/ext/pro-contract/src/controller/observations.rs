@@ -137,6 +137,7 @@ impl EvidenceAccess {
 pub(super) enum CaptureKind {
     Delivery,
     Progress,
+    Interrupted,
 }
 
 pub(super) struct AssessmentScope<'a> {
@@ -169,10 +170,16 @@ pub(super) async fn snapshot(
             b["turn_id"] == scope.turn
                 && b["subject_hash"] == json!(scope.subject.subject_hash)
                 && b["execution_epoch"] == scope.epoch
-                && if scope.capture == CaptureKind::Delivery {
-                    b["phase"] == "task_delivery" && b["thread_id"] == scope.owner_thread
-                } else {
-                    b["phase"] == "progress_snapshot" && b["contract_id"] == scope.contract.id.0
+                && match scope.capture {
+                    CaptureKind::Delivery => {
+                        b["phase"] == "task_delivery" && b["thread_id"] == scope.owner_thread
+                    }
+                    CaptureKind::Progress => {
+                        b["phase"] == "progress_snapshot" && b["contract_id"] == scope.contract.id.0
+                    }
+                    CaptureKind::Interrupted => {
+                        b["phase"] == "interrupted_snapshot" && b["thread_id"] == scope.owner_thread
+                    }
                 }
         })
         .ok_or("assessment has no matching immutable capture boundary")?;

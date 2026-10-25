@@ -120,12 +120,14 @@ struct Base {
     subject: Digest,
 }
 
-/// Everything verification needs about one handoff.
+/// A captured work subject, independent of whether an executor completed a handoff.
 #[derive(Clone)]
-struct Handoff {
+struct WorkSnapshot {
     capture: super::observations::CaptureKind,
     response: delivery::ResponseCapture,
     epoch: u64,
+    /// Causal state for the next operation, advanced by accepted transitions.
+    /// Historical assessment coordinates live in immutable PublicEvidence.
     contract: Contract,
     subject: Subject,
     turn_id: String,
@@ -176,6 +178,9 @@ pub(crate) struct ThreadRuntime {
     store: BlobStore,
     ports: Arc<dyn Ports>,
     state: tokio::sync::Mutex<State>,
+    // Serialize owner-epoch changes with status publication. Never held while
+    // executing a model/tool or waiting for executor shutdown.
+    status_updates: tokio::sync::Mutex<()>,
     state_changed: tokio::sync::watch::Sender<()>,
     tasks: std::sync::Mutex<tokio::task::JoinSet<()>>,
 }
@@ -223,6 +228,7 @@ impl ThreadRuntime {
             store,
             ports,
             state: tokio::sync::Mutex::new(State::default()),
+            status_updates: tokio::sync::Mutex::new(()),
             state_changed: tokio::sync::watch::channel(()).0,
             tasks: std::sync::Mutex::new(tokio::task::JoinSet::new()),
         }
@@ -261,8 +267,44 @@ impl ThreadRuntime {
     }
 
     async fn write_status(&self, phase: &str, class: &str, detail: &str, resting: bool) {
+        self.publish_status(None, phase, class, detail, resting)
+            .await;
+    }
+
+    async fn record_status_for(&self, epoch: u64, phase: &str, detail: &str, resting: bool) {
+        self.publish_status(Some(epoch), phase, "", detail, resting)
+            .await;
+    }
+
+    async fn not_verified_for(&self, epoch: u64, class: NotVerifiedClass, detail: &str) {
+        self.publish_status(Some(epoch), "not_verified", class.as_str(), detail, true)
+            .await;
+    }
+
+    #[allow(
+        clippy::await_holding_invalid_type,
+        reason = "A dedicated publication mutex serializes the owner epoch with its status commit; no State guard crosses I/O"
+    )]
+    async fn publish_status(
+        &self,
+        owner: Option<u64>,
+        phase: &str,
+        class: &str,
+        detail: &str,
+        resting: bool,
+    ) {
+        let _publication = self.status_updates.lock().await;
         let (repairs_used, contract_id) = {
-            let state = self.state.lock().await;
+            let mut state = self.state.lock().await;
+            if owner.is_some_and(|epoch| epoch != state.epoch) {
+                return;
+            }
+            // Scoped disposition changes the current operation. Unscoped
+            // publications also serve restore(), whose RecoveryBlocked phase
+            // must survive rendering a resting status.
+            if resting && owner.is_some() {
+                state.phase = Phase::Resting;
+            }
             (
                 state.repairs_used,
                 state
@@ -293,20 +335,14 @@ impl ThreadRuntime {
     }
 
     async fn rest(&self, phase: &str, detail: &str) {
-        self.state.lock().await.phase = Phase::Resting;
-        self.record_status(phase, detail, /*resting*/ true).await;
+        let epoch = self.state.lock().await.epoch;
+        self.record_status_for(epoch, phase, detail, true).await;
     }
 
     /// Rests without a judgment, recording why.
     async fn not_verified(&self, class: NotVerifiedClass, detail: &str) {
-        self.state.lock().await.phase = Phase::Resting;
-        self.write_status(
-            "not_verified",
-            class.as_str(),
-            detail,
-            /*resting*/ true,
-        )
-        .await;
+        let epoch = self.state.lock().await.epoch;
+        self.not_verified_for(epoch, class, detail).await;
     }
 
     /// Where this contract's materialized subjects live.
@@ -870,13 +906,19 @@ impl ThreadRuntime {
         }
     }
 
-    async fn executor_stopped(&self, cause: ThreadIdleCause) {
+    async fn executor_stopped(self: &Arc<Self>, cause: ThreadIdleCause) {
+        if cause == ThreadIdleCause::Failed {
+            let runtime = Arc::clone(self);
+            let epoch = self.state.lock().await.epoch;
+            self.spawn(async move {
+                runtime
+                    .select_interrupted("the native executor turn failed".into(), epoch)
+                    .await;
+            });
+            return;
+        }
         self.not_verified(
-            if cause == ThreadIdleCause::Failed {
-                NotVerifiedClass::ExecutionInterrupted
-            } else {
-                NotVerifiedClass::NoHandoff
-            },
+            NotVerifiedClass::NoHandoff,
             &format!("the executor turn ended without a handoff ({cause:?})"),
         )
         .await;
@@ -1021,7 +1063,7 @@ impl ThreadRuntime {
             match (state.frozen.as_ref(), state.contract.as_ref()) {
                 (Some(frozen), _) if state.proposed_turns.contains(&frozen.turn_id) => return,
                 (Some(frozen), Some(active)) => {
-                    let values = Handoff {
+                    let values = WorkSnapshot {
                         capture: super::observations::CaptureKind::Delivery,
                         response: frozen.response.clone(),
                         epoch: state.epoch,
@@ -1041,7 +1083,7 @@ impl ThreadRuntime {
                 (Some(_), None) => return,
             }
         };
-        let Some(handoff) = handoff else {
+        let Some(mut handoff) = handoff else {
             self.not_verified(
                 NotVerifiedClass::NoHandoff,
                 "no candidate was frozen at the handoff",
@@ -1049,36 +1091,36 @@ impl ThreadRuntime {
             .await;
             return;
         };
-        let contract = handoff.contract.clone();
-        let (subject, turn_id) = (handoff.subject.clone(), handoff.turn_id.clone());
         self.record_status("checking", "", /*resting*/ false).await;
-        let proposed = match self
+        if let Err(error) = self.propose_work(&mut handoff).await {
+            self.not_verified(
+                NotVerifiedClass::Infrastructure,
+                &format!("propose failed: {error}"),
+            )
+            .await;
+            return;
+        }
+        self.select_handoff(handoff).await;
+    }
+
+    /// One proposal operation for every capture source. A new proposal advances
+    /// responsibility state; it never rewrites evidence for an earlier generation.
+    async fn propose_work(&self, work: &mut WorkSnapshot) -> Result<(), crate::LedgerError> {
+        work.contract = self
             .apply(
-                &contract,
+                &work.contract,
                 Role::Executor,
                 Provenance::Automation,
                 Command::Propose {
-                    subject_hash: subject.subject_hash,
+                    subject_hash: work.subject.subject_hash,
                 },
-                &format!("propose:{}:{turn_id}", contract.id.0),
+                &format!(
+                    "propose-work:{}:{}:{}",
+                    work.contract.id.0, work.turn_id, work.contract.version
+                ),
             )
-            .await
-        {
-            Ok(contract) => contract,
-            Err(error) => {
-                self.not_verified(
-                    NotVerifiedClass::Infrastructure,
-                    &format!("propose failed: {error}"),
-                )
-                .await;
-                return;
-            }
-        };
-        self.select_handoff(Handoff {
-            contract: proposed,
-            ..handoff
-        })
-        .await;
+            .await?;
+        Ok(())
     }
 
     async fn apply(

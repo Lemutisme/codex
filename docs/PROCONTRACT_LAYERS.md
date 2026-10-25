@@ -195,6 +195,27 @@ with context while deferring its instruction caused an avoidable second model re
 for large worker packets. This is a general native harness input-assembly correction;
 it does not convert an automatic turn into user authorization or change task grants.
 
+## Interrupted execution and selected work
+
+The captured work representation is independent of a completed handoff. After a
+native executor failure, or a successor failure with confirmed shutdown, the
+adapter retains an interruption snapshot and exposes it to the same continuation
+strategy. Checks and diagnosis do not propose that snapshot to the kernel. If
+strategy selects full verification, that operation proposes the exact captured
+subject; repeated verification does not create duplicate proposals. The archive
+exposes the interruption observation without manufacturing a delivery receipt.
+
+Root failure during preparation remains recorded until the existing preparation
+finishes, then reaches this selection path. The benchmark driver must follow the
+lane's disposition: a failed root turn does not independently terminate active
+preparation or continuation. User interruption and unresolved executor lifetime
+retain their distinct stopping behavior. Original reservations, resource limits
+and owner epochs remain in force; no retry-count policy is added to the kernel.
+
+This migration does not yet provide autonomous recovery after controller process
+loss or selector failure, or execution selection independent of issued terms.
+Those broader continuation/wake capabilities remain explicit implementation work.
+
 ## Allocator observations
 
 The shared model gateway projects an allocator snapshot into every request after

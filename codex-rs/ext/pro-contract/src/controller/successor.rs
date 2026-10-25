@@ -142,7 +142,7 @@ pub(super) async fn run(
         .spawn_internal_session(parent_id, options)
         .await
         .map_err(|e| e.to_string())?;
-    let mut interrupted = false;
+    let mut interrupted_turn = None;
     let result = async {
         if deadline.is_some_and(|end| tokio::time::Instant::now() >= end) || *turn.cancel.borrow()
             || parent.conversation_history_snapshot().await.user_message_revision() != authorization_revision
@@ -174,7 +174,7 @@ pub(super) async fn run(
                     match event.msg {
                         EventMsg::TurnComplete(complete) if complete.turn_id == turn_id => {
                             if let Some(error) = last_error {
-                                interrupted = true;
+                                interrupted_turn = Some(turn_id.clone());
                                 return Err(error);
                             }
                             return Ok(SuccessorHandoff {
@@ -197,10 +197,10 @@ pub(super) async fn run(
     let shutdown = child.thread.shutdown_and_wait().await;
     manager.remove_thread(&child.thread_id).await;
     shutdown.map_err(|error| format!("successor shutdown unconfirmed: {error}"))?;
-    Ok(match result {
-        Ok(handoff) => SuccessorExit::Handoff(handoff),
-        Err(reason) if interrupted => SuccessorExit::Interrupted(reason),
-        Err(reason) => SuccessorExit::Stopped(reason),
+    Ok(match (result, interrupted_turn) {
+        (Ok(handoff), _) => SuccessorExit::Handoff(handoff),
+        (Err(reason), Some(turn_id)) => SuccessorExit::Interrupted { turn_id, reason },
+        (Err(reason), None) => SuccessorExit::Stopped(reason),
     })
 }
 

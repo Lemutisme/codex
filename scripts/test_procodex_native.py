@@ -104,6 +104,12 @@ class NativeEvidenceTest(unittest.TestCase):
         deadline_fixture = getattr(self, "deadline_fixture", False)
         owner_cancel = getattr(self, "owner_cancel_fixture", False)
         transport_failure = getattr(self, "transport_failure_fixture", None)
+        autonomous = getattr(self, "autonomous_fixture", False)
+        failure_after_write = getattr(self, "failure_after_write_fixture", False)
+        output_truncation = getattr(self, "output_truncation_fixture", False)
+        stream_disconnect = getattr(self, "stream_disconnect_fixture", False)
+        failure_before_issue = getattr(self, "failure_before_issue_fixture", False)
+        failure_observed = threading.Event()
         observation_fixture = getattr(self, "observation_fixture", False)
         text_route = getattr(self, "text_route_fixture", False)
         missing_access = getattr(self, "missing_access_fixture", False)
@@ -115,6 +121,7 @@ class NativeEvidenceTest(unittest.TestCase):
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
         diagnostic_review = getattr(self, "diagnostic_review_fixture", False)
+        initial_review_defeat = getattr(self, "initial_review_defeat_fixture", False)
         input_strategy = getattr(self, "input_strategy_fixture", False)
         resource_limit = getattr(self, "resource_limit_fixture", False)
         successor_progress = getattr(self, "successor_progress_fixture", False)
@@ -387,9 +394,30 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             role = "successor"
                         if role == "continuation" and continuation_facts(body)["assessment"].get("stage") == "handoff":
                             role = "planning"
-                        if role == transport_failure and not injected_failures:
-                            injected_failures.append(dict(role=role, request=len(requests)))
-                            self.send_error(503, "injected provider interruption")
+                        if failure_before_issue and role == "draft":
+                            if not failure_observed.wait(10):
+                                raise AssertionError("root did not reach the injected failure before Issue")
+                        if role == transport_failure and not injected_failures and (not failure_after_write or counts.get(role,0) >= 1):
+                            issued_at_failure = None
+                            database = home / "pro_contract/ledger_1.sqlite"
+                            if database.exists():
+                                with sqlite3.connect(database) as connection:
+                                    issued_at_failure = connection.execute("SELECT count(*) FROM contracts").fetchone()[0]
+                            injected_failures.append(dict(role=role, request=len(requests), issued_contracts=issued_at_failure))
+                            failure_observed.set()
+                            if output_truncation or stream_disconnect:
+                                self.send_response(200)
+                                self.send_header("Content-Type", "text/event-stream")
+                                self.send_header("Connection", "close")
+                                self.end_headers()
+                                self.close_connection = True
+                                event=dict(type="response.incomplete",response=dict(id="injected-incomplete",incomplete_details=dict(reason="max_output_tokens")))
+                                if stream_disconnect:
+                                    event=dict(type="response.created",response=dict(id="injected-disconnect"))
+                                self.wfile.write(("event: "+event["type"]+"\ndata: "+json.dumps(event)+"\n\n").encode())
+                                self.wfile.flush()
+                            else:
+                                self.send_error(503, "injected provider interruption")
                             return
                         waiting = pending_cell_wait(body,f"wait-{len(requests)}") if role in ("executor","successor","planning","continuation") else None
                         if waiting is None:
@@ -452,7 +480,7 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 else:message=selected
                         elif role == "continuation":
                             facts=continuation_facts(body)
-                            keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown or continuation_history) and not continuation_rest
+                            keep_working=(facts["assessment"]["decision"]=="defeat" or continuation_unknown or continuation_history or (autonomous and facts["assessment"]["stage"]=="interruption")) and not continuation_rest
                             if continuation_history and counts[role] == 2:
                                 previous=facts['previous_choice']
                                 returned=[r['event'] for r in previous['execution_records'] if r['event']['phase']=='successor_returned']
@@ -461,12 +489,20 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                             choice=(dict(action=facts["available_actions"][0], requirements=facts["allowed_requirements"],
                                 next_step="Read the retained evidence, inspect answer.txt and replay its check.") if keep_working else
                                 dict(action="rest",reason="No further useful work selected by this fixture strategy."))
+                            if autonomous and failure_after_write and facts["assessment"]["stage"] == "interruption":
+                                choice=dict(action="check",reason="Observe the retained interrupted work before choosing more execution.")
+                            elif autonomous and failure_after_write and facts["assessment"]["stage"] == "checks":
+                                choice=dict(action="verify",reason="The retained work passes its check; assess it without replaying the write.")
                             message=dict(choice=choice)
                             if continuation_model is not None:message=continuation_model(body)
                             if selection_model is not None:
                                 selected=selection_model(body)
                                 if isinstance(selected,list):items=selected;message=None
                                 else:message=selected
+                            if autonomous and facts["assessment"]["stage"] == "interruption" and "interrupted-archive-read" not in "\n".join(text_values(body.get("input",[]))):
+                                code = 'const page=await tools.contract_read_evidence({op:"read",handle:'+json.dumps(facts['public_evidence'])+',offset:0});text(page);text("interrupted-archive-read");'
+                                items=[custom_call(body,code,"read-interrupted-work")]
+                                message=None
                         elif role in ("explore", "probe"):
                             packet_parts = {}
                             for text in text_values(body.get("input", [])):
@@ -567,7 +603,7 @@ text({structuredEvidencePages:true});
                                 message.update(verdict="cannot_judge",coverage=[],missing="Need a further artifact observation; no defect or scope discrepancy established.")
                             if shared_citations:
                                 message["coverage"] = [dict(requirement_id=f"R{i}", evidence=candidates[-1]) for i in range(19)]
-                            if diagnostic_review and counts[role] == 2:
+                            if (diagnostic_review or initial_review_defeat) and counts[role] == 2:
                                 message.update(verdict="defeat",coverage=[],
                                     findings=[dict(requirement_id="R1",location="answer.txt",counterexample="The frozen answer is not ready.")],
                                     residual="Write the required ready value and replay the check.")
@@ -948,7 +984,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 server.request('turn/interrupt', {'threadId':thread,'turnId':started_turn['turn']['id']},handle)
                                 interrupted = True
                             if status.get("resting"):
-                                if transport_failure and resumed_turn is None:
+                                if transport_failure and not autonomous and resumed_turn is None:
                                     self.assertEqual(status.get('class'),'execution_interrupted',status)
                                     with sqlite3.connect(database) as connection:
                                         cancelled_grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
@@ -982,7 +1018,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                     self.assertEqual(restored['thread']['id'],thread)
                                     resumed_turn=server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':'Continue the same task from the retained work.','text_elements':[]}]},handle)['turn']['id']
                                     continue
-                                if (owner_cancel or transport_failure) and not any(t['id']==resumed_turn and t['status']=='completed' for t in completed_turns):
+                                if (owner_cancel or (transport_failure and not autonomous)) and not any(t['id']==resumed_turn and t['status']=='completed' for t in completed_turns):
                                     continue
                                 break
                 self.assertEqual(errors, [])
@@ -995,9 +1031,29 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 if transport_failure:
                     self.assertEqual(len(injected_failures),1)
                     with sqlite3.connect(database) as connection:
-                        restored_grant=json.loads(connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()[0])
+                        grant_row=connection.execute("SELECT json FROM records WHERE kind='succession'").fetchone()
+                        restored_grant=json.loads(grant_row[0]) if grant_row else None
                         commands=[json.loads(r[0])['command']['type'] for r in connection.execute('SELECT command_json FROM events ORDER BY seq')]
-                    self.assertEqual(restored_grant,cancelled_grant)
+                    if not autonomous:
+                        self.assertEqual(restored_grant,cancelled_grant)
+                    else:
+                        self.assertIsNone(resumed_turn, "autonomous recovery must not inject another user turn")
+                        if restored_grant is None:
+                            self.assertFalse(succession)
+                            self.assertIsNone(getattr(self, 'task_seconds', 120))
+                        else:
+                            self.assertIsNone(restored_grant['pending'])
+                            self.assertEqual(restored_grant['launches'], 1 if succession else 0)
+                        if failure_after_write:
+                            self.assertEqual(counts[transport_failure],1, "the interrupted write must not be replayed")
+                        if failure_before_issue:
+                            self.assertEqual(injected_failures[0]['issued_contracts'],0)
+                        with sqlite3.connect(database) as connection:
+                            observed=[json.loads(r[0])['body'] for r in connection.execute('SELECT event_json FROM experiment_events')]
+                        snapshots=[v for v in observed if v.get('phase')=='interrupted_snapshot']
+                        self.assertEqual(len(snapshots),1)
+                        self.assertFalse(snapshots[0]['handoff'])
+                        self.assertFalse(any(v.get('phase')=='task_delivery' and v.get('turn_id')==snapshots[0]['turn_id'] for v in observed))
                     self.assertEqual(commands.count('issue'),1)
                     self.assertEqual(commands.count('support'),1)
                     self.assertEqual(counts.get('draft'),1)
@@ -1005,7 +1061,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                     self.assertEqual(counts_after['used'],len(requests))
                     self.assertEqual(counts_after['started'],original_request_grant['started'])
                     self.assertEqual(counts_after['deadline'],original_request_grant['deadline'])
-                    self.assertEqual(request_budget.db.execute('SELECT count(*) FROM requests WHERE http_status=503').fetchone()[0],1)
+                    self.assertEqual(request_budget.db.execute('SELECT count(*) FROM requests WHERE http_status=503').fetchone()[0],0 if output_truncation or stream_disconnect else 1)
                 self.assertEqual(status["phase"], expected_phase or ("did_not_pass" if continuation_rest else "not_verified" if repair_review or partial_checks or deadline_fixture or missing_access or correction_exhausted else "supported"), status)
                 if getattr(self, 'task_seconds', 'finite') is None:
                     with sqlite3.connect(database) as connection:

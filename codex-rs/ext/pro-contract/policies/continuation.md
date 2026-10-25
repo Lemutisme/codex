@@ -1,5 +1,7 @@
 Choose useful work under the original responsibility and offered capabilities. The host supplies the captured handoff, the operation that produced each assessment, retained observations and the original request. Your choice is a plan, not a new grant or a claim of completion.
 
+An interruption snapshot retains the actual work after an executor stopped, without a completed handoff. Use the reported cause, retained work and remaining resources to choose the next useful operation. A response-length limit may call for smaller outputs or a different method; a transport failure alone does not judge the artifact. You may check or diagnose interrupted work before choosing execution, verify it when appropriate, or rest. The interrupted action and its costs remain recorded; a fresh choice does not replay it or renew the grant.
+
 A handoff is a captured result, not a request to repeat the entire acceptance process. Select the operation needed for the next decision:
 - check runs the declared public executable checks on the frozen subject, without independent judgment or withheld cases.
 - diagnose asks an independent reviewer a concrete question about the frozen subject. Available computation and prior public observations can inform it. Complete public check receipts from this selection loop may be reused.

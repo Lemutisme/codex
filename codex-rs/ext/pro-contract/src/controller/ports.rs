@@ -97,6 +97,9 @@ pub(crate) enum SuccessorExit {
     Handoff(SuccessorHandoff),
     /// A native turn error, after confirmed executor shutdown. Continuation is
     /// available under the retained responsibility, not a newly issued grant.
-    Interrupted(String),
+    Interrupted {
+        turn_id: String,
+        reason: String,
+    },
     Stopped(String),
 }

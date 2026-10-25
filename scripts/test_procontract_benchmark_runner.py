@@ -56,6 +56,18 @@ class PackagingTest(unittest.TestCase):
 
 
 class RestingTest(unittest.TestCase):
+    def test_failed_root_does_not_end_an_active_procontract_lane(self):
+        tracker = runner.TurnTracker()
+        tracker.thread_id = "task"
+        tracker.observe({"method":"turn/completed", "params":{
+            "threadId":"task", "turn":{"id":"failed-root", "status":"failed",
+            "error":{"message":"stream disconnected"}}
+        }})
+        self.assertEqual(tracker.statuses, ["failed"])
+        for phase in ("drafting", "working", "deciding", "succeeding", "observing"):
+            self.assertFalse(runner.is_done("on", {"phase":phase,"resting":False},
+                turn_active=tracker.active, turns_completed=tracker.completed))
+
     def test_off_arm_rests_when_the_first_turn_completes(self):
         self.assertFalse(
             runner.is_done("off", None, turn_active=True, turns_completed=0)

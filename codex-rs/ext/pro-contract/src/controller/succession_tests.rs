@@ -6,6 +6,183 @@ use crate::controller::succession_budget::KIND;
 use pretty_assertions::assert_eq;
 use pretty_assertions::assert_ne;
 
+#[tokio::test]
+async fn interrupted_successor_can_be_checked_and_verified_without_replaying_its_write() {
+    let ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass, StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    ports.handoff_choices.lock().unwrap().push_back(
+        serde_json::json!({"choice":{
+            "action":"successor", "requirements":["R1"], "next_step":"Write the requested artifact."
+        }})
+        .to_string(),
+    );
+    ports
+        .successor_interruptions
+        .lock()
+        .unwrap()
+        .push_back(true);
+    ports.continuation_choices.lock().unwrap().extend([
+        serde_json::json!({"choice":{"action":"check","reason":"Inspect the interrupted work."}})
+            .to_string(),
+        serde_json::json!({"choice":{"action":"verify","reason":"Assess the retained artifact."}})
+            .to_string(),
+    ]);
+    let lane = successors(ports, 2, &["done"]).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let before: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    lane.executor_turn("original", "wrong").await;
+    lane.wait_for("supported").await;
+    assert_eq!(*lane.ports.checked.lock().unwrap(), vec!["done", "done"]);
+    assert_eq!(lane.ports.successor_packets.lock().unwrap().len(), 1);
+    let after: Budget = lane
+        .ledger
+        .record(KIND, &lane.thread_id.to_string())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.started_ms, before.started_ms);
+    assert_eq!(after.deadline_ms, before.deadline_ms);
+    assert_eq!(after.launches, 1);
+    assert!(after.pending.is_none());
+    let journal = lane.ledger.experiments().await.unwrap();
+    let interrupted = journal
+        .iter()
+        .find(|r| r.event.body["phase"] == "interrupted_snapshot")
+        .unwrap();
+    assert_eq!(interrupted.event.body["handoff"], false);
+    assert_eq!(
+        journal
+            .iter()
+            .filter(|r| r.event.body["phase"] == "task_delivery")
+            .count(),
+        1
+    );
+    let commands: Vec<_> = lane
+        .ledger
+        .events()
+        .await
+        .unwrap()
+        .iter()
+        .map(|e| e.command.command.kind())
+        .collect();
+    assert_eq!(
+        commands,
+        vec![
+            codex_pro_contract::CommandKind::Issue,
+            codex_pro_contract::CommandKind::Propose,
+            codex_pro_contract::CommandKind::Propose,
+            codex_pro_contract::CommandKind::Support
+        ]
+    );
+    let prompts = lane.ports.continuation_prompts.lock().unwrap();
+    let facts: serde_json::Value =
+        serde_json::from_str(prompts[0].rsplit_once("\n\n").unwrap().1).unwrap();
+    assert_eq!(facts["assessment"]["stage"], "interruption");
+    assert_eq!(
+        facts["previous_choice"]["execution_records"][1]["event"]["exit"],
+        "interrupted"
+    );
+    assert!(facts["previous_choice"]["delivery"].is_null());
+    assert_eq!(
+        facts["subject_hash"],
+        interrupted.event.body["subject_hash"]
+    );
+}
+
+#[tokio::test]
+async fn interrupted_successor_can_select_fresh_work_under_the_same_grant() {
+    let ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    let choice = serde_json::json!({"choice":{
+        "action":"successor", "requirements":["R1"], "next_step":"Use retained work to finish the task."
+    }}).to_string();
+    ports
+        .handoff_choices
+        .lock()
+        .unwrap()
+        .push_back(choice.clone());
+    ports.continuation_choices.lock().unwrap().push_back(choice);
+    ports
+        .successor_interruptions
+        .lock()
+        .unwrap()
+        .extend([true, false]);
+    let lane = successors(ports, 2, &["partial", "done"]).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "wrong").await;
+    lane.wait_for("supported").await;
+    assert_eq!(lane.ports.successor_packets.lock().unwrap().len(), 2);
+    assert_eq!(lane.ports.draft_prompts.lock().unwrap().len(), 1);
+    let journal = lane.ledger.experiments().await.unwrap();
+    assert_eq!(
+        journal
+            .iter()
+            .filter(|r| r.event.body["phase"] == "interrupted_snapshot")
+            .count(),
+        1
+    );
+    assert_eq!(
+        journal
+            .iter()
+            .filter(|r| r.event.body["phase"] == "task_delivery")
+            .count(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn repeated_verification_of_interrupted_work_keeps_one_proposal() {
+    let ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass, StepOutcome::Pass])
+        .reviews(&[CANNOT_JUDGE_REVIEW, SUPPORT_REVIEW]);
+    ports.handoff_choices.lock().unwrap().push_back(
+        serde_json::json!({"choice":{
+            "action":"successor", "requirements":["R1"], "next_step":"Write the artifact."
+        }})
+        .to_string(),
+    );
+    ports
+        .successor_interruptions
+        .lock()
+        .unwrap()
+        .push_back(true);
+    for _ in 0..2 {
+        ports.continuation_choices.lock().unwrap().push_back(
+            serde_json::json!({"choice":{
+                "action":"verify", "reason":"Obtain a judgment on the retained subject."
+            }})
+            .to_string(),
+        );
+    }
+    let lane = successors(ports, 1, &["done"]).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    lane.executor_turn("original", "wrong").await;
+    lane.wait_for("supported").await;
+    let proposals = lane
+        .ledger
+        .events()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|e| e.command.command.kind() == codex_pro_contract::CommandKind::Propose)
+        .count();
+    assert_eq!(
+        proposals, 2,
+        "one original proposal and one interrupted subject, independent of review count"
+    );
+    assert_eq!(lane.ports.successor_packets.lock().unwrap().len(), 1);
+}
+
 async fn successors(ports: FakePorts, max_sessions: u32, answers: &[&str]) -> Lane {
     let mut lane = lane(ports).await;
     Arc::get_mut(&mut lane.runtime).unwrap().settings.succession = Some(SuccessionSettings {

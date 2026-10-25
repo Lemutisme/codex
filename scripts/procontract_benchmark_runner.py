@@ -288,6 +288,10 @@ def is_done(
     The evaluation profile decides whether to submit this stopped attempt. An
     authorized coordinator may instead resume the same thread/grant; resting alone
     does not attest completion or require another human instruction.
+
+    For ProContract a failed root turn is not an independent stop condition: terms
+    preparation, snapshot selection or a successor may still own admitted work.
+    Drivers must use the lane disposition rather than terminate on turn.status.
     """
     if turn_active or turns_completed == 0:
         return False
