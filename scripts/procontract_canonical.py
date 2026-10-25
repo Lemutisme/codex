@@ -292,7 +292,7 @@ def pin_state():
         "evaluator_attempts": 2,
         "branch_workers": 1,
         "branch_retries": 1,
-        "docker_cpus": 4,
+        "docker_cpus": frozen.docker_cpus,
     }
     if frozen.dependency_policy is not None:
         import procontract_dependency_inspection as inspection
@@ -492,7 +492,7 @@ def make_evaluator(task, archive, *, collection=False):
         ignored_branches=get_ignored_branches(instance),
         remove_hashes=instance.get("eval_clean_hashes", []),
         instance_id=task,
-        docker_cpus=4,
+        docker_cpus=registry().docker_cpus,
         branch_workers=1,
         branch_retries=1,
     )

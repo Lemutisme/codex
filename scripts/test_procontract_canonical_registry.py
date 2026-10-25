@@ -77,6 +77,18 @@ class RegistryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identity"):
             loaded.verify_source()
 
+    def test_evaluator_cpu_allocation_is_pinned_and_old_registries_keep_their_limit(self):
+        self.assertEqual(registry.load(self.path,self.write()).docker_cpus,4)
+        self.document['docker_cpus']=10
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.docker_cpus,10)
+        self.document['docker_cpus']=20
+        self.write()
+        with self.assertRaisesRegex(ValueError,'identity'):loaded.verify_source()
+        for invalid in (0,-1,True,1.5,'10'):
+            self.document['docker_cpus']=invalid
+            with self.assertRaisesRegex(ValueError,'CPU'):registry.load(self.path,self.write())
+
     def test_grader_assets_are_bound_and_rechecked_independently_of_registry_bytes(self):
         archive = self.root / "grader-assets.tar.gz"
         archive.write_bytes(b"original toolchain")
