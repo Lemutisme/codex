@@ -34,3 +34,22 @@ pass (publication/repair, interrupted-root continuation, open-ended cancellation
 and resume). A preliminary real-model attempt found incompatible image libc; it
 was stopped and retained as execution-invalid, not quality evidence. A separate
 offline Ubuntu 24.04 fixture image passes the executable preflight.
+
+Further qualification before the final episode:
+
+- 17 Python controls now pass, including scoped unknown-effect fencing, late local
+  reconciliation/wake, actor cancellation, initialization loss, expiry-safe receipt
+  reads and task/research deployment identity. The three initial failing edge
+  controls are retained in `logs/additional-faults-before.log`.
+- Native caller loss is reproduced by abandoning a code-mode publication waiter.
+  The older ProContract package fails to finalize it; the development package
+  completes the assessment and repair. This is ProContract before/after, not a
+  native Codex comparison. Detailed receipts are in `native-controls/`.
+- Preliminary episode `e1` is execution-invalid (libc mismatch). Its early raw
+  projection treated a missing output as false; this is not a quality result.
+  Fresh native projections retain unavailable quality as null.
+- Episode `e2` reached a genuine model-authored candidate, a 6/6 sealed result,
+  and delegated kernel adoption. Its chosen wait did not stop an unrelated
+  legacy drafter. It was interrupted through its own isolated runner, with
+  adoption and failed-operation evidence retained; no next-task rollout claim
+  is made for that partial episode. This led to the adapter wait/shutdown fix.

@@ -107,6 +107,7 @@ class Measurement:
     beyond_reach: bool = False
     max_seconds: float | None = None
     external_effects: bool = False
+    effect_scope: str | None = None
 
 
 class Operations:
@@ -131,8 +132,8 @@ class Operations:
         if path.exists():
             if json.loads(path.read_text()) != json.loads(encoded(config)):
                 raise ValueError("original authority/configuration cannot be renewed")
-            return cls(root)
-        atomic(path, config)
+        else:
+            atomic(path, config)
         host = cls(root)
         with host.tx() as db:
             db.executescript("""
@@ -310,13 +311,12 @@ class Operations:
         with self.authority_lock(), self.tx() as db:
             db.execute("UPDATE inbox SET epoch=epoch+1,cancelled=1 WHERE id=?", (responsibility,))
             ids = [r["id"] for r in db.execute("SELECT * FROM operations WHERE state IN ('reserved','running')")
-                   if json.loads(r["request"])["responsibility"] == responsibility]
+                   if json.loads(r["request"])["request"]["responsibility"] == responsibility]
         for identity in ids:
             self.cancel(identity)
 
     def submit(self, identity, responsibility, version, measurement, inputs, purpose,
                seconds=None, resolved_input=None):
-        self.allowed()
         self.get(version, "version")
         if resolved_input and self.get(resolved_input, "resolved_input")["version"] != version:
             raise ValueError("resolved input belongs to a different version")
@@ -335,12 +335,21 @@ class Operations:
                 if saved["request"] != request:
                     raise ValueError("operation ID conflicts with its original assignment")
                 return {k: json.loads(old[k]) if k in ("request", "owner", "outcome") and old[k] else old[k] for k in old.keys()}
+            self.allowed()
             inbox = db.execute("SELECT * FROM inbox WHERE id=?", (responsibility,)).fetchone()
             if not inbox or inbox["cancelled"]:
                 raise ValueError("responsibility is unavailable or cancelled")
             count = db.execute("SELECT COUNT(*) FROM operations").fetchone()[0]
             if self.authority.operation_limit is not None and count >= self.authority.operation_limit:
                 raise ValueError("original operation allowance exhausted")
+            scope = cap.get("effect_scope")
+            if scope is not None:
+                for prior in db.execute("SELECT * FROM operations"):
+                    if json.loads(prior["request"])["measurement"].get("effect_scope") != scope:
+                        continue
+                    outcome = json.loads(prior["outcome"]) if prior["outcome"] else None
+                    if prior["state"] in ("reserved", "running", "unknown") or (outcome and not outcome["shutdown_confirmed"]):
+                        raise ValueError("conflicting effect scope is active or unresolved; reconcile before dispatch")
             limits = [v for v in (seconds, cap["max_seconds"]) if v is not None]
             ends = [v for v in (time.time() + min(limits) if limits else None, self.authority.deadline) if v is not None]
             assignment = {"request": request, "admitted_at": time.time(),
@@ -380,9 +389,26 @@ class Operations:
         return self.inspect(identity)
 
     def reconcile(self, identity):
+        with self.authority_lock():
+            return self._reconcile(identity)
+
+    def _reconcile(self, identity):
         item = self.inspect(identity)
         directory = self.operation_dir(identity)
         receipt = directory / "receipt.json"
+        child_path = directory / "child.json"
+        if (not receipt.exists() and item["state"] in ("running", "unknown")
+                and not alive(item["owner"]) and child_path.exists()
+                and not item["request"]["measurement"].get("external_effects")):
+            child = json.loads(child_path.read_text())
+            if child and not alive(child) and not group_alive(child["pid"]):
+                # Known local lifetime, unknown result. This never re-dispatches
+                # the action or invents measurement/quality from its partial files.
+                atomic(receipt, {"id": identity, "assignment": sha(item["request"]),
+                    "execution": "interrupted", "shutdown_confirmed": True, "measurement": None,
+                    "reason": "lost owner; recorded local child and its group have ended",
+                    "observer": IMPLEMENTATION,
+                    "reconciled_at": time.time()})
         if receipt.exists():
             value = json.loads(receipt.read_text())
             if value["assignment"] != sha(item["request"]):
@@ -396,7 +422,16 @@ class Operations:
                     self._event(db, "operation_outcome", item["request"]["request"]["responsibility"], object_id)
         elif item["state"] == "running" and not alive(item["owner"]):
             with self.tx() as db:
-                db.execute("UPDATE operations SET state='unknown' WHERE id=? AND state='running'", (identity,))
+                value = {"id": identity, "assignment": sha(item["request"]), "execution": "unknown",
+                         "shutdown_confirmed": False, "measurement": None,
+                         "observer": IMPLEMENTATION,
+                         "reason": "operation owner disappeared without a retained receipt"}
+                object_id = sha({"schema": 1, "kind": "operation_outcome", "body": value})
+                changed = db.execute("UPDATE operations SET state='unknown',outcome=? WHERE id=? AND state='running'",
+                                     (encoded({"object": object_id, **value}), identity)).rowcount
+                if changed:
+                    db.execute("INSERT OR IGNORE INTO objects VALUES (?, 'operation_outcome', ?)", (object_id, encoded(value)))
+                    self._event(db, "operation_outcome", item["request"]["request"]["responsibility"], object_id)
         return self.inspect(identity)
 
     def run_worker(self, identity):
@@ -407,9 +442,7 @@ class Operations:
             assignment = json.loads(row["request"])
             request = assignment["request"]
             inbox = db.execute("SELECT * FROM inbox WHERE id=?", (request["responsibility"],)).fetchone()
-            if inbox["cancelled"] or inbox["epoch"] != assignment["owner_epoch"]:
-                db.execute("UPDATE operations SET state='cancelled' WHERE id=?", (identity,))
-                return
+            owner_invalid = inbox["cancelled"] or inbox["epoch"] != assignment["owner_epoch"]
             db.execute("UPDATE operations SET state='running',owner=? WHERE id=?", (encoded(process_identity(os.getpid())), identity))
         directory = self.operation_dir(identity)
         directory.mkdir(parents=True, exist_ok=True)
@@ -427,7 +460,7 @@ class Operations:
                 receipt.update(execution="configuration_changed", shutdown_confirmed=True)
             elif deadline is not None and time.time() >= deadline:
                 receipt.update(execution="expired", shutdown_confirmed=True)
-            elif (directory / "cancel.json").exists():
+            elif owner_invalid or (directory / "cancel.json").exists():
                 receipt.update(execution="cancelled", shutdown_confirmed=True)
             else:
                 with (directory / "stdout").open("wb") as out, (directory / "stderr").open("wb") as err:
@@ -465,9 +498,10 @@ class Operations:
                 while group_alive(child.pid) and time.monotonic() < until:
                     time.sleep(.025)
                 receipt["shutdown_confirmed"] = not group_alive(child.pid)
-            if assignment["measurement"].get("external_effects") and receipt["execution"] != "completed":
-                # Killing a local client cannot attest a remote/container effect.
-                receipt["shutdown_confirmed"] = False
+            if child is not None and assignment["measurement"].get("external_effects"):
+                # A local client's exit cannot attest remote/container lifetime.
+                # Only the admitted adapter's retained observation can do so.
+                receipt["shutdown_confirmed"] &= (receipt["measurement"] or {}).get("effects_resolved") is True
             receipt.update(finished=time.time(), elapsed_seconds=time.time() - started)
             receipt["streams"] = {name: sha((directory / name).read_bytes()) for name in ("stdout", "stderr") if (directory / name).exists()}
             atomic(directory / "receipt.json", receipt)
@@ -498,10 +532,6 @@ class Operations:
             return self._adopt(identity, version, expected_incumbent_seq, evidence, rationale)
 
     def _adopt(self, identity, version, expected_incumbent_seq, evidence, rationale):
-        self.allowed()
-        if not self.authority.allow_adoption:
-            raise ValueError("standing authorization does not permit adoption")
-        self.get(version, "version")
         request = {"version": version, "expected_incumbent_seq": expected_incumbent_seq,
                    "evidence": evidence, "rationale": rationale, "scope": self.authority.scope}
         with self.tx() as db:
@@ -510,7 +540,26 @@ class Operations:
                 raise ValueError("decision ID conflicts")
             if old and old["result"]:
                 return json.loads(old["result"])
-            if not old:
+        if old and old["command"]:
+            command = json.loads(old["command"])
+            if any(row["event"]["kind"] == "selection" and row["event"]["body"].get("adoption") == command["contract_id"]
+                   for row in kernel.events(self.store)):
+                # Reconcile a committed settlement, even if its caller lost the
+                # acknowledgement and its allocation has since expired.
+                result = kernel.adopt(self.store, f"adoption:{identity}", command, expected_incumbent_seq,
+                                      kernel.identities(harness=self.config["implementation"]))
+                with self.tx() as db:
+                    db.execute("UPDATE decisions SET result=? WHERE id=?", (encoded(result), identity))
+                return result
+        self.allowed()
+        if not self.authority.allow_adoption:
+            raise ValueError("standing authorization does not permit adoption")
+        definition = self.get(version, "version")["definition"]
+        current = self.incumbent()["version"]
+        if current and self.get(current, "version")["definition"]["kind"] != definition["kind"]:
+            raise ValueError("version kind differs from this deployment scope")
+        if not old:
+            with self.tx() as db:
                 db.execute("INSERT INTO decisions VALUES (?,?,NULL,NULL)", (identity, encoded(request)))
         # The public operation cannot create bootstrap authorization evidence.
         proof = self.get(evidence)

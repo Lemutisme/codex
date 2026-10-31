@@ -30,7 +30,7 @@ time.sleep(q.get('sleep',0))
 ''')
         authority = ops.Authority('test-owner', 'fixture-authorization', 'isolated-test', ('tool.py',), ('control',), True)
         self.host = ops.Operations.create(self.root / 'host', authority, {
-            'control': ops.Measurement((sys.executable, str(self.runner)), ops.sha(self.runner.read_bytes()), 'fixture', True)})
+            'control': ops.Measurement((sys.executable, str(self.runner)), ops.sha(self.runner.read_bytes()), 'fixture', True, effect_scope='fixture-counter')})
         self.host.subscribe('research', 'task', ['observation', 'operation_outcome'])
         self.version = self.host.register({'kind': 'task', 'files': {'tool.py': 'print(0)', 'work_method.md': 'inspect', 'continuation.md': 'choose'},
             'build': {'code': 'fixture'}, 'model': {'name': 'fixture'}, 'resolver': 'fixture-v1', 'tools': {}})
@@ -60,6 +60,7 @@ time.sleep(q.get('sleep',0))
             self.submit(seconds=3)
 
     def test_lost_worker_does_not_reexecute_unknown_effect(self):
+        self.host.subscribe('monitor','research',['operation_outcome'])
         self.submit(sleep=30)
         self.host.dispatch('run')
         end=time.monotonic()+5
@@ -72,6 +73,15 @@ time.sleep(q.get('sleep',0))
         self.assertEqual((self.root/'counter').read_text(),'effect\n')
         child=json.loads((self.host.operation_dir('run')/'child.json').read_text())
         if ops.alive(child):os.killpg(child['pid'],signal.SIGKILL)
+        self.assertIsNotNone(self.host.inbox('monitor')['pending'])
+        with self.assertRaisesRegex(ValueError,'effect scope'):self.submit('conflicting')
+        end=time.monotonic()+5
+        while ops.alive(child) and time.monotonic()<end:time.sleep(.01)
+        reconciled=self.host.reconcile('run')
+        self.assertEqual(reconciled['outcome']['execution'],'interrupted')
+        self.assertTrue(reconciled['outcome']['shutdown_confirmed'])
+        self.assertIsNone(reconciled['outcome']['measurement'])
+        self.assertEqual(self.submit('next')['state'],'reserved')
 
     def test_result_reconciliation_is_idempotent_after_receipt_before_commit(self):
         self.submit()
@@ -135,7 +145,10 @@ time.sleep(q.get('sleep',0))
         with patch.object(ops.kernel,'adopt',lost):
             with self.assertRaisesRegex(RuntimeError,'lost'):
                 self.host.adopt('decision',candidate,incumbent['seq'],result,'scoped trial')
+        original_authority=self.host.authority
+        self.host.authority=dataclasses.replace(original_authority,deadline=time.time()-1)
         committed=self.host.adopt('decision',candidate,incumbent['seq'],result,'scoped trial')
+        self.host.authority=original_authority
         self.assertEqual(committed['standing'],'discharged')
         self.assertEqual(self.host.incumbent()['version'],candidate)
         self.assertEqual(self.host.adopt('decision',candidate,incumbent['seq'],result,'scoped trial'),committed)
@@ -180,6 +193,63 @@ time.sleep(q.get('sleep',0))
                 broker.invoke('submit',{'measurement':'untrusted'})
             with self.assertRaisesRegex(ValueError,'offered'):
                 broker.invoke('bootstrap',{'version':self.version})
+
+    def test_owner_cancellation_stops_an_active_operation_without_renewing_its_assignment(self):
+        original=self.submit(sleep=30)
+        self.host.dispatch('run')
+        until=time.monotonic()+5
+        while not (self.root/'counter').exists() and time.monotonic()<until:time.sleep(.01)
+        try:
+            self.host.cancel_responsibility('research')
+            while time.monotonic()<until:
+                done=self.host.reconcile('run')
+                if done['state']=='finished':break
+                time.sleep(.01)
+            self.assertEqual(done['outcome']['execution'],'cancelled')
+            self.assertEqual(done['request'],original['request'])
+        finally:
+            self.host.cancel('run')
+            while self.host.reconcile('run')['state']=='running' and time.monotonic()<until:time.sleep(.01)
+
+    def test_initializer_recovers_after_configuration_before_schema_commit(self):
+        import shutil
+        recovery=self.root/'incomplete';recovery.mkdir()
+        shutil.copy2(self.host.root/'host.json',recovery/'host.json')
+        restored=ops.Operations.create(recovery,self.host.authority,{'control':ops.Measurement((sys.executable,str(self.runner)),ops.sha(self.runner.read_bytes()),'fixture',True,effect_scope='fixture-counter')})
+        self.assertEqual(restored.read()['events'],[])
+
+    def test_identical_submit_remains_readable_after_authority_expires(self):
+        original=self.submit()
+        self.host.authority=dataclasses.replace(self.host.authority,deadline=time.time()-1)
+        self.assertEqual(self.submit(),original)
+
+    def test_committed_adoption_receipt_remains_readable_after_authority_expires(self):
+        original=self.host.bootstrap(self.version)
+        with self.host.tx() as db:
+            request=json.loads(db.execute("SELECT request FROM decisions WHERE id='bootstrap'").fetchone()[0])
+        self.host.authority=dataclasses.replace(self.host.authority,deadline=time.time()-1)
+        self.assertEqual(self.host.adopt('bootstrap',request['version'],None,request['evidence'],request['rationale']),original)
+
+    def test_a_research_version_cannot_inherit_the_task_deployment_scope(self):
+        self.host.bootstrap(self.version)
+        definition=self.host.get(self.version)['definition'];definition['kind']='research'
+        research=self.host.register(definition)
+        self.host.submit('research-proof','research',research,'control',{'counter':str(self.root/'counter')},'scoped measurement')
+        proof=self.complete('research-proof')['outcome']['object']
+        with self.assertRaisesRegex(ValueError,'version kind'):
+            self.host.adopt('wrong-scope',research,self.host.incumbent()['seq'],proof,'not a task version')
+
+    def test_external_lifetime_requires_adapter_attestation_even_after_client_success(self):
+        definition=self.host.get(self.version)['definition']
+        self.host=ops.Operations.create(self.root/'external',self.host.authority,{'control':ops.Measurement(
+            (sys.executable,str(self.runner)),ops.sha(self.runner.read_bytes()),'fixture',True,
+            external_effects=True,effect_scope='external-test')})
+        self.host.subscribe('research','task',['observation'])
+        self.version=self.host.register(definition)
+        self.submit();result=self.complete()['outcome']
+        self.assertEqual(result['execution'],'completed')
+        self.assertFalse(result['shutdown_confirmed'])
+        with self.assertRaisesRegex(ValueError,'effect scope'):self.submit('conflicting')
 
 
 if __name__=='__main__':unittest.main()

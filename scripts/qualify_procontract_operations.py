@@ -27,6 +27,26 @@ import procodex_config
 REPO=Path(__file__).resolve().parent.parent
 
 
+def confirm_environment_shutdown(workspace, home):
+    """Reconcile only containers with this invocation's exclusive host mounts."""
+    owned=[]
+    try:
+        ids=subprocess.check_output(['docker','ps','-q'],text=True,timeout=10).split()
+        if ids:
+            containers=json.loads(subprocess.check_output(['docker','inspect',*ids],text=True,timeout=10))
+            roots=(workspace.resolve(),home.resolve())
+            for container in containers:
+                sources=[Path(m['Source']).resolve() for m in container.get('Mounts',[]) if m.get('Source')]
+                if any(source==root or source.is_relative_to(root) for source in sources for root in roots):
+                    owned.append(container['Id'])
+        if owned:
+            subprocess.run(['docker','rm','-f',*owned],check=True,capture_output=True,timeout=10)
+        remaining=subprocess.check_output(['docker','ps','-q','--no-trunc'],text=True,timeout=10).split()
+        return {'confirmed':not any(identity in remaining for identity in owned),'removed_owned_containers':owned}
+    except Exception as error:
+        return {'confirmed':False,'owned_containers':owned,'error':str(error)}
+
+
 class AuditedBudget(Budget):
     def reserve_with_context(self, original, forwarded, truncations):
         request,deadline,forwarded=super().reserve_with_context(original,forwarded,truncations)
@@ -74,7 +94,7 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds, socke
     def handle(value):
         if 'id' in value and 'method' in value:server.refuse(value)
         if value.get('method')=='turn/completed':completed.append(value['params']['turn'])
-    status=None;started=time.time();thread=None
+    status=None;started=time.time();thread=None;disposition=None
     try:
         server.request('initialize',{'clientInfo':{'name':'rsi-qualification','version':'1'},'capabilities':{'experimentalApi':True}},handle)
         server.notify('initialized')
@@ -89,10 +109,21 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds, socke
                     row=connection.execute("SELECT json FROM records WHERE kind='status' AND key=?",(thread,)).fetchone()
                 if row:
                     status=json.loads(row[0])
-                    if status.get('resting') and completed:break
+                    if status.get('resting') and completed:
+                        disposition='native_rest'
+                        break
+            if socket_host and completed:
+                selected=host.inbox(socket_host)
+                if selected and selected['pending'] is None and selected['wake'] is not None:
+                    # Execute the actor's retained wait. An unrelated legacy
+                    # preparation worker must not keep this invocation alive.
+                    disposition='selected_wait'
+                    break
             if server.process.poll() is not None:break
     finally:
         shutdown=server.close()
+        environment_shutdown=confirm_environment_shutdown(workspace,home)
+        ops.atomic(run/'shutdown.json',{'native':shutdown,'environment':environment_shutdown})
         if broker:broker.shutdown();broker.server_close();(workspace/'s').unlink(missing_ok=True)
         gateway.shutdown();gateway.server_close()
     usage=[]
@@ -101,7 +132,8 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds, socke
         models=[list(row) for row in budget.db.execute('SELECT * FROM response_identity')]
     cost={'allocator':budget.status(),'usage':usage,'model_responses':models,'elapsed_seconds':time.time()-started}
     budget.close()
-    result={'version':version,'resolved_input':resolved,'thread':thread,'status':status,'shutdown':shutdown,'cost':cost,
+    result={'version':version,'resolved_input':resolved,'thread':thread,'status':status,'disposition':disposition,'shutdown':shutdown,
+            'environment_shutdown':environment_shutdown,'cost':cost,
             'files':{p.name:p.read_text() for p in workspace.iterdir() if p.is_file()},'completed_turns':completed}
     ops.atomic(run/'result.json',result)
     return result
@@ -111,13 +143,22 @@ def native_measure(assignment_path):
     path=Path(assignment_path);assignment=json.loads(path.read_text())
     config=json.loads(Path(assignment['measurement']['argv'][3]).read_text())
     request=assignment['request'];params=request['inputs']
-    result=native(Path(params['run']),Path(config['package']),config['image'],request['version'],
-        ops.Operations(Path(config['host'])),params['prompt'],inputs={k:Path(v) for k,v in params['inputs'].items()},
-        seconds=params['seconds'],socket_host=params.get('socket_host'))
+    try:
+        result=native(Path(params['run']),Path(config['package']),config['image'],request['version'],
+            ops.Operations(Path(config['host'])),params['prompt'],inputs={k:Path(v) for k,v in params['inputs'].items()},
+            seconds=params['seconds'],socket_host=params.get('socket_host'))
+    except BaseException as error:
+        shutdown_path=Path(params['run'])/'shutdown.json'
+        shutdown=json.loads(shutdown_path.read_text()) if shutdown_path.exists() else {}
+        ops.atomic(path.parent/'result.json',{'validity':'unavailable','quality':None,'admissible':False,
+            'effects_resolved':shutdown.get('native',{}).get('status')=='exited' and shutdown.get('environment',{}).get('confirmed') is True,
+            'failure':type(error).__name__,'shutdown':shutdown,'task':None})
+        raise
     actual=result['files'].get('answer.txt')
     quality=actual==params['expected'] if actual is not None and 'expected' in params else None
     ops.atomic(path.parent/'result.json',{'validity':'valid' if actual is not None or 'expected' not in params else 'unavailable',
         'quality':quality,'actual':actual,'expected':params.get('expected'),'task':result,
+        'effects_resolved':result['shutdown']['status']=='exited' and result['environment_shutdown']['confirmed'],
         'conditions':params.get('conditions',{}),'admissible':False})
 
 
@@ -151,6 +192,7 @@ def measure(assignment_path):
     # host custody; research receives an aggregate and exact measurement identity.
     ops.atomic(path.parent/'sealed-observations.json',observations)
     ops.atomic(path.parent/'result.json',{'validity':'valid' if valid else 'execution_failed','quality':passed/len(observations) if valid else None,
+        'effects_resolved':True,
         'passed':passed,'count':len(observations),'admissible':valid and passed==len(observations),
         'scope':'These sealed reducer inputs only; authorized isolated deployment trial',
         'sealed_evidence':ops.sha(observations)})
@@ -165,11 +207,11 @@ def episode(root, package, image):
     config=root/'sealed.json'
     ops.atomic(config,{'image':image,'cases':[['5\n8',13],['-7\n2\n',-5],['1\r\n4',5],['',0],['\n2\n\n3\n',5],['101',101]]})
     measurement=ops.Measurement((sys.executable,str(Path(__file__).resolve()),'measure',str(config)),
-        ops.sha({'runner':ops.sha(Path(__file__).read_bytes()),'inputs':ops.sha(config.read_bytes())}), image,True,120,True)
+        ops.sha({'runner':ops.sha(Path(__file__).read_bytes()),'inputs':ops.sha(config.read_bytes())}), image,True,120,True,'sealed-reducer')
     native_config=root/'native.json'
     ops.atomic(native_config,{'host':str(root/'host'),'package':str(package),'image':image})
     native_cap=ops.Measurement((sys.executable,str(Path(__file__).resolve()),'native-measure',str(native_config)),
-        ops.sha({'runner':ops.sha(Path(__file__).read_bytes()),'configuration':ops.sha(native_config.read_bytes())}),image,False,None,True)
+        ops.sha({'runner':ops.sha(Path(__file__).read_bytes()),'configuration':ops.sha(native_config.read_bytes())}),image,False,None,True,'native-episode')
     host=ops.Operations.create(root/'host',ops.Authority('delegating-user',
         ops.sha((REPO/'docs/research/procontract-rsi-delegation-20261031.md').read_bytes()),
         'isolated reducer trial; frozen ProgramBench excluded',('reducer.py',),('reducer-contract-v1','native-procontract'),True),

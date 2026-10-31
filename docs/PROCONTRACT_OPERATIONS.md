@@ -47,10 +47,15 @@ Dispatch can be delivered repeatedly. A worker claims the durable reservation
 before starting external work. Cancellation/finalization belongs to the operation,
 not the requesting transport. A retained receipt is reconciled into one outcome
 and wake transaction after caller/process loss. A lost worker without a receipt
-is `unknown`; re-dispatch does not repeat it. Original assignments and allocations
+is `unknown`; re-dispatch does not repeat it and its observation still wakes subscribers.
+Authenticated effect scopes fence conflicting actions. Confirmed local process/group
+shutdown can reconcile an interrupted result without inventing quality. Original assignments and allocations
 are not renewed. This is not an exactly-once claim about external effects. Local
 process shutdown cannot certify container/remote shutdown after the client failed;
-those lifetimes remain unresolved and require adapter-specific reconciliation.
+those lifetimes require a retained adapter attestation. The native qualification
+adapter confirms/removes only containers with that invocation's exclusive host
+mounts. Its selected-wait handling quiesces the invocation after the actor turn
+ends, even if an unrelated legacy preparation worker is still running.
 
 Adoption is scoped to the original authority and a host-admitted measurement. The
 protected evaluator determines its own admissibility result; no numeric research
@@ -59,7 +64,9 @@ beyond-reach evidence. The actor's interpretations or within-reach self-tests
 cannot supply that condition. Initial selection cites the provisioner's standing
 authorization and makes no performance claim. Kernel/store settlement conditions
 are unchanged. A lost adoption acknowledgement returns the original committed
-receipt; a different request or stale incumbent is rejected. Cancellation and an
+receipt; a different request or stale incumbent is rejected. Committed receipts remain
+readable after allocation expiry; that read creates no new authority. A research
+version cannot inherit the existing task deployment's kind. Cancellation and an
 admitted adoption have a single host ordering.
 
 The native runtime additionally retains a cancelled action's terminal receipt,

@@ -120,6 +120,8 @@ class NativeEvidenceTest(unittest.TestCase):
         delivery_action = getattr(self, "delivery_action_fixture", False)
         final_response = "BEGIN-NATIVE-RESPONSE\n" + "原始交付内容\n" * 200 + "END-NATIVE-RESPONSE" if delivery_evidence else "Fixture completed."
         progression = getattr(self, "progress_fixture", False)
+        publication_caller_loss = getattr(self, "publication_caller_loss_fixture", False)
+        caller_loss_observed = []
         diagnostic_review = getattr(self, "diagnostic_review_fixture", False)
         initial_review_defeat = getattr(self, "initial_review_defeat_fixture", False)
         input_strategy = getattr(self, "input_strategy_fixture", False)
@@ -686,7 +688,25 @@ text({structuredEvidencePages:true});
                                 code = 'text(await tools.publish_progress({request_id:"first"}));'
                                 if diagnostic_review:
                                     code = 'text(await tools.publish_progress({request_id:"first",review:true}));'
+                                if publication_caller_loss:
+                                    # Fault injection: end this code-mode caller while its
+                                    # publication is executing. No model inference is used.
+                                    code = 'void tools.publish_progress({request_id:"first"}); await new Promise(r=>setTimeout(r,250)); text("discarded publication waiter");'
                             elif stage == 3:
+                                if publication_caller_loss:
+                                    database = home / "pro_contract/ledger_1.sqlite"
+                                    until = time.monotonic() + 15
+                                    while time.monotonic() < until:
+                                        with sqlite3.connect(database) as connection:
+                                            row = connection.execute("SELECT json FROM records WHERE kind='progress_grant_v1'").fetchone()
+                                        grant = json.loads(row[0]) if row else {}
+                                        if grant.get('pending') == 'first':
+                                            caller_loss_observed.append(True)
+                                        elif caller_loss_observed:
+                                            break
+                                        time.sleep(.025)
+                                    if not caller_loss_observed or grant.get('pending') is not None:
+                                        raise AssertionError('caller loss did not retain and finalize the admitted publication')
                                 code = successor_recall[:successor_recall.index('const frontier')] + r"""
 const index = decode(await tools.contract_read_evidence({op:"index"}));
 const entry = index.entries.find(x=>x.kind==="progress");
@@ -858,6 +878,11 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                 settings_path=home/'pro_contract/settings.json'
                 settings=json.loads(settings_path.read_text())
                 settings['evaluation']['check']['build_command'] += " && python3 -c \"from pathlib import Path; assert Path('/inputs/source.txt').read_text() == 'immutable source\\n'\""
+                settings_path.write_text(json.dumps(settings))
+            if publication_caller_loss:
+                settings_path=home/'pro_contract/settings.json'
+                settings=json.loads(settings_path.read_text())
+                settings['evaluation']['check']['build_command']='sleep 2; '+settings['evaluation']['check']['build_command']
                 settings_path.write_text(json.dumps(settings))
             if late_successor:
                 # Keep the cross-version control compatible with the old required field.
@@ -1171,6 +1196,8 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                             self.assertTrue(any(g["requirement_id"]=="R2" for g in retained["gaps"]))
                         self.assertEqual((workspace/"answer.txt").read_text().strip(),"ready")
                 if progression:
+                    if publication_caller_loss:
+                        self.assertTrue(caller_loss_observed)
                     self.assertEqual(counts.get("executor"), 5)
                     self.assertEqual(any("sameTurnFeedback" in text for request in requests for text in text_values(request)),not missing_access)
                     with sqlite3.connect(database) as connection:
@@ -1367,6 +1394,7 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                                 transport_failure_fixture=transport_failure,injected_failures=injected_failures,
                                 request_budget=request_budget.status() if request_budget else None,
                                 progress_fixture=progression,resource_limit_fixture=resource_limit,
+                                publication_caller_loss_fixture=publication_caller_loss,caller_loss_observed=bool(caller_loss_observed),
                                 successor_progress_fixture=successor_progress,deadline_fixture=deadline_fixture,
                                 owner_cancel_fixture=owner_cancel,task_seconds=getattr(self,'task_seconds',75 if late_successor else 60 if deadline_fixture else 3600),
                             ),
