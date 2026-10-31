@@ -12,6 +12,15 @@ import procodex_config as procodex
 
 @unittest.skipUnless(sys.platform == "linux", "Linux Docker launcher")
 class ConfigurationTests(unittest.TestCase):
+    def test_actor_mounts_runtime_components_without_host_controller_or_measurement_sources(self):
+        package=self.root/'package'
+        home,_=procodex.configure(package,self.workspace,self.root/'procodex',self.source,'image',None)
+        args=tomllib.loads((home/'environments.toml').read_text())['environments'][0]['args']
+        mounts=[args[i+1] for i,v in enumerate(args) if v=='--mount']
+        self.assertIn(f'type=bind,src={package / "bin"},dst=/opt/procodex/bin,readonly',mounts)
+        self.assertIn(f'type=bind,src={package / "codex-resources"},dst=/opt/procodex/codex-resources,readonly',mounts)
+        self.assertNotIn(f'type=bind,src={package},dst=/opt/procodex,readonly',mounts)
+
     def test_default_task_has_no_deadline_and_resume_does_not_invent_one(self):
         args=(self.root/"package",self.workspace,self.root/"procodex",self.source,"sha256:"+"a"*64,None)
         home,_=procodex.configure(*args,continuous_work=True)

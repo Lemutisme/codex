@@ -24,8 +24,10 @@ Available operations:
   (host outcome object ID), rationale. Standing authorization covers only the
   declared trial scope; the host authenticates authority/evidence and fences stale
   selections. Do not claim to be a human settler or redefine the evaluator.
-- `wait`: epoch, through (observed pending cursor), condition (event and/or after
-  timestamp). It records selected waiting without keeping a model turn alive.
+- `wait`: epoch, through (observed pending cursor), condition. Use `event: true`
+  for any admitted subscription event, or an event kind listed in the inbox.
+  An optional finite `after` timestamp is an alternative wake; `event: false`
+  selects time-only waiting. It records waiting without keeping a model turn alive.
 
 You choose the research sequence and whether to retain the incumbent, make a
 candidate, experiment, adopt within authority, or wait. No analyst/challenger

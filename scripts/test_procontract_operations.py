@@ -18,6 +18,15 @@ class OperationsTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        # A retained outcome may precede the last metadata launcher's exit.
+        # Join our own control processes before deleting their journal fixture.
+        spawned=[]
+        original_popen=ops.subprocess.Popen
+        def launch(*args,**kwargs):
+            process=original_popen(*args,**kwargs);spawned.append(process);return process
+        patcher=patch.object(ops.subprocess,'Popen',side_effect=launch)
+        patcher.start();self.addCleanup(patcher.stop)
+        self.addCleanup(lambda: [process.wait(timeout=10) for process in spawned])
         self.root = Path(self.temp.name)
         self.runner = self.root / 'measure.py'
         self.runner.write_text('''import json,sys,time
@@ -250,6 +259,34 @@ time.sleep(q.get('sleep',0))
         self.assertEqual(result['execution'],'completed')
         self.assertFalse(result['shutdown_confirmed'])
         with self.assertRaisesRegex(ValueError,'effect scope'):self.submit('conflicting')
+
+    def test_boolean_event_wait_and_reconstructed_delivery_preserve_unacknowledged_input(self):
+        self.host.wait('research',0,0,{'event':True})
+        observation=self.host.observation(self.version,[],{}, {'quality':None},{},source='task')
+        self.assertIsNotNone(self.host.inbox('research')['pending'])
+        with self.host.tx() as db:
+            db.execute("UPDATE inbox SET pending=NULL WHERE id='research'")
+        restored=ops.Operations(self.host.root)
+        pending=restored.wakes()[0]['pending']
+        self.assertEqual(restored.read(after=pending-1)['events'][0]['object_id'],observation)
+        restored.wait('research',0,pending,{'event':True})
+        self.assertEqual(restored.wakes(),[])
+        with self.assertRaisesRegex(ValueError,'subscription'):
+            restored.wait('research',0,pending,{'event':'unoffered-event'})
+
+    def test_defeated_settlement_is_not_a_current_incumbent_or_a_new_bootstrap(self):
+        state=self.host.bootstrap(self.version)
+        selected=self.host.incumbent()
+        ops.kernel.apply(self.host.store,'defeat-exposed-basis',{'contract_id':state['id'],
+            'expected_version':state['version'],'role':'verifier','provenance':'automation',
+            'command':{'type':'defeat','target':{'type':'settlement','coordinate':state['settlement']['coordinate']},
+                       'defeater':ops.kernel.digest('defeater','the claimed private evidence was reachable')}})
+        current=self.host.incumbent()
+        self.assertEqual(current['seq'],selected['seq'])
+        self.assertIsNone(current['version'])
+        self.assertEqual(current['selected_version'],self.version)
+        with self.assertRaisesRegex(ValueError,'bootstrap'):
+            self.host.bootstrap(self.version)
 
 
 if __name__=='__main__':unittest.main()

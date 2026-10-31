@@ -7,16 +7,19 @@ contains no candidate patch, adoption decision or model-response substitution.
 """
 import argparse
 import contextlib
+import hashlib
 import json
 import os
 from pathlib import Path
 import queue
+import secrets
 import shutil
 import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import tomllib
 
 import procontract_operations as ops
 from procontract_operations_rpc import Broker
@@ -25,6 +28,49 @@ from procontract_benchmark_gateway import Budget, Gateway
 import procodex_config
 
 REPO=Path(__file__).resolve().parent.parent
+
+
+def build_identity(package):
+    """Reproducible definitions; actual request/context bytes stay per-run."""
+    def digest(path):
+        with path.open('rb') as stream:
+            return hashlib.file_digest(stream,'sha256').hexdigest()
+    sources={'adapter':Path(__file__), 'operations':Path(ops.__file__),
+        'store_binding':Path(ops.kernel.__file__), 'resolver':Path(procodex_config.__file__),
+        'inputs':Path(procodex_config.procodex_inputs.__file__),
+        'rpc':Path(sys.modules[Broker.__module__].__file__),
+        'native_transport':Path(sys.modules[AppServer.__module__].__file__),
+        'gateway':Path(sys.modules[Budget.__module__].__file__)}
+    return {'package_files':{str(p.relative_to(package)):digest(p) for p in sorted(package.rglob('*'))
+                             if p.is_file() and '__pycache__' not in p.parts},
+            'host_sources':{name:digest(path) for name,path in sources.items()}}
+
+
+def observe_build(package, definition):
+    observed=build_identity(package)
+    expected=definition['build'].get('snapshot')
+    if expected is not None and expected != observed:
+        raise ValueError('version build/resolver/tool sources differ; no model work admitted')
+    # Older definitions remain readable with their original, narrower meaning.
+    return observed
+
+
+def verify_actor_view(home, image):
+    """Exercise the configured runtime view before model work; do not infer reach
+    from a read-only mount (read-only still permits reading private fixtures)."""
+    environment=tomllib.loads((home/'environments.toml').read_text())['environments'][0]
+    arguments=environment['args'];end=arguments.index(image)+1
+    probe='''import json
+from pathlib import Path
+assert Path('/opt/procodex/bin/codex').is_file()
+assert not Path('/opt/procodex/scripts').exists()
+assert not Path('/opt/procodex/procodex-release.json').exists()
+print(json.dumps({'runtime_binary': True, 'host_scripts_visible': False, 'host_manifest_visible': False}))
+'''
+    result=subprocess.run([environment['program'],*arguments[:end],'python3','-c',probe],
+                          check=True,capture_output=True,text=True,timeout=20)
+    return {'environment_sha256':ops.sha((home/'environments.toml').read_bytes()),
+            'observed':json.loads(result.stdout),'mounts':[arguments[i+1] for i,v in enumerate(arguments) if v=='--mount']}
 
 
 def confirm_environment_shutdown(workspace, home):
@@ -66,6 +112,7 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds, socke
     workspace=run/'w';workspace.mkdir(exist_ok=True)
     strategy=run/'strategy';strategy.mkdir(exist_ok=True)
     definition=host.get(version,'version')['definition']
+    actual_build=observe_build(package,definition)
     for name,content in definition['files'].items():
         if name.endswith('.md'):
             (strategy/name).parent.mkdir(parents=True,exist_ok=True)
@@ -86,8 +133,11 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds, socke
     settings['evaluation']['excluded_paths'].append('s')
     settings['resource_snapshot']=str(budget.resource_path)
     settings_path.write_text(json.dumps(settings))
+    actor_view=verify_actor_view(home,image)
+    ops.atomic(run/'actor-view.json',actor_view)
     resolved=host.resolved(version,{'prompt':prompt,'configuration':config,'policies':{k:v for k,v in definition['files'].items() if k.endswith('.md')}},
-        {k:ops.sha(Path(v).read_bytes()) for k,v in inputs.items()}, {'image':image,'network':'none','model':'gpt-5.6-luna','effort':'max','seconds':seconds,'requests':None})
+        {k:ops.sha(Path(v).read_bytes()) for k,v in inputs.items()}, {'image':image,'network':'none','model':'gpt-5.6-luna','effort':'max','seconds':seconds,'requests':None,
+        'build_observation':actual_build,'actor_view':actor_view})
     broker=None
     if socket_host:
         broker=Broker(workspace/'s',host,socket_host,measurements=('reducer-contract-v1',))
@@ -209,7 +259,13 @@ def episode(root, package, image):
     subprocess.run(['docker','run','--rm','--network','none','--mount',f'type=bind,src={package},dst=/opt/procodex,readonly',
         image,'/bin/bash','-c','python3 -c "import json,socket" && /opt/procodex/bin/codex --version'],check=True,capture_output=True)
     config=root/'sealed.json'
-    ops.atomic(config,{'image':image,'cases':[['5\n8',13],['-7\n2\n',-5],['1\r\n4',5],['',0],['\n2\n\n3\n',5],['101',101]]})
+    numbers=[secrets.randbelow(2_000_001)-1_000_000 for _ in range(9)]
+    a,b,c,d,e,f,g,h,i=numbers
+    # Actual cases are host-private per-episode data, never package source or
+    # actor workspace content. The protected verifier's algorithm is not itself
+    # evidence that its input data was beyond the candidate's reach.
+    ops.atomic(config,{'image':image,'cases':[[f'{a}\n{b}',a+b],[f'{c}\n{d}\n',c+d],
+        [f'{e}\r\n{f}',e+f],['',0],[f'\n{g}\n\n{h}\n',g+h],[str(i),i]]})
     measurement=ops.Measurement((sys.executable,str(Path(__file__).resolve()),'measure',str(config)),
         ops.sha({'runner':ops.sha(Path(__file__).read_bytes()),'inputs':ops.sha(config.read_bytes())}), image,True,120,True,'sealed-reducer')
     native_config=root/'native.json'
@@ -226,7 +282,8 @@ def episode(root, package, image):
     host.subscribe('tasks','external-input',['observation'])
     policies={p.name:p.read_text() for p in (REPO/'codex-rs/ext/pro-contract/policies').glob('*.md')}
     files={**policies,'reducer.py':'import sys\nrows = sys.stdin.read().split("\\n")[:-1]\nprint(sum(int(row) for row in rows if row.strip()))\n'}
-    definition={'kind':'task','files':files,'build':{'codex':ops.sha((package/'bin/codex').read_bytes()),'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip()},
+    definition={'kind':'task','files':files,'build':{'codex':ops.sha((package/'bin/codex').read_bytes()),'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=REPO,text=True).strip(),
+                'snapshot':build_identity(package)},
                 'model':{'name':'gpt-5.6-luna','effort':'max'},'resolver':'procodex-config-v1','tools':{'network':'none','immutable_inputs':True}}
     incumbent=host.register(definition);host.bootstrap(incumbent)
     research_definition={**definition,'kind':'research','files':{**policies,'work_method.md':(REPO/'strategies/research/operations.md').read_text()}}

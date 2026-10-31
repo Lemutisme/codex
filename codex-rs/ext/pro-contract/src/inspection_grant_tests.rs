@@ -120,3 +120,49 @@ fn confirmed_shutdown_without_a_caller_result_preserves_spent_slot_and_allows_ne
     assert_ne!(work, next);
     assert!(!work.join("result.json").exists());
 }
+
+#[tokio::test]
+async fn cancelled_owned_inspection_finalizes_before_the_next_observation_without_a_new_grant() {
+    let root = tempfile::tempdir().unwrap();
+    let grant = fixture(root.path().join("grant"), Duration::from_secs(60)).unwrap();
+    let original_binding = grant.binding;
+    let (work, _) = grant
+        .reserve(&json!({"first":true}), Duration::from_secs(60))
+        .unwrap();
+    std::fs::create_dir(&work).unwrap();
+    let directory = work.join("action");
+    let action_path = directory.clone();
+    let caller = tokio::spawn(async move {
+        let mut command = tokio::process::Command::new("sh");
+        command.args(["-c", "echo retained; sleep 30"]);
+        crate::execution::run(
+            command,
+            &action_path,
+            original_binding,
+            Duration::from_secs(30),
+            Some(crate::execution::Cleanup::new(
+                "sh".into(),
+                vec!["-c".into(), "sleep 0.1".into()],
+            )),
+        )
+        .await
+    });
+    let until = tokio::time::Instant::now() + Duration::from_secs(3);
+    while std::fs::read_to_string(directory.join("stdout")).unwrap_or_default() != "retained\n" {
+        assert!(tokio::time::Instant::now() < until);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    caller.abort();
+    let _ = caller.await;
+    grant.wait_for_owned_actions().await;
+    let actions = grant.actions().unwrap();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0].state, crate::ExecutionState::Cancelled);
+    assert!(actions[0].shutdown_confirmed && actions[0].finished_ms.is_some());
+    assert!(!work.join("result.json").exists());
+    let (next, _) = grant
+        .reserve(&json!({"next":true}), Duration::from_secs(60))
+        .unwrap();
+    assert_ne!(work, next);
+    assert_eq!(grant.binding, original_binding);
+}

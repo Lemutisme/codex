@@ -1,6 +1,8 @@
+> Qualification correction: E4 closed the mechanical loop but its package mount exposed the fixed-case fixture source. Its beyond-reach claim is withdrawn. Runtime-view isolation and fresh host-private cases are being qualified; E4 remains historical evidence.
+
 # RSI implementation and qualification
 
-Status: core implemented; qualification in progress on `feat/procontract-rsi-e2e-20261031`,
+Status: implemented and qualified; see `procontract-rsi-qualification-20261031.md` on `feat/procontract-rsi-e2e-20261031`,
 based on `454b2ba00fffad94e4262da9989eb682d5fdb853`.
 
 Scope: reusable durable operations and model-selected research over the existing
@@ -65,3 +67,20 @@ controls pass. The native reviewer-503 control now also reaches strategy-selecte
 verification without another user turn or another executor call. Known local
 inspection finalization and thread teardown now await owned action receipts;
 unknown historical executions remain unresolved rather than inferred complete.
+
+Final result: E4 exercised automatic task-outcome wake, a real model-authored
+candidate, sealed testing, delegated kernel adoption and a subsequent native task
+actually using the selected version. The qualified runtime snapshot is
+`5897057a5`; later fingerprint and wake-reconciliation controls are identified
+separately in the qualification report. Final controls: 249 Rust, 23 Python and
+nine native tests pass. All four real development episodes and their 158 Luna/max
+requests are retained and accounted. The ongoing ProgramBench cohort is unchanged.
+
+Reach audit correction: the earlier read-only package mount exposed the fixture
+script and its fixed cases. E2 and E4's claimed beyond-reach settlements have been
+explicitly defeated through the existing kernel; their prior events, measured
+outputs and trajectories remain historical. The incumbent view now refuses a
+selection without a current settlement and retains its real sequence fence.
+The actor view is narrowed to native binaries/resources; fresh cases are generated
+and retained only on the host. Actual Docker probes confirm the host scripts and
+manifest are absent from the new actor view. A fresh qualification is required.

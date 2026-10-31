@@ -18,7 +18,8 @@ caps it by the admitted capability and original authority.
 `procontract_operations_rpc.Broker` exposes a local capability socket for one
 responsibility. Mount the socket into its offline environment; keep the host
 journal, authority, sealed evaluator and inputs outside it. Actor identity and
-settlement provenance come from that binding. The actor cannot bootstrap a version,
+settlement provenance come from that binding. The native executor mounts only runtime binaries/resources, not host scripts or
+measurement inputs. Read-only visibility still counts as reach. The actor cannot bootstrap a version,
 create authorization evidence, choose an unoffered measurement, widen its editable
 files or supply a human settlement. The example research context is
 [`strategies/research/operations.md`](../strategies/research/operations.md).
@@ -31,7 +32,7 @@ The capability surface is intentionally small:
 | resolved | Instructions actually supplied, retrieved sources and run conditions |
 | observation / knowledge | Outcomes or explicitly labeled claims; scoped interpretation/correction, without adopting behavior |
 | submit / dispatch / inspect / reconcile / cancel | One explicit assignment, durable reservation, process identity, outcome and original resources |
-| subscribe / inbox / wakes / wait | Selected event inputs, coalesced pending cursor, durable waiting; selector failure does not acknowledge input |
+| subscribe / inbox / wakes / wait | Selected event inputs, coalesced/reconstructible pending cursor, durable waiting; selector failure does not acknowledge input |
 | adopt | Existing kernel Issue/Propose/Support and atomic Discharge + selection, with actual delegated provenance and an expected-incumbent fence |
 
 Version definitions identify all supplied instruction files, code/build, model,
@@ -40,7 +41,9 @@ file bytes are content-addressed. A provisioner can explicitly permit changes to
 build/model/resolver/tool definition fields; these are declarations whose actual
 use must be bound by the execution adapter. They are not self-authenticating build
 attestations. Per-run resolved inputs are separate from version definitions.
-The qualification adapter retains exact native model request payloads as well as
+The qualification adapter fingerprints all package files, including the tool host,
+and its actual resolver/transport/host sources; it rejects a changed pinned build
+before inference. It retains exact native model request payloads as well as
 version/context identities and allocator request/usage records for every role.
 
 Dispatch can be delivered repeatedly. A worker claims the durable reservation
@@ -67,7 +70,9 @@ are unchanged. A lost adoption acknowledgement returns the original committed
 receipt; a different request or stale incumbent is rejected. Committed receipts remain
 readable after allocation expiry; that read creates no new authority. A research
 version cannot inherit the existing task deployment's kind. Cancellation and an
-admitted adoption have a single host ordering.
+admitted adoption have a single host ordering. A later kernel defeat makes the
+selected version unavailable; the host preserves the latest selection sequence
+and requires an explicit new decision rather than silently choosing a fallback.
 
 The native runtime additionally retains a cancelled action's terminal receipt,
 lets a publication outlive its caller's transport, waits for a known local
@@ -101,3 +106,5 @@ legacy native selector are not silently repaired by this interface: the generic
 host preserves their operation outcome/pending input for a separately authorized
 arrangement. Existing fixed campaigns remain pinned and receive no automatic
 migration or hidden feedback.
+
+Qualification and exact limits: [2026-10-31 report](research/procontract-rsi-qualification-20261031.md).

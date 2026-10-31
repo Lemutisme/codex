@@ -2,10 +2,11 @@
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
-from qualify_procontract_operations import confirm_environment_shutdown
+from qualify_procontract_operations import build_identity, confirm_environment_shutdown, observe_build
 
 
 class CleanupTest(unittest.TestCase):
@@ -32,6 +33,28 @@ class CleanupTest(unittest.TestCase):
             result=confirm_environment_shutdown(Path('/fixture/run/workspace'),Path('/fixture/run/state'))
         self.assertFalse(result['confirmed'])
         self.assertIn('daemon unavailable',result['error'])
+
+    def test_version_includes_tool_host_and_changed_bytes_are_fenced_before_model_work(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            package=Path(temporary);(package/'bin').mkdir()
+            (package/'bin/codex').write_text('native')
+            host=package/'bin/codex-code-mode-host';host.write_text('tool host v1')
+            original=build_identity(package)
+            definition={'build':{'snapshot':original}}
+            self.assertIn('bin/codex-code-mode-host',original['package_files'])
+            self.assertIn('resolver',original['host_sources'])
+            self.assertEqual(observe_build(package,definition),original)
+            host.write_text('tool host v2')
+            with self.assertRaisesRegex(ValueError,'differ'):
+                observe_build(package,definition)
+            self.assertNotEqual(observe_build(package,{'build':{}}),original)
+
+    def test_build_identity_does_not_include_the_per_run_location(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            first=Path(temporary)/'first';second=Path(temporary)/'second'
+            for root in (first,second):
+                (root/'bin').mkdir(parents=True);(root/'bin/codex').write_text('same binary')
+            self.assertEqual(build_identity(first),build_identity(second))
 
 
 if __name__=='__main__':unittest.main()

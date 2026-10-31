@@ -188,8 +188,9 @@ class Operations:
         seq = db.execute("INSERT INTO events(kind,source,object_id) VALUES(?,?,?)", (kind, source, identity)).lastrowid
         for row in db.execute("SELECT * FROM inbox WHERE cancelled=0"):
             wake = json.loads(row["wake"]) if row["wake"] else {}
+            selected = wake.get("event", True)
             if (row["source"] in ("*", source) and kind in json.loads(row["kinds"])
-                    and wake.get("event", kind) == kind and seq > row["cursor"]):
+                    and (selected is True or selected == kind) and seq > row["cursor"]):
                 db.execute("UPDATE inbox SET pending=? WHERE id=?", (seq, row["id"]))
         return seq
 
@@ -289,16 +290,33 @@ class Operations:
         """
         if set(condition) - {"after", "event"}:
             raise ValueError("unknown wake condition")
+        event = condition.get("event", True)
+        if not isinstance(event, (bool, str)):
+            raise ValueError("event must be true, false or an admitted event kind")
+        after = condition.get("after")
+        if after is not None and (isinstance(after, bool) or not isinstance(after, (float, int)) or not math.isfinite(after)):
+            raise ValueError("after must be a finite timestamp or null")
         with self.tx() as db:
             row = db.execute("SELECT * FROM inbox WHERE id=?", (responsibility,)).fetchone()
             if not row or row["cancelled"] or row["epoch"] != epoch or through < row["cursor"] or through > (row["pending"] or row["cursor"]):
                 raise ValueError("stale or unauthorized wait")
+            if isinstance(event, str) and event not in json.loads(row["kinds"]):
+                raise ValueError("wake event is not in the admitted subscription")
             pending = row["pending"] if (row["pending"] or 0) > through else None
             db.execute("UPDATE inbox SET cursor=?,pending=?,wake=? WHERE id=?", (through, pending, encoded(condition), responsibility))
         return self.inbox(responsibility)
 
     def wakes(self):
         with self.tx() as db:
+            rows = db.execute("SELECT * FROM inbox WHERE cancelled=0").fetchall()
+            for row in rows:
+                condition = json.loads(row["wake"]) if row["wake"] else {}
+                selected = condition.get("event", True)
+                kinds = json.loads(row["kinds"])
+                matches = [event["seq"] for event in db.execute("SELECT * FROM events WHERE seq>?", (row["cursor"],))
+                           if row["source"] in ("*", event["source"]) and event["kind"] in kinds
+                           and (selected is True or selected == event["kind"])]
+                db.execute("UPDATE inbox SET pending=? WHERE id=?", (max(matches) if matches else None, row["id"]))
             rows = db.execute("SELECT * FROM inbox WHERE cancelled=0").fetchall()
         ready = []
         for row in rows:
@@ -510,7 +528,17 @@ class Operations:
     def incumbent(self):
         rows = [r for r in kernel.events(self.store)
                 if r["event"]["kind"] == "selection" and r["event"]["body"].get("role") == "incumbent"]
-        return {"seq": rows[-1]["seq"], "version": rows[-1]["event"]["body"]["version"]} if rows else {"seq": None, "version": None}
+        if not rows:
+            return {"seq": None, "version": None}
+        row = rows[-1]
+        selected = row["event"]["body"]
+        state = kernel.contract(self.store, selected["adoption"])
+        if not state or state["standing"] != "discharged" or state["settlement"]["coordinate"]["subject_hash"] != selected["version"]:
+            # Preserve the actual latest sequence for the store's fence. Choosing
+            # a fallback is a new authorized decision, not an implicit workflow.
+            return {"seq": row["seq"], "version": None, "selected_version": selected["version"],
+                    "reason": "selected version has no current settlement; explicit selection required"}
+        return {"seq": row["seq"], "version": selected["version"]}
 
     def issue(self, identity, terms):
         if kernel.contract(self.store, identity):
@@ -555,7 +583,8 @@ class Operations:
         if not self.authority.allow_adoption:
             raise ValueError("standing authorization does not permit adoption")
         definition = self.get(version, "version")["definition"]
-        current = self.incumbent()["version"]
+        view = self.incumbent()
+        current = view.get("selected_version") or view["version"]
         if current and self.get(current, "version")["definition"]["kind"] != definition["kind"]:
             raise ValueError("version kind differs from this deployment scope")
         if not old:
@@ -609,7 +638,7 @@ class Operations:
         return result
 
     def bootstrap(self, version):
-        if self.incumbent()["version"] is not None:
+        if self.incumbent()["seq"] is not None:
             raise ValueError("bootstrap cannot replace an incumbent")
         evidence = self.put("authorization", {"version": version, "authorization": sha(self.config["authority"]),
                             "source": self.authority.source, "meaning": "authorized initial trial; no performance certification"})
