@@ -2,8 +2,9 @@
 
 Living record, updated 2026-10-31. This consolidates observed mechanisms and
 proposed validation. It installs no prompts, runtime gates or kernel rules.
-The user asked to record first and make a consolidated repair later. Keep
-[the layer agreement](../PROCONTRACT_LAYERS.md) authoritative.
+The fixed benchmark remains frozen. On 2026-10-31 the user authorized isolated
+E2E RSI development by one Astra xhigh agent while the parent continues trajectory
+analysis. Keep [the layer agreement](../PROCONTRACT_LAYERS.md) authoritative.
 
 ## Current evidence anchor
 
@@ -140,7 +141,10 @@ The [E2E meta-analysis/RSI architecture](procontract-rsi-e2e-architecture-202610
 specifies how that process can become ordinary authorized work under the same
 kernel. It separates scoped knowledge, candidate versions, experiments and actual
 adoption, and requires the selected version to be used by a subsequent task before
-claiming automatic rollout. It remains a design, not an enabled self-modifying loop.
+claiming automatic rollout. The user has now delegated implementation to one
+Astra xhigh agent in an isolated branch; no automatic loop is enabled in the fixed
+campaign. The parent continues [test-time feedback analysis](procontract-test-time-feedback-20261031.md)
+with quality, execution, measurement conditions and cost kept separate.
 
 The [positive-trajectory comparison](procontract-positive-trajectories-20261028.md)
 adds five cases above the frozen Vals Luna/max reference. It supports the existing
@@ -161,3 +165,4 @@ are distinct from attributing the entire score gap to ProContract or extra compu
 - [Latest status, second perfect result and driver-state issue](programbench-status-20261030.md)
 - [Combined root-cause synthesis and measurement correction](procontract-root-cause-synthesis-20261031.md)
 - [E2E meta-analysis and RSI architecture](procontract-rsi-e2e-architecture-20261031.md)
+- [Test-time feedback and delegated implementation](procontract-test-time-feedback-20261031.md)
