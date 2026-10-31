@@ -495,6 +495,8 @@ text({publicEvidenceRecall:true, handle, originalSubject:record.subject_hash});
                                 choice=dict(action="check",reason="Observe the retained interrupted work before choosing more execution.")
                             elif autonomous and failure_after_write and facts["assessment"]["stage"] == "checks":
                                 choice=dict(action="verify",reason="The retained work passes its check; assess it without replaying the write.")
+                            elif autonomous and transport_failure == "review" and facts["assessment"]["stage"] == "verification":
+                                choice=dict(action="verify",reason="The reviewer transport failed with resolved effects; this fixture strategy selects another assessment of the retained subject.")
                             message=dict(choice=choice)
                             if continuation_model is not None:message=continuation_model(body)
                             if selection_model is not None:
@@ -1076,9 +1078,13 @@ Path('input-check.json').write_text(json.dumps({'content':content,'write_denied'
                         with sqlite3.connect(database) as connection:
                             observed=[json.loads(r[0])['body'] for r in connection.execute('SELECT event_json FROM experiment_events')]
                         snapshots=[v for v in observed if v.get('phase')=='interrupted_snapshot']
-                        self.assertEqual(len(snapshots),1)
-                        self.assertFalse(snapshots[0]['handoff'])
-                        self.assertFalse(any(v.get('phase')=='task_delivery' and v.get('turn_id')==snapshots[0]['turn_id'] for v in observed))
+                        if transport_failure == "review":
+                            self.assertEqual(snapshots,[])
+                            self.assertEqual(counts.get('executor'),2,"review recovery must not replay the executor")
+                        else:
+                            self.assertEqual(len(snapshots),1)
+                            self.assertFalse(snapshots[0]['handoff'])
+                            self.assertFalse(any(v.get('phase')=='task_delivery' and v.get('turn_id')==snapshots[0]['turn_id'] for v in observed))
                     self.assertEqual(commands.count('issue'),1)
                     self.assertEqual(commands.count('support'),1)
                     self.assertEqual(counts.get('draft'),1)

@@ -70,7 +70,8 @@ version cannot inherit the existing task deployment's kind. Cancellation and an
 admitted adoption have a single host ordering.
 
 The native runtime additionally retains a cancelled action's terminal receipt,
-lets a publication outlive its caller's transport, and permits a fresh strategy
+lets a publication outlive its caller's transport, waits for a known local
+inspection owner to finalize before assessing its receipt, and permits a fresh strategy
 decision after confirmed check/reviewer interruption. Thread teardown still
 cancels work. Unknown effects remain blocked. Completed shutdown without a
 caller-level computation result spends the original slot but does not invent an

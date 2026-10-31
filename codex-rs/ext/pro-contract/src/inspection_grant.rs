@@ -172,6 +172,15 @@ impl InspectionGrant {
         Ok(actions)
     }
 
+    pub async fn wait_for_owned_actions(&self) {
+        for slot in 0..self.limits.max_calls {
+            crate::execution::wait_for_finalization(
+                &self.directory.join(format!("call-{slot}/action")),
+            )
+            .await;
+        }
+    }
+
     pub fn history(&self, store: &crate::BlobStore) -> Result<Vec<String>, String> {
         let mut history = Vec::new();
         for slot in 0..self.limits.max_calls {

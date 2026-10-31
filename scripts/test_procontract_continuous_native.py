@@ -10,6 +10,9 @@ class ContinuousNativeTests(unittest.TestCase):
     def test_abandoned_code_mode_publication_finishes_and_repair_continues(self):
         self.run_case(progress_fixture=True, publication_caller_loss_fixture=True)
 
+    def test_confirmed_reviewer_transport_failure_returns_to_strategy_without_a_new_turn(self):
+        self.run_case(task_seconds=120, transport_failure_fixture="review", autonomous_fixture=True)
+
     def test_failed_root_before_issue_continues_without_another_user_turn(self):
         self.run_case(task_seconds=120, transport_failure_fixture="executor", autonomous_fixture=True,
                       failure_before_issue_fixture=True, stream_disconnect_fixture=True)

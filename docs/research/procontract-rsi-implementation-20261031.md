@@ -53,3 +53,15 @@ Further qualification before the final episode:
   legacy drafter. It was interrupted through its own isolated runner, with
   adoption and failed-operation evidence retained; no next-task rollout claim
   is made for that partial episode. This led to the adapter wait/shutdown fix.
+
+The next replay, `e3`, stopped before dispatching research because its declared
+native effect scope was unresolved. A container had auto-removed between Docker
+inspection and removal; the CLI failure was conservatively retained. The adapter
+now checks the subsequent live set, with controls for both already-removed and
+still-running containers and for unrelated mounts. Raw `e3` is retained.
+
+Current validation: 248 Rust tests and Clippy pass; 20 Python operation/adapter
+controls pass. The native reviewer-503 control now also reaches strategy-selected
+verification without another user turn or another executor call. Known local
+inspection finalization and thread teardown now await owned action receipts;
+unknown historical executions remain unresolved rather than inferred complete.

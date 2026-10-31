@@ -16,6 +16,55 @@ use tokio::process::Command;
 
 const STREAM_CAP: usize = 32 << 20;
 
+type Completion = tokio::sync::watch::Receiver<bool>;
+static OWNED: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<PathBuf, Completion>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
+struct Finalization {
+    directory: PathBuf,
+    finished: tokio::sync::watch::Sender<bool>,
+}
+
+impl Drop for Finalization {
+    fn drop(&mut self) {
+        self.finished.send_replace(true);
+        OWNED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.directory);
+    }
+}
+
+/// Await only an owner known to this process. Old/unknown records are never
+/// inferred complete. The bound covers the existing cleanup and stream drains;
+/// observing an unresolved end does not authorize replay or extend execution.
+pub(crate) async fn wait_for_finalization(directory: &Path) {
+    let completion = OWNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(directory)
+        .cloned();
+    if let Some(mut completion) = completion {
+        let _ =
+            tokio::time::timeout(Duration::from_secs(15), completion.wait_for(|done| *done)).await;
+    }
+}
+
+pub(crate) async fn wait_for_owned_under(directory: &Path) {
+    let completions: Vec<_> = OWNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .filter(|(path, _)| path.starts_with(directory))
+        .map(|(_, done)| done.clone())
+        .collect();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    for mut completion in completions {
+        let _ = tokio::time::timeout_at(deadline, completion.wait_for(|done| *done)).await;
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionState {
@@ -199,9 +248,31 @@ pub(crate) async fn run(
 ) -> std::io::Result<Output> {
     let (cancel, cancelled) = tokio::sync::oneshot::channel();
     let directory = directory.to_path_buf();
+    let (finished, completion) = tokio::sync::watch::channel(false);
+    {
+        let mut owned = OWNED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match owned.entry(directory.clone()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(completion);
+            }
+            std::collections::btree_map::Entry::Occupied(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    "action already owned; no replay",
+                ));
+            }
+        }
+    }
+    let finalization = Finalization {
+        directory: directory.clone(),
+        finished,
+    };
     // Dropping the sender (including aborting this caller) wakes the owned action.
     // Its JoinHandle may be dropped, but finalization is not owned by that handle.
     let action = tokio::spawn(async move {
+        let _finalization = finalization;
         run_owned(command, &directory, binding, timeout, cleanup, cancelled).await
     });
     let result = action.await.map_err(std::io::Error::other)?;

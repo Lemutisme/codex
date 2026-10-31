@@ -39,10 +39,14 @@ def confirm_environment_shutdown(workspace, home):
                 sources=[Path(m['Source']).resolve() for m in container.get('Mounts',[]) if m.get('Source')]
                 if any(source==root or source.is_relative_to(root) for source in sources for root in roots):
                     owned.append(container['Id'])
+        removal=None
         if owned:
-            subprocess.run(['docker','rm','-f',*owned],check=True,capture_output=True,timeout=10)
+            # --rm may finish between inspection and this request. The subsequent
+            # live-set observation determines lifetime, not the CLI exit alone.
+            removed=subprocess.run(['docker','rm','-f',*owned],check=False,capture_output=True,text=True,timeout=10)
+            removal={'exit_code':removed.returncode,'stderr':removed.stderr[:2000]}
         remaining=subprocess.check_output(['docker','ps','-q','--no-trunc'],text=True,timeout=10).split()
-        return {'confirmed':not any(identity in remaining for identity in owned),'removed_owned_containers':owned}
+        return {'confirmed':not any(identity in remaining for identity in owned),'owned_containers':owned,'removal':removal}
     except Exception as error:
         return {'confirmed':False,'owned_containers':owned,'error':str(error)}
 

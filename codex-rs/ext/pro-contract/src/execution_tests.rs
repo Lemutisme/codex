@@ -74,20 +74,10 @@ async fn cancelled_action_finalizes_and_kills_its_process_group() {
     };
     task.abort();
     let _ = task.await;
-    let until = tokio::time::Instant::now() + Duration::from_secs(15);
-    let saved: ExecutionReceipt = loop {
-        let receipt: ExecutionReceipt =
-            serde_json::from_slice(&std::fs::read(journal.join("execution.json")).unwrap())
-                .unwrap();
-        if receipt.finished_ms.is_some() {
-            break receipt;
-        }
-        assert!(
-            tokio::time::Instant::now() < until,
-            "cancelled action was not finalized"
-        );
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    };
+    wait_for_finalization(&journal).await;
+    let saved: ExecutionReceipt =
+        serde_json::from_slice(&std::fs::read(journal.join("execution.json")).unwrap()).unwrap();
+    assert!(saved.finished_ms.is_some());
     assert_eq!(saved.state, ExecutionState::Cancelled);
     assert!(saved.shutdown_confirmed);
     assert!(!saved.completed());
