@@ -60,6 +60,16 @@ had mean 76.4235%. This is an incomplete local cohort under the recorded evaluat
 conditions, not an official leaderboard submission. Vals has different request
 resources. Consult the live recovery `status.json` for subsequent progress.
 
+At 22:53 UTC, doxygen's supplemental evaluation completed: **79/229 = 34.50%**.
+Its original failure and submission hashes were verified unchanged. Valid scores
+rose to 125, mean 76.5346%; the uninterrupted subset is 122, mean 76.0799%.
+Matched Vals reference mean is 68.1323%, with the resource/condition differences
+above. Stgit, ripgrep, serpl and dupl are now solving, with 62 cases queued. Actual
+allocator/response identities confirm Luna/max, six hours and no request limit
+for all four, and their execution profiles retain network isolation. The final
+recovery audit again verified all 766 frozen files and unchanged accounting for
+the three interrupted attempts (`recovery-verification.json`).
+
 ## New stopped trajectory: xq
 
 The original xq attempt scored **714/792 = 90.1515%**, compared with the retained

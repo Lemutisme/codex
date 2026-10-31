@@ -1,7 +1,8 @@
 # RSI implementation status, 2026-10-31
 
 Status: implemented and qualified in the isolated branch
-`feat/procontract-rsi-e2e-20261031`. Read
+`feat/procontract-rsi-e2e-20261031`, then reviewed and merged into the development
+checkout at `2dc1a044b5`. Read
 [the complete qualification report](procontract-rsi-qualification-20261031.md).
 
 E5 at `e0dfd6803` exercised task-outcome wake, real model-authored knowledge/change,
@@ -21,4 +22,7 @@ runtime-only mounts and fresh host-private cases. This distinction is essential:
 E4's mechanical rollout is not the qualified authority result.
 
 Artifacts: `/data/ProContract/procontract-rsi-development-20261031/`.
-No merge, installed-package replacement or campaign activation has occurred.
+The development merge leaves the operations opt-in; no installed-package
+replacement or campaign activation has occurred. The
+[parent review](procontract-rsi-parent-review-20261031.md) records post-restart
+evidence checks and validation limits.
