@@ -292,7 +292,7 @@ impl ThreadRuntime {
 
     #[cfg(test)]
     pub(crate) async fn publish_progress(
-        &self,
+        self: &std::sync::Arc<Self>,
         request: String,
         turn: String,
     ) -> Result<Value, String> {
@@ -301,7 +301,7 @@ impl ThreadRuntime {
 
     #[cfg(test)]
     pub(crate) async fn publish_progress_for(
-        &self,
+        self: &std::sync::Arc<Self>,
         request: String,
         turn: String,
         owner: Option<(u64, Option<u64>)>,
@@ -312,7 +312,7 @@ impl ThreadRuntime {
 
     #[cfg(test)]
     pub(crate) async fn publish_progress_with_review(
-        &self,
+        self: &std::sync::Arc<Self>,
         request: String,
         turn: String,
         owner: Option<(u64, Option<u64>)>,
@@ -331,6 +331,28 @@ impl ThreadRuntime {
     }
 
     pub(crate) async fn publish_assessment(
+        self: &std::sync::Arc<Self>,
+        request: String,
+        turn: String,
+        owner: Option<(u64, Option<u64>)>,
+        options: ProgressAssessment,
+    ) -> Result<Value, String> {
+        let runtime = std::sync::Arc::clone(self);
+        let (send, receive) = tokio::sync::oneshot::channel();
+        // Transport is a waiter, not the admitted operation's owner. Thread
+        // teardown still cancels this task; original grant/epoch checks apply.
+        self.spawn(async move {
+            let result = runtime
+                .publish_assessment_owned(request, turn, owner, options)
+                .await;
+            let _ = send.send(result);
+        });
+        receive.await.map_err(|_| {
+            "publication owner stopped; inspect retained effects before replay".to_string()
+        })?
+    }
+
+    async fn publish_assessment_owned(
         &self,
         request: String,
         turn: String,

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""ProContract succession: the institution's side of recursive self-improvement.
+"""Historical fixed-workflow ProContract research driver.
+
+For reusable execution/evidence/version operations without this campaign policy,
+see procontract_operations.py and docs/PROCONTRACT_OPERATIONS.md. Existing commands
+and manifest identities below retain their historical meaning.
 
 A version is a policy bundle (executor.md, research.md, analyst.md, challenger.md, drafter.md,
 prober.md, reviewer.md) run by one codex binary. Improving the method is an ordinary task whose

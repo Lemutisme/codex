@@ -105,10 +105,7 @@ impl InspectionGrant {
         for slot in 0..self.limits.max_calls {
             let work = self.directory.join(format!("call-{slot}"));
             let action = work.join("action/execution.json");
-            let result = work.join("result.json");
-            if action.exists()
-                && (!result.exists() || read(&result)?["execution"]["shutdown_confirmed"] != true)
-            {
+            if action.exists() && read(&action)?["shutdown_confirmed"] != true {
                 return Err(
                     "prior computation effects are unresolved; reconcile before another action"
                         .into(),

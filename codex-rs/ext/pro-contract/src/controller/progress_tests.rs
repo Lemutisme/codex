@@ -4,6 +4,50 @@ use crate::{ProgressSettings, SuccessionSettings};
 use pretty_assertions::{assert_eq, assert_ne};
 
 #[tokio::test]
+async fn publication_caller_loss_does_not_abandon_the_owned_assessment() {
+    let gate = Arc::new(Notify::new());
+    let mut ports = FakePorts::new(CONTRACT_DRAFT)
+        .checks(&[StepOutcome::Pass])
+        .reviews(&[SUPPORT_REVIEW]);
+    ports.review_gate = Some(Arc::clone(&gate));
+    let lane = progressing(ports).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let runtime = Arc::clone(&lane.runtime);
+    let caller = tokio::spawn(async move {
+        runtime
+            .publish_progress_with_review("lost-caller".into(), "one".into(), None, true)
+            .await
+    });
+    let until = tokio::time::Instant::now() + Duration::from_secs(5);
+    while lane.ports.review_prompts.lock().unwrap().is_empty() {
+        assert!(tokio::time::Instant::now() < until);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    caller.abort();
+    let _ = caller.await;
+    gate.notify_one();
+    loop {
+        if lane.runtime.progress_ready().await.is_ok() {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < until);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let receipt = lane
+        .runtime
+        .publish_progress_with_review("lost-caller".into(), "one".into(), None, true)
+        .await
+        .unwrap();
+    assert_eq!(receipt["reused"], true);
+    assert_eq!(lane.ports.checked.lock().unwrap().len(), 1);
+    assert_eq!(
+        lane.runtime.remaining_task_budget().await.unwrap()["publications_used"],
+        1
+    );
+}
+
+#[tokio::test]
 async fn abort_without_a_deadline_retains_responsibility_and_a_stale_abort_cannot_stop_new_work() {
     let mut lane = progressing(FakePorts::new(CONTRACT_DRAFT)).await;
     Arc::get_mut(&mut lane.runtime)

@@ -432,7 +432,7 @@ impl ThreadRuntime {
             review,
             verdict,
             public,
-            ..
+            effects_resolved,
         } = assessment;
         let (verdict_name, class, detail) = match &verdict {
             Verdict::Support => ("support", "", ""),
@@ -532,13 +532,16 @@ impl ThreadRuntime {
                 .await
             }
             Verdict::NotVerified { class, reason }
-                if matches!(
-                    class,
-                    NotVerifiedClass::ReviewerUnable
-                        | NotVerifiedClass::TermsGap
-                        | NotVerifiedClass::ExecutionConstraint
-                        | NotVerifiedClass::InsufficientEvidence
-                ) =>
+                if effects_resolved
+                    && matches!(
+                        class,
+                        NotVerifiedClass::ReviewerUnable
+                            | NotVerifiedClass::TermsGap
+                            | NotVerifiedClass::ExecutionConstraint
+                            | NotVerifiedClass::InsufficientEvidence
+                            | NotVerifiedClass::ExecutionInterrupted
+                            | NotVerifiedClass::Infrastructure
+                    ) =>
             {
                 self.choose_continuation(
                     handoff,

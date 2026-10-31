@@ -100,3 +100,23 @@ fn recovered_evidence_requires_the_same_grant_and_content_identity() {
     std::fs::write(work.join("result.json"), r#"{"stdout":"fabricated"}"#).unwrap();
     assert!(restored.history(&store).is_err());
 }
+
+#[test]
+fn confirmed_shutdown_without_a_caller_result_preserves_spent_slot_and_allows_next_action() {
+    let root = tempfile::tempdir().unwrap();
+    let grant = fixture(root.path().join("grant"), Duration::from_secs(60)).unwrap();
+    let (work, _) = grant
+        .reserve(&json!({"first":true}), Duration::from_secs(60))
+        .unwrap();
+    std::fs::create_dir_all(work.join("action")).unwrap();
+    std::fs::write(
+        work.join("action/execution.json"),
+        r#"{"state":"cancelled","shutdown_confirmed":true}"#,
+    )
+    .unwrap();
+    let (next, _) = grant
+        .reserve(&json!({"next":true}), Duration::from_secs(60))
+        .unwrap();
+    assert_ne!(work, next);
+    assert!(!work.join("result.json").exists());
+}
