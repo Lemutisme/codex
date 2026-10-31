@@ -226,15 +226,22 @@ impl ThreadRuntime {
         let inspection_history = if let Some(grant) = &self.settings.review_execution
             && work.with_extension("review").join("grant.json").exists()
         {
-            crate::inspection_grant::InspectionGrant::open(
+            match crate::inspection_grant::InspectionGrant::open(
                 self.profile.check.clone(),
                 grant.clone(),
                 work.with_extension("review"),
                 subject.subject_hash,
                 terms,
                 Duration::ZERO,
-            )
-            .and_then(|grant| Ok((grant.history(&self.store)?, grant.actions()?)))
+            ) {
+                Ok(grant) => {
+                    grant.wait_for_owned_actions().await;
+                    grant
+                        .history(&self.store)
+                        .and_then(|history| Ok((history, grant.actions()?)))
+                }
+                Err(error) => Err(error),
+            }
         } else {
             Ok((Vec::new(), Vec::new()))
         };
@@ -432,7 +439,7 @@ impl ThreadRuntime {
             review,
             verdict,
             public,
-            ..
+            effects_resolved,
         } = assessment;
         let (verdict_name, class, detail) = match &verdict {
             Verdict::Support => ("support", "", ""),
@@ -532,13 +539,16 @@ impl ThreadRuntime {
                 .await
             }
             Verdict::NotVerified { class, reason }
-                if matches!(
-                    class,
-                    NotVerifiedClass::ReviewerUnable
-                        | NotVerifiedClass::TermsGap
-                        | NotVerifiedClass::ExecutionConstraint
-                        | NotVerifiedClass::InsufficientEvidence
-                ) =>
+                if effects_resolved
+                    && matches!(
+                        class,
+                        NotVerifiedClass::ReviewerUnable
+                            | NotVerifiedClass::TermsGap
+                            | NotVerifiedClass::ExecutionConstraint
+                            | NotVerifiedClass::InsufficientEvidence
+                            | NotVerifiedClass::ExecutionInterrupted
+                            | NotVerifiedClass::Infrastructure
+                    ) =>
             {
                 self.choose_continuation(
                     handoff,

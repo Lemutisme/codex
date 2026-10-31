@@ -247,6 +247,7 @@ impl ThreadRuntime {
         let mut tasks =
             std::mem::take(&mut *self.tasks.lock().unwrap_or_else(PoisonError::into_inner));
         tasks.shutdown().await;
+        crate::execution::wait_for_owned_under(&self.work_dir()).await;
     }
 
     fn contract_id(&self) -> ContractId {

@@ -46,7 +46,7 @@ async fn timeout_retains_facts_without_claiming_the_action_completed() {
 }
 
 #[tokio::test]
-async fn cancelled_action_retains_unknown_effects_and_kills_its_process_group() {
+async fn cancelled_action_finalizes_and_kills_its_process_group() {
     let root = tempfile::tempdir().unwrap();
     let journal = root.path().join("action");
     let target = journal.clone();
@@ -74,10 +74,13 @@ async fn cancelled_action_retains_unknown_effects_and_kills_its_process_group() 
     };
     task.abort();
     let _ = task.await;
+    wait_for_finalization(&journal).await;
     let saved: ExecutionReceipt =
         serde_json::from_slice(&std::fs::read(journal.join("execution.json")).unwrap()).unwrap();
-    assert_eq!(saved.state, ExecutionState::Running);
-    assert!(!saved.shutdown_confirmed && saved.finished_ms.is_none());
+    assert!(saved.finished_ms.is_some());
+    assert_eq!(saved.state, ExecutionState::Cancelled);
+    assert!(saved.shutdown_confirmed);
+    assert!(!saved.completed());
     for _ in 0..100 {
         let stat = std::fs::read_to_string(format!("/proc/{pid}/stat"));
         if stat.is_err() || stat.unwrap().split(") ").nth(1).unwrap().starts_with('Z') {

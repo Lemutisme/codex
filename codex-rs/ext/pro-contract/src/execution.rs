@@ -16,6 +16,55 @@ use tokio::process::Command;
 
 const STREAM_CAP: usize = 32 << 20;
 
+type Completion = tokio::sync::watch::Receiver<bool>;
+static OWNED: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<PathBuf, Completion>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
+struct Finalization {
+    directory: PathBuf,
+    finished: tokio::sync::watch::Sender<bool>,
+}
+
+impl Drop for Finalization {
+    fn drop(&mut self) {
+        self.finished.send_replace(true);
+        OWNED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.directory);
+    }
+}
+
+/// Await only an owner known to this process. Old/unknown records are never
+/// inferred complete. The bound covers the existing cleanup and stream drains;
+/// observing an unresolved end does not authorize replay or extend execution.
+pub(crate) async fn wait_for_finalization(directory: &Path) {
+    let completion = OWNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(directory)
+        .cloned();
+    if let Some(mut completion) = completion {
+        let _ =
+            tokio::time::timeout(Duration::from_secs(15), completion.wait_for(|done| *done)).await;
+    }
+}
+
+pub(crate) async fn wait_for_owned_under(directory: &Path) {
+    let completions: Vec<_> = OWNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .filter(|(path, _)| path.starts_with(directory))
+        .map(|(_, done)| done.clone())
+        .collect();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    for mut completion in completions {
+        let _ = tokio::time::timeout_at(deadline, completion.wait_for(|done| *done)).await;
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionState {
@@ -23,6 +72,7 @@ pub enum ExecutionState {
     Completed,
     Failed,
     TimedOut,
+    Cancelled,
     Unknown,
 }
 
@@ -187,14 +237,56 @@ async fn capture(
     Ok((bytes, truncated))
 }
 
-/// Reserve a fresh journal before starting the action. Interrupted callers retain a Running
-/// record and streamed bytes; they cannot infer absence of effects from a missing completion.
+/// Cancellation requests shutdown; the action owner retains the terminal observation even
+/// when its caller is gone. Process loss can still leave unknown effects, never a replay grant.
 pub(crate) async fn run(
+    command: Command,
+    directory: &Path,
+    binding: Digest,
+    timeout: Duration,
+    cleanup: Option<Cleanup>,
+) -> std::io::Result<Output> {
+    let (cancel, cancelled) = tokio::sync::oneshot::channel();
+    let directory = directory.to_path_buf();
+    let (finished, completion) = tokio::sync::watch::channel(false);
+    {
+        let mut owned = OWNED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match owned.entry(directory.clone()) {
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(completion);
+            }
+            std::collections::btree_map::Entry::Occupied(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    "action already owned; no replay",
+                ));
+            }
+        }
+    }
+    let finalization = Finalization {
+        directory: directory.clone(),
+        finished,
+    };
+    // Dropping the sender (including aborting this caller) wakes the owned action.
+    // Its JoinHandle may be dropped, but finalization is not owned by that handle.
+    let action = tokio::spawn(async move {
+        let _finalization = finalization;
+        run_owned(command, &directory, binding, timeout, cleanup, cancelled).await
+    });
+    let result = action.await.map_err(std::io::Error::other)?;
+    drop(cancel);
+    result
+}
+
+async fn run_owned(
     mut command: Command,
     directory: &Path,
     binding: Digest,
     timeout: Duration,
     mut cleanup: Option<Cleanup>,
+    mut cancelled: tokio::sync::oneshot::Receiver<()>,
 ) -> std::io::Result<Output> {
     tokio::fs::create_dir(directory).await?;
     let path = directory.join("execution.json");
@@ -251,8 +343,12 @@ pub(crate) async fn run(
         .ok_or_else(|| std::io::Error::other("missing stderr"))?;
     let mut out = tokio::spawn(capture(stdout, directory.join("stdout")));
     let mut err = tokio::spawn(capture(stderr, directory.join("stderr")));
-    match tokio::time::timeout(timeout, child.wait()).await {
-        Ok(Ok(status)) => {
+    let outcome = tokio::select! {
+        result = tokio::time::timeout(timeout, child.wait()) => Some(result),
+        _ = &mut cancelled => None,
+    };
+    match outcome {
+        Some(Ok(Ok(status))) => {
             receipt.exit_code = status.code();
             receipt.state = if status.success() {
                 ExecutionState::Completed
@@ -277,12 +373,16 @@ pub(crate) async fn run(
             }
         }
         outcome => {
-            receipt.state = if outcome.is_err() {
+            receipt.state = if outcome.is_none() {
+                ExecutionState::Cancelled
+            } else if outcome.as_ref().is_some_and(Result::is_err) {
                 ExecutionState::TimedOut
             } else {
                 ExecutionState::Unknown
             };
-            receipt.detail = if outcome.is_err() {
+            receipt.detail = if outcome.is_none() {
+                "action caller cancelled; shutdown observed independently".into()
+            } else if outcome.as_ref().is_some_and(Result::is_err) {
                 "action deadline exceeded".into()
             } else {
                 "action exit could not be observed".into()
@@ -291,7 +391,8 @@ pub(crate) async fn run(
                 Some(cleanup) => cleanup.finish().await,
                 None => true,
             };
-            receipt.shutdown_confirmed &= child.kill().await.is_ok() || child.try_wait()?.is_some();
+            receipt.shutdown_confirmed &=
+                child.kill().await.is_ok() || child.try_wait().is_ok_and(|s| s.is_some());
             if !receipt.shutdown_confirmed {
                 receipt.state = ExecutionState::Unknown;
             }
@@ -304,12 +405,31 @@ pub(crate) async fn run(
     );
     out.abort();
     err.abort();
-    let (stdout, out_truncated) = captured_out
-        .map_err(std::io::Error::other)?
-        .map_err(std::io::Error::other)??;
-    let (stderr, err_truncated) = captured_err
-        .map_err(std::io::Error::other)?
-        .map_err(std::io::Error::other)??;
+    // A stream error must not skip the lifecycle receipt. Retained partial bytes
+    // remain observations; they do not certify complete output.
+    let mut collected = Vec::new();
+    for (result, name) in [(captured_out, "stdout"), (captured_err, "stderr")] {
+        let result = result
+            .map_err(std::io::Error::other)
+            .and_then(|r| r.map_err(std::io::Error::other))
+            .and_then(|r| r);
+        collected.push(match result {
+            Ok(value) => value,
+            Err(error) => {
+                receipt
+                    .detail
+                    .push_str(&format!("; {name} capture incomplete: {error}"));
+                (
+                    tokio::fs::read(directory.join(name))
+                        .await
+                        .unwrap_or_default(),
+                    true,
+                )
+            }
+        });
+    }
+    let (stderr, err_truncated) = collected.pop().unwrap_or_default();
+    let (stdout, out_truncated) = collected.pop().unwrap_or_default();
     receipt.stdout_digest = Some(Digest::of(&stdout));
     receipt.stderr_digest = Some(Digest::of(&stderr));
     receipt.truncated = out_truncated || err_truncated;
