@@ -5,6 +5,12 @@ context. It is not an enabled campaign or a claim that automatic self-improvemen
 has been validated. The existing RSI implementation and historical campaigns are
 unchanged.
 
+The [2026-10-31 E2E architecture](procontract-rsi-e2e-architecture-20261031.md)
+refines this proposal using the real trajectory/lifecycle findings. It specifies
+reuse of one kernel with distinct responsibilities, knowledge versus behavioral
+adoption, event-driven operation, existing code reuse and an actual rollout
+qualification. It does not enable an autonomous campaign.
+
 ## The smallest reusable structure
 
 An improvement is ordinary work on an identified version, with observations that
