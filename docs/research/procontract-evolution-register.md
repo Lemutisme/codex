@@ -6,6 +6,13 @@ The fixed benchmark remains frozen. On 2026-10-31 the user authorized isolated
 E2E RSI development by one Astra xhigh agent while the parent continues trajectory
 analysis. Keep [the layer agreement](../PROCONTRACT_LAYERS.md) authoritative.
 
+The [restart record](programbench-restart-20261031.md) adds shared-dependency
+admission failures, reboot-stopped artifacts and xq's missing configuration input
+channel to the existing H1/H2 and S1–S3 directions. Original failures and strong
+artifact scores are retained separately. The [parent RSI review](procontract-rsi-parent-review-20261031.md)
+records completed synthetic operational E2E qualification and an opt-in development
+merge; useful cross-task adaptation remains a separate empirical question.
+
 ## Current evidence anchor
 
 At approximately 22:52 UTC on 2026-10-30, the uniform six-hour, request-unlimited,

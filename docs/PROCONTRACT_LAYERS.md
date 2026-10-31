@@ -242,6 +242,16 @@ states or benchmark-specific success rules.
 
 ## Development rule
 
+The opt-in [durable operations interface](PROCONTRACT_OPERATIONS.md) now supports
+ordinary tasks and separate improvement responsibilities through the existing
+kernel. It retains version definitions, actual resolved inputs, assignments,
+outcomes, pending events and authorized selections. Research sequence and candidate
+choices live in `strategies/research/operations.md`. Stored knowledge does not
+install behavior; a selected version must be bound to its actual later execution.
+The first qualification establishes a scoped tool-adaptation loop, not general
+quality gains or automatic migration of existing native controllers. Fixed
+benchmark cohorts retain their admitted versions and resources.
+
 For a proposed change, identify the smallest required capability or invariant and
 the replaceable context that uses it. Put agent/tool execution code in harness;
 put task-solving and workflow choices in strategy. Extend kernel only for a
