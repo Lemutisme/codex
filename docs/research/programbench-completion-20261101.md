@@ -12,6 +12,8 @@ queue drains. It never treats a merely low valid score as an infrastructure retr
 
 ## Admitted work and current validation
 
+The initial list contained twenty cases:
+
 | Work | Cases | Accounting |
 | --- | ---: | --- |
 | First solves after failed preparation | 11 | No previous solver launch; each receives its first six-hour allocation |
@@ -23,12 +25,18 @@ collection**. This includes Pandoc's 5214 tests, i3-style's 539, gdu's 1161,
 age's 676, fselect's 3115 and Miller's 14637. `QUALIFIED.json` binds every complete
 receipt and confirms that all 766 original frozen files remain unchanged.
 
-Pandoc and i3-style have been admitted for real model work. Their profile is
+Pandoc, i3-style and gdu have been admitted for real model work. Their profile is
 GPT-5.6-Luna/max, 21600 seconds, no model-request ceiling, offline execution and
 the original command/environment limits. The total of original case jobs,
 completion jobs and qualification jobs stays within the authorized capacity
 (sixteen), using one admission lock for the two completion queues. Existing
 allocations survive coordinator replacement without restart or renewal.
+
+At 22:12 UTC git-trim's later terminal failure was automatically added for retained
+artifact recovery, bringing the live list to 21 cases (eleven first solves, nine
+scoring recoveries, one separate independent retry). One recovery is already
+scored, three first solves are running and seventeen jobs are queued. Original
+and completion jobs together still occupy sixteen slots.
 
 **DuckDB's original score has already been recovered: 1354/5649 = 23.9688%.**
 Its original 707,262,431-byte evaluation was complete; the older host validator's
@@ -103,6 +111,6 @@ were fixed before paid inference. Go-critic's gold program also needed the exact
 Go 1.24.0 toolchain when run with its test archive; its offline `help` invocation
 was checked before requalification.
 
-This is running completion work, not a claim that all twenty final scores have
+This is running completion work, not a claim that all queued final scores have
 arrived. The first-attempt aggregate includes newly admitted first solves and
 declared measurement recovery, while independent solver retries remain separate.
