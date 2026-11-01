@@ -1,6 +1,6 @@
 # ProContract evolution register
 
-Living record, updated 2026-10-31. This consolidates observed mechanisms and
+Living record, updated 2026-11-01. This consolidates observed mechanisms and
 proposed validation. It installs no prompts, runtime gates or kernel rules.
 The fixed benchmark remains frozen. On 2026-10-31 the user authorized isolated
 E2E RSI development by one Astra xhigh agent while the parent continues trajectory
@@ -12,6 +12,14 @@ channel to the existing H1/H2 and S1–S3 directions. Original failures and stro
 artifact scores are retained separately. The [parent RSI review](procontract-rsi-parent-review-20261031.md)
 records completed synthetic operational E2E qualification and an opt-in development
 merge; useful cross-task adaptation remains a separate empirical question.
+
+The [2026-11-01 inspection](programbench-status-20261101.md) records 127 valid
+scores and continued four-way execution. Serpl's explicit repair selection was
+rejected by the 64,000-byte successor transport limit (H3). Dropbear/stgit add
+frozen-version pending-publication observations (H1). Stgit also demonstrates
+candidate-caused test discovery failure (H2): unsupported completion arguments
+abort module import, rather than a shared interpreter outage. Keep these causal
+links and their unavailable quality measurements distinct.
 
 ## Current evidence anchor
 
