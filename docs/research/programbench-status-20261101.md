@@ -1,5 +1,61 @@
 # ProgramBench status and stopped-trajectory triage, 2026-11-01
 
+## 20:48 UTC update: queue admitted, third perfect result
+
+There are now **166 valid scores**, mean **76.9996%**; the same-task Vals reference
+mean is 68.9095%, under its different request resources. The uninterrupted valid
+subset contains 163 scores, mean 76.6678%. All 200 original case slots have been
+attempted at preparation: no unstarted queue remains. Fourteen solver processes
+and one grader remain live; 19 terminal cases lack a valid score (11 preparation
+failures, three finalization failures and five invalid/unavailable evaluations).
+Thus 185 terminal job records still must not be reported as 185 scored solves.
+
+**Cmatrix is the third perfect artifact: 506/506.** All 506 eligible feedback
+entries were checked as passing, and the retained raw evaluator hash matches its
+bound result. Hex (823/823) and zip-password-finder (680/680) remain perfect.
+Cmatrix used 2668 requests and its six-hour allocation. Its internal Support stayed
+false; that does not negate the independently verified artifact result. This pass
+does not claim to have isolated the strategy's causal contribution to its score.
+
+| Recent recorded quality | Passed / eligible | Percent |
+| --- | ---: | ---: |
+| zoxide | 519/531 | 97.74% |
+| lua | 1178/1338 | 88.04% |
+| oranda | 340/767 | 44.33% |
+| jplot | 479/583 | 82.16% |
+| ffmpeg | 263/3041 | 8.65% |
+
+Jplot stopped after 24.25 minutes with one incomplete acceptance pipeline and an
+action timeout. Its observed external quality is still 82.16%. FFmpeg stopped
+after 116.41 minutes with unresolved publication effects and has substantial
+remaining behavioral failures. Neither observation establishes the score gain
+that extra execution would have produced. They add to the existing H1 lifecycle
+record while keeping behavior coverage separate from mechanical stopping.
+
+Git-trim is a live-process anomaly: its last model request was about 114 minutes
+old at inspection. The lane reports resting/not_verified with unresolved prior
+publication, while the driver has no completed root turn. The frozen `is_done`
+requires a completed inactive root turn, so this state cannot terminate through
+its ordinary rest condition. The latest ledger records a successor return and
+captured task delivery. The exact missing-completion mechanism remains unresolved;
+process existence is not evidence of productive work. Its original six-hour
+deadline remains in force, with about 81 minutes left; no restart or renewal was
+performed. PHP has ended solving and is still within its separate four-hour
+grading allocation.
+
+Host memory remains plentiful: approximately 156 GiB available, load about six on
+60 CPUs, and disk free about 63 GiB. Three new OOM kills at 20:40–20:41 all hit
+512-MiB cgroup limits. The retained kernel count is now 57, all `CONSTRAINT_MEMCG`,
+with no global OOM kill found. This continues the scoped-limit conclusion of the
+[memory audit](programbench-memory-audit-20261101.md).
+
+Artifacts: `/data/ProContract/procontract-status-20261101-2048/` contains the live
+snapshot, the perfect-score audit, new kernel events, stopped cmatrix/jplot
+ledger extracts and a consistent read-only SQLite snapshot of git-trim's ledger.
+The fixed cohort received no new strategy, runtime code or score feedback.
+
+## Earlier 04:15 UTC inspection
+
 At 04:15 UTC the restored scheduler is live, all four job processes are live and
 their model-request timestamps continue advancing. There are **127 valid scores**,
 four solvers, 59 queued cases and ten cases without a valid score. The 137 terminal

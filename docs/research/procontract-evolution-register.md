@@ -30,6 +30,15 @@ halving concurrency nor enlarging every limit follows from an OOM label alone.
 
 ## Current evidence anchor
 
+The [20:48 UTC update](programbench-status-20261101.md) has 166 valid scores,
+no unstarted queue, 14 live solver processes and one grader. Cmatrix is independently
+checked as the third perfect artifact (506/506). Jplot's 82.16% result coexists
+with an early internal-check timeout; FFmpeg's 8.65% result coexists with a
+publication interruption. Git-trim additionally exposes a live-process/terminal-
+observation discrepancy. These observations extend H1 and the separation of
+artifact quality, measurement and execution state; no causal score recovery is
+claimed without a new qualified experiment.
+
 At approximately 22:52 UTC on 2026-10-30, the uniform six-hour, request-unlimited,
 offline Luna/max cohort has 112 terminal jobs and 104 valid scores. Five jobs failed
 preparation, two have invalid scoring results and one failed in the driver; four
