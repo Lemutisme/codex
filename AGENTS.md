@@ -35,3 +35,9 @@ no total model-request ceiling. Preserve accounting across roles and keep the ol
 1000-request cohort separate. Do not resume graded solvers or present the new
 time-only study as resource-matched to Vals. Execution remains offline, with the
 declared command/environment limits.
+
+Concurrency update, 2026-11-01: the user authorized raising the active campaign
+from four to eight/sixteen concurrent cases. Record the effective admission target
+and changes separately from the frozen solver plan. This scheduling change does
+not renew/restart attempts or change their six-hour grants, request accounting,
+model/effort, network isolation or command/environment limits.
