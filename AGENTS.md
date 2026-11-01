@@ -41,3 +41,12 @@ from four to eight/sixteen concurrent cases. Record the effective admission targ
 and changes separately from the frozen solver plan. This scheduling change does
 not renew/restart attempts or change their six-hour grants, request accounting,
 model/effort, network isolation or command/environment limits.
+
+Completion update, 2026-11-01: the user authorized offline environment repair and
+completion runs for this round's failures. Track the live completion list and
+combined projection in `/data/ProContract/programbench-completion-20261101/`.
+Never-started cases get first solver admissions; stopped artifacts get scoring
+recovery without renewed solver budgets. A separately selected independent retry
+(currently stgit) retains its original attempt and stays outside the original
+first-attempt aggregate. Keep all original raw failures/results and the frozen
+solver package. Shared admission capacity includes both original and completion jobs.

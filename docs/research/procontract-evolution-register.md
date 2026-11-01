@@ -30,6 +30,15 @@ halving concurrency nor enlarging every limit follows from an OOM label alone.
 
 ## Current evidence anchor
 
+The [authorized completion pass](programbench-completion-20261101.md) supplies
+actual remedies for the previously recorded evaluator/provisioning failures.
+All eleven never-started cases now pass offline qualification; first solves and
+retained-artifact grading are queued under shared capacity. DuckDB's unchanged
+707-MB raw evaluation now validates as 1354/5649, with no new inference. Stgit's
+separate independent retry remains outside the first-attempt aggregate. These are
+H2/H3 measurement and transport improvements, with outer-driver H1 finalization
+repair; they do not enlarge the kernel or update the frozen solver strategy.
+
 The [20:48 UTC update](programbench-status-20261101.md) has 166 valid scores,
 no unstarted queue, 14 live solver processes and one grader. Cmatrix is independently
 checked as the third perfect artifact (506/506). Jplot's 82.16% result coexists

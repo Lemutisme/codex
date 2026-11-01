@@ -13,6 +13,7 @@ import threading
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from procontract_evaluator_runtime import install_plugin_path
 
 
 COLLECTOR = '''import json
@@ -45,9 +46,14 @@ def pytest_collection_finish(session):
         if prefix:
             parts.insert(0, prefix)
         names.append(".".join(parts))
-    Path("/tmp/procontract-collection.json").write_text(json.dumps({
-        "names": names, "errors": session.testsfailed,
-        "collection_only": bool(session.config.option.collectonly)}))
+    path = Path("/tmp/procontract-collection.json")
+    prior = json.loads(path.read_text()) if path.exists() else {"names": [], "errors": 0, "collection_only": True}
+    # A branch can invoke pytest several times (for example distinct markers).
+    # Retain the union of those invocations instead of only the last command.
+    path.write_text(json.dumps({
+        "names": sorted(set(prior["names"]) | set(names)),
+        "errors": prior["errors"] + session.testsfailed + int(len(names) != len(set(names))),
+        "collection_only": prior["collection_only"] and bool(session.config.option.collectonly)}))
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtestloop(session):
@@ -132,6 +138,7 @@ def collection_evaluator(base):
                     env=kwargs["env"], log_buf=kwargs["log_buf"],
                     step_name="install_collection_probe", timeout=10,
                 )
+                install_plugin_path(super()._run_step, kwargs["env"], kwargs["log_buf"], "/tmp/procontract-readiness")
                 command = (
                     'export PYTHONPATH="/tmp/procontract-readiness${PYTHONPATH:+:$PYTHONPATH}"; '
                     'export PYTEST_PLUGINS="_pc_collection_probe${PYTEST_PLUGINS:+,$PYTEST_PLUGINS}"; '

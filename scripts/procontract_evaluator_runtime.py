@@ -11,10 +11,54 @@ from types import MappingProxyType
 ROOT = "/opt/procontract-grader"
 PLUGIN_ROOT = "/tmp/procontract-test-runtime"
 PLUGIN_NAME = "_pc_test_runtime"
+
+
+def install_plugin_path(run_step, env, log_buf, directory):
+    """Keep admitted observers importable when an official script resets PYTHONPATH.
+
+    Use the interpreter that already imports the installed pytest. Only its search
+    path is extended; test scripts, cases and assertions are untouched.
+    """
+    name = "procontract-observer-" + hashlib.sha256(directory.encode()).hexdigest()[:16] + ".pth"
+    code = ("from pathlib import Path; import pytest; "
+            f"(Path(pytest.__file__).resolve().parent.parent / {name!r}).write_text({directory!r} + '\\n')")
+    return run_step(shlex.join(["python3", "-c", code]), env=env, log_buf=log_buf,
+                    step_name="retain_observer_import_path", timeout=10)
 PLUGIN = '''import gc
+import hashlib
 import json
+import os
 from pathlib import Path
 import pytest
+
+def _transport_text(value):
+    limit = int(os.environ.get("PC_GRADER_REPORT_TEXT_CHARS", "0"))
+    if isinstance(value, str) and limit > 0 and len(value) > limit:
+        digest = hashlib.sha256()
+        for start in range(0, len(value), 65536):
+            digest.update(value[start:start+65536].encode("utf-8", errors="backslashreplace"))
+        edge = limit // 2
+        return (value[:edge] + "\\n[diagnostic text abbreviated for transport; chars="
+                + str(len(value)) + "; utf8_sha256=" + digest.hexdigest() + "]\\n" + value[-edge:])
+    if isinstance(value, dict):
+        return {key: _transport_text(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_transport_text(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_transport_text(item) for item in value)
+    return value
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_report_to_serializable(config, report):
+    outcome = yield
+    data = outcome.get_result()
+    if isinstance(data, dict):
+        # Assertions have already executed. Only rendered diagnostics and
+        # captured-output sections are transported in bounded form; outcome,
+        # test identity, retry count and execution timeout remain untouched.
+        for name in ("longrepr", "sections"):
+            if name in data:
+                data[name] = _transport_text(data[name])
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item):
@@ -55,6 +99,7 @@ class Assets:
     sha256: str
     environment: object
     path_prepend: tuple[str, ...]
+    prepare: tuple[str, ...] = ()
 
     def verify(self):
         with self.archive.open("rb") as stream:
@@ -64,7 +109,8 @@ class Assets:
 
 
 def load_assets(value):
-    if not isinstance(value, dict) or set(value) != {"archive", "sha256", "environment", "path_prepend"}:
+    required = {"archive", "sha256", "environment", "path_prepend"}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - {"prepare"}:
         raise ValueError("grader assets need archive, sha256, environment and path_prepend")
     path = Path(value["archive"])
     environment, prepend = value["environment"], value["path_prepend"]
@@ -81,7 +127,10 @@ def load_assets(value):
         or ".." in Path(part).parts or ":" in part or "\0" in part for part in prepend
     ):
         raise ValueError("grader PATH additions must be relative archive paths")
-    result = Assets(path, value["sha256"], MappingProxyType(environment), tuple(prepend))
+    prepare = value.get("prepare", [])
+    if not isinstance(prepare, list) or any(not isinstance(arg, str) or not arg or "\0" in arg for arg in prepare):
+        raise ValueError("grader preparation must be an explicit command argument list")
+    result = Assets(path, value["sha256"], MappingProxyType(environment), tuple(prepend), tuple(prepare))
     result.verify()
     return result
 
@@ -103,6 +152,9 @@ def runtime_evaluator(base, assets=None):
                 step_name="install_pinned_grader_assets_after_candidate_hash", timeout=120)
             if result.get("output", "").split()[0] != assets.sha256:
                 raise RuntimeError("copied grader assets differ from pinned archive")
+            if assets.prepare:
+                self._run_step(shlex.join(assets.prepare), env=env, log_buf=log_buf,
+                               step_name="prepare_pinned_grader_assets", timeout=120)
             result = self._run_step(shlex.join(["sha256sum", self._stashed_executable]),
                 env=env, log_buf=log_buf, step_name="verify_candidate_after_grader_assets", timeout=10)
             if result.get("output", "").split()[0] != self.result.executable_hash:
@@ -118,6 +170,7 @@ def runtime_evaluator(base, assets=None):
                 plugin = Path(temporary) / (PLUGIN_NAME + ".py")
                 plugin.write_text(PLUGIN)
                 env.copy_in(plugin, PLUGIN_ROOT + "/" + plugin.name)
+            install_plugin_path(super()._run_step, env, kwargs["log_buf"], PLUGIN_ROOT)
             prefix = (
                 f'export PYTHONPATH="{PLUGIN_ROOT}${{PYTHONPATH:+:$PYTHONPATH}}"; '
                 f'export PYTEST_PLUGINS="{PLUGIN_NAME}${{PYTEST_PLUGINS:+,$PYTEST_PLUGINS}}"; '

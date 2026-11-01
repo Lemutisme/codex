@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import tempfile
 import threading
 import tarfile
+from procontract_evaluator_runtime import install_plugin_path
 
 
 DIRECTORY = "/tmp/procontract-test-scope"
@@ -29,15 +30,18 @@ _eligible = _scope.get("eligible", [])
 _files = _scope.get("files")
 _work_root = Path(_scope.get("root", "/workspace"))
 _allowed = None if _files is None else frozenset(_work_root / name for name in _files)
+_ancestors = None if _allowed is None else frozenset(parent for source in _allowed for parent in source.parents)
 _excluded = set()
 _foreign = set()
+_outside_catalogue = set()
+_outside_modules = set()
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_ignore_collect(collection_path, config):
     if _allowed is None:
         return None
     path = Path(collection_path).absolute()
-    if path in _allowed or any(path in source.parents for source in _allowed):
+    if path in _allowed or path in _ancestors:
         return None
     _foreign.add(str(path.relative_to(_work_root)) if path.is_relative_to(_work_root) else str(path))
     return True
@@ -49,9 +53,31 @@ def _identity(node):
         parts.insert(0, prefix)
     return ".".join(parts)
 
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(session, config, items):
+    if not _scope.get("catalogue_exact", False):
+        return
+    admitted = frozenset(_eligible)
+    selected, excluded = [], []
+    for item in items:
+        name = _identity(item)
+        if name in admitted:
+            selected.append(item)
+        else:
+            excluded.append(item)
+            _outside_catalogue.add(name)
+    items[:] = selected
+    if excluded:
+        config.hook.pytest_deselected(items=excluded)
+
 class _ExcludedModule(pytest.Module):
     def collect(self):
         _excluded.add(_identity(self))
+        return ()
+
+class _OutsideCatalogueModule(pytest.Module):
+    def collect(self):
+        _outside_modules.add(_identity(self))
         return ()
 
 @pytest.hookimpl(tryfirst=True)
@@ -60,6 +86,8 @@ def pytest_pycollect_makemodule(module_path, parent):
     identity = _identity(node)
     if identity in _ignored and not any(name.startswith(identity + ".") for name in _eligible):
         return _ExcludedModule.from_parent(parent, path=module_path)
+    if _scope.get("catalogue_exact", False) and not any(name.startswith(identity + ".") for name in _eligible):
+        return _OutsideCatalogueModule.from_parent(parent, path=module_path)
     return None
 
 @pytest.hookimpl(trylast=True)
@@ -67,16 +95,22 @@ def pytest_sessionfinish(session, exitstatus):
     if hasattr(session.config, "workeroutput"):
         session.config.workeroutput["pc_official_excluded_modules"] = sorted(_excluded)
         session.config.workeroutput["pc_nonofficial_paths"] = sorted(_foreign)
+        session.config.workeroutput["pc_outside_catalogue"] = sorted(_outside_catalogue)
+        session.config.workeroutput["pc_outside_catalogue_modules"] = sorted(_outside_modules)
         return
     (_root / "receipt.json").write_text(json.dumps({
         "schema": 1, "selectors_sha256": hashlib.sha256(_bytes).hexdigest(),
         "excluded_modules": sorted(_excluded), "nonofficial_paths": sorted(_foreign),
+        "outside_catalogue": sorted(_outside_catalogue),
+        "outside_catalogue_modules": sorted(_outside_modules),
         "scope": "Exact official module identities excluded before import; leaf exclusions remain in the official scorer."}))
 
 @pytest.hookimpl(optionalhook=True)
 def pytest_testnodedown(node, error):
     _excluded.update(node.workeroutput.get("pc_official_excluded_modules", []))
     _foreign.update(node.workeroutput.get("pc_nonofficial_paths", []))
+    _outside_catalogue.update(node.workeroutput.get("pc_outside_catalogue", []))
+    _outside_modules.update(node.workeroutput.get("pc_outside_catalogue_modules", []))
 '''
 
 
@@ -126,7 +160,7 @@ def scoped_evaluator(base):
             files = getattr(self._official_scope, "files", None)
             if kwargs.get("step_name") != "run_tests" or files is None:
                 return super()._run_step(command, **kwargs)
-            payload = json.dumps({"ignored": ignored, "eligible":self._official_scope.eligible,
+            payload = json.dumps({"ignored": ignored, "eligible":self._official_scope.eligible, "catalogue_exact":True,
                 "root":"/workspace", "files":files}, sort_keys=True).encode()
             env = kwargs["env"]
             super()._run_step(
@@ -139,6 +173,7 @@ def scoped_evaluator(base):
                 (root / "scope.json").write_bytes(payload)
                 for name in (PLUGIN_NAME + ".py", "scope.json"):
                     env.copy_in(root / name, DIRECTORY + "/" + name)
+            install_plugin_path(super()._run_step, env, kwargs["log_buf"], DIRECTORY)
             command = (
                 f'export PYTHONPATH="{DIRECTORY}${{PYTHONPATH:+:$PYTHONPATH}}"; '
                 f'export PYTEST_PLUGINS="{PLUGIN_NAME}${{PYTEST_PLUGINS:+,$PYTEST_PLUGINS}}"; '
