@@ -21,6 +21,13 @@ candidate-caused test discovery failure (H2): unsupported completion arguments
 abort module import, rather than a shared interpreter outage. Keep these causal
 links and their unavailable quality measurements distinct.
 
+The [memory audit](programbench-memory-audit-20261101.md) distinguishes host
+headroom from container/action limits: all 54 retained OOM kills were cgroup-limit
+events, including one QuickJS execution at its 60-GiB limit. Sixteen-concurrency
+host samples retained at least 91 GiB available. H2/H3 need scope-qualified
+resource observations and durable container-to-operation bindings; neither
+halving concurrency nor enlarging every limit follows from an OOM label alone.
+
 ## Current evidence anchor
 
 At approximately 22:52 UTC on 2026-10-30, the uniform six-hour, request-unlimited,
