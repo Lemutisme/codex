@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import threading
+import tempfile
 import time
 import tomllib
 
@@ -119,6 +120,18 @@ def collect_outputs(workspace):
     return files,artifacts
 
 
+def attach_socket(home, socket, image):
+    """Socket transport need not inherit the length/layout of durable workspace paths."""
+    path=home/'environments.toml'
+    environment=tomllib.loads(path.read_text())['environments'][0]
+    arguments=environment['args']
+    at=arguments.index(image)
+    arguments[at:at]=['--mount',f'type=bind,src={socket},dst=/workspace/s,readonly']
+    lines=path.read_text().splitlines()
+    if sum(line.startswith('args=') for line in lines)!=1:raise ValueError('ambiguous execution environment')
+    path.write_text('\n'.join('args='+json.dumps(arguments) if line.startswith('args=') else line for line in lines)+'\n')
+
+
 def native(run, package, image, version, host, prompt, *, inputs, seconds=None, socket_host=None, measurements=None, offered_operations=None):
     run.mkdir(parents=True,exist_ok=True)
     with (run/'native-admission.json').open('x') as admission:
@@ -151,15 +164,17 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds=None, 
     settings['evaluation']['excluded_paths'].append('s')
     settings['resource_snapshot']=str(budget.resource_path)
     settings_path.write_text(json.dumps(settings))
+    broker=None;ipc=None
+    if socket_host:
+        ipc=tempfile.TemporaryDirectory(prefix='pc-ipc-')
+        broker=Broker(Path(ipc.name)/'s',host,socket_host,measurements=measurements,operations=offered_operations)
+        attach_socket(home,broker.path,image)
+        threading.Thread(target=broker.serve_forever,daemon=True).start()
     actor_view=verify_actor_view(home,image)
     ops.atomic(run/'actor-view.json',actor_view)
     resolved=host.resolved(version,{'prompt':prompt,'configuration':config,'policies':{k:v for k,v in definition['files'].items() if k.endswith('.md')}},
         {k:ops.sha(Path(v).read_bytes()) for k,v in inputs.items()}, {'image':image,'network':'none','model':model,'effort':effort,'seconds':seconds,'requests':None,
         'build_observation':actual_build,'actor_view':actor_view})
-    broker=None
-    if socket_host:
-        broker=Broker(workspace/'s',host,socket_host,measurements=measurements,operations=offered_operations)
-        threading.Thread(target=broker.serve_forever,daemon=True).start()
     env={**os.environ,'CODEX_HOME':str(home)}
     server=AppServer([str(package/'bin/codex'),'--enable','pro_contract','--disable','hooks','app-server'],env,run/'rpc.jsonl',run/'stderr.log',workspace)
     completed=[]
@@ -199,6 +214,7 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds=None, 
         environment_shutdown=confirm_environment_shutdown(workspace,home)
         ops.atomic(run/'shutdown.json',{'native':shutdown,'environment':environment_shutdown})
         if broker:broker.shutdown();broker.server_close();(workspace/'s').unlink(missing_ok=True)
+        if ipc:ipc.cleanup()
         gateway.shutdown();gateway.server_close()
     usage=[]
     with budget.lock:

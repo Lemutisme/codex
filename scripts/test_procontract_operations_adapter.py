@@ -7,10 +7,20 @@ import unittest
 from unittest.mock import patch
 
 from qualify_procontract_operations import build_identity, confirm_environment_shutdown, observe_build
-from procontract_native_operation import collect_outputs,native
+from procontract_native_operation import collect_outputs,native,attach_socket
+import tomllib
 
 
 class CleanupTest(unittest.TestCase):
+    def test_socket_endpoint_is_independent_of_a_long_durable_workspace_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp)/('a'*90)/('b'*90);home.mkdir(parents=True)
+            path=home/'environments.toml'
+            path.write_text('default="test"\n[[environments]]\nid="test"\nprogram="docker"\nargs=["run","--network","none","image","executor"]\n')
+            attach_socket(home,Path('/tmp/short-ipc/s'),'image')
+            arguments=tomllib.loads(path.read_text())['environments'][0]['args']
+            self.assertEqual(arguments,['run','--network','none','--mount','type=bind,src=/tmp/short-ipc/s,dst=/workspace/s,readonly','image','executor'])
+
     def test_output_collection_never_follows_actor_links_and_retains_nontext_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);workspace=root/'workspace';workspace.mkdir()
