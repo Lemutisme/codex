@@ -298,7 +298,7 @@ def submit_pending(host, responsibility, version, run_root, prompt, *, inputs,
     """
     view=host.receive(responsibility)
     if view['cancelled'] or (view['pending'] is None and not view['time_due']):return None
-    identity='input.'+ops.sha([responsibility,view['epoch'],view['pending'],view['wait'].get('after')])[:32]
+    identity='input.'+ops.sha([responsibility,view['epoch'],view['acknowledged'],view['pending'],view['wait'].get('after')])[:32]
     params={'run':str(Path(run_root)/identity),'prompt':prompt,'inputs':{k:str(v) for k,v in inputs.items()},
             'seconds':seconds,'socket_host':responsibility}
     if offered_measurements is not None:params['offered_measurements']=list(offered_measurements)

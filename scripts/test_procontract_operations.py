@@ -177,6 +177,23 @@ time.sleep(q.get('sleep',0))
         with self.assertRaisesRegex(ValueError,'renewed'):
             ops.Operations.create(self.host.root,altered,{'control':ops.Measurement((),'', '')})
 
+    def test_imported_outcome_cannot_authorize_a_different_same_named_assignment(self):
+        from procontract_evidence_bundle import export_objects,import_objects
+        self.submit();original=self.complete();proof=original['outcome']['object']
+        target=ops.Operations.create(self.root/'other',self.host.authority,{
+            'control':ops.Measurement((sys.executable,str(self.runner)),ops.sha(self.runner.read_bytes()),'fixture',True)})
+        target.subscribe('research','task',['observation'])
+        definition=self.host.get(self.version)['definition'];definition['files']['tool.py']='unmeasured version'
+        version=target.register(definition)
+        target.submit('run','research',version,'control',{'counter':str(self.root/'new-counter')},'different assignment')
+        import_objects(target,export_objects(self.host,[proof]))
+        self.assertEqual(target.get(proof),self.host.get(proof))
+        with self.assertRaisesRegex(ValueError,'another assignment'):
+            target.adopt('decision',version,None,proof,'historical result is not this measurement')
+        self.assertIsNone(target.incumbent()['version'])
+        self.assertEqual(target.inspect('run')['state'],'reserved')
+        self.assertFalse((self.root/'new-counter').exists())
+
     def test_changed_measurement_is_unavailable_not_a_quality_score(self):
         self.submit()
         self.runner.write_text('raise RuntimeError("replaced evaluator")')

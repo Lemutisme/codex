@@ -648,6 +648,8 @@ class Operations:
         else:
             receipt = proof
             assignment = self.inspect(receipt["id"])["request"]
+            if receipt.get("assignment") != sha(assignment):
+                raise ValueError("adoption evidence belongs to another assignment")
             measurement = assignment["measurement"]
             if (assignment["request"]["version"] != version or receipt["execution"] != "completed"
                     or not receipt["shutdown_confirmed"] or not (receipt.get("measurement") or {}).get("admissible")

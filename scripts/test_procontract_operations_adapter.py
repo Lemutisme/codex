@@ -7,11 +7,32 @@ import unittest
 from unittest.mock import patch
 
 from qualify_procontract_operations import build_identity, confirm_environment_shutdown, observe_build
-from procontract_native_operation import collect_outputs,native,attach_socket
+from procontract_native_operation import collect_outputs,native,attach_socket,submit_pending
+from procontract_operations import Operations,Authority,Measurement
 import tomllib
 
 
 class CleanupTest(unittest.TestCase):
+    def test_next_input_page_has_a_new_assignment_without_renewing_duplicate_delivery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            host=Operations.create(root/'host',Authority('fixture','fixture','test',(),('native-procontract',)),{
+                'native-procontract':Measurement(('/bin/true',),'noop','fixture')})
+            host.subscribe('research','input',['observation'])
+            version=host.register({'kind':'research','files':{},'build':{},'model':{},'resolver':'fixture','tools':{}})
+            for i in range(2):host.observation('item',[],{},{'i':i},{},source='input')
+            def submit():return submit_pending(host,'research',version,root/'runs','analyze',inputs={},seconds=10)
+            original=submit();self.assertEqual(submit(),original)
+            host.run_worker(original[0])
+            page=host.receive('research',limit=1)
+            host.wait('research',page['epoch'],page['through'],{'event':True})
+            following=submit()
+            self.assertNotEqual(following[0],original[0])
+            self.assertEqual(submit(),following)
+            self.assertEqual(host.inspect(original[0])['request'],original[1]['request'])
+            final=host.receive('research');host.wait('research',final['epoch'],final['through'],{'event':True})
+            self.assertIsNone(submit())
+
     def test_socket_endpoint_is_independent_of_a_long_durable_workspace_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp)/('a'*90)/('b'*90);home.mkdir(parents=True)
