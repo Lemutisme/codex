@@ -35,6 +35,41 @@ The capability surface is intentionally small:
 | subscribe / inbox / wakes / wait | Selected event inputs, coalesced/reconstructible pending cursor, durable waiting; selector failure does not acknowledge input |
 | adopt | Existing kernel Issue/Propose/Support and atomic Discharge + selection, with actual delegated provenance and an expected-incumbent fence |
 
+Evidence intake and delivery now have explicit views:
+
+- The provisioner can `capture_source` with an expected hash. Bytes are retained
+  independently of the original path and read through bounded `source_read` pages.
+  Each page binds the source, offset, end and byte digest; binary/partial UTF-8
+  pages retain exact base64 bytes. The actor cannot provide an arbitrary host path.
+- `search` offers literal, snapshot-bound retrieval by text/kind. Its cursor pages
+  an evidence query; it is **not** an input acknowledgement. Correction links remain
+  visible as `superseded_by`, without making the newer interpretation certified truth.
+- `receive` returns the selected subscription input, owner epoch and a `through`
+  cursor for the actual delivered page. It neither acknowledges input nor starts
+  work. A selected `wait` through that boundary leaves later input pending.
+- `knowledge` can retain applicability and counterevidence references in addition
+  to its interpretation, uncertainty and correction link. These are strategy-authored
+  claims, not automatic policies or kernel truth states.
+
+`procontract_evidence_bundle.py` imports explicit source/observation/claim manifests;
+duplicate import is idempotent. Domain interpretation stays outside the importer.
+`procontract_native_operation.py` is the shared native adapter used by qualification
+and research. `submit_pending` reserves a caller-selected native action for the
+retained input identity; repeating it does not create a new assignment/allocation.
+It does not choose a research sequence or automatically retry failed actions.
+
+Native model/effort come from the selected definition; an invocation can have no
+hard deadline. Actual supplied action limits remain enforced. A native directory
+has exclusive admission, and a short, separately mounted capability socket avoids
+coupling Unix socket limits to long durable workspace paths. Per-invocation offered
+operations/measurements can narrow the host authority. Output capture preserves
+regular-file identities, never follows actor-controlled links into host files,
+and leaves large/binary artifacts retained instead of forcing them into text replies.
+
+The host implementation fingerprint includes operation, evidence, RPC and store
+binding sources. A repeated `issue` with changed terms is rejected rather than
+silently returning the earlier responsibility as if it had been reissued.
+
 Version definitions identify all supplied instruction files, code/build, model,
 resolver and tool identities; task and research lineages are distinct. The actor's
 file bytes are content-addressed. A provisioner can explicitly permit changes to
@@ -108,3 +143,8 @@ arrangement. Existing fixed campaigns remain pinned and receive no automatic
 migration or hidden feedback.
 
 Qualification and exact limits: [2026-10-31 report](research/procontract-rsi-qualification-20261031.md).
+
+The real-trajectory research pilot is `scripts/qualify_procontract_insights.py`.
+Its input bundle, controls, model-authored knowledge and version decisions are
+separate from the frozen ProgramBench corpus. Protected decision/reporting checks
+are finite controls; they do not establish general task-performance gains.

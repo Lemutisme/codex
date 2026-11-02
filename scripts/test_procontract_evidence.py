@@ -4,10 +4,13 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
+import os
+import procontract_evidence
 
 from procontract_operations import Operations,Authority,Measurement
 from procontract_operations_rpc import Broker
-from procontract_evidence_bundle import ingest
+from procontract_evidence_bundle import ingest,export_objects,import_objects
 
 
 class EvidenceControls(unittest.TestCase):
@@ -35,6 +38,19 @@ class EvidenceControls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'identity'):self.host.capture_source(path,expected_sha256='0'*64,label='wrong')
         identity=self.host.put('source',{'sha256':'../outside','bytes':0})
         with self.assertRaisesRegex(ValueError,'digest'):self.host.source_read(identity)
+
+    def test_paging_reuses_verified_custody_and_rechecks_changed_metadata(self):
+        path=self.root/'source';path.write_bytes(b'x'*10000)
+        digest=hashlib.sha256(path.read_bytes()).hexdigest()
+        identity=self.host.capture_source(path,expected_sha256=digest,label='large evidence')
+        real=procontract_evidence.digest_file
+        with patch.object(procontract_evidence,'digest_file',wraps=real) as verify:
+            for offset in [0,100,200,300]:self.host.source_read(identity,offset=offset,length=100)
+            self.assertEqual(verify.call_count,1)
+            retained=self.host.root/'sources'/digest;old=retained.stat()
+            retained.chmod(0o600);retained.write_bytes(b'y'*10000);os.utime(retained,ns=(old.st_atime_ns,old.st_mtime_ns))
+            with self.assertRaisesRegex(ValueError,'identity differs'):self.host.source_read(identity)
+            self.assertEqual(verify.call_count,2)
 
     def test_receive_acknowledges_only_delivered_subscription_events(self):
         h=self.host;h.subscribe('research','task',['observation'])
@@ -97,6 +113,19 @@ class EvidenceControls(unittest.TestCase):
         broker=Broker(self.root/'socket',self.host,'research',operations=['receive','get'])
         self.addCleanup(broker.server_close)
         with self.assertRaisesRegex(ValueError,'not offered'):broker.invoke('adopt',{})
+
+    def test_retained_knowledge_moves_with_its_sources_without_reinterpreting_old_claims(self):
+        path=self.root/'origin';path.write_text('original evidence')
+        source=self.host.capture_source(path,expected_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),label='observation source')
+        fact=self.host.observation('subject',[source],{'scope':'old conditions'},{'value':1},{},source='task')
+        first=self.host.knowledge('subject',[fact],'claim','limited')
+        corrected=self.host.knowledge('subject',[fact],'qualified claim','still limited',supersedes=first,counterevidence=[fact])
+        exported=export_objects(self.host,[corrected]);path.unlink()
+        other=Operations.create(self.root/'other',Authority('owner','new-study','new scope',(),()),{})
+        self.assertEqual(import_objects(other,exported),[corrected])
+        self.assertEqual(other.get(corrected),self.host.get(corrected))
+        self.assertEqual(other.source_read(source)['text'],'original evidence')
+        self.assertFalse((other.root/'kernel/ledger_1.sqlite').exists())
 
 
 if __name__=='__main__':unittest.main()

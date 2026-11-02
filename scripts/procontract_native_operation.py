@@ -68,22 +68,38 @@ def confirm_environment_shutdown(workspace, home):
     """Reconcile only containers with this invocation's exclusive host mounts."""
     owned=[]
     try:
-        ids=subprocess.check_output(['docker','ps','-q'],text=True,timeout=10).split()
-        if ids:
-            containers=json.loads(subprocess.check_output(['docker','inspect',*ids],text=True,timeout=10))
-            roots=(workspace.resolve(),home.resolve())
+        roots=(workspace.resolve(),home.resolve())
+        def scan():
+            ids=subprocess.check_output(['docker','ps','-q','--no-trunc'],text=True,timeout=10).split()
+            if not ids:return []
+            try:
+                raw=subprocess.check_output(['docker','inspect',*ids],text=True,stderr=subprocess.PIPE,timeout=10)
+            except subprocess.CalledProcessError as error:
+                # Docker returns the inspectable objects even if another listed
+                # container disappeared. Recheck omissions instead of treating
+                # an unrelated removal as an unknown effect of this operation.
+                raw=error.output
+            containers=json.loads(raw)
+            observed={c['Id'] for c in containers}
+            missing=set(ids)-observed
+            if missing:
+                live=set(subprocess.check_output(['docker','ps','-q','--no-trunc'],text=True,timeout=10).split())
+                if missing & live:raise RuntimeError('live container could not be inspected')
+            selected=[]
             for container in containers:
                 sources=[Path(m['Source']).resolve() for m in container.get('Mounts',[]) if m.get('Source')]
                 if any(source==root or source.is_relative_to(root) for source in sources for root in roots):
-                    owned.append(container['Id'])
+                    selected.append(container['Id'])
+            return selected
+        owned=scan()
         removal=None
         if owned:
             # --rm may finish between inspection and this request. The subsequent
             # live-set observation determines lifetime, not the CLI exit alone.
             removed=subprocess.run(['docker','rm','-f',*owned],check=False,capture_output=True,text=True,timeout=10)
             removal={'exit_code':removed.returncode,'stderr':removed.stderr[:2000]}
-        remaining=subprocess.check_output(['docker','ps','-q','--no-trunc'],text=True,timeout=10).split()
-        return {'confirmed':not any(identity in remaining for identity in owned),'owned_containers':owned,'removal':removal}
+        remaining=scan()
+        return {'confirmed':not remaining,'owned_containers':owned,'remaining_owned':remaining,'removal':removal}
     except Exception as error:
         return {'confirmed':False,'owned_containers':owned,'error':str(error)}
 
@@ -159,6 +175,11 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds=None, 
         isolation='container-only',successor_sessions=0,task_seconds=seconds,continuous_work=True,
         inputs=inputs,strategy=strategy)
     config['approval_policy']='never'
+    config['developer_instructions']+='\nHost allocation bindings (observed facts):\n'+json.dumps({
+        'observation_phase':'native_admission',
+        'standing_responsibility':socket_host,'standing_authority_scope':host.authority.scope,
+        'standing_authority_deadline':host.authority.deadline,
+        'native_invocation_allocation':budget.status()},sort_keys=True)
     (home/'config.toml').write_text(procodex_config.toml(config))
     settings_path=home/'pro_contract/settings.json';settings=json.loads(settings_path.read_text())
     settings['evaluation']['excluded_paths'].append('s')

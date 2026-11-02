@@ -19,7 +19,7 @@ class Evidence:
         self.host=host
         self.directory=host.root/'sources'
 
-    def capture(self, path, *, expected_sha256, label, media_type='text/plain'):
+    def capture(self, path, *, expected_sha256, label, media_type='text/plain', origin=None):
         """Provisioner-only import. Actors receive IDs, never a host-path reader."""
         self.host.allowed()
         path=Path(path)
@@ -50,7 +50,7 @@ class Evidence:
                 try:os.fsync(fd)
                 finally:os.close(fd)
             return self.host.put('source',{'sha256':identity,'bytes':size,'media_type':media_type,
-                'label':label,'origin':str(path.resolve())})
+                'label':label,'origin':str(path.resolve()) if origin is None else origin})
         finally:
             temporary.unlink(missing_ok=True)
 
@@ -67,10 +67,18 @@ class Evidence:
             before=os.fstat(stream.fileno())
             if not stat.S_ISREG(before.st_mode) or before.st_size!=descriptor['bytes']:
                 raise ValueError('retained source size/type differs')
-            if digest_file(stream)!=descriptor['sha256']:raise ValueError('retained source identity differs')
+            stamp=(before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns,before.st_ctime_ns)
+            with self.host._source_lock:
+                if self.host._source_verified.get(descriptor['sha256'])!=stamp:
+                    if digest_file(stream)!=descriptor['sha256']:raise ValueError('retained source identity differs')
+                    verified=os.fstat(stream.fileno())
+                    if (verified.st_dev,verified.st_ino,verified.st_size,verified.st_mtime_ns,verified.st_ctime_ns)!=stamp:
+                        raise ValueError('source changed during verification')
+                    self.host._source_verified[descriptor['sha256']]=stamp
             if offset>before.st_size:raise ValueError('offset exceeds source')
             stream.seek(offset);data=stream.read(length);after=os.fstat(stream.fileno())
             if (before.st_size,before.st_mtime_ns,before.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+                with self.host._source_lock:self.host._source_verified.pop(descriptor['sha256'],None)
                 raise ValueError('source changed during view')
         result={'source':identity,'sha256':descriptor['sha256'],'offset':offset,'end':offset+len(data),
             'bytes':descriptor['bytes'],'eof':offset+len(data)==descriptor['bytes'],

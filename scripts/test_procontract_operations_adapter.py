@@ -44,7 +44,8 @@ class CleanupTest(unittest.TestCase):
         owned='a'*64;foreign='b'*64
         containers=[{'Id':owned,'Mounts':[{'Source':'/fixture/run/workspace'}]},
                     {'Id':foreign,'Mounts':[{'Source':'/another/invocation'}]}]
-        with patch('qualify_procontract_operations.subprocess.check_output',side_effect=[owned+'\n'+foreign,json.dumps(containers),remaining]), \
+        final=[c for c in containers if c['Id'] in remaining]
+        with patch('qualify_procontract_operations.subprocess.check_output',side_effect=[owned+'\n'+foreign,json.dumps(containers),remaining,*([json.dumps(final)] if remaining else [])]), \
              patch('qualify_procontract_operations.subprocess.run',return_value=subprocess.CompletedProcess([],1,'','No such container')) as remove:
             result=confirm_environment_shutdown(Path('/fixture/run/workspace'),Path('/fixture/run/state'))
             self.assertEqual(remove.call_args.args[0],['docker','rm','-f',owned])
@@ -63,6 +64,24 @@ class CleanupTest(unittest.TestCase):
             result=confirm_environment_shutdown(Path('/fixture/run/workspace'),Path('/fixture/run/state'))
         self.assertFalse(result['confirmed'])
         self.assertIn('daemon unavailable',result['error'])
+
+    def test_disappearing_foreign_container_does_not_hide_owned_shutdown(self):
+        owned='a'*64;foreign='b'*64
+        inspectable=[{'Id':owned,'Mounts':[{'Source':'/fixture/run/workspace'}]}]
+        missing=subprocess.CalledProcessError(1,['docker','inspect'],output=json.dumps(inspectable),stderr='No such object')
+        with patch('qualify_procontract_operations.subprocess.check_output',side_effect=[owned+'\n'+foreign,missing,owned,'']), \
+             patch('qualify_procontract_operations.subprocess.run',return_value=subprocess.CompletedProcess([],0,'','')) as remove:
+            result=confirm_environment_shutdown(Path('/fixture/run/workspace'),Path('/fixture/run/state'))
+        self.assertTrue(result['confirmed'])
+        self.assertEqual(remove.call_args.args[0],['docker','rm','-f',owned])
+
+    def test_uninspectable_live_container_remains_unknown(self):
+        identity='a'*64
+        missing=subprocess.CalledProcessError(1,['docker','inspect'],output='[]',stderr='inspect failed')
+        with patch('qualify_procontract_operations.subprocess.check_output',side_effect=[identity,missing,identity]):
+            result=confirm_environment_shutdown(Path('/fixture/run/workspace'),Path('/fixture/run/state'))
+        self.assertFalse(result['confirmed'])
+        self.assertIn('live container',result['error'])
 
     def test_version_includes_tool_host_and_changed_bytes_are_fenced_before_model_work(self):
         with tempfile.TemporaryDirectory() as temporary:

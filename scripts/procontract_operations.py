@@ -118,6 +118,8 @@ class Operations:
         self.store = self.root / "kernel"
         self.config = json.loads((self.root / "host.json").read_text())
         self.authority = Authority(**self.config["authority"])
+        self._source_verified = {}
+        self._source_lock = threading.Lock()
 
     @classmethod
     def create(cls, root, authority: Authority, measurements: dict[str, Measurement]):
