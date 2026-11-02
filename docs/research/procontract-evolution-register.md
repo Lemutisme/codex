@@ -1,6 +1,6 @@
 # ProContract evolution register
 
-Living record, updated 2026-11-01. This consolidates observed mechanisms and
+Living record, updated 2026-11-02. This consolidates observed mechanisms and
 proposed validation. It installs no prompts, runtime gates or kernel rules.
 The fixed benchmark remains frozen. On 2026-10-31 the user authorized isolated
 E2E RSI development by one Astra xhigh agent while the parent continues trajectory
@@ -29,6 +29,14 @@ resource observations and durable container-to-operation bindings; neither
 halving concurrency nor enlarging every limit follows from an OOM label alone.
 
 ## Current evidence anchor
+
+The [2026-11-02 status](programbench-status-20261102.md) records 186 valid
+first-attempt/same-artifact scores and eight newly recovered measurements, including
+hashcards 93.72%, dstask 92.33% and jq 83.07%. It also records and repairs three
+redundant grading admissions caused by treating a lagging report as authoritative
+failure evidence. Their costs remain retained; established scores keep precedence.
+This extends H1/H3's distinction between operation facts and derived views, without
+a new kernel transition or a solver-quality claim from measurement recovery.
 
 The [authorized completion pass](programbench-completion-20261101.md) supplies
 actual remedies for the previously recorded evaluator/provisioning failures.
