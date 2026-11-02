@@ -48,7 +48,7 @@ PRO_CONTRACT_STORE_BIN=/path/to/package/bin/pro-contract-store \
 
 This uses GPT-5.6-Luna/max, offline native execution and unlimited request accounting.
 The standing responsibility has no deadline. `--seconds N` can explicitly allocate
-time to this action; omitting it leaves that action's deadline absent too. A repeated
+whole seconds to this action; omitting it leaves that action's deadline absent too. A repeated
 delivery of the same pending interval retains the original operation and allocation.
 It cannot silently renew a limit or change the selected request. A partial input
 acknowledgement permits a separately selected action on the remaining page. The

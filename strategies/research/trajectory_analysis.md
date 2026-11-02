@@ -30,6 +30,14 @@ Source possession, retrieval, interpretation, a proposed change, measured behavi
 and adoption are distinct events. Record the strongest justified level for each
 consequential claim and retain the remaining gaps.
 
+Use computation to derive and check quantitative views that support a conclusion.
+Verify identity joins, units and the source of each compared quantity; a selection,
+return and successful outcome count have different scopes. Preserve nullable
+observations, including the distinction between unknown and false or zero. For
+large structured updates, reuse retained inputs and make bounded transformations.
+After an interrupted action, continue the remaining work from its usable artifacts
+under the actual grants. A new action does not renew the preceding allocation.
+
 Treat previous analyst reports as valuable claims with sources and conditions.
 Follow their evidence and correction relations when reusing a consequential claim;
 do not replace accumulated experience with a new small illustrative sample. Source
@@ -56,6 +64,13 @@ method was necessary; a low aggregate does not identify its first cause. State
 alternative explanations and the observation or experiment that could separate
 them. Keep negative findings and refutations, including when a prior proposed
 improvement did not produce a measured gain.
+
+Describe verification at its actual level: a trajectory can support a mechanism,
+a local control can establish a specific dependency, and a changed method needs
+its own comparison for an effect claim. Proposal, verification and correction
+relations may have missing links. Record those links as open rather than filling
+them with a completed experimental story. A complete census count remains a fact
+about that population even when a separate targeted audit cannot estimate prevalence.
 
 Distil reusable changes at the correct layer. Strategy includes prompts, skills,
 workflow orchestration and choices about diagnosis, verification, repair and
