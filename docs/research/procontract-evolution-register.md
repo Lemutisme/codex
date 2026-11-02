@@ -30,6 +30,15 @@ halving concurrency nor enlarging every limit follows from an OOM label alone.
 
 ## Current evidence anchor
 
+The [11:48 UTC completion update](programbench-status-20261102.md) has all solvers
+stopped and 197 scores under the existing strict-completeness view. Pandoc is
+23.11%; age was recovered at 66.42% without new inference. A scoring audit separates
+the pinned scorer's defined values for explicit `not_run` outcomes from the extra
+campaign validator's completeness gate: jsonschema computes 60.23%, and the
+separate stgit retry 63.04%. Historical strict flags remain intact. This is an H2
+measurement-contract distinction, not a new kernel invariant or evidence that
+unexecuted cases were observed to fail.
+
 The [2026-11-02 status](programbench-status-20261102.md) records 186 valid
 first-attempt/same-artifact scores and eight newly recovered measurements, including
 hashcards 93.72%, dstask 92.33% and jq 83.07%. It also records and repairs three

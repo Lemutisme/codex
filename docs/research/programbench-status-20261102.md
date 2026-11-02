@@ -1,5 +1,61 @@
 # ProgramBench completion status, 2026-11-02
 
+## 11:48 UTC update: solving finished, Pandoc scored, age recovered
+
+All solver attempts have ended. Pandoc scored **1205/5214 = 23.11%**, with its
+full feedback vector and raw evaluator hash independently checked. Other completed
+first admissions include i3-style 533/539 (98.89%), tuc 1162/1196 (97.16%), gping
+294/338 (86.98%), gdu 922/1161 (79.41%), fselect 2211/3115 (70.98%), go-critic
+303/493 (61.46%), Miller 5611/14637 (38.33%) and pueue 115/638 (18.03%). These are
+artifact results under the recorded conditions; they do not all indicate the same
+strategy or infrastructure mechanism.
+
+Age's solver had finished, but its earlier container-removal wait did not confirm
+absence, so no submission was frozen. At this inspection the relevant containers
+were absent and the retained server shutdown was confirmed. A separately recorded
+postsolve operation packaged that stopped workspace and obtained **449/676 =
+66.42%**. Its original failure remains unchanged, as do the six-hour start/deadline
+and 1949 recorded requests. No model inference was repeated.
+
+The current strict-completeness projection is **197/200 scores, mean 76.2252%**;
+the same-task Vals reference mean is 68.3823%, with different request resources.
+All jobs are now stopped. Three entries retain `needs_repair`: jsonschema, SQLite
+and the separate stgit retry. SQLite exhausted the supplied evaluation allocation.
+
+### Scoring convention needs a separate, explicit account
+
+Jsonschema and the independent stgit retry have complete published result files,
+correct fixed denominators, matching artifact receipts, no top-level/branch errors,
+and no strict rejection reason except `not_run`. Jsonschema's recorded pytest
+invocation stops after a candidate assertion failure under its supplied fail-fast
+policy. Stgit's dynamic subcommand enumeration omits expected cases.
+
+The unmodified, pinned `programbench.submission.score_instance` computes:
+
+| Artifact | Passed / eligible | Scorer value | Explicit `not_run` records |
+| --- | ---: | ---: | ---: |
+| jsonschema first attempt | 1766/2932 | 60.23% | 1089 |
+| stgit independent retry | 938/1488 | 63.04% | 50 |
+
+Both evaluation attempts give the same respective values. The scoring function
+maps statuses other than `passed` to false; the additional campaign validator
+separately rejects any `not_run`. Thus lack of a score in the strict projection
+is not the same as inability to calculate the benchmark-defined scalar. Do not
+describe these as missing interpreter/environment failures, erase the scalar, or
+claim the unexecuted tests were actually observed failures. Score convention,
+execution completeness and infrastructure state need distinct fields.
+
+This pass retains the scorer reconciliation separately rather than silently
+rewriting pre-existing strict flags/aggregates. The stgit value is still a separate
+second solver attempt, not a replacement for its first attempt. SQLite additionally
+has branch-execution failures, so the `not_run`-only reconciliation does not certify
+its measurement. These distinctions should guide the final benchmark report and
+prevent an extra local completeness rule from manufacturing further solver work.
+
+Evidence is in `/data/ProContract/procontract-status-20261102-1141/`, including
+`pandoc-score-audit.json`, `age-recovery-audit.json` and
+`official-scoring-reconciliation.json`. Original raw results were not overwritten.
+
 ## 02:44 UTC update
 
 The original scheduler has drained and exited: 200 terminal job records, including
