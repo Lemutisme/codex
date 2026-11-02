@@ -14,20 +14,26 @@ import threading
 class Broker(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 
-    def __init__(self, path, host, responsibility, measurements=None):
+    def __init__(self, path, host, responsibility, measurements=None, operations=None):
         self.host, self.responsibility = host, responsibility
-        self.measurements = tuple(measurements or host.authority.measurements)
+        self.measurements = tuple(host.authority.measurements if measurements is None else measurements)
+        self.operations = None if operations is None else frozenset(operations)
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         super().__init__(str(path), Handler)
 
     def invoke(self, operation, arguments):
+        if self.operations is not None and operation not in self.operations:
+            raise ValueError('operation not offered to this invocation')
         host = self.host
         inbox = host.inbox(self.responsibility)
         if inbox is None or inbox['cancelled']:
             raise ValueError('responsibility is cancelled or unavailable')
         if operation == 'read':return host.read(**arguments)
+        if operation == 'receive':return host.receive(self.responsibility,**arguments)
         if operation == 'get':return host.get(**arguments)
+        if operation == 'source_read':return host.source_read(**arguments)
+        if operation == 'search':return host.search(**arguments)
         if operation == 'incumbent':return host.incumbent()
         if operation == 'inbox':return inbox
         if operation == 'knowledge':return host.knowledge(**arguments)

@@ -27,7 +27,8 @@ import uuid
 
 import procontract_store as kernel
 
-IMPLEMENTATION = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+IMPLEMENTATION = hashlib.sha256(json.dumps({name:hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+    for name in ('procontract_operations.py','procontract_evidence.py','procontract_operations_rpc.py','procontract_store.py')},sort_keys=True).encode()).hexdigest()
 
 
 def encoded(value):
@@ -250,14 +251,32 @@ class Operations:
             "subject": subject, "sources": sources, "conditions": conditions,
             "outcome": outcome, "costs": costs}, source=source)
 
-    def knowledge(self, subject, sources, interpretation, uncertainty, supersedes=None):
+    def knowledge(self, subject, sources, interpretation, uncertainty, supersedes=None,
+                  applicability=None, counterevidence=None):
         for item in sources:
             self.get(item)
         if supersedes:
             self.get(supersedes, "knowledge")
-        return self.put("knowledge", {"subject": subject, "sources": sources,
+        body={"subject": subject, "sources": sources,
                         "interpretation": interpretation, "uncertainty": uncertainty,
-                        "supersedes": supersedes})
+                        "supersedes": supersedes}
+        if applicability is not None:body['applicability']=applicability
+        if counterevidence is not None:
+            for item in counterevidence:self.get(item)
+            body['counterevidence']=counterevidence
+        return self.put("knowledge",body)
+
+    def capture_source(self, path, **kwargs):
+        from procontract_evidence import Evidence
+        return Evidence(self).capture(path,**kwargs)
+
+    def source_read(self, identity, offset=0, length=8192):
+        from procontract_evidence import Evidence
+        return Evidence(self).read(identity,offset,length)
+
+    def search(self, **kwargs):
+        from procontract_evidence import Evidence
+        return Evidence(self).search(**kwargs)
 
     def subscribe(self, responsibility, source, kinds, cursor=0):
         """Select event inputs; this does not choose when or how to analyze them."""
@@ -277,6 +296,32 @@ class Operations:
         with self.tx() as db:
             row = db.execute("SELECT * FROM inbox WHERE id=?", (responsibility,)).fetchone()
         return dict(row) if row else None
+
+    def receive(self, responsibility, limit=100):
+        """Deliver selected pending inputs and an exact acknowledgement boundary.
+
+        Reading never acknowledges input or dispatches work. New events arriving
+        after this transaction remain pending when strategy waits through this page.
+        """
+        if type(limit) is not int or not 1<=limit<=1000:raise ValueError('invalid input page size')
+        with self.tx() as db:
+            row=db.execute('SELECT * FROM inbox WHERE id=?',(responsibility,)).fetchone()
+            if row is None:raise ValueError('responsibility subscription missing')
+            condition=json.loads(row['wake']) if row['wake'] else {}
+            selected=condition.get('event',True);kinds=json.loads(row['kinds'])
+            query='SELECT * FROM events WHERE seq>?';params=[row['cursor']]
+            if row['source']!='*':query+=' AND source=?';params.append(row['source'])
+            query+=' AND kind IN ('+','.join('?' for _ in kinds)+')';params.extend(kinds)
+            if selected is False:query+=' AND 0'
+            elif isinstance(selected,str):query+=' AND kind=?';params.append(selected)
+            pending=db.execute('SELECT max(seq) FROM ('+query+')',params).fetchone()[0]
+            rows=db.execute(query+' ORDER BY seq LIMIT ?',(*params,limit)).fetchall()
+            db.execute('UPDATE inbox SET pending=? WHERE id=?',(pending,responsibility))
+            through=rows[-1]['seq'] if rows else row['cursor']
+            return {'responsibility':responsibility,'epoch':row['epoch'],'cancelled':bool(row['cancelled']),
+                'acknowledged':row['cursor'],'pending':pending,'through':through,
+                'more':pending is not None and pending>through,'events':[dict(item) for item in rows],
+                'wait':condition,'time_due':condition.get('after') is not None and time.time()>=condition['after']}
 
     def decision_failed(self, responsibility, error):
         # Neither the cursor nor the pending input is acknowledged by a failed selector.
@@ -541,8 +586,11 @@ class Operations:
         return {"seq": row["seq"], "version": selected["version"]}
 
     def issue(self, identity, terms):
-        if kernel.contract(self.store, identity):
-            return kernel.contract(self.store, identity)
+        prior=kernel.contract(self.store, identity)
+        if prior:
+            if prior['bindings']['terms_hash']!=kernel.digest('terms',terms):
+                raise ValueError('responsibility already has different terms; no silent re-issue')
+            return prior
         return kernel.apply(self.store, f"issue:{identity}", {
             "contract_id": identity, "expected_version": 0, "role": "issuer", "provenance": "delegate",
             "command": {"type": "issue", "owner": self.authority.principal,

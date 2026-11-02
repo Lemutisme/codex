@@ -7,9 +7,29 @@ import unittest
 from unittest.mock import patch
 
 from qualify_procontract_operations import build_identity, confirm_environment_shutdown, observe_build
+from procontract_native_operation import collect_outputs,native
 
 
 class CleanupTest(unittest.TestCase):
+    def test_output_collection_never_follows_actor_links_and_retains_nontext_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);workspace=root/'workspace';workspace.mkdir()
+            private=root/'private';private.write_text('must not be released through a link')
+            (workspace/'link').symlink_to(private)
+            (workspace/'answer.txt').write_text('retained output')
+            (workspace/'binary').write_bytes(b'\xff\x00')
+            (workspace/'large').write_bytes(b'x'*(1<<20)+b'x')
+            files,artifacts=collect_outputs(workspace)
+            self.assertEqual(files,{'answer.txt':'retained output'})
+            self.assertEqual(artifacts['link']['kind'],'symlink')
+            self.assertEqual(artifacts['binary']['bytes'],2)
+            self.assertFalse(artifacts['large']['inline_text'])
+
+    def test_repeated_native_directory_is_rejected_before_model_or_host_access(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'native-admission.json').write_text('{}')
+            with self.assertRaises(FileExistsError):native(root,None,'image','version',None,'prompt',inputs={})
+
     def run_cleanup(self, remaining):
         owned='a'*64;foreign='b'*64
         containers=[{'Id':owned,'Mounts':[{'Source':'/fixture/run/workspace'}]},
