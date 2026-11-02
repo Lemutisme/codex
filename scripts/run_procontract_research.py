@@ -8,7 +8,6 @@ research-stage scheduler, quality threshold or automatic adoption decision.
 import argparse
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import shutil
@@ -192,8 +191,8 @@ def export_knowledge(root, host):
 
 
 def reserve(root, manifest, host, seconds=None):
-    if seconds is not None and (isinstance(seconds, bool) or not math.isfinite(seconds) or seconds <= 0):
-        raise ValueError('action allocation must be positive and finite when supplied')
+    if seconds is not None and (type(seconds) is not int or not 1 <= seconds <= (2**64 - 1) // 1000):
+        raise ValueError('native action allocation must be positive, representable whole seconds')
     verify_inputs(root, manifest)
     version = host.incumbent()['version']
     if version is None:
@@ -225,6 +224,7 @@ def execute(root, seconds=None):
     task = measurement.get('task') or {}
     summary = {'schema': 'procontract-research-action-v1', 'operation': identity,
                'state': item['state'], 'outcome': item.get('outcome'),
+               'execution': (item.get('outcome') or {}).get('execution'),
                'run': item['request']['request']['inputs']['run'],
                'selected': host.incumbent(), 'inbox': host.inbox('research'),
                'requests': task.get('cost', {}).get('allocator', {}).get('used'),
@@ -254,7 +254,7 @@ def main():
     provision.add_argument('--scope', required=True)
     run = commands.add_parser('run', help='dispatch one caller-selected action for pending input')
     run.add_argument('--root', type=Path, required=True)
-    run.add_argument('--seconds', type=float, help='optional action allocation; no standing task deadline')
+    run.add_argument('--seconds', type=int, help='optional action allocation in whole seconds; no standing task deadline')
     inspect = commands.add_parser('inspect', help='read current responsibility/operation state without dispatch')
     inspect.add_argument('--root', type=Path, required=True)
     export = commands.add_parser('export', help='export current knowledge and cited closure, without authority')
@@ -268,7 +268,7 @@ def main():
         result = {'root': str(args.root.resolve()), 'version': result['version'], 'state': 'prepared'}
     elif args.command == 'run':
         result = execute(args.root, args.seconds)
-        result = {key: result[key] for key in ('state', 'operation', 'requests', 'knowledge', 'inbox') if key in result}
+        result = {key: result[key] for key in ('state', 'execution', 'operation', 'requests', 'knowledge', 'inbox') if key in result}
     else:
         root, _, host = load(args.root)
         if args.command == 'export':
@@ -279,6 +279,8 @@ def main():
             result = {'inbox': host.inbox('research'), 'selected': host.incumbent(),
                       'operations': [host.inspect(identity) for identity in identities]}
     print(json.dumps(result, sort_keys=True))
+    if args.command == 'run' and result.get('execution') not in (None, 'completed'):
+        raise SystemExit(1)
 
 
 if __name__ == '__main__':

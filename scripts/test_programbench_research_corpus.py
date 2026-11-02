@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from programbench_research_corpus import case,wanted
+from programbench_research_corpus import case,wanted,selected_result_path
 
 
 class RetainedCorpusControls(unittest.TestCase):
@@ -23,7 +23,7 @@ class RetainedCorpusControls(unittest.TestCase):
                 {'type':'response_item','payload':{'type':'custom_tool_call_output','call_id':'c','output':'observed'}},
                 {'type':'response_item','payload':{'type':'message','role':'assistant','content':[{'text':'a hypothesis'}]}}]
             raw=''.join(json.dumps(r)+'\n' for r in records).encode();rollout.write_bytes(raw)
-            result=run/'RESULT.json';result.write_text(json.dumps({'budget':{'used':7},'status':{'repairs_used':0}}))
+            result=run/'RESULT.json';result.write_text(json.dumps({'budget':{'used':7},'status':{'repairs_used':0},'external':{'valid':True,'pass_rate':.8}}))
             row={'task':'owner__case.rev','completion_result':str(result),'external':{'valid':True,'pass_rate':.8}}
             dossier=case(row,run,root/'index',True)
             self.assertEqual(dossier['result_source']['path'],str(result))
@@ -47,6 +47,19 @@ class RetainedCorpusControls(unittest.TestCase):
         self.assertTrue(wanted('./codex-home/sessions/rollout-example.jsonl'))
         for path in ['../codex-home/sessions/rollout-example.jsonl','/codex-home/pro_contract/ledger_1.sqlite','workspace/result.json']:
             self.assertFalse(wanted(path))
+
+    def test_recovery_and_independent_retry_have_distinct_measurement_bindings(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);run=root/'run';run.mkdir();old=run/'RESULT.json';new=root/'recovered.json'
+            original={'valid':False,'eval_sha256':None}
+            recovered={'valid':True,'eval_sha256':'measured','resolved':4,'total':5,'pass_rate':.8}
+            old.write_text(json.dumps({'external':original}));new.write_text(json.dumps({'external':recovered}))
+            row={'result_path':str(old),'completion_result':str(new),'completion_kind':'score_retained','external':recovered}
+            self.assertEqual(selected_result_path(row,run),new)
+            independent={**row,'completion_kind':'independent_retry','external':original}
+            self.assertEqual(selected_result_path(independent,run),old)
+            self.assertIsNone(selected_result_path({**independent,'external':recovered},run))
+            self.assertIsNone(selected_result_path({**row,'external':{**recovered,'eval_sha256':'different'}},run))
 
 
 if __name__=='__main__':unittest.main()

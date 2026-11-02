@@ -32,6 +32,22 @@ def digest(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def selected_result_path(row,run):
+    """Bind the declared measurement; independent retries are a different attempt."""
+    candidates=[row.get('established_result_path'),row.get('result_path')]
+    if row.get('completion_kind')!='independent_retry':candidates.append(row.get('completion_result'))
+    candidates.append(run/'RESULT.json')
+    paths=list(dict.fromkeys(Path(p) for p in candidates if p and Path(p).is_file()))
+    declared=row.get('external') or {}
+    keys=[key for key in ('valid','eval_sha256','submission_sha256','resolved','total','pass_rate') if key in declared]
+    if keys:
+        for path in paths:
+            observed=read(path).get('external') or {}
+            if all(observed.get(key)==declared[key] for key in keys):return path
+        return None
+    return paths[0] if paths else None
+
+
 def wanted(name):
     path=PurePosixPath(name)
     if path.is_absolute() or '..' in path.parts:return False
@@ -146,13 +162,14 @@ def case(row,run,output,first_solver):
     message_path=directory/'statements.jsonl'
     with message_path.open('w') as stream:
         for message in messages:stream.write(json.dumps(message,ensure_ascii=False)+'\n')
-    result_path=Path(row.get('established_result_path') or row.get('completion_result') or row.get('result_path') or run/'RESULT.json')
+    result_path=selected_result_path(row,run)
     native_path=run/'RESULT.json'
     result=read(native_path) if native_path.exists() else read(run/'runtime-result.json') if (run/'runtime-result.json').exists() else {}
     runtime=read(run/'runtime-result.json') if (run/'runtime-result.json').exists() else {}
     dossier={'schema':'programbench-research-case-v1','task':row['task'],'subject':'programbench:first-attempt:'+row['task'],
         'solver_run':str(run),'first_admission_after_preparation_repair':first_solver,
-        'recorded_result':row,'result_source':{'path':str(result_path),'sha256':digest(result_path)} if result_path.exists() else None,
+        'recorded_result':row,'result_source':{'path':str(result_path),'sha256':digest(result_path)} if result_path else None,
+        'native_result_source':{'path':str(native_path),'sha256':digest(native_path)} if native_path.exists() else None,
         'native_status_snapshot':result.get('status'),'native_budget':result.get('budget'),
         'native_elapsed_seconds':runtime.get('elapsed'),
         'native_stop_reason':result.get('stop_reason'),'native_internal_support':result.get('internal_support'),'source_custody':origin,

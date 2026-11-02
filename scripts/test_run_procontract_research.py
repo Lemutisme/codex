@@ -1,11 +1,13 @@
 """Intake custody and invocation-allocation controls; no model inference."""
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
 import procontract_operations as ops
+import procodex_config
 import run_procontract_research as research
 
 
@@ -117,11 +119,39 @@ class ResearchIntakeTest(unittest.TestCase):
 
     def test_invalid_action_allocation_fails_before_native_grace_can_mask_it(self):
         manifest = self.prepare()
-        for seconds in (-30, 0, float('nan'), float('inf'), True):
+        for seconds in (-30, 0, float('nan'), float('inf'), True, 1800.0, 1.5, 2**64):
             with self.subTest(seconds=seconds), self.assertRaisesRegex(ValueError, 'allocation'):
                 research.reserve(self.run, manifest, self.host, seconds)
         with self.host.tx() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM operations').fetchone()[0], 0)
+
+    def test_cli_allocation_reaches_the_real_native_configuration_boundary(self):
+        observed = []
+
+        def native_boundary(root, seconds):
+            home, _ = procodex_config.configure(
+                self.package, self.root / 'actor', self.root / 'native-state',
+                self.root / 'source-home', 'fixture', None, isolation='container-only',
+                successor_sessions=0, task_seconds=seconds, continuous_work=True,
+            )
+            settings = json.loads((home / 'pro_contract/settings.json').read_text())
+            observed.append(settings['succession']['total_secs'])
+            return {'state': 'finished', 'execution': 'completed'}
+
+        with patch.object(research.sys, 'argv', ['research', 'run', '--root', str(self.root), '--seconds', '1800']), \
+                patch.object(research, 'execute', side_effect=native_boundary), \
+                patch.object(research.sys, 'stdout', new=io.StringIO()):
+            research.main()
+        self.assertEqual(observed, [1800])
+        self.assertIs(type(observed[0]), int)
+
+    def test_cli_does_not_report_success_for_a_finished_failed_operation(self):
+        with patch.object(research.sys, 'argv', ['research', 'run', '--root', str(self.root)]), \
+                patch.object(research, 'execute', return_value={'state': 'finished', 'execution': 'failed'}), \
+                patch.object(research.sys, 'stdout', new=io.StringIO()), \
+                self.assertRaises(SystemExit) as error:
+            research.main()
+        self.assertEqual(error.exception.code, 1)
 
     def test_sources_only_bundle_still_delivers_the_caller_selected_study_request(self):
         bundle = json.loads(self.bundle.read_text())
