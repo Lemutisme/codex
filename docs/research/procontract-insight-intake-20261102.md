@@ -59,11 +59,12 @@ use must be checked from the retained records before claiming operational closur
 
 ## Validation boundary
 
-Fifty-one Python controls pass. They cover the existing operation/adoption
+Fifty-three Python controls pass after the post-E2 repairs. They cover the existing operation/adoption
 invariants and the new source identities, bounded byte views, correction retrieval,
 input acknowledgement interleavings, repeated issue identity, offered capabilities,
 native output custody, long workspace paths, cross-host knowledge/source retention,
-source paging verification and concurrent container disappearance. An actual offline Docker control
+source paging verification, concurrent container disappearance, historical-assignment
+collisions and continuation after partial input acknowledgement. An actual offline Docker control
 also connects through the read-only socket mount with zero model calls.
 
 Read-only visibility is still reach. The native actor sees runtime binaries and
@@ -79,8 +80,9 @@ proposed a work-method revision and tested it: 2/3 observed controls passed, wit
 one additional control unavailable (43 requests in that candidate experiment).
 It retained the incumbent. The subsequent Pandoc analysis read and cited the three
 knowledge entries and retained a fourth. The final research cursor was 58 with no
-pending input and an event wait selected. These request subtotals exclude the
-research and follow-up actions; final accounting must include those too.
+pending input and an event wait selected. Including the research action (34) and
+follow-up (11), E1 used 125 requests. Seven requests lack returned usage; all remain
+counted. Missing usage is not zero cost.
 
 The unavailable control exposed a harness observation defect: bulk Docker inspect
 returned partial output when a foreign container disappeared. The adapter now
@@ -106,6 +108,102 @@ benchmark result. E2 uses the same private controls for its baseline and candida
 Because its harness and control contract changed, E1 and E2 pass counts cannot
 establish a causal gain between episodes.
 
+## E2: real adoption and a failed knowledge-revision path
+
+E2 completed at implementation `6e8964e7f`. Its baseline and candidate each passed
+4/5 controls with all five measurements available, using 56 requests each. The
+candidate reduced `work_method.md` from 2680 to 2319 characters by focusing on the
+research method instead of duplicating capability documentation. The actor adopted
+it within the isolated research scope. Its first subsequent model request contains
+the exact selected method in developer context; the resolved version also matches.
+
+The adopted version is
+`c2e9d7a02cfb7335351377dc2fe4e1de19265c3426a6cb57ca54e5f414711597`.
+This is a real scoped method selection and reuse, with no measured accuracy or
+request-count gain. The adoption rationale initially cites E1's historical 3/4
+baseline; the final research report correctly states the current 4/5 versus 4/5.
+Both records remain intact. Independent audit confirms the adoption used the actual
+candidate experiment's complete assignment, so the later binding fix does not
+invalidate this decision.
+
+E2 used 173 requests: 56 baseline, 56 candidate, 45 research and 16 follow-up.
+Seven requests lack returned usage. Its final cursor is 71, pending input is null,
+and an event wait is selected. All retained object/source hashes and forwarded
+request hashes checked successfully; request and returned identities are Luna/max.
+The remaining control error concerned reconciling an unknown operation before the
+case's requested overlapping mutation, not interpreting the established score.
+
+The Pandoc follow-up still reused the old interpretation and wrote a second
+"zero repairs" knowledge entry without consulting the imported ledger counter
+evidence. Retention and retrieval therefore worked, while revision failed. The
+new observation was filed under the generic subject `research-iteration:counter-scope`,
+and its indexed text did not identify Pandoc or the contradicted knowledge. The
+literal metadata search used by the next action could find the old Pandoc claim
+without finding that counterevidence. This is evidence of a missing subject/claim
+connection in this intake, not proof that all model reasoning failures are retrieval
+failures. It also shows why storing more summaries alone can perpetuate mistakes.
+
+## Repairs and a targeted correction control
+
+Two no-model fault controls found and reproduced additional interface defects:
+
+- Imported historical outcomes could authorize a different, same-named local
+  assignment. Adoption now checks the complete assignment digest. The original
+  historical evidence remains readable but cannot certify the new action.
+- Partially acknowledging a page left the same pending maximum, so the next native
+  submission collided with the earlier assignment. Input identity now includes
+  the acknowledged cursor; repeat delivery keeps its grant, while the remaining
+  interval can receive a separate caller-selected action.
+
+These changes are in `7229703d9`, after E2 finished. No pinned episode was modified.
+E3 is a new targeted correction/reuse control on that implementation. It inherits
+E2's exact selected method, imports eight knowledge roots with their 46-record
+cited closure, and receives fresh counterevidence linked to the actual Pandoc
+subject and both affected interpretations. Historical context and fresh audit
+input have separate subscription sources. The model chooses the wording of its
+revisions; the supplied task asks it to preserve valid facts, link corrections and
+distinguish activity counts from successful repairs. A separate later invocation
+must retrieve and use those revisions. The subject links and corrective task were
+provisioned by this operator audit; this is not fully autonomous error discovery.
+
+E3 completed with two model-authored revisions, one superseding each affected
+Pandoc interpretation. The independent next invocation received both complete
+revised interpretations through tool results, cited both, and followed their
+correction relations. It reports the unchanged 1205/5214 result, scopes the final
+status counter of zero separately from 15 successor returns and 30 captured
+subjects, and leaves successful repairs unknown. Both invocations ended with
+confirmed shutdown; the final cursor is 55 with no pending input and an event wait.
+E3 used 34 requests, all with returned usage and no failed/unfinished request record.
+
+The research strategy in `strategies/research/operations.md` now states the general
+lesson: connect fresh evidence to its subject and affected claims, inspect relevant
+corrections/source spans before consequential reuse, revise contradicted portions
+while preserving valid facts, and compare exact experiment bindings. This is an
+operator-reviewed context edit distilled from the loop. E3 used E2's unchanged
+selected method plus the explicit corrective task; it does not isolate a causal
+effect of this new default paragraph. The study-specific candidate was not copied
+wholesale into the general default, and no new kernel invariant was introduced.
+
+`corpus/current-knowledge.json` retains eight current roots, ten knowledge records
+including the two superseded originals, and a 49-record cited closure. This is
+reusable evidence/context, not transferred execution or adoption authority.
+
+Audit artifacts are `e1-audit.json`, `e2-audit.json`, `e3-audit.json`,
+`study-accounting.json` and the reproducible `audit.py` under the study root.
+All three episodes together used 332 requests; returned usage covers 318 and reports
+8,476,819 tokens and cost 0.65582646 in the provider's reported units. Fourteen
+requests have no returned usage, so this is not a complete billing total. The
+thirteen failure and seven unfinished-request records overlap; they are retained
+stream observations, not extra requests or zero-cost calls. All forwarded payload
+hashes, retained object/source hashes, model/effort identities and actual selected
+context uses passed the audit. E1's unavailable measurement remains unavailable.
+
 Neither successful controls nor retained insights alone imply broad performance
-improvement. This work implements task-time context/tool learning, not model-weight
-reinforcement learning. Final E2 results and full request accounting remain to audit.
+improvement. The result is a working scoped intake, candidate experiment/selection,
+knowledge revision and later-use path, with concrete general harness repairs.
+The corpus selection, contradiction audit and code fixes were supplied by this
+development session; the research actors authored the insights, candidate and
+corrections. This implements task-time context/tool learning, not model-weight
+reinforcement learning or an independently validated unattended research service.
+New end-to-end task-quality measurements, including connected and open-ended work,
+remain outside these bounded controls; the frozen ProgramBench scores are unchanged.

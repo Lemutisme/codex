@@ -96,6 +96,9 @@ mounts. Its selected-wait handling quiesces the invocation after the actor turn
 ends, even if an unrelated legacy preparation worker is still running.
 
 Adoption is scoped to the original authority and a host-admitted measurement. The
+outcome must bind the complete retained assignment, not merely an operation name.
+Importing historical evidence with a colliding name cannot make it evidence for a
+new version, environment or allocation. The
 protected evaluator determines its own admissibility result; no numeric research
 threshold is built into the operation host. Presumed adoption requires actual
 beyond-reach evidence. The actor's interpretations or within-reach self-tests
@@ -148,3 +151,16 @@ The real-trajectory research pilot is `scripts/qualify_procontract_insights.py`.
 Its input bundle, controls, model-authored knowledge and version decisions are
 separate from the frozen ProgramBench corpus. Protected decision/reporting checks
 are finite controls; they do not establish general task-performance gains.
+
+Input-bound native assignments identify the acknowledged cursor as well as the
+pending boundary and owner epoch. Processing one page therefore permits the caller
+to select work on the remaining page; duplicate delivery of that same input interval
+retains its original assignment and allocation. The host still does not select a
+research workflow or require analysis after every event.
+
+When provisioning evidence for research, retain its actual subject and affected
+claim identities. A generic topic label is not a substitute for those relations:
+the literal retrieval interface searches retained record metadata, not the contents
+of every source file. Historical context can be imported under its original source
+while the research subscription selects fresh inputs. Choosing which evidence to
+announce, inspect and revise remains context-level orchestration.
