@@ -1,5 +1,37 @@
 # ProgramBench completion status, 2026-11-02
 
+## 02:44 UTC update
+
+The original scheduler has drained and exited: 200 terminal job records, including
+179 valid scores. Crowbook is the latest valid artifact at **592/807 = 73.36%**;
+its complete eligible feedback vector was checked. Including the eight recovered
+same-artifact scores, the first-attempt projection now has **187/200 valid scores**,
+mean **76.8748%**, with a same-task Vals reference mean of 68.8626% under different
+request resources. Perfect artifacts remain three.
+
+The completion scheduler is live with twelve solvers (the eleven first admissions
+and the separate stgit retry) plus SQLite grading. All solver request timestamps
+are advancing. Pandoc has used about 291 of its 360 minutes and 2517 requests;
+its deadline remains 03:53:30 UTC and it has no canonical score yet. There are no
+jobs waiting for initial admission. The host retains about 152 GiB available RAM
+and 486 GiB free disk.
+
+SQLite's first repaired evaluation still hit the original 3600-second batch-command
+limit twice in branch `4ee128ddea8e`; subsequent diagnostic aggregation found the
+stopped container unavailable. Its first outcome remains invalid (13245 `not_run`
+entries), and the original protocol's second evaluation is in progress. No command
+limit, scoring allocation, test grouping or denominator was changed to manufacture
+completion. The retained prefix of completed work is distinct from a complete
+eligible result vector; coarse batch termination still needs investigation under
+the existing lifecycle/evidence-retention directions.
+
+The duplicate-admission count remains three. Crowbook's newly published valid
+terminal result was not put on the completion list, providing a live transition
+check after the scheduler repair. Evidence is retained in
+`/data/ProContract/procontract-status-20261102-0244/`.
+
+## Earlier 02:04 UTC snapshot
+
 At 02:04 UTC the original first attempts plus declared same-artifact scoring
 recovery have **186/200 valid scores**, averaging **76.8937%**. The retained Vals
 reference for that same subset averages 68.8391%; request resources and recorded
