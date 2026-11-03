@@ -32,6 +32,8 @@ def build_identity(package):
         'rpc':Path(sys.modules[Broker.__module__].__file__),
         'native_transport':Path(sys.modules[AppServer.__module__].__file__),
         'gateway':Path(sys.modules[Budget.__module__].__file__)}
+    runtime=Path(__file__).with_name('procontract_research_runtime.py')
+    if runtime.exists():sources['research_runtime']=runtime
     return {'package_files':{str(p.relative_to(package)):digest(p) for p in sorted(package.rglob('*'))
                              if p.is_file() and '__pycache__' not in p.parts},
             'host_sources':{name:digest(path) for name,path in sources.items()}}
@@ -148,71 +150,115 @@ def attach_socket(home, socket, image):
     path.write_text('\n'.join('args='+json.dumps(arguments) if line.startswith('args=') else line for line in lines)+'\n')
 
 
-def native(run, package, image, version, host, prompt, *, inputs, seconds=None, socket_host=None, measurements=None, offered_operations=None):
+def attach_project(home, project, image):
+    """Provisioner-bound project view; no actor-controlled host path is accepted."""
+    root=Path(project['path']).resolve(strict=True)
+    if any(c in str(root) for c in ('\n','\0',',')):
+        raise ValueError('project path is not representable as a bind mount')
+    mounts=['--mount',f'type=bind,src={root},dst=/workspace/project,readonly']
+    for relative in project.get('writable',[]):
+        part=Path(relative)
+        if part.is_absolute() or '..' in part.parts or not part.parts:
+            raise ValueError('invalid writable project path')
+        path=root/part
+        if any(item.is_symlink() for item in (path,*path.parents) if item==root or item.is_relative_to(root)):
+            raise ValueError('writable project path is redirected')
+        path=path.resolve(strict=True)
+        if not path.is_relative_to(root):raise ValueError('writable project path escapes project')
+        if any(c in str(path) for c in ('\n','\0',',')):
+            raise ValueError('project path is not representable as a bind mount')
+        mounts+=['--mount',f'type=bind,src={path},dst=/workspace/project/{part.as_posix()}']
+    path=home/'environments.toml';environment=tomllib.loads(path.read_text())['environments'][0]
+    arguments=environment['args'];at=arguments.index(image);arguments[at:at]=mounts
+    lines=path.read_text().splitlines()
+    if sum(line.startswith('args=') for line in lines)!=1:raise ValueError('ambiguous execution environment')
+    path.write_text('\n'.join('args='+json.dumps(arguments) if line.startswith('args=') else line for line in lines)+'\n')
+
+
+def native(run, package, image, version, host, prompt, *, inputs, seconds=None, socket_host=None, measurements=None, offered_operations=None,
+           project=None, controller=None, cancel_path=None, assessment_project=False):
     run.mkdir(parents=True,exist_ok=True)
     with (run/'native-admission.json').open('x') as admission:
         json.dump({'version':version,'prompt_sha256':ops.sha(prompt.encode()),'seconds':seconds,'at':time.time()},admission)
         admission.flush();os.fsync(admission.fileno())
     workspace=run/'w';workspace.mkdir(exist_ok=True)
     strategy=run/'strategy';strategy.mkdir(exist_ok=True)
-    definition=host.get(version,'version')['definition']
-    actual_build=observe_build(package,definition)
-    for name,content in definition['files'].items():
-        if name.endswith('.md'):
-            (strategy/name).parent.mkdir(parents=True,exist_ok=True)
-            (strategy/name).write_text(content)
-    source=run/'source';source.mkdir(exist_ok=True)
-    model=definition['model']['name'];effort=definition['model']['effort']
-    budget=AuditedBudget(run/'requests.sqlite',seconds=seconds,requests=None,model=model,effort=effort)
-    gateway=Gateway(budget,'http://127.0.0.1:8317/v1',api_key=os.environ.get('OPENAI_API_KEY'))
-    threading.Thread(target=gateway.serve_forever,daemon=True).start();budget.arm()
-    (source/'config.toml').write_text(procodex_config.toml({'model_provider':'episode','model_providers':{'episode':{
-        'name':'Recorded real-model route','base_url':gateway.base_url,'wire_api':'responses',
-        'supports_websockets':False,'requires_openai_auth':False,'request_max_retries':0,'stream_max_retries':0}}}))
-    (run/'state').mkdir(exist_ok=True)
-    (run/'state/config.toml').write_text(procodex_config.toml({'model':model,'model_reasoning_effort':effort}))
-    home,config=procodex_config.configure(package,workspace,run/'state',source,image,None,
-        isolation='container-only',successor_sessions=0,task_seconds=seconds,continuous_work=True,
-        inputs=inputs,strategy=strategy)
-    config['approval_policy']='never'
-    config['developer_instructions']+='\nHost allocation bindings (observed facts):\n'+json.dumps({
-        'observation_phase':'native_admission',
-        'standing_responsibility':socket_host,'standing_authority_scope':host.authority.scope,
-        'standing_authority_deadline':host.authority.deadline,
-        'native_invocation_allocation':budget.status()},sort_keys=True)
-    (home/'config.toml').write_text(procodex_config.toml(config))
-    settings_path=home/'pro_contract/settings.json';settings=json.loads(settings_path.read_text())
-    settings['evaluation']['excluded_paths'].append('s')
-    settings['resource_snapshot']=str(budget.resource_path)
-    settings_path.write_text(json.dumps(settings))
-    broker=None;ipc=None
-    if socket_host:
-        ipc=tempfile.TemporaryDirectory(prefix='pc-ipc-')
-        broker=Broker(Path(ipc.name)/'s',host,socket_host,measurements=measurements,operations=offered_operations)
-        attach_socket(home,broker.path,image)
-        threading.Thread(target=broker.serve_forever,daemon=True).start()
-    actor_view=verify_actor_view(home,image)
-    ops.atomic(run/'actor-view.json',actor_view)
-    resolved=host.resolved(version,{'prompt':prompt,'configuration':config,'policies':{k:v for k,v in definition['files'].items() if k.endswith('.md')}},
-        {k:ops.sha(Path(v).read_bytes()) for k,v in inputs.items()}, {'image':image,'network':'none','model':model,'effort':effort,'seconds':seconds,'requests':None,
-        'build_observation':actual_build,'actor_view':actor_view})
-    env={**os.environ,'CODEX_HOME':str(home)}
-    server=AppServer([str(package/'bin/codex'),'--enable','pro_contract','--disable','hooks','app-server'],env,run/'rpc.jsonl',run/'stderr.log',workspace)
+    budget=gateway=broker=ipc=server=None
+    gateway_started=broker_started=False
+    home=run/'state';resolved=None
     completed=[]
     def handle(value):
         if 'id' in value and 'method' in value:server.refuse(value)
         if value.get('method')=='turn/completed' and value['params'].get('threadId')==thread:
             completed.append(value['params']['turn'])
     status=None;started=time.time();thread=None;disposition=None
+    cancelled=lambda: cancel_path is not None and Path(cancel_path).exists()
     try:
-        server.request('initialize',{'clientInfo':{'name':'rsi-qualification','version':'1'},'capabilities':{'experimentalApi':True}},handle)
+        definition=host.get(version,'version')['definition']
+        actual_build=observe_build(package,definition)
+        for name,content in definition['files'].items():
+            if name.endswith('.md'):
+                (strategy/name).parent.mkdir(parents=True,exist_ok=True)
+                (strategy/name).write_text(content)
+        source=run/'source';source.mkdir(exist_ok=True)
+        model=definition['model']['name'];effort=definition['model']['effort']
+        budget=AuditedBudget(run/'requests.sqlite',seconds=seconds,requests=None,model=model,effort=effort)
+        gateway=Gateway(budget,'http://127.0.0.1:8317/v1',api_key=os.environ.get('OPENAI_API_KEY'))
+        threading.Thread(target=gateway.serve_forever,daemon=True).start();gateway_started=True;budget.arm()
+        (source/'config.toml').write_text(procodex_config.toml({'model_provider':'episode','model_providers':{'episode':{
+            'name':'Recorded real-model route','base_url':gateway.base_url,'wire_api':'responses',
+            'supports_websockets':False,'requires_openai_auth':False,'request_max_retries':0,'stream_max_retries':0}}}))
+        (run/'state').mkdir(exist_ok=True)
+        (run/'state/config.toml').write_text(procodex_config.toml({'model':model,'model_reasoning_effort':effort}))
+        home,config=procodex_config.configure(package,workspace,run/'state',source,image,None,
+            isolation='container-only',successor_sessions=0,task_seconds=seconds,continuous_work=True,
+            inputs=inputs,strategy=strategy)
+        config['approval_policy']='never'
+        config['developer_instructions']+='\nHost allocation bindings (observed facts):\n'+json.dumps({
+            'observation_phase':'native_admission', 'standing_responsibility':socket_host,
+            'standing_authority_scope':host.authority.scope,'standing_authority_deadline':host.authority.deadline,
+            'native_invocation_allocation':budget.status()},sort_keys=True)
+        if project:
+            attach_project(home,project,image)
+            config['developer_instructions']+='\nAuthorized persistent project: /workspace/project. Writable relative paths: '+json.dumps(project.get('writable',[]))+'. Other project paths are read-only. Per-invocation outputs belong in /workspace.\n'
+        (home/'config.toml').write_text(procodex_config.toml(config))
+        settings_path=home/'pro_contract/settings.json';settings=json.loads(settings_path.read_text())
+        settings['evaluation']['excluded_paths'].append('s')
+        if assessment_project:
+            if project is None:raise ValueError('project assessment requires a bound project view')
+            settings['evaluation']['workspace_host_root']=project['path']
+            settings['evaluation']['workspace_container_root']='/workspace/project'
+            settings['evaluation']['excluded_paths']=list(project.get('excluded',[]))
+        settings['resource_snapshot']=str(budget.resource_path)
+        settings_path.write_text(json.dumps(settings))
+        if socket_host:
+            ipc=tempfile.TemporaryDirectory(prefix='pc-ipc-')
+            broker=Broker(Path(ipc.name)/'s',host,socket_host,measurements=measurements,
+                          operations=offered_operations,controller=controller)
+            attach_socket(home,broker.path,image)
+            threading.Thread(target=broker.serve_forever,daemon=True).start();broker_started=True
+        actor_view=verify_actor_view(home,image)
+        ops.atomic(run/'actor-view.json',actor_view)
+        resolved=host.resolved(version,{'prompt':prompt,'configuration':config,'policies':{k:v for k,v in definition['files'].items() if k.endswith('.md')}},
+            {k:ops.sha(Path(v).read_bytes()) for k,v in inputs.items()}, {'image':image,'network':'none','model':model,'effort':effort,'seconds':seconds,'requests':None,
+            'build_observation':actual_build,'actor_view':actor_view,'project':project,'assessment_project':assessment_project})
+        env={**os.environ,'CODEX_HOME':str(home)}
+        server=AppServer([str(package/'bin/codex'),'--enable','pro_contract','--disable','hooks','app-server'],env,run/'rpc.jsonl',run/'stderr.log',workspace)
+        server.request('initialize',{'clientInfo':{'name':'procontract-native-operation','version':'1'},'capabilities':{'experimentalApi':True}},handle)
         server.notify('initialized')
         thread=server.request('thread/start',{'model':model,'cwd':'/workspace','sandbox':'danger-full-access','approvalPolicy':'never'},handle)['thread']['id']
-        server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':prompt,'text_elements':[]}]},handle)
+        if not cancelled() and not (controller is not None and controller.interrupted()):
+            server.request('turn/start',{'threadId':thread,'input':[{'type':'text','text':prompt,'text_elements':[]}]},handle)
         allocation=budget.status()
         while allocation['deadline'] is None or time.time()<allocation['deadline']+45:
+            if cancelled():disposition='cancelled';break
+            if controller is not None and controller.interrupted():
+                disposition='owner_input_changed';break
             try:handle(server.messages.get(timeout=.5))
             except queue.Empty:pass
+            if controller is not None and completed:
+                disposition=controller.selected_disposition() or 'returned_without_selection'
+                break
             db=home/'pro_contract/ledger_1.sqlite'
             if db.exists():
                 with contextlib.closing(sqlite3.connect(db.as_uri()+'?mode=ro',uri=True)) as connection:
@@ -222,7 +268,7 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds=None, 
                     if status.get('resting') and completed:
                         disposition='native_rest'
                         break
-            if socket_host and completed:
+            if socket_host and controller is None and completed:
                 selected=host.inbox(socket_host)
                 if selected and selected['pending'] is None and selected['wake'] is not None:
                     # Execute the actor's retained wait. An unrelated legacy
@@ -231,12 +277,17 @@ def native(run, package, image, version, host, prompt, *, inputs, seconds=None, 
                     break
             if server.process.poll() is not None:break
     finally:
-        shutdown=server.close()
+        shutdown=server.close() if server is not None else {'status':'not_started','returncode':None}
         environment_shutdown=confirm_environment_shutdown(workspace,home)
         ops.atomic(run/'shutdown.json',{'native':shutdown,'environment':environment_shutdown})
-        if broker:broker.shutdown();broker.server_close();(workspace/'s').unlink(missing_ok=True)
+        if broker:
+            if broker_started:broker.shutdown()
+            broker.server_close();(workspace/'s').unlink(missing_ok=True)
         if ipc:ipc.cleanup()
-        gateway.shutdown();gateway.server_close()
+        if gateway:
+            if gateway_started:gateway.shutdown()
+            gateway.server_close()
+        if budget and sys.exc_info()[0] is not None:budget.close()
     usage=[]
     with budget.lock:
         usage=[json.loads(row[0]) for row in budget.db.execute('SELECT usage FROM requests WHERE usage IS NOT NULL')]
@@ -265,7 +316,7 @@ def native_measure(assignment_path):
         shutdown_path=Path(params['run'])/'shutdown.json'
         shutdown=json.loads(shutdown_path.read_text()) if shutdown_path.exists() else {}
         ops.atomic(path.parent/'result.json',{'validity':'unavailable','quality':None,'admissible':False,
-            'effects_resolved':shutdown.get('native',{}).get('status')=='exited' and shutdown.get('environment',{}).get('confirmed') is True,
+            'effects_resolved':shutdown.get('native',{}).get('status') in ('exited','not_started') and shutdown.get('environment',{}).get('confirmed') is True,
             'failure':type(error).__name__,'shutdown':shutdown,'task':None})
         raise
     actual=result['files'].get('answer.txt')

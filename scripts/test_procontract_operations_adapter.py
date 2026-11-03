@@ -7,12 +7,65 @@ import unittest
 from unittest.mock import patch
 
 from qualify_procontract_operations import build_identity, confirm_environment_shutdown, observe_build
-from procontract_native_operation import collect_outputs,native,attach_socket,submit_pending
+from procontract_native_operation import collect_outputs,native,attach_socket,attach_project,submit_pending
 from procontract_operations import Operations,Authority,Measurement
 import tomllib
+import sqlite3
 
 
 class CleanupTest(unittest.TestCase):
+    def test_declared_project_assessment_binds_actual_capture_root_before_inference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);package=root/'package';(package/'bin').mkdir(parents=True)
+            (package/'bin/codex').write_text('fixture')
+            project=root/'project';project.mkdir()
+            host=Operations.create(root/'host',Authority('fixture','fixture','artifact view',(),()),{})
+            version=host.register({'kind':'research','files':{},'build':{},'model':{'name':'fixture','effort':'max'},'resolver':'fixture','tools':{}})
+            observed=[]
+            def stop_before_inference(argv,env,*args):
+                observed.append(json.loads((Path(env['CODEX_HOME'])/'pro_contract/settings.json').read_text())['evaluation'])
+                raise RuntimeError('stop before inference')
+            for selected in (False,True):
+                with patch('procontract_native_operation.verify_actor_view',return_value={'fixture':True}), \
+                     patch('procontract_native_operation.confirm_environment_shutdown',return_value={'confirmed':True}), \
+                     patch('procontract_native_operation.AppServer',side_effect=stop_before_inference):
+                    with self.assertRaisesRegex(RuntimeError,'stop before inference'):
+                        native(root/str(selected),package,'image',version,host,'Inspect artifact',inputs={},
+                               project={'path':str(project),'writable':[],'excluded':['.git','build']},assessment_project=selected)
+            self.assertEqual(observed[0]['workspace_container_root'],'/workspace')
+            self.assertEqual(observed[1]['workspace_container_root'],'/workspace/project')
+            self.assertEqual(observed[1]['workspace_host_root'],str(project))
+            self.assertEqual(observed[1]['excluded_paths'],['.git','build'])
+
+    def test_early_native_setup_failure_closes_resources_and_retains_absence_attestation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);package=root/'package';(package/'bin').mkdir(parents=True)
+            (package/'bin/codex').write_text('fixture')
+            host=Operations.create(root/'host',Authority('fixture','fixture','setup fault',(),()),{})
+            version=host.register({'kind':'research','files':{},'build':{},'model':{'name':'fixture','effort':'max'},'resolver':'fixture','tools':{}})
+            run=root/'native'
+            with patch('procontract_native_operation.confirm_environment_shutdown',return_value={'confirmed':True,'remaining_owned':[]}):
+                with self.assertRaisesRegex(ValueError,'task duration'):
+                    native(run,package,'image',version,host,'No inference',inputs={},seconds=1.5)
+            shutdown=json.loads((run/'shutdown.json').read_text())
+            self.assertEqual(shutdown['native']['status'],'not_started')
+            self.assertTrue(shutdown['environment']['confirmed'])
+            with sqlite3.connect(run/'requests.sqlite') as db:self.assertEqual(db.execute('SELECT count(*) FROM requests').fetchone()[0],0)
+
+    def test_project_mount_has_readonly_root_and_only_declared_writable_subpaths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);home=root/'home';home.mkdir();project=root/'project';(project/'policies').mkdir(parents=True)
+            path=home/'environments.toml'
+            path.write_text('default="test"\n[[environments]]\nid="test"\nprogram="docker"\nargs=["run","image","executor"]\n')
+            attach_project(home,{'path':str(project),'writable':['policies']},'image')
+            args=tomllib.loads(path.read_text())['environments'][0]['args']
+            mounts=[args[i+1] for i,value in enumerate(args) if value=='--mount']
+            self.assertIn(f'type=bind,src={project},dst=/workspace/project,readonly',mounts)
+            self.assertIn(f'type=bind,src={project}/policies,dst=/workspace/project/policies',mounts)
+            (project/'escape').symlink_to(root)
+            with self.assertRaisesRegex(ValueError,'redirected'):
+                attach_project(home,{'path':str(project),'writable':['escape']},'image')
+
     def test_next_input_page_has_a_new_assignment_without_renewing_duplicate_delivery(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)

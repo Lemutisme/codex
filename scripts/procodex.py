@@ -17,7 +17,7 @@ from procodex_config import configure, toml
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] == "rsi":
+    if argv and argv[0] in ("rsi", "rsi-legacy"):
         package = Path(__file__).resolve().parent.parent
         env = {
             **os.environ,
@@ -27,14 +27,14 @@ def main(argv=None):
         return subprocess.call(
             [
                 sys.executable,
-                str(package / "scripts/procontract_rsi.py"),
+                str(package / "scripts" / ("procontract_research_control.py" if argv[0] == "rsi" else "procontract_rsi.py")),
                 *(argv[1:] or ["--help"]),
             ],
             env=env,
         )
     parser = argparse.ArgumentParser(
         description=__doc__,
-        epilog="Unrecognized options are passed to Codex. Use procodex rsi --help for the separately budgeted research CLI.",
+        epilog="Unrecognized options are passed to Codex. Use procodex rsi --help for persistent research control; rsi-legacy retains the historical campaign CLI.",
     )
     parser.add_argument(
         "-C",
@@ -55,6 +55,8 @@ def main(argv=None):
     parser.add_argument("--no-progress", action="store_true", help="disable same-turn progress publication for a new task")
     parser.add_argument("--strategy", type=Path,
         help="context bundle directory; work_method.md and optional worker prompts")
+    parser.add_argument("--rsi-config", type=Path,
+        help="protected research control profile; enables /rsi without starting inference")
     parser.add_argument("--input", action="append", default=[], metavar="NAME=FILE",
         help="retain a file as a read-only task input at /inputs/NAME")
     parser.add_argument(
@@ -95,7 +97,7 @@ def main(argv=None):
     release = json.loads((package / "procodex-release.json").read_text())
     if args.version:
         print(
-            f"procodex preview {release['source_commit'][:12]} (native ProContract; interactive auto-RSI off)"
+            f"procodex preview {release['source_commit'][:12]} (native ProContract; explicit /rsi control)"
         )
         return 0
     if sys.platform != "linux" or shutil.which("docker") is None:
@@ -206,6 +208,7 @@ def main(argv=None):
                     image=image,
                     pro_contract=True,
                     automatic_general_rsi=False,
+                    research_control_profile=str(args.rsi_config.resolve()) if args.rsi_config else None,
                     fresh_executor_sessions=args.successor_sessions,
                     succession_task_seconds=admitted_seconds,
                     approval_policy=config["approval_policy"],
@@ -221,6 +224,10 @@ def main(argv=None):
     env["CODEX_HOME"] = str(home)
     env["CODEX_SQLITE_HOME"] = str(home)
     env.pop("CODEX_ROLLOUT_TRACE_ROOT", None)
+    if args.rsi_config is not None:
+        from procontract_research_control import ensure
+
+        env["PROCONTRACT_RESEARCH_SOCKET"] = str(ensure(args.rsi_config))
     provider = config.get("model_providers", {}).get(config["model_provider"], {})
     if provider.get("env_key", "OPENAI_API_KEY") == "OPENAI_API_KEY":
         from procontract_benchmark_runner import current_key
@@ -260,7 +267,7 @@ def main(argv=None):
         file=sys.stderr,
     )
     print(
-        "[procodex] Native contracts enabled. No background benchmark or automatic general-task RSI.",
+        "[procodex] Native contracts enabled. Research starts through explicit /rsi requests when a control profile is configured.",
         file=sys.stderr,
     )
     allocation = "no hard task deadline" if admitted_seconds is None else f"original {admitted_seconds}s hard task limit"

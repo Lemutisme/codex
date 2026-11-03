@@ -14,10 +14,12 @@ import threading
 class Broker(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 
-    def __init__(self, path, host, responsibility, measurements=None, operations=None):
+    def __init__(self, path, host, responsibility, measurements=None, operations=None,
+                 controller=None):
         self.host, self.responsibility = host, responsibility
         self.measurements = tuple(host.authority.measurements if measurements is None else measurements)
         self.operations = None if operations is None else frozenset(operations)
+        self.controller = controller
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         super().__init__(str(path), Handler)
@@ -29,6 +31,10 @@ class Broker(socketserver.ThreadingUnixStreamServer):
         inbox = host.inbox(self.responsibility)
         if inbox is None or inbox['cancelled']:
             raise ValueError('responsibility is cancelled or unavailable')
+        if self.controller is not None:
+            self.controller.authorize(operation)
+        if self.controller is not None and self.controller.handles(operation):
+            return self.controller.invoke(operation, arguments)
         if operation == 'read':return host.read(**arguments)
         if operation == 'receive':return host.receive(self.responsibility,**arguments)
         if operation == 'get':return host.get(**arguments)

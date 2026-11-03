@@ -457,6 +457,53 @@ class Operations:
         with self.authority_lock():
             return self._reconcile(identity)
 
+    def reconcile_effects(self, identity, observation, measurement=None):
+        """Provisioner-only adapter attestation after a lost external executor.
+
+        The adapter owns external lifetime observation. This capability is not
+        exposed by Broker: an actor's claim cannot release an effect fence. Raw
+        receipts/outcomes remain immutable; this appends a linked reconciliation
+        and updates only the current operation projection. It creates no grant or
+        quality result. Retaining cleanup facts is permitted after a deadline.
+        """
+        if self.config.get('implementation') != IMPLEMENTATION:
+            raise ValueError('host implementation changed; explicit migration required')
+        with self.authority_lock():
+            item = self._reconcile(identity)
+            if (item.get('outcome') or {}).get('shutdown_confirmed') is True:
+                return item
+            if not item['request']['measurement'].get('external_effects'):
+                raise ValueError('external effect reconciliation requires an external adapter')
+            child_path = self.operation_dir(identity)/'child.json'
+            child = json.loads(child_path.read_text()) if child_path.exists() else None
+            if alive(item.get('owner')) or alive(child) or (child and group_alive(child['pid'])):
+                raise ValueError('recorded operation executor has not stopped')
+            if observation.get('shutdown_confirmed') is not True:
+                raise ValueError('adapter has not confirmed external shutdown')
+            previous = item.get('outcome') or {}
+            evidence = self.put('effect_reconciliation', {
+                'id': identity, 'assignment': sha(item['request']),
+                'previous_outcome': previous.get('object'), 'observation': observation,
+                'observer': IMPLEMENTATION,
+            }, source='host')
+            value = {k: v for k, v in previous.items() if k != 'object'}
+            value.update(id=identity, assignment=sha(item['request']),
+                         execution=value.get('execution', 'interrupted'),
+                         shutdown_confirmed=True, reconciliation=evidence)
+            if value['execution'] == 'unknown':
+                value['execution'] = 'interrupted'
+            if measurement is not None:
+                # Restored adapter observations are not an adoption certificate.
+                value['measurement'] = {**measurement, 'admissible': False}
+            else:
+                value.setdefault('measurement', None)
+            object_id = self.put('operation_outcome', value,
+                                 source=item['request']['request']['responsibility'])
+            with self.tx() as db:
+                db.execute("UPDATE operations SET state='finished',outcome=? WHERE id=?",
+                           (encoded({'object': object_id, **value}), identity))
+            return self.inspect(identity)
+
     def _reconcile(self, identity):
         item = self.inspect(identity)
         directory = self.operation_dir(identity)
