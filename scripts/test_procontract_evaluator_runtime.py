@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-from procontract_evaluator_runtime import PLUGIN, PLUGIN_NAME, load_assets
+from procontract_evaluator_runtime import PLUGIN, PLUGIN_NAME, load_assets, preserve_container_service
 
 
 class GraderAssetsTest(unittest.TestCase):
@@ -25,6 +25,33 @@ class GraderAssetsTest(unittest.TestCase):
             path.write_bytes(b"changed resources")
             with self.assertRaisesRegex(ValueError, "changed"):
                 assets.verify()
+
+
+@unittest.skipUnless(os.environ.get("PC_CONTAINER_TEST_DOCKER") and os.environ.get("PC_CONTAINER_TEST_IMAGE"),
+                     "requires an explicitly selected private-container control")
+class ContainerTimeoutTest(unittest.TestCase):
+    def test_timeout_stops_test_processes_preserves_keeper_and_retained_observations(self):
+        from programbench.container import ContainerEnvironment
+        env = ContainerEnvironment(image=os.environ["PC_CONTAINER_TEST_IMAGE"],
+            executable=os.environ["PC_CONTAINER_TEST_DOCKER"], cwd="/workspace", cpus=1,
+            run_args=["--network", "none"])
+        self.addCleanup(env.cleanup)
+        preserve_container_service(env)
+        self.assertIs(preserve_container_service(env), env)
+        original_timeout = env.default_timeout
+        result = env.execute("printf saved > /tmp/pc-retained-control; printf prefix; sleep 30 & sleep 30 & wait", timeout=.4)
+        self.assertEqual(result["returncode"], -1)
+        self.assertIn("Command timed out after 0.4s", result["exception_info"])
+        self.assertEqual(result["output"], "prefix")
+        self.assertTrue(result["timeout_cleanup"]["confirmed"], result)
+        running = subprocess.check_output([env.executable, "inspect", "--format", "{{.State.Running}}", env.container_id], text=True).strip()
+        self.assertEqual(running, "true")
+        self.assertEqual(env.execute("cat /tmp/pc-retained-control", timeout=5),
+                         {"output": "saved", "returncode": 0, "exception_info": ""})
+        processes = env.execute("ps -eo args", timeout=5)["output"]
+        self.assertNotIn("sleep 30", processes)
+        self.assertIn("sleep 2h", processes)
+        self.assertEqual(env.default_timeout, original_timeout)
 
 
 @unittest.skipUnless(importlib.util.find_spec("pytest") and importlib.util.find_spec("pytest_rerunfailures"),

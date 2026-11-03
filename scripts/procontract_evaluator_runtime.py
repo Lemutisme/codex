@@ -5,12 +5,93 @@ import json
 from pathlib import Path
 import re
 import shlex
+import subprocess
 import tempfile
+import threading
+import time
 from types import MappingProxyType
 
 ROOT = "/opt/procontract-grader"
 PLUGIN_ROOT = "/tmp/procontract-test-runtime"
 PLUGIN_NAME = "_pc_test_runtime"
+
+# These are private, serial command environments owned by the evaluator. Preserve
+# their initial service processes, including a sleep child below Docker's PID-1
+# init, when an individual command times out. The benchmark's commands, command
+# deadlines, test retries and container lifetime are unchanged.
+SERVICE_PROCESSES = r'''import json,os
+from pathlib import Path
+rows={}
+for path in Path('/proc').iterdir():
+    if not path.name.isdigit() or int(path.name)==os.getpid():continue
+    try:
+        fields=(path/'stat').read_text().rsplit(')',1)[1].split()
+        rows[path.name]=fields[19]
+    except (OSError,IndexError):pass
+print(json.dumps(rows))
+'''
+STOP_COMMAND_PROCESSES = r'''import json,os,signal,sys,time
+from pathlib import Path
+services=json.loads(sys.argv[1]);own=os.getpid();stopped=set();end=time.monotonic()+25
+def active():
+    rows=[]
+    for path in Path('/proc').iterdir():
+        if not path.name.isdigit() or int(path.name) in (1,own):continue
+        try:
+            fields=(path/'stat').read_text().rsplit(')',1)[1].split()
+            if fields[0]!='Z' and services.get(path.name)!=fields[19]:rows.append(int(path.name))
+        except (OSError,IndexError):pass
+    return rows
+while True:
+    remaining=active()
+    if not remaining or time.monotonic()>=end:break
+    for pid in remaining:
+        try:os.kill(pid,signal.SIGKILL);stopped.add(pid)
+        except ProcessLookupError:pass
+    time.sleep(.02)
+print(json.dumps({'confirmed':not remaining,'stopped':sorted(stopped),'remaining':remaining,
+    'scope':'command processes in this private evaluator container; initial service identities preserved'}))
+sys.exit(0 if not remaining else 1)
+'''
+
+
+def preserve_container_service(env):
+    """Bind timeout cleanup to a private grader environment, not its keepalive."""
+    if getattr(env, "_pc_service_preserved", False):
+        return env
+    observed = subprocess.run([env.executable, "exec", env.container_id, "python3", "-c", SERVICE_PROCESSES],
+                              capture_output=True, text=True, check=True, timeout=10)
+    services = json.loads(observed.stdout)
+    lock = threading.Lock()
+
+    def execute(command, *, timeout=None):
+        with lock:
+            limit = timeout or env.default_timeout
+            if env.deadline is not None:
+                remaining = env.deadline - time.monotonic()
+                if remaining <= 0:
+                    return {"output": "", "returncode": -1, "exception_info": "Workflow wall-time exhausted"}
+                limit = min(limit, remaining)
+            argv = [env.executable, "exec", "-w", env.cwd, env.container_id, "bash", "-lc", command]
+            try:
+                result = subprocess.run(argv, capture_output=True, text=True, timeout=limit)
+                return {"output": result.stdout + result.stderr, "returncode": result.returncode, "exception_info": ""}
+            except subprocess.TimeoutExpired as error:
+                try:
+                    stopped = subprocess.run([env.executable, "exec", env.container_id, "python3", "-c",
+                        STOP_COMMAND_PROCESSES, json.dumps(services)], capture_output=True, text=True, timeout=30)
+                    cleanup = json.loads(stopped.stdout) if stopped.returncode == 0 else {
+                        "confirmed": False, "exit_code": stopped.returncode, "stdout": stopped.stdout, "stderr": stopped.stderr}
+                except (OSError, ValueError, subprocess.SubprocessError) as failure:
+                    cleanup = {"confirmed": False, "error": str(failure)}
+                output = "".join(value.decode(errors="replace") if isinstance(value, bytes) else value or ""
+                                 for value in (error.stdout, error.stderr))
+                return {"output": output, "returncode": -1,
+                        "exception_info": f"Command timed out after {limit}s", "timeout_cleanup": cleanup}
+
+    env.execute = execute
+    env._pc_service_preserved = True
+    return env
 
 
 def install_plugin_path(run_step, env, log_buf, directory):
@@ -137,6 +218,14 @@ def load_assets(value):
 
 def runtime_evaluator(base, assets=None):
     class RuntimeEvaluator(base):
+        def _new_env(self, *args, **kwargs):
+            env = super()._new_env(*args, **kwargs)
+            try:
+                return preserve_container_service(env)
+            except BaseException:
+                env.cleanup()
+                raise
+
         def _compile_executable(self, env, log_buf):
             super()._compile_executable(env, log_buf)
             if assets is None:
