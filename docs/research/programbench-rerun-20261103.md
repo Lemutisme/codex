@@ -54,3 +54,37 @@ failures. Final logs are `diagnosis/adapter-tests-v2.log` and
 The new driver retains benchmark scorer values and execution-completeness/error facts
 separately. It must not invent another solver attempt because a useful scorer value
 also has a `not_run` flag, or merge new independent attempts into the first cohort.
+
+## Admission and live verification
+
+All three new cases passed actual offline native-runtime probes and exact eligible
+collection: jsonschema2932, SQLite13510, stgit1488. A campaign-local Docker wrapper
+initially duplicated `--network none`; this zero-inference preflight failure was
+retained under `preparation-history/network-argument-v1/` and corrected before any
+solver allocation began. Both explicit and default grader execution now retain
+network isolation.
+
+All three original new solver allocations began at **2026-11-03 23:37:24 UTC**;
+their hard solver deadlines are **2026-11-04 05:37:24 UTC**. The native response ledger
+confirms GPT-5.6-Luna/max, no request ceiling and no gateway rejection at the initial
+live check. Actual solver containers use UID1000, network=none,20 CPUs and60GiB.
+Their minimal mounts contain no prior solutions or grading sources.
+
+The final task strategy (SHA256 `cee04464090d979772d41e3ae07aabb5a0bf10a5356e8b088783d8a78d65d4d9`)
+is present byte-for-byte in each native session's recorded developer context.
+The optional deployment payload-capture hook was attached to an unused budget entry
+point and remains inactive; it is not claimed as gateway-payload evidence. Native
+context observations, gateway payload hashes, request accounting and actual response
+identities are retained separately. See `STRATEGY_CHECK.json` and `EXECUTION_CHECK.json`.
+
+Scorer controls confirm that jsonschema's defined60.23% is retained despite1089
+`not_run` records, and that a mismatched submission receipt is rejected. Scalar
+publication runs as a separate read-only process under the explicit private-Docker
+environment, preserving the original driver result. It performs no new behavioral
+evaluation or model calls; live allocations and frozen solver inputs are unchanged.
+The publication amendment and initial environment-setup failure are retained.
+
+Live execution: `STATUS.json`. Separate scorer/completeness view: `SCORE_STATUS.json`.
+The supervisor owns preparation-qualified jobs through solve, freeze, grading and
+lossless retention. No failed solver is automatically restarted. These are independent
+retries; the original200-case aggregate and earlier stgit retry remain intact.
