@@ -11,6 +11,59 @@ import socketserver
 import threading
 
 
+def operation_descriptions(host, controller, operations):
+    """Host-only argument discovery, filtered to the actual offered surface.
+
+    Keep non-stdlib imports lazy: this module is also the standalone actor client.
+    These descriptions expose call contracts, not extra authority or workflow.
+    """
+    import inspect
+    offered = set(operations)
+    targets = {name: getattr(host, name) for name in
+               ('get', 'read', 'source_read', 'knowledge', 'incumbent') if name in offered}
+    if 'search' in offered:
+        from procontract_evidence import Evidence
+        targets['search'] = Evidence(host).search
+    if controller is not None:
+        if 'describe' in offered:targets['describe'] = controller.describe
+        if 'work_output' in offered:targets['work_output'] = controller.runtime.work_output
+    descriptions = {}
+    for name, target in targets.items():
+        required, optional = [], {}
+        for parameter in inspect.signature(target).parameters.values():
+            if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):continue
+            if parameter.default is inspect.Parameter.empty:required.append(parameter.name)
+            else:optional[parameter.name] = {'default': parameter.default}
+        descriptions[name] = {'required': required, 'optional': optional}
+    fixed = {
+        'receive': {'required': [], 'optional': {'limit': {'default': 100}}},
+        'work_status': {'required': [], 'optional': {'identity': {'on_omission': 'page the index; explicit null is not a choice identity'}, 'after': {'default': 0}, 'limit': {'default': 100}}},
+        'work': {'required': ['identity', 'delivery', 'work'], 'optional': {}},
+        'select': {'required': ['identity', 'delivery'], 'optional': {'work': {'default': None}, 'wait': {'default': None}, 'call': {'default': None}}},
+        'cancel_work': {'required': ['identity'], 'optional': {}},
+        'register': {'required': ['parent', 'files'], 'optional': {'definition_fields': {'default': {}}}},
+    }
+    descriptions.update({name: value for name, value in fixed.items() if name in offered})
+    notes = {
+        'get': 'identity is an immutable object ID. Optional kind requires that object kind; this is not a path reader.',
+        'read': 'after is an event-index cursor. kinds filters kinds; limit is 1..1000. Reading does not acknowledge inputs.',
+        'source_read': 'identity is a retained SOURCE OBJECT ID, not a path, filename or content hash. offset is a nonnegative byte offset; length is 1..65536. Returned offset/end/eof and slice digest describe exact bytes.',
+        'search': 'text is a literal metadata query (not query=). It does not search source bodies. after/snapshot page the query, not input acknowledgement; limit is 1..100.',
+        'knowledge': 'sources/counterevidence contain existing object IDs; supersedes is a prior knowledge ID. interpretation, uncertainty and applicability are actor-authored context, not adoption or certified truth.',
+        'incumbent': 'No arguments. Returns the exact retained research selection; it grants no new authority.',
+        'describe': 'No arguments. Only names in operations are offered to this invocation.',
+        'receive': 'limit is 1..1000. Returns an invocation-bound delivery_token and actual delivered page; does not acknowledge.',
+        'work_status': 'Supply identity for one selected work item; otherwise page its index using after/limit.',
+        'work_output': 'identity is a selected CHOICE ID. Omit output for the producer manifest; use one listed output key for bytes. offset is nonnegative; length is 1..65536. A producer output is not a consumer-project path.',
+        'work': 'Asynchronous work specification: capability, native prompt when applicable; optional purpose, seconds, version, sources (new input name -> source object ID). No host paths or arbitrary commands.',
+        'select': 'Choose exactly one work, call or wait. call={work,return_to} retains a leaf and responsible return atomically. wait={condition,work? or call?}; omit both for inert waiting. No quality-based stage is selected by the host.',
+        'cancel_work': 'identity is a choice within this invocation\'s admitted descendant capability scope.',
+        'register': 'parent is a version ID; files maps authorized file names to complete UTF-8 content. This registers a candidate, not a deployment. definition_fields cannot exceed the original authority.',
+    }
+    for name, value in descriptions.items():value['description'] = notes[name]
+    return descriptions
+
+
 class Broker(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
 
@@ -34,7 +87,11 @@ class Broker(socketserver.ThreadingUnixStreamServer):
         if self.controller is not None:
             self.controller.authorize(operation)
         if self.controller is not None and self.controller.handles(operation):
-            return self.controller.invoke(operation, arguments)
+            result = self.controller.invoke(operation, arguments)
+            if operation == 'describe':
+                offered = self.operations if self.operations is not None else self.controller.offered_operations()
+                result = {**result, 'operations': operation_descriptions(host, self.controller, offered)}
+            return result
         if operation == 'read':return host.read(**arguments)
         if operation == 'receive':return host.receive(self.responsibility,**arguments)
         if operation == 'get':return host.get(**arguments)

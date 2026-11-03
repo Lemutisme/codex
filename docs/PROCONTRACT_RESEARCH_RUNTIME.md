@@ -105,6 +105,21 @@ Completed work remains available. A status reply distinguishes prepared, queued,
 running, waiting, cancelled and returned-without-selection execution views; none
 is a new kernel completion judgment.
 
+Acknowledging an input page does not withdraw the owner's requirements. Every native
+action receives a read-only `/inputs/owner-context.jsonl` snapshot containing the
+original request and ordered accepted owner inputs/control events through its admitted
+generation. The control journal authenticates those records; an actor claim or imported
+observation with an owner-like label cannot become an owner instruction. The snapshot
+retains exact text and request/event/generation identities. It does not summarize the
+owner's intent, choose a workflow, widen permissions or renew an allocation.
+
+The normal runtime context links this immutable snapshot by hash and size and exposes
+the concrete `action_assignment` separately. Long owner histories stay readable as
+JSONL rather than being dumped into the ordinary context object. The invocation asks
+the actor to read the standing owner context within its assigned scope; the whole
+research goal is not an extra deliverable for every leaf. A stale action cannot be
+rebound to a newer owner's context. Existing snapshots are not silently replaced.
+
 ## Actor capabilities
 
 Every actor receives `/inputs/client.py`, `/inputs/intake.json` and
@@ -113,8 +128,20 @@ predecessor/outcome, pending input and offered capability handles. It exposes no
 arbitrary host-path reader or arbitrary host-command executor.
 
 Call `python3 /inputs/client.py /workspace/s OPERATION JSON`. Existing immutable
-evidence, search and scoped knowledge operations remain available. Actors permitted
-to select descendant capabilities additionally receive:
+evidence, search and scoped knowledge operations remain available.
+
+`describe` and the supplied runtime context include an `operations` catalog with
+the actual required argument names, optional defaults/omission semantics and handle
+meanings for that invocation. Common `get`, `read`, `source_read`, `search` and
+`knowledge` contracts are discoverable even in a leaf with no project mount. The
+catalog is filtered by the transport's offered operations and grants no additional
+permission. The standalone client still needs only Python's standard library; host
+introspection dependencies are loaded only by the host. For example, `source_read`
+uses a source object's `identity`, and metadata search uses `text`, not a filesystem
+path or an inferred `query` argument.
+
+The following runtime operations describe work and its outputs. Selection and
+cancellation controls are offered only within the actor's declared descendant scope.
 
 | Operation | Meaning |
 | --- | --- |

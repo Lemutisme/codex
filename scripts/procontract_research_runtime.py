@@ -20,19 +20,21 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
 import procontract_operations as ops
 from procontract_evidence_bundle import ingest, import_objects
 from procontract_native_operation import build_identity, native, confirm_environment_shutdown, collect_outputs
+from procontract_operations_rpc import operation_descriptions
 from procodex_inputs import declarations
 
 REPO = Path(__file__).resolve().parent.parent
 SOURCE = 'research-runtime-input'
 COMMON = ('describe', 'read', 'get', 'source_read', 'search', 'knowledge', 'incumbent', 'work_status', 'work_output')
 CONTROL = ('receive', 'work', 'select', 'cancel_work', 'register')
-RESERVED = {'client.py', 'runtime-context.json', 'intake.json'}
+RESERVED = {'client.py', 'runtime-context.json', 'owner-context.jsonl', 'intake.json'}
 
 
 def seconds(value):
@@ -224,6 +226,70 @@ class ResearchRuntime:
 
     def state(self):
         with self.host.tx() as db:return json.loads(db.execute('SELECT body FROM rsi_state').fetchone()[0])
+
+    def owner_context_snapshot(self, generation, epoch, directory):
+        """Retain raw accepted owner context, independently of delivery acknowledgement.
+
+        The control journal authenticates owner origin. Actor work/knowledge and
+        imported observations cannot become owner instructions by their labels.
+        JSONL keeps large histories readable without dumping them into normal context.
+        """
+        if type(generation) is not int or generation < 0 or type(epoch) is not int or epoch < 0:
+            raise ValueError('owner context needs an admitted generation and epoch')
+        directory = Path(directory);directory.mkdir(parents=True, exist_ok=True)
+        destination = directory/'owner-context.jsonl'
+        header = {'schema': 'procontract-owner-context-v1', 'kind': 'header',
+                  'responsibility': 'research', 'original_request_id': self.state().get('start_request'),
+                  'admitted_generation': generation, 'admitted_owner_epoch': epoch,
+                  'meaning': 'Raw accepted owner context for the continuing responsibility; separate from the concrete actor-selected action assignment. Acknowledgement is not withdrawal. This view creates no authority or allocation.'}
+        digest = hashlib.sha256(); count = 0; last_generation = None
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='wb', prefix='.owner-context-', dir=directory, delete=False) as output:
+                temporary = Path(output.name)
+                def emit(value):
+                    data = (ops.encoded(value)+'\n').encode();output.write(data);digest.update(data)
+                emit(header)
+                with contextlib.closing(sqlite3.connect(self.host.db.as_uri()+'?mode=ro', uri=True)) as db:
+                    db.row_factory = sqlite3.Row
+                    rows = db.execute('''SELECT c.id AS request_id,c.request,o.id AS object_id,o.kind,o.body,
+                        (SELECT min(seq) FROM events WHERE object_id=o.id) AS event_sequence
+                        FROM rsi_control c JOIN objects o ON o.id=json_extract(c.effect,'$.observation')
+                        WHERE c.effect IS NOT NULL AND json_extract(c.request,'$.operation') IN ('start','input','resume')
+                        ORDER BY CAST(json_extract(o.body,'$.conditions.generation') AS INTEGER),c.rowid''')
+                    for row in rows:
+                        request = json.loads(row['request']);body = json.loads(row['body'])
+                        actual_generation = body.get('conditions', {}).get('generation')
+                        if (row['kind'] != 'observation' or type(actual_generation) is not int or actual_generation < 0
+                                or body.get('subject') != 'owner-request:'+row['request_id']
+                                or body.get('outcome') != request
+                                or ops.sha({'schema': 1, 'kind': row['kind'], 'body': body}) != row['object_id']):
+                            raise ValueError('accepted owner-context binding differs')
+                        if actual_generation > generation:continue
+                        emit({'kind': 'owner_event', 'request_id': row['request_id'],
+                              'event_object': row['object_id'], 'event_sequence': row['event_sequence'],
+                              'generation': actual_generation, 'operation': request['operation'],
+                              'thread_id': request.get('thread_id'), 'request': request.get('request')})
+                        count += 1; last_generation = actual_generation
+                output.flush();os.fsync(output.fileno())
+                size = output.tell()
+            expected = digest.hexdigest()
+            if destination.exists():
+                if destination.is_symlink() or file_digest(destination) != expected:
+                    raise ValueError('retained owner context differs; no silent replacement')
+                temporary.unlink()
+            else:
+                temporary.chmod(0o400);temporary.replace(destination)
+                fd = os.open(directory, os.O_RDONLY|os.O_DIRECTORY)
+                try:os.fsync(fd)
+                finally:os.close(fd)
+            return {'input': 'owner-context.jsonl', 'path': '/inputs/owner-context.jsonl',
+                    'sha256': expected, 'bytes': size, 'entry_count': count,
+                    'admitted_generation': generation, 'admitted_owner_epoch': epoch,
+                    'last_included_generation': last_generation,
+                    'scope': 'Complete raw accepted owner-message history through the admitted generation, not only pending events. Interpret relevant owner constraints separately from this invocation\'s concrete assignment.'}
+        finally:
+            if temporary is not None:temporary.unlink(missing_ok=True)
 
     @contextlib.contextmanager
     def control_lock(self):
@@ -867,6 +933,8 @@ class ResearchRuntime:
             inputs = {name: Path(self.config['inputs'][name]['path']) for name in names}
             inputs['client.py'] = Path(self.config['inputs']['client.py']['path'])
             inputs['intake.json'] = self.root/'inputs/intake.json'
+            owner_context = self.owner_context_snapshot(body['generation'], body['epoch'], run)
+            inputs['owner-context.jsonl'] = run/'owner-context.jsonl'
             for name, identity in work.get('sources', {}).items():
                 inputs[name] = self.host.root/'sources'/self.host.get(identity, 'source')['sha256']
             context = run/'runtime-context.json'
@@ -880,6 +948,8 @@ class ResearchRuntime:
                                  'predecessor_outcome': predecessor_view,
                                  'predecessor_semantics': 'Scheduling dependency; inspect returned_work for the actual call/wake outputs.',
                                  'returned_work': self.returned_context(body),
+                                 'owner_context': owner_context,
+                                 'action_assignment': work,
                                  'pending_input': self.host.receive('research', limit=1000),
                                  'generation': body['generation'], 'project_before': before,
                                  'capabilities': RuntimeController(self, request['id']).describe()})
@@ -895,10 +965,16 @@ class ResearchRuntime:
                     'effects_resolved': True, 'failure': 'original action allocation expired before native admission'})
                 return
             try:
+                invocation_prompt = ('The raw accepted owner context for this continuing responsibility is in /inputs/owner-context.jsonl '
+                    '(SHA-256 '+owner_context['sha256']+'). It preserves original requirements and later corrections after acknowledgement. '
+                    'Read it as authoritative standing context, separately from this concrete action assignment. '
+                    'It does not make all responsibility-level work an extra deliverable of this invocation or widen its permissions.\n\n'
+                    'Concrete actor-selected action assignment:\n'+work['prompt']+
+                    '\nRead /inputs/runtime-context.json for exact invocation facts and the argument contracts of the operations actually offered.')
                 task = native(run, Path(self.config['package']), self.config['image'], version, self.host,
-                              work['prompt']+'\nRead /inputs/runtime-context.json for this invocation and its offered operations.',
+                              invocation_prompt,
                               inputs=inputs, seconds=remaining, socket_host='research',
-                              measurements=(), offered_operations=COMMON+(CONTROL if cap.get('select') else ()),
+                              measurements=(), offered_operations=RuntimeController(self, request['id']).offered_operations(),
                               project=project, controller=RuntimeController(self, request['id']), cancel_path=run/'cancel.json',
                               assessment_project=cap.get('assessment_project', False))
                 measured = {'validity': 'valid', 'admissible': False, 'task': task,
@@ -936,13 +1012,29 @@ class RuntimeController:
         identity = item['request']['request']['inputs']['choice']
         return next(choice for choice in self.runtime.choices() if choice['id'] == identity)
 
+    def offered_operations(self):
+        choice = self.choice();cap = self.runtime.config['capabilities'][choice['body']['work']['capability']]
+        return COMMON+(CONTROL if cap.get('select') else ())
+
     def describe(self):
         choice = self.choice(); cap = self.runtime.config['capabilities'][choice['body']['work']['capability']]
+        interface = ('Call python3 /inputs/client.py /workspace/s OPERATION JSON_ARGUMENTS, or use client.call(socket, operation, arguments). '
+                     'The operations catalog gives the canonical required names and optional defaults for only the operations offered here. '
+                     'get/source_read use immutable object identities, not host paths. work_status/work_output expose actual producer outcomes and files/messages; '
+                     'producer outputs are not consumer-project paths. Raw owner context is /inputs/owner-context.jsonl; it is distinct from the concrete action assignment. ')
+        if cap.get('select'):
+            interface += ('receive supplies the delivery_token used by work/select. work is asynchronous delegation. '
+                'select(call={work,return_to}) atomically retains a leaf and an offered responsible continuation; wait.call selects that pair on an event. '
+                'Direct select(work) and wait.work have no automatic return. Omit wait.work and wait.call for deliberate inert waiting. '
+                'Choose allocations under the original authority; no assignment is replayed or renewed. Finish the turn after selecting a disposition.')
+        else:
+            interface += 'This invocation has no work-selection permission; its caller owns any remaining responsibility-level orchestration.'
         return {'operation': self.operation, 'responsibility': 'research',
                 'offered': {name: self.runtime.capability_view(name) for name in cap.get('select', [])},
                 'current_capability': self.runtime.capability_view(choice['body']['work']['capability']),
-                'project': cap.get('project'), 'input_names': [*cap.get('inputs', []), 'client.py', 'intake.json'],
-                'interface': 'Call python3 /inputs/client.py /workspace/s OP JSON. receive returns a delivery_token. work {identity,delivery,work:{capability,prompt,seconds?,sources?}} asynchronously delegates work. select {identity,delivery,call:{work:WORK_SPEC,return_to:WORK_SPEC}} atomically selects a leaf call and an offered native continuation able to select further work/waiting. Each action has its own explicitly selected allocation under the original authority; no old assignment is replayed or renewed. select {identity,delivery,work:WORK_SPEC} intentionally transfers control with no automatic return. select {identity,delivery,wait:{condition:{event:true},call:{work:WORK_SPEC,return_to:WORK_SPEC}}} selects a leaf event handler and its return; wait.work remains a direct handler. A leaf (can_select:false) cannot retain further work itself. Omit both wait.work and wait.call for a deliberate inert wait. work_status pages retained choices or reads an outcome by identity. work_output {identity:CHOICE_ID} lists actual producer files/final messages; add output:KEY, offset and length for a bounded exact byte view with elision counts. Reports in a producer /workspace are not files in the current project. cancel_work cancels work in the offered scope. No host paths or arbitrary commands are accepted. Finish the turn after select; the supervisor executes only retained choices.'}
+                'project': cap.get('project'), 'input_names': [*cap.get('inputs', []), 'client.py', 'intake.json', 'owner-context.jsonl'],
+                'operations': operation_descriptions(self.runtime.host, self, self.offered_operations()),
+                'interface': interface}
 
     def invoke(self, operation, arguments):
         if operation == 'describe':return self.describe()

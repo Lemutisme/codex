@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -530,6 +531,130 @@ p=Path(sys.argv[-1]);a=json.loads(p.read_text())
             self.runtime.work_output(leaf['id'],'file:raw.bin')
         with self.assertRaisesRegex(ValueError,'retained manifest'):
             self.runtime.work_output(leaf['id'],'file:../../private')
+
+    def test_acknowledged_owner_inputs_reach_real_return_context_separately_from_assignment(self):
+        self.start()
+        first='Owner correction one: preserve the exact source units.'
+        second='Owner correction two: register a revised research context, then perform the concrete task.'
+        self.runtime.control('input','owner-input-1',first)
+        admitted=self.runtime.control('input','owner-input-2',second)
+        self.finish();self.runtime.tick()
+        owner=next(x for x in self.runtime.choices() if x['id']==admitted['selected_choice'])
+        with self.runtime.host.tx() as db:
+            db.execute("UPDATE operations SET state='running',owner=? WHERE id=?",
+                       (ops.encoded(ops.process_identity(os.getpid())),owner['operation']))
+        view=self.runtime.receive(owner['operation'])
+        selected=self.runtime.choose(owner['operation'],'bounded-leaf',view['delivery_token'],call={
+            'work':{'capability':'edit','prompt':'A concrete local assignment only.'},
+            'return_to':{'capability':'research','prompt':'Inspect the returned work.'}})
+        self.assertIsNone(self.runtime.host.inbox('research')['pending'])
+        self.finish(owner['operation']);self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.native_result(leaf['operation'],{'report.txt':'result'});self.runtime.tick()
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        consumed=[]
+        def native_fixture(*args,**kwargs):
+            context=json.loads(Path(kwargs['inputs']['runtime-context.json']).read_text())
+            path=Path(kwargs['inputs']['owner-context.jsonl'])
+            messages=[json.loads(line) for line in path.read_text().splitlines()]
+            consumed.append((context,messages,args[5],runtime.file_digest(path)))
+            return {'shutdown':{'status':'exited'},'environment_shutdown':{'confirmed':True},'files':{},'artifacts':{},'completed_turns':[]}
+        assignment=self.runtime.host.inspect(returning['operation'])['request']
+        path=self.runtime.host.operation_dir(returning['operation'])/'assignment.json';ops.atomic(path,assignment)
+        with self.runtime.host.tx() as db:
+            db.execute("UPDATE operations SET state='running',owner=? WHERE id=?",
+                       (ops.encoded(ops.process_identity(os.getpid())),returning['operation']))
+        with patch.object(runtime,'native',side_effect=native_fixture):self.runtime.measure('research',path)
+        context,messages,prompt,digest=consumed[0]
+        self.assertEqual(context['action_assignment']['prompt'],'Inspect the returned work.')
+        self.assertNotIn(second,context['action_assignment']['prompt'])
+        self.assertEqual([x['request'] for x in messages[1:]],['Improve the authorized project.',first,second])
+        self.assertEqual([x['generation'] for x in messages[1:]],[0,1,2])
+        self.assertEqual(context['owner_context']['admitted_generation'],2)
+        self.assertEqual(context['owner_context']['sha256'],digest)
+        self.assertIn('/inputs/owner-context.jsonl',prompt)
+        self.assertIn('separately from this concrete action assignment',prompt)
+        self.assertNotIn('owner-input-2',ops.encoded(context['pending_input']))
+
+    def test_owner_context_is_generation_bound_and_cannot_be_forged_by_actor_evidence(self):
+        self.start()
+        text='Exact raw owner text with a newline\nand a quoted "condition".'
+        self.runtime.control('input','accepted-owner',text)
+        first=self.runtime.owner_context_snapshot(1,0,self.base/'owner-snapshot-1')
+        self.runtime.host.observation('owner-request:pretend',[],{'generation':1},
+            {'operation':'input','request':'not an accepted owner control','thread_id':None},{},source=runtime.SOURCE)
+        self.runtime.host.knowledge('owner context',[],'not an owner instruction','actor claim only')
+        self.runtime.control('input','future-owner','Future instruction outside the admitted generation.')
+        second=self.runtime.owner_context_snapshot(1,0,self.base/'owner-snapshot-2')
+        self.assertEqual(first['sha256'],second['sha256'])
+        rows=[json.loads(line) for line in (self.base/'owner-snapshot-2/owner-context.jsonl').read_text().splitlines()]
+        self.assertEqual(rows[-1]['request'],text)
+        self.assertEqual(len(rows),3)
+        self.runtime.control('input','accepted-owner',text)
+        self.assertEqual(self.runtime.owner_context_snapshot(1,0,self.base/'owner-snapshot-1')['sha256'],first['sha256'])
+        with self.assertRaisesRegex(ValueError,'collides'):
+            self.runtime._work({'capability':'research','prompt':'x','sources':{'owner-context.jsonl':'fake'}})
+
+    def test_stale_generation_is_not_rebound_to_new_owner_context_at_measurement(self):
+        self.start();self.finish()
+        selected=self.runtime.control('input','first-owner','First correction')
+        self.runtime.tick()
+        old=next(x for x in self.runtime.choices() if x['id']==selected['selected_choice'])
+        assignment=self.runtime.host.inspect(old['operation'])['request']
+        path=self.runtime.host.operation_dir(old['operation'])/'assignment.json';ops.atomic(path,assignment)
+        self.runtime.control('input','second-owner','New correction')
+        with patch.object(runtime,'native') as launch:self.runtime.measure('research',path)
+        launch.assert_not_called()
+        result=json.loads((path.parent/'result.json').read_text())
+        self.assertEqual(result['failure'],'stale selected input/owner')
+        self.assertFalse((self.runtime.root/'native-actions'/old['operation']/'owner-context.jsonl').exists())
+
+    def test_catalog_declares_real_common_arguments_and_filters_control_permissions(self):
+        self.start()
+        controller=runtime.RuntimeController(self.runtime,self.operation)
+        broker=Broker(self.base/'catalog-socket',self.runtime.host,'research',operations=runtime.COMMON,controller=controller)
+        self.addCleanup(broker.server_close)
+        catalog=broker.invoke('describe',{})['operations']
+        self.assertEqual(set(catalog),set(runtime.COMMON))
+        self.assertEqual(catalog['source_read']['required'],['identity'])
+        self.assertEqual(catalog['get']['required'],['identity'])
+        self.assertIn('text',catalog['search']['optional']);self.assertNotIn('query',catalog['search']['optional'])
+        self.assertNotIn('default',catalog['work_status']['optional']['identity'])
+        source_path=self.base/'catalog-source';source_path.write_text('actual retained bytes')
+        source=self.runtime.host.capture_source(source_path,expected_sha256=runtime.file_digest(source_path),label='catalog-readable-source')
+        obj=broker.invoke('get',{catalog['get']['required'][0]:source})
+        page=broker.invoke('source_read',{catalog['source_read']['required'][0]:source})
+        self.assertEqual(obj['bytes'],len('actual retained bytes'))
+        self.assertEqual(page['text'],'actual retained bytes')
+        found=broker.invoke('search',{'text':'catalog-readable-source','kinds':['source']})
+        self.assertEqual(found['matches'][0]['id'],source)
+        values={'subject':'catalog test','sources':[source],'interpretation':'A scoped interpretation','uncertainty':'Not a gain claim'}
+        knowledge=broker.invoke('knowledge',{name:values[name] for name in catalog['knowledge']['required']})
+        self.assertEqual(broker.invoke('get',{'identity':knowledge,'kind':'knowledge'})['sources'],[source])
+        self.assertIn('events',broker.invoke('read',{}))
+        self.assertEqual(broker.invoke('incumbent',{})['version'],self.runtime.host.incumbent()['version'])
+        for operation in ('select','register','capture_source','reconcile_effects'):
+            self.assertNotIn(operation,catalog)
+            with self.assertRaisesRegex(ValueError,'not offered'):broker.invoke(operation,{})
+
+    def test_standalone_client_discovers_and_uses_common_contract_without_host_modules(self):
+        self.start()
+        controller=runtime.RuntimeController(self.runtime,self.operation)
+        broker=Broker(self.base/'standalone-socket',self.runtime.host,'research',operations=runtime.COMMON,controller=controller)
+        thread=threading.Thread(target=broker.serve_forever,daemon=True);thread.start()
+        self.addCleanup(broker.server_close);self.addCleanup(broker.shutdown)
+        isolated=self.base/'standalone';isolated.mkdir()
+        client=isolated/'client.py';client.write_bytes(Path(sys.modules[Broker.__module__].__file__).read_bytes())
+        def invoke(operation,arguments):
+            result=subprocess.run([sys.executable,'-I','-B',str(client),str(broker.path),operation,json.dumps(arguments)],
+                                  cwd=isolated,check=True,capture_output=True,text=True,timeout=10)
+            return json.loads(result.stdout)
+        descriptions=invoke('describe',{})['operations']
+        source_path=self.base/'isolated-source';source_path.write_text('standalone client proof')
+        source=self.runtime.host.capture_source(source_path,expected_sha256=runtime.file_digest(source_path),label='isolated source')
+        result=invoke('source_read',{descriptions['source_read']['required'][0]:source,'length':1024})
+        self.assertEqual(result['text'],'standalone client proof')
+        self.assertEqual(sorted(p.name for p in isolated.iterdir()),['client.py'])
 
 
 if __name__ == '__main__':unittest.main()
