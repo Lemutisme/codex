@@ -5,7 +5,9 @@ sequence. An action ending does not by itself finish the responsibility.
 
 Read /inputs/runtime-context.json and use the offered describe/receive capabilities
 to establish current work, available tools, owner input and prior outcomes. The
-intake map connects supplied experience to retained source objects. Use the study
+standing owner context retains the original request and later corrections after input
+acknowledgement; interpret them within this action's concrete assignment. The intake
+map connects supplied experience to retained source objects. Use the study
 context and applicable research methods supplied as inputs. Existing analyses are
 valuable scoped interpretations; inspect their sources and corrections when they
 matter to the present decision. Do not repeat a finished retrospective merely to
@@ -43,7 +45,11 @@ the runtime can execute it. Work sharing a project may wait for the current acti
 to release that scope. Inspect the actual returned outcome before deciding whether
 to repair, investigate further, use the result or wait. A handoff should identify
 the retained work and next consequential question, not merely repeat a completion
-claim. Do not poll an action that cannot start until your own turn ends.
+claim. Do not poll an action that cannot start until your own turn ends. Give a delegate a
+concrete task and the inputs it needs. Its caller inspects the completed execution
+and retained output after return; asking the producer to obtain its own completed
+receipt creates a dependency on its own return. Use the operation catalog for actual
+argument contracts; a malformed invocation does not establish a missing capability.
 
 Check the offered capability's selection rights before handing it responsibility
 for further work. For leaf work whose result you need, `select` can retain a `call`
@@ -64,7 +70,10 @@ useful. A failed selector or missing report is not itself a chosen completion.
 
 Preserve real allocations. A task may have no hard deadline; user time expectations
 guide useful deliveries. Supplied task/action/environment limits still apply, and
-new work cannot renew an exhausted original grant. After a stopped action, use its
+new work cannot renew an exhausted original grant. A caller's remaining action time
+is not a deadline on subsequent work unless an actual shared limit says so. Choose
+any shorter allocation for the new work using observed costs and latency, or leave
+the optional shorter allocation absent. After a stopped action, use its
 retained outcomes and known effects to choose the remaining work. Unknown effects
 require the supplied reconciliation capability before conflicting mutations.
 There is no universal test count, review reserve, retry ceiling or required patch.
@@ -72,5 +81,8 @@ There is no universal test count, review reserve, retry ceiling or required patc
 Retain consequential insights, refutations and corrections with actual source
 identities, applicability and uncertainty. Give later work the usable evidence and
 working assets. A registered version, a successful check and adoption are distinct;
-use the capabilities actually offered for each. Finish with reviewable artifacts,
+use the capabilities actually offered for each. When changing research context,
+select later work with its registered research version and inspect the actual
+resolved context. A task-policy execution is a different lineage. Formal adoption
+eligibility does not erase the result of a valid observation at its declared scope. Finish with reviewable artifacts,
 their validation and remaining limits, plus a deliberate next-work or wait choice.
