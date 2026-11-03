@@ -103,7 +103,10 @@ time.sleep(q.get('sleep',0))
         self.assertEqual(len(self.host.read(kinds=['operation_outcome'])['events']),1)
 
     def test_cancellation_and_timeout_are_outcomes_not_zero_quality(self):
-        self.submit(sleep=30, seconds=.15)
+        # The fixture must reach the running child to exercise timeout cleanup.
+        # A sub-second reservation can expire during process admission on a cold
+        # interpreter; that is a different, valid execution outcome.
+        self.submit(sleep=30, seconds=3)
         done=self.complete()
         self.assertEqual(done['outcome']['execution'],'timed_out')
         self.assertIsNone(done['outcome']['measurement'])
