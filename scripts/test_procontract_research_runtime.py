@@ -1,5 +1,6 @@
 """Durable choice, control and scope fault controls; no model inference."""
 import copy
+import base64
 import json
 import os
 from pathlib import Path
@@ -80,6 +81,23 @@ p=Path(sys.argv[-1]);a=json.loads(p.read_text())
         ops.atomic(self.runtime.host.operation_dir(identity)/'receipt.json', {
             'id': identity, 'assignment': ops.sha(item['request']), 'execution': execution,
             'shutdown_confirmed': shutdown, 'measurement': {'validity': 'valid', 'admissible': False}})
+        return self.runtime.host.reconcile(identity)
+
+    def native_result(self, identity, files=None, messages=(), binary=None):
+        item = self.runtime.host.inspect(identity)
+        workspace = self.runtime.root/'native-actions'/identity/'w';workspace.mkdir(parents=True,exist_ok=True)
+        files = files or {};artifacts = {}
+        for name, text in files.items():
+            raw=text.encode();(workspace/name).write_bytes(raw)
+            artifacts[name]={'kind':'file','bytes':len(raw),'sha256':ops.sha(raw),'inline_text':True}
+        for name, raw in (binary or {}).items():
+            (workspace/name).write_bytes(raw)
+            artifacts[name]={'kind':'file','bytes':len(raw),'sha256':ops.sha(raw),'inline_text':False}
+        task={'version':item['request']['request']['version'],'files':files,'artifacts':artifacts,
+              'completed_turns':[{'id':'turn-fixture','items':[{'type':'agentMessage','phase':'final_answer','id':'message-'+str(i),'text':text} for i,text in enumerate(messages)]}]}
+        ops.atomic(self.runtime.host.operation_dir(identity)/'receipt.json', {
+            'id':identity,'assignment':ops.sha(item['request']),'execution':'completed',
+            'shutdown_confirmed':True,'measurement':{'validity':'valid','admissible':False,'effects_resolved':True,'task':task}})
         return self.runtime.host.reconcile(identity)
 
     def select(self, view, **kwargs):
@@ -338,6 +356,180 @@ p=Path(sys.argv[-1]);a=json.loads(p.read_text())
         index = controller.invoke('work_status', {})
         self.assertEqual(index['choices'][0]['operation'], self.operation)
         self.assertEqual(index['choices'][0]['origin']['owner_request'], 'owner-start')
+
+    def test_atomic_leaf_call_returns_once_without_owner_stage_selection_and_reuses_reservation(self):
+        view=self.start()
+        call={'work':{'capability':'measure','purpose':'A caller-selected question','seconds':5},
+              'return_to':{'capability':'research','prompt':'Use the returned result and decide what matters next.','seconds':9}}
+        selected=self.select(view,call=call)
+        self.assertEqual(self.select(view,call=call),selected)
+        self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.assertIsNone(leaf['operation'])
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        original_leaf=self.runtime.host.inspect(leaf['operation'])['request']
+        self.original_dispatch(self.runtime.host,leaf['operation'])
+        until=time.monotonic()+10
+        while time.monotonic()<until:
+            outcome=self.runtime.host.reconcile(leaf['operation'])
+            if outcome['state']=='finished':break
+            time.sleep(.025)
+        self.assertEqual(outcome['state'],'finished')
+        self.runtime=runtime.ResearchRuntime(self.root);self.runtime.tick()
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        self.assertEqual(returning['body']['work']['prompt'],call['return_to']['prompt'])
+        self.assertEqual(returning['body']['origin']['return_of']['outcome'],outcome['outcome']['object'])
+        original_return=self.runtime.host.inspect(returning['operation'])['request']
+        self.assertEqual(original_return['request']['inputs']['seconds'],9)
+        with self.runtime.host.tx() as db:db.execute("UPDATE rsi_choices SET state='admitting' WHERE id=?",(returning['id'],))
+        self.runtime=runtime.ResearchRuntime(self.root);self.runtime.tick();self.runtime.tick()
+        self.assertEqual(self.runtime.host.inspect(returning['operation'])['request'],original_return)
+        self.assertEqual(self.runtime.host.inspect(leaf['operation'])['request'],original_leaf)
+        with self.runtime.host.tx() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM rsi_returns').fetchone()[0],1)
+            self.assertEqual(db.execute('SELECT count(*) FROM rsi_control').fetchone()[0],1)
+
+    def test_wait_leaf_call_returns_on_failed_result_and_inert_wait_stays_inert(self):
+        view=self.start()
+        selected=self.select(view,wait={'condition':{'event':True},'call':{
+            'work':{'capability':'measure'},'return_to':{'capability':'research','prompt':'Inspect actual result, including failure.'}}})
+        self.finish();self.runtime.tick()
+        self.assertFalse(any(x['body']['role']=='call' for x in self.runtime.choices()))
+        self.runtime.host.observation('available input',[],{}, {'new':'fact'}, {}, source=runtime.SOURCE)
+        self.runtime.tick();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['body']['role']=='call')
+        self.finish(leaf['operation'],execution='failed');self.runtime.tick()
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        self.assertEqual(returning['body']['work']['capability'],'research')
+        self.assertEqual(self.runtime.host.get(returning['body']['origin']['return_of']['outcome'])['execution'],'failed')
+        with self.runtime.host.tx() as db:
+            db.execute("UPDATE operations SET state='running',owner=? WHERE id=?",(ops.encoded(ops.process_identity(os.getpid())),returning['operation']))
+        token=self.runtime.receive(returning['operation'])
+        self.runtime.choose(returning['operation'],'deliberate-rest',token['delivery_token'],wait={'condition':{'event':True}})
+        self.finish(returning['operation']);self.runtime.tick()
+        before=len(self.runtime.choices())
+        self.runtime.host.observation('another event',[],{}, {}, {}, source=runtime.SOURCE)
+        self.runtime.tick()
+        self.assertEqual(len(self.runtime.choices()),before)
+        self.assertEqual(self.runtime.status()['state'],'waiting')
+
+    def test_invalid_call_is_atomic_and_owner_change_fences_late_return(self):
+        view=self.start();before=self.runtime.host.inbox('research')
+        with self.assertRaisesRegex(ValueError,'return_to'):
+            self.select(view,call={'work':{'capability':'measure'}})
+        with self.assertRaisesRegex(ValueError,'able to select'):
+            self.select(view,call={'work':{'capability':'measure'},'return_to':{'capability':'edit','prompt':'not a continuation authority'}})
+        self.assertEqual(self.runtime.host.inbox('research'),before)
+        self.assertEqual(len(self.runtime.choices()),1)
+        selected=self.select(view,call={'work':{'capability':'measure'},'return_to':{'capability':'research','prompt':'Old owner continuation'}})
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.runtime.control('input','owner-change','New constraint replaces the old pending work.')
+        self.finish(leaf['operation']);self.runtime.tick()
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        self.assertEqual(returning['state'],'stale');self.assertIsNone(returning['operation'])
+
+    def test_unknown_effects_do_not_activate_a_project_return(self):
+        cfg=copy.deepcopy(self.config);cfg['capabilities']['research']['project']='target-read'
+        self.runtime=runtime.ResearchRuntime.create(self.base/'unknown-return',cfg)
+        view=self.start();selected=self.select(view,call={'work':{'capability':'edit','prompt':'Selected leaf'},
+            'return_to':{'capability':'research','prompt':'Selected return'}})
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.finish(leaf['operation'],execution='failed',shutdown=False)
+        with patch.object(self.runtime,'_reconcile',side_effect=lambda choice:self.runtime.host.inspect(choice['operation'])):
+            self.runtime.tick()
+        self.assertFalse(any(x['id'].startswith('return.') for x in self.runtime.choices()))
+        self.runtime.host.reconcile_effects(leaf['operation'],{'shutdown_confirmed':True,'adapter':'independent fixture cleanup'})
+        self.runtime.tick()
+        self.assertTrue(any(x['id'].startswith('return.') and x['operation'] for x in self.runtime.choices()))
+
+    def test_call_admission_rejection_returns_its_actual_reason(self):
+        view=self.start();selected=self.select(view,call={
+            'work':{'capability':'exercise','prompt':'Use missing policy'},
+            'return_to':{'capability':'research','prompt':'Inspect the admission result'}})
+        (self.project/'policies/work_method.md').unlink()
+        self.finish();self.runtime.tick();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.assertEqual(leaf['state'],'rejected')
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        context=self.runtime.returned_context(returning['body'])
+        self.assertIn('policies/work_method.md',context[0]['admission_rejection']['error'])
+        self.assertIsNone(returning['body']['origin']['return_of']['operation'])
+
+    def test_return_context_and_bounded_outputs_use_actual_producer_artifacts(self):
+        view=self.start();selected=self.select(view,call={'work':{'capability':'edit','prompt':'Produce a report'},
+            'return_to':{'capability':'research','prompt':'Inspect actual returned artifacts'}})
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        completed=self.native_result(leaf['operation'],{'research-report.md':'Actual per-invocation report.\n'},['Actual public review response.'],{'bytes.bin':b'\xff\x00abc'})
+        self.runtime.tick();returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        index=self.runtime.work_output(leaf['id'])
+        self.assertEqual({x['output'] for x in index['outputs']},{'file:research-report.md','file:bytes.bin','message:0'})
+        page=self.runtime.work_output(leaf['id'],'file:research-report.md',offset=7,length=8)
+        self.assertEqual(base64.b64decode(page['base64']),b'per-invo')
+        self.assertFalse(page['view_complete']);self.assertEqual(page['elision']['omitted_before'],7)
+        binary=self.runtime.work_output(leaf['id'],'file:bytes.bin',length=2)
+        self.assertIsNone(binary['text']);self.assertEqual(base64.b64decode(binary['base64']),b'\xff\x00')
+        self.assertEqual(self.runtime.work_output(leaf['id'],'message:0')['text'],'Actual public review response.')
+        context_seen=[]
+        def native_fixture(*args,**kwargs):
+            context_seen.append(json.loads(Path(kwargs['inputs']['runtime-context.json']).read_text()))
+            return {'shutdown':{'status':'exited'},'environment_shutdown':{'confirmed':True},'files':{},'artifacts':{},'completed_turns':[]}
+        assignment=self.runtime.host.inspect(returning['operation'])['request']
+        path=self.runtime.host.operation_dir(returning['operation'])/'assignment.json';ops.atomic(path,assignment)
+        with self.runtime.host.tx() as db:db.execute("UPDATE operations SET state='running',owner=? WHERE id=?",(ops.encoded(ops.process_identity(os.getpid())),returning['operation']))
+        with patch.object(runtime,'native',side_effect=native_fixture):self.runtime.measure('research',path)
+        actual=context_seen[0]
+        self.assertEqual(actual['returned_work'][0]['outcome'],completed['outcome']['object'])
+        self.assertNotIn('measurement',actual['predecessor_outcome'])
+        self.assertEqual(actual['returned_work'][0]['outputs'][0]['producer_workspace'],'/workspace')
+        self.assertIn('not consumer/project root',actual['returned_work'][0]['outputs'][0]['location_scope'])
+        (self.runtime.root/'native-actions'/leaf['operation']/'w/bytes.bin').unlink()
+        unavailable=self.runtime.work_output(leaf['id'],'file:bytes.bin')
+        self.assertFalse(unavailable['available']);self.assertEqual(unavailable['descriptor']['bytes'],5)
+
+    def test_capability_facts_expose_selection_rights_and_real_output_scope(self):
+        self.start();view=runtime.RuntimeController(self.runtime,self.operation).describe()
+        self.assertTrue(view['offered']['research']['can_select'])
+        self.assertFalse(view['offered']['edit']['can_select'])
+        self.assertEqual(view['offered']['edit']['select'],[])
+        self.assertEqual(view['offered']['edit']['project_writable'],['policies'])
+        self.assertEqual(view['offered']['edit']['output_scope']['per_invocation_workspace'],'/workspace')
+        self.assertFalse(view['offered']['exercise']['project_mounted'])
+        self.assertEqual(view['offered']['exercise']['project_writable'],[])
+
+    def test_cancelled_responsibility_cannot_activate_a_late_call_return(self):
+        view=self.start();selected=self.select(view,call={
+            'work':{'capability':'measure'},'return_to':{'capability':'research','prompt':'Retained return'}})
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.runtime.control('cancel','cancel-call')
+        self.finish(leaf['operation'],execution='cancelled');self.runtime.tick()
+        returning=next(x for x in self.runtime.choices() if x['id'].startswith('return.'))
+        self.assertEqual(returning['state'],'stale')
+        self.assertIsNone(returning['operation'])
+        self.assertTrue(self.runtime.host.inbox('research')['cancelled'])
+
+    def test_output_view_preserves_inline_bytes_and_never_follows_redirected_large_artifact(self):
+        view=self.start();selected=self.select(view,call={
+            'work':{'capability':'edit','prompt':'Retain outputs'},
+            'return_to':{'capability':'research','prompt':'Use retained outputs'}})
+        self.finish();self.runtime.tick()
+        leaf=next(x for x in self.runtime.choices() if x['id']==selected['choice'])
+        self.native_result(leaf['operation'],{'report.txt':'captured report'},binary={'raw.bin':b'x'*3000})
+        workspace=self.runtime.root/'native-actions'/leaf['operation']/'w'
+        (workspace/'report.txt').unlink()
+        self.assertEqual(self.runtime.work_output(leaf['id'],'file:report.txt')['text'],'captured report')
+        private=self.base/'private';private.write_bytes(b'private bytes must not be read')
+        (workspace/'raw.bin').unlink();(workspace/'raw.bin').symlink_to(private)
+        with self.assertRaises(OSError):self.runtime.work_output(leaf['id'],'file:raw.bin')
+        (workspace/'raw.bin').unlink();(workspace/'raw.bin').write_bytes(b'y'*3000)
+        with self.assertRaisesRegex(ValueError,'hash differs'):
+            self.runtime.work_output(leaf['id'],'file:raw.bin')
+        with self.assertRaisesRegex(ValueError,'retained manifest'):
+            self.runtime.work_output(leaf['id'],'file:../../private')
 
 
 if __name__ == '__main__':unittest.main()

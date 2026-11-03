@@ -5,6 +5,7 @@ This supervisor owns admission, transport, lifetime and evidence. Research metho
 roles, experiments, continuation and waiting are supplied choices, not Python stages.
 """
 import argparse
+import base64
 import contextlib
 import copy
 import fcntl
@@ -29,7 +30,7 @@ from procodex_inputs import declarations
 
 REPO = Path(__file__).resolve().parent.parent
 SOURCE = 'research-runtime-input'
-COMMON = ('describe', 'read', 'get', 'source_read', 'search', 'knowledge', 'incumbent', 'work_status')
+COMMON = ('describe', 'read', 'get', 'source_read', 'search', 'knowledge', 'incumbent', 'work_status', 'work_output')
 CONTROL = ('receive', 'work', 'select', 'cancel_work', 'register')
 RESERVED = {'client.py', 'runtime-context.json', 'intake.json'}
 
@@ -91,6 +92,7 @@ class ResearchRuntime:
                 raise ValueError('process kernel binding differs from the protected runtime configuration')
             os.environ.setdefault('PRO_CONTRACT_STORE_BIN', expected)
         self.host = ops.Operations(self.root/'host')
+        self._output_verified = {}
 
     @classmethod
     def create(cls, root, config):
@@ -190,6 +192,8 @@ class ResearchRuntime:
                 CREATE TABLE rsi_choices (id TEXT PRIMARY KEY, body TEXT NOT NULL, state TEXT NOT NULL,
                     operation TEXT, params TEXT, announcement TEXT, error TEXT);
                 CREATE TABLE rsi_deliveries (token TEXT PRIMARY KEY, operation TEXT NOT NULL, body TEXT NOT NULL);
+                CREATE TABLE rsi_returns (call_choice TEXT PRIMARY KEY, return_choice TEXT NOT NULL,
+                    outcome TEXT NOT NULL, state TEXT NOT NULL);
             ''')
             db.execute('INSERT INTO rsi_state VALUES(1,?)', (ops.encoded({'started': False, 'goal': None, 'generation': 0, 'versions': {}}),))
         host.subscribe('research', SOURCE, ['observation', 'claim'])
@@ -253,6 +257,19 @@ class ResearchRuntime:
         if set(sources) & (RESERVED | set(self.config['inputs'])):raise ValueError('retained source input name collides')
         for source in sources.values():self.host.get(source, 'source')
         return work
+
+    def _call(self, value, allowed, current_version):
+        if not isinstance(value, dict) or set(value) != {'work', 'return_to'}:
+            raise ValueError('call requires both selected work and return_to work')
+        work = self._work(value['work'], allowed, current_version)
+        returning = self._work(value['return_to'], allowed, current_version)
+        leaf = self.config['capabilities'][work['capability']]
+        recipient = self.config['capabilities'][returning['capability']]
+        if leaf['kind'] == 'native' and leaf.get('select'):
+            raise ValueError('call is for a leaf; use direct select or async work for an agent owning further selection')
+        if recipient['kind'] != 'native' or not recipient.get('select'):
+            raise ValueError('return_to must be an offered native capability able to select continued work or waiting')
+        return {'work': work, 'return_to': returning}
 
     def _owner_work(self, request_id, reason):
         state = self.state(); initial = copy.deepcopy(self.config['initial'])
@@ -358,6 +375,174 @@ class ResearchRuntime:
         return [{**dict(row), 'body': json.loads(row['body']),
                  'params': json.loads(row['params']) if row['params'] else None} for row in rows]
 
+    def capability_view(self, name):
+        cap = self.config['capabilities'][name]
+        mounted = bool(cap.get('project')) and (not cap.get('strategy_files') or cap.get('mount_project', False))
+        project = self.config.get('projects', {}).get(cap.get('project'))
+        return {'kind': cap['kind'], 'project': cap.get('project'),
+                'select': list(cap.get('select', [])) if cap['kind'] == 'native' else [],
+                'can_select': cap['kind'] == 'native' and bool(cap.get('select')),
+                'max_seconds': cap.get('max_seconds') if cap['kind'] == 'native' else cap['measurement'].get('max_seconds'),
+                'strategy_files': cap.get('strategy_files', {}), 'project_mounted': mounted,
+                'project_writable': list(project.get('writable', [])) if mounted else [],
+                'output_scope': {'per_invocation_workspace': '/workspace' if cap['kind'] == 'native' else None,
+                                 'persistent_project': '/workspace/project' if mounted else None,
+                                 'assessment_root': '/workspace/project' if cap.get('assessment_project') else '/workspace',
+                                 'retained_output_access': 'work_output; files/messages belong to their producer invocation, not the consumer project'}}
+
+    @staticmethod
+    def _messages(task):
+        result = []
+        for turn in task.get('completed_turns', []):
+            for item in turn.get('items', []):
+                if item.get('type') == 'agentMessage' and isinstance(item.get('text'), str):
+                    result.append({'text': item['text'], 'id': item.get('id'), 'phase': item.get('phase'), 'turn': turn.get('id')})
+        return result
+
+    def returned_work(self, choice):
+        pending = {'choice': choice['id'], 'state': choice['state'],
+                   'capability': (choice['body'].get('work') or {}).get('capability'),
+                   'operation': choice.get('operation'), 'error': choice.get('error'), 'outputs': []}
+        if not choice.get('operation'):return pending
+        try:item = self.host.inspect(choice['operation'])
+        except ValueError:return pending
+        outcome = item.get('outcome') or {}; measurement = outcome.get('measurement') or {}; task = measurement.get('task') or {}
+        outputs = []
+        for name, artifact in task.get('artifacts', {}).items():
+            outputs.append({'output': 'file:'+name, 'name': name, **artifact,
+                            'producer_workspace': '/workspace', 'location_scope': 'producer invocation; not consumer/project root',
+                            'access': {'operation': 'work_output', 'arguments': {'identity': choice['id'], 'output': 'file:'+name}}})
+        for index, message in enumerate(self._messages(task)):
+            raw = message['text'].encode()
+            outputs.append({'output': 'message:'+str(index), 'kind': 'agent_message',
+                            'id': message['id'], 'phase': message['phase'], 'turn': message['turn'],
+                            'bytes': len(raw), 'sha256': ops.sha(raw),
+                            'preview': message['text'][:256], 'preview_complete': len(message['text']) <= 256,
+                            'access': {'operation': 'work_output', 'arguments': {'identity': choice['id'], 'output': 'message:'+str(index)}}})
+        return {'choice': choice['id'], 'state': choice['state'], 'capability': choice['body']['work']['capability'],
+                'operation': choice['operation'], 'outcome': outcome.get('object'),
+                'execution': outcome.get('execution'), 'shutdown_confirmed': outcome.get('shutdown_confirmed'),
+                'measurement_validity': measurement.get('validity'), 'command_exit': measurement.get('command_exit'),
+                'project_before': measurement.get('project_before'), 'project_after': measurement.get('project_after'),
+                'outputs': outputs, 'scope': 'Retained execution/output facts; not a whole-goal or quality judgment'}
+
+    def work_output(self, identity, output=None, offset=0, length=1024):
+        """Bounded views of captured files/public messages, never arbitrary paths."""
+        choice = next((item for item in self.choices() if item['id'] == identity), None)
+        if choice is None:raise ValueError('unknown selected work')
+        index = self.returned_work(choice)
+        if output is None:return index
+        if type(offset) is not int or offset < 0 or type(length) is not int or not 1 <= length <= 65536:
+            raise ValueError('output view needs a nonnegative offset and 1..65536 bytes')
+        descriptor = next((item for item in index['outputs'] if item['output'] == output), None)
+        if descriptor is None:raise ValueError('output is not in the retained manifest; inspect work_output index for available files/messages')
+        item = self.host.inspect(choice['operation']); outcome = item['outcome']
+        if outcome['assignment'] != ops.sha(item['request']):raise ValueError('output belongs to another assignment')
+        task = outcome['measurement']['task']; raw = None
+        binding = {'choice': identity, 'operation': choice['operation'], 'outcome': outcome['object'],
+                   'assignment': outcome['assignment'], 'output': output}
+        if output.startswith('message:'):
+            raw = self._messages(task)[int(output.split(':', 1)[1])]['text'].encode()
+        elif descriptor.get('kind') != 'file':
+            return {**binding, 'available': False, 'descriptor': descriptor,
+                    'reason': 'Only a non-regular artifact descriptor was captured; links are not followed.'}
+        else:
+            name = output.split(':', 1)[1]
+            if len(PurePosixPath(name).parts) != 1 or name in ('.', '..'):raise ValueError('invalid captured output name')
+            if name in task.get('files', {}):raw = task['files'][name].encode()
+            else:
+                path = self.root/'native-actions'/choice['operation']/'w'/name
+                try:fd = os.open(path, os.O_RDONLY|os.O_NOFOLLOW)
+                except FileNotFoundError:
+                    return {**binding, 'available': False, 'descriptor': descriptor,
+                            'reason': 'The manifest retains this output identity, but its local bytes are unavailable.'}
+                with os.fdopen(fd, 'rb') as stream:
+                    before = os.fstat(stream.fileno())
+                    stamp = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                    if not stat.S_ISREG(before.st_mode) or before.st_size != descriptor['bytes']:
+                        raise ValueError('retained output size/type differs')
+                    key = (outcome['object'], output)
+                    if self._output_verified.get(key) != stamp:
+                        if hashlib.file_digest(stream, 'sha256').hexdigest() != descriptor['sha256']:
+                            raise ValueError('retained output hash differs')
+                        self._output_verified[key] = stamp
+                    if offset > before.st_size:raise ValueError('offset exceeds retained output')
+                    stream.seek(offset); data = stream.read(length); after = os.fstat(stream.fileno())
+                    if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns) != stamp:
+                        self._output_verified.pop(key, None);raise ValueError('retained output changed during view')
+        if raw is not None:
+            if len(raw) != descriptor['bytes'] or ops.sha(raw) != descriptor['sha256']:
+                raise ValueError('captured inline output identity differs')
+            if offset > len(raw):raise ValueError('offset exceeds retained output')
+            data = raw[offset:offset+length]
+        end = offset+len(data); total = descriptor['bytes']
+        result = {**binding, 'available': True, 'sha256': descriptor['sha256'], 'bytes': total,
+                  'offset': offset, 'end': end, 'eof': end == total,
+                  'view_complete': offset == 0 and end == total, 'slice_sha256': ops.sha(data),
+                  'base64': base64.b64encode(data).decode(),
+                  'elision': {'omitted_before': offset, 'omitted_after': total-end}}
+        try:result['text'] = data.decode('utf-8')
+        except UnicodeDecodeError:result['text'] = None
+        return result
+
+    def _activate_return(self, choice, outcome, operation=None):
+        """Instantiate the caller's selected continuation once, independent of quality."""
+        returning = choice['body'].get('return_to')
+        if returning is None:return None
+        identity = 'return.'+ops.sha(choice['id'])[:32]
+        body = {'role': 'continuation', 'origin': {'return_of': {'choice': choice['id'],
+                'operation': operation, 'outcome': outcome}, 'selecting_origin': choice['body'].get('origin')},
+                'work': returning, 'epoch': choice['body']['epoch'], 'generation': choice['body']['generation'],
+                'after_operation': operation}
+        with self.host.tx() as db:
+            prior = db.execute('SELECT return_choice FROM rsi_returns WHERE call_choice=?', (choice['id'],)).fetchone()
+            if prior:return prior[0]
+            state = json.loads(db.execute('SELECT body FROM rsi_state').fetchone()[0])
+            inbox = db.execute("SELECT * FROM inbox WHERE id='research'").fetchone()
+            fenced = inbox['cancelled'] or inbox['epoch'] != body['epoch'] or state['generation'] != body['generation']
+            selected_state = 'stale' if fenced else 'queued'
+            db.execute('INSERT INTO rsi_choices(id,body,state) VALUES(?,?,?)', (identity, ops.encoded(body), selected_state))
+            db.execute('INSERT INTO rsi_returns VALUES(?,?,?,?)', (choice['id'], identity, outcome, selected_state))
+        return identity
+
+    def returned_context(self, body):
+        """Follow actual call/wake relations, separate from scheduling dependencies."""
+        choices = self.choices(); by_id = {item['id']: item for item in choices}
+        by_operation = {item['operation']: item for item in choices if item['operation']}
+        selected = {}
+        origin = body.get('origin', {})
+        returned = origin.get('return_of')
+        if returned and returned.get('choice') in by_id:
+            observed = self.returned_work(by_id[returned['choice']])
+            if returned.get('operation') is None:
+                rejection = self.host.get(returned['outcome'])
+                error = str(rejection.get('outcome', {}).get('error', ''))
+                observed['admission_rejection'] = {'observation': returned['outcome'],
+                    'error': error[:2000], 'error_complete': len(error) <= 2000}
+            selected[returned['choice']] = observed
+        def visit(value):
+            if not isinstance(value, dict):return
+            trigger = value.get('trigger')
+            if isinstance(trigger, dict):
+                for event in trigger.get('events', []):
+                    try:record = self.host.get(event['object_id'])
+                    except ValueError:continue
+                    operation = record.get('conditions', {}).get('operation')
+                    choice = by_operation.get(operation)
+                    if choice is None:continue
+                    actual = self.host.inspect(operation)
+                    references = record.get('sources', [])
+                    matched = False
+                    for reference in references:
+                        proof = self.host.get(reference)
+                        if proof.get('id') == operation and proof.get('assignment') == ops.sha(actual['request']):
+                            matched = True
+                    if matched:
+                        selected[choice['id']] = {**self.returned_work(choice), 'triggering_observation': event['object_id']}
+            visit(value.get('selecting_origin'))
+        visit(origin)
+        return list(selected.values())
+
     def status(self):
         choices = self.choices(); inbox = self.host.inbox('research')
         state = self.state(); active = []; unresolved = []
@@ -392,7 +577,7 @@ class ResearchRuntime:
                 db.execute('INSERT OR IGNORE INTO rsi_deliveries VALUES(?,?,?)', (token, operation, ops.encoded(view)))
         return {**view, 'delivery_token': token}
 
-    def choose(self, operation, identity, delivery, work=None, wait=None, delegated=False):
+    def choose(self, operation, identity, delivery, work=None, wait=None, delegated=False, call=None):
         if not isinstance(identity, str) or not identity:raise ValueError('choice identity is required')
         current = self.host.inspect(operation)
         parent_choice = current['request']['request']['inputs']['choice']
@@ -400,11 +585,15 @@ class ResearchRuntime:
         capability = self.config['capabilities'][parent['body']['work']['capability']]
         allowed = capability.get('select', [])
         if not allowed:raise ValueError('this invocation cannot select work')
-        if delegated and (work is None or wait is not None):raise ValueError('delegation needs work')
-        if not delegated and (work is None) == (wait is None):raise ValueError('select exactly one next work or wait')
+        if delegated and (work is None or wait is not None or call is not None):raise ValueError('delegation needs work')
+        if not delegated and sum(item is not None for item in (work, wait, call)) != 1:
+            raise ValueError('select exactly one next work, call or wait')
         selected = self._work(work, allowed, parent['body']['work']['version']) if work is not None else None
+        selected_call = self._call(call, allowed, parent['body']['work']['version']) if call is not None else None
+        if selected_call:selected = selected_call['work']
         if wait is not None:
-            if set(wait)-{'condition', 'work'}:raise ValueError('unknown wait fields')
+            if set(wait)-{'condition', 'work', 'call'}:raise ValueError('unknown wait fields')
+            if wait.get('work') is not None and wait.get('call') is not None:raise ValueError('wait selects either work or call')
             condition = wait['condition']
             if set(condition)-{'event', 'after'}:raise ValueError('unknown wake condition')
             if not isinstance(condition.get('event', True), (str, bool)):raise ValueError('invalid wake event')
@@ -412,16 +601,18 @@ class ResearchRuntime:
                 import math
                 if type(condition['after']) not in (int, float) or not math.isfinite(condition['after']):raise ValueError('invalid wake timestamp')
             if wait.get('work') is not None:wait = {**wait, 'work': self._work(wait['work'], allowed, parent['body']['work']['version'])}
+            if wait.get('call') is not None:wait = {**wait, 'call': self._call(wait['call'], allowed, parent['body']['work']['version'])}
         choice_id = 'choice.'+ops.sha([operation, identity])[:32]
         with self.host.tx() as db:
             delivered = db.execute('SELECT * FROM rsi_deliveries WHERE token=? AND operation=?', (delivery, operation)).fetchone()
             if not delivered:raise ValueError('selection needs this invocation\'s delivered input token')
             view = json.loads(delivered['body']); state = json.loads(db.execute('SELECT body FROM rsi_state').fetchone()[0])
             inbox = db.execute("SELECT * FROM inbox WHERE id='research'").fetchone()
-            body = {'role': 'delegated' if delegated else 'wait' if wait is not None else 'continuation',
+            body = {'role': 'delegated' if delegated else 'wait' if wait is not None else 'call' if selected_call else 'continuation',
                     'origin': {'operation': operation, 'identity': identity, 'delivery': delivery},
                     'epoch': view['epoch'], 'generation': view['generation'], 'through': view['through'],
                     'work': selected, 'wait': wait, 'after_operation': None if delegated else operation}
+            if selected_call:body['return_to'] = selected_call['return_to']
             encoded = ops.encoded(body)
             prior = db.execute('SELECT * FROM rsi_choices WHERE id=?', (choice_id,)).fetchone()
             if prior:
@@ -568,11 +759,13 @@ class ResearchRuntime:
                 with self.host.tx() as db:
                     db.execute("UPDATE rsi_choices SET state='finished' WHERE id=?", (choice['id'],))
             if item['state'] not in ('finished', 'unknown'):continue
-            if choice['body']['role'] == 'delegated' and choice['announcement'] != item['outcome']['object']:
+            if choice['body']['role'] in ('delegated', 'call') and choice['announcement'] != item['outcome']['object']:
                 observation = self.host.observation('work:'+choice['id'], [item['outcome']['object']],
                     {'operation': choice['operation'], 'capability': choice['body']['work']['capability']},
                     {'returned': item['outcome']['execution'], 'shutdown_confirmed': item['outcome']['shutdown_confirmed']}, {}, source=SOURCE)
                 with self.host.tx() as db:db.execute('UPDATE rsi_choices SET announcement=? WHERE id=?', (item['outcome']['object'], choice['id']))
+            if item['state'] == 'finished' and item['outcome']['shutdown_confirmed']:
+                self._activate_return(choice, item['outcome']['object'], choice['operation'])
         state = self.state(); inbox = self.host.inbox('research')
         if inbox['cancelled']:
             for choice in self.choices():
@@ -590,11 +783,15 @@ class ResearchRuntime:
                 with self.control_lock():
                     wait = body['wait']; condition = wait['condition']; view = self.host.receive('research', limit=1000)
                     due = condition.get('after') is not None and time.time() >= condition['after']
-                    if wait.get('work') is None or not (view['pending'] is not None or due):continue
+                    selected_call = wait.get('call')
+                    handler = selected_call['work'] if selected_call is not None else wait.get('work')
+                    if handler is None or not (view['pending'] is not None or due):continue
                     state = self.state()
                     identity = 'wake.'+ops.sha([choice['id'], view['epoch'], view['acknowledged'], view['pending'], state['generation']])[:32]
-                    activated = {'role': 'continuation', 'origin': {'wait': choice['id'], 'trigger': view}, 'work': wait['work'],
+                    activated = {'role': 'call' if selected_call else 'continuation',
+                                 'origin': {'wait': choice['id'], 'trigger': view, 'selecting_origin': body.get('origin')}, 'work': handler,
                                  'epoch': view['epoch'], 'generation': state['generation'], 'after_operation': dependency}
+                    if selected_call:activated['return_to'] = selected_call['return_to']
                     with self.host.tx() as db:
                         row = db.execute('SELECT state FROM rsi_choices WHERE id=?', (choice['id'],)).fetchone()
                         if row[0] != 'waiting' or view['cancelled']:continue
@@ -627,7 +824,8 @@ class ResearchRuntime:
             except (ValueError, OSError, KeyError, UnicodeError) as error:
                 if 'conflicting effect scope' in str(error):continue
                 with self.host.tx() as db:db.execute("UPDATE rsi_choices SET state='rejected',error=? WHERE id=?", (str(error), choice['id']))
-                self.host.observation('work:'+choice['id'], [], {'admission': True}, {'error': str(error)}, {}, source=SOURCE)
+                rejected = self.host.observation('work:'+choice['id'], [], {'admission': True}, {'error': str(error)}, {}, source=SOURCE)
+                self._activate_return(choice, rejected)
         return self.status()
 
     def supervise(self):
@@ -673,10 +871,15 @@ class ResearchRuntime:
                 inputs[name] = self.host.root/'sources'/self.host.get(identity, 'source')['sha256']
             context = run/'runtime-context.json'
             predecessor = self.host.inspect(body['after_operation']) if body.get('after_operation') else None
+            predecessor_result = predecessor.get('outcome') if predecessor else None
+            predecessor_view = {key: predecessor_result.get(key) for key in
+                ('object', 'assignment', 'execution', 'shutdown_confirmed', 'reconciliation')} if predecessor_result else None
             ops.atomic(context, {'goal': self.state()['goal'], 'selected_choice_id': choice['id'],
                                  'selected_choice': body, 'operation': request['id'],
                                  'predecessor_operation': body.get('after_operation'),
-                                 'predecessor_outcome': predecessor.get('outcome') if predecessor else None,
+                                 'predecessor_outcome': predecessor_view,
+                                 'predecessor_semantics': 'Scheduling dependency; inspect returned_work for the actual call/wake outputs.',
+                                 'returned_work': self.returned_context(body),
                                  'pending_input': self.host.receive('research', limit=1000),
                                  'generation': body['generation'], 'project_before': before,
                                  'capabilities': RuntimeController(self, request['id']).describe()})
@@ -717,7 +920,7 @@ class RuntimeController:
         self.runtime, self.operation = runtime, operation
 
     def handles(self, operation):
-        return operation in ('describe', 'receive', 'work', 'select', 'work_status', 'cancel_work')
+        return operation in ('describe', 'receive', 'work', 'select', 'work_status', 'work_output', 'cancel_work')
 
     def interrupted(self):
         choice = self.choice(); inbox = self.runtime.host.inbox('research')
@@ -736,18 +939,15 @@ class RuntimeController:
     def describe(self):
         choice = self.choice(); cap = self.runtime.config['capabilities'][choice['body']['work']['capability']]
         return {'operation': self.operation, 'responsibility': 'research',
-                'offered': {name: {'kind': self.runtime.config['capabilities'][name]['kind'],
-                                  'project': self.runtime.config['capabilities'][name].get('project'),
-                                  'strategy_files': self.runtime.config['capabilities'][name].get('strategy_files', {}),
-                                  'project_mounted': bool(self.runtime.config['capabilities'][name].get('project')) and (not self.runtime.config['capabilities'][name].get('strategy_files') or self.runtime.config['capabilities'][name].get('mount_project', False)),
-                                  'max_seconds': self.runtime.config['capabilities'][name].get('max_seconds') if self.runtime.config['capabilities'][name]['kind'] == 'native' else self.runtime.config['capabilities'][name]['measurement'].get('max_seconds')}
-                            for name in cap.get('select', [])},
+                'offered': {name: self.runtime.capability_view(name) for name in cap.get('select', [])},
+                'current_capability': self.runtime.capability_view(choice['body']['work']['capability']),
                 'project': cap.get('project'), 'input_names': [*cap.get('inputs', []), 'client.py', 'intake.json'],
-                'interface': 'Call python3 /inputs/client.py /workspace/s OP JSON. receive returns a delivery_token. work {identity,delivery,work:{capability,prompt,seconds?,sources?}} delegates selected work. select {identity,delivery,work:{...}} records a next action after this invocation; select {identity,delivery,wait:{condition:{event:true},work:{...}}} selects a future event handler; omit wait.work for an inert wait. work_status {identity:CHOICE_ID} reads outcome; cancel_work cancels that choice. No host paths or arbitrary commands are accepted by these control operations. Finish the turn after select; the supervisor executes only retained choices.'}
+                'interface': 'Call python3 /inputs/client.py /workspace/s OP JSON. receive returns a delivery_token. work {identity,delivery,work:{capability,prompt,seconds?,sources?}} asynchronously delegates work. select {identity,delivery,call:{work:WORK_SPEC,return_to:WORK_SPEC}} atomically selects a leaf call and an offered native continuation able to select further work/waiting. Each action has its own explicitly selected allocation under the original authority; no old assignment is replayed or renewed. select {identity,delivery,work:WORK_SPEC} intentionally transfers control with no automatic return. select {identity,delivery,wait:{condition:{event:true},call:{work:WORK_SPEC,return_to:WORK_SPEC}}} selects a leaf event handler and its return; wait.work remains a direct handler. A leaf (can_select:false) cannot retain further work itself. Omit both wait.work and wait.call for a deliberate inert wait. work_status pages retained choices or reads an outcome by identity. work_output {identity:CHOICE_ID} lists actual producer files/final messages; add output:KEY, offset and length for a bounded exact byte view with elision counts. Reports in a producer /workspace are not files in the current project. cancel_work cancels work in the offered scope. No host paths or arbitrary commands are accepted. Finish the turn after select; the supervisor executes only retained choices.'}
 
     def invoke(self, operation, arguments):
         if operation == 'describe':return self.describe()
         if operation == 'receive':return self.runtime.receive(self.operation, **arguments)
+        if operation == 'work_output':return self.runtime.work_output(**arguments)
         if operation in ('work', 'select'):
             return self.runtime.choose(self.operation, delegated=operation == 'work', **arguments)
         if operation == 'work_status' and 'identity' not in arguments:

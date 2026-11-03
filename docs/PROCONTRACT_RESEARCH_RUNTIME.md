@@ -121,17 +121,74 @@ to select descendant capabilities additionally receive:
 | `receive {limit}` | Delivered input page plus an invocation-bound `delivery_token`; no acknowledgement |
 | `work {identity,delivery,work}` | Delegate exactly the named capability, possibly queued behind its effect scope |
 | `select {identity,delivery,work}` | Retain the chosen next work after this invocation returns and acknowledge only the delivered page |
+| `select {identity,delivery,call}` | Atomically retain a leaf work item and an explicitly selected responsible continuation |
 | `select {identity,delivery,wait}` | Retain an event/time wait, optionally with the explicitly selected work to run when it wakes |
 | `work_status {identity}` | Read a selected work item and its actual Operations result |
 | `work_status {after,limit}` | Page the durable work index without guessing operation IDs |
+| `work_output {identity}` | List captured files and public messages from the actual producing invocation |
+| `work_output {identity,output,offset,length}` | Read an exact bounded byte range from one listed output |
 | `cancel_work {identity}` | Request shutdown of work within the actor's admitted descendant capability scope |
 
 A work object contains `capability`, a native `prompt` when applicable, optional
 `purpose`, `seconds`, `version` and `sources`. `sources` maps new plain input names
 to retained **source object IDs**. Host run/workspace paths, raw command arrays and
 unoffered capabilities are rejected. A wait contains `condition` using the existing
-event/optional-time semantics and optionally a work object. A wait without work
-keeps no model alive and selects no automatic wake invocation.
+event/optional-time semantics and optionally a work object or a call. A wait without
+work or call keeps no model alive and selects no automatic wake invocation.
+
+A call contains `work` and `return_to`, both ordinary work objects selected by the
+actor. The called capability is a leaf: a fixed measurement or a native actor with
+no descendant selection permission. The return capability must be an offered native
+actor able to select further work or waiting. The call and return recipe commit
+together with the input acknowledgement. Once the leaf's actual effects are known
+to have stopped, its outcome activates the retained return exactly once, regardless
+of whether that outcome reports success or failure. An admission rejection similarly
+returns its actual observation/reason. Unknown effects remain fenced until reconciled.
+
+For example, the actor may select either an immediate call or a call on a chosen event:
+
+```json
+{"identity":"chosen-call","delivery":"DELIVERY_TOKEN",
+ "call":{"work":{"capability":"offered-leaf","purpose":"the chosen question"},
+         "return_to":{"capability":"offered-controller","prompt":"Use the actual returned outcome to choose useful remaining work.","seconds":null}}}
+```
+
+```json
+{"identity":"chosen-event","delivery":"DELIVERY_TOKEN",
+ "wait":{"condition":{"event":true},
+         "call":{"work":{"capability":"offered-leaf","prompt":"the chosen question"},
+                 "return_to":{"capability":"offered-controller","prompt":"Use the result under the continuing goal."}}}}
+```
+
+This is call/return transport, not a research-stage sequence. There is no automatic
+initial-agent fallback, result-quality branch or replay of the leaf. Each action's
+selected allocation is admitted once under the original authority; the call does
+not renew the caller's or leaf's old allocation. Owner input/cancellation fences
+even a return activated after the leaf ends. Direct `select(work)` remains an
+intentional transfer without automatic return, and asynchronous `work` remains
+available. Those choices do not become call/return implicitly.
+
+`describe` exposes each offered capability's descendant `select` list, `can_select`,
+project write paths, project mount/assessment view and per-invocation output scope.
+A leaf cannot select further work just because its prompt requests it. The strategy
+therefore owns a return path when the continuing goal needs one.
+
+Runtime context separates a compact scheduling predecessor from actual returned
+work linked by the call or wake event. Returned files live in their producer's
+per-invocation `/workspace`; they are not assumed to exist in the consumer's project.
+The output index identifies captured file names and final messages and supplies
+exact `work_output` arguments. Raw outcomes remain available through `work_status`
+or `get`; they are not dumped into the normal predecessor view.
+
+Output pages bind the operation, complete assignment and outcome, content SHA-256,
+byte range and slice SHA-256. `elision` reports bytes omitted before/after that range;
+`view_complete` is explicit. Captured inline bytes remain readable even if the
+producer workspace is later absent; larger/binary files are verified against their
+captured manifest and read without following links. If those bytes are unavailable,
+the manifest and the precise availability gap remain visible rather than inventing
+an absent artifact. As with source pages, a downstream transport may elide a large
+printed response; use bounded views or local structured processing and do not equate
+retrieval with semantic reading of unseen bytes.
 
 The actor chooses whether to implement, inspect, delegate, invoke a check, continue
 or wait. There is no analyst/critic/repair sequence in the supervisor. A failed

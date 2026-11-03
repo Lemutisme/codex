@@ -45,6 +45,15 @@ to repair, investigate further, use the result or wait. A handoff should identif
 the retained work and next consequential question, not merely repeat a completion
 claim. Do not poll an action that cannot start until your own turn ends.
 
+Check the offered capability's selection rights before handing it responsibility
+for further work. For leaf work whose result you need, `select` can retain a `call`
+with both `work` and `return_to`: choose the leaf invocation and the continuation
+that will receive its outcome. The same call can be attached to a selected wait.
+This is a way to retain follow-through, not a required review sequence. Use the
+returned-work manifest and `work_output` to inspect actual files/messages; reports
+belong to their producer's invocation workspace unless explicitly stored elsewhere.
+The persistent project and an invocation's report directory are different scopes.
+
 Use the delivered input token when selecting a disposition. New owner input can
 invalidate a stale choice; receive the current input when that happens. After
 selecting next work or waiting, finish your turn. An inert wait is appropriate when
