@@ -28,9 +28,12 @@ If repeated comparisons alternate without a relevant change, investigate which p
 varies and retain that uncertainty. Choose a discriminating observation of the required
 behavior; copying a measured duration or ordering into the implementation does not explain
 the variation. Passing the retained matrix still leaves unexamined interfaces and states.
-When an observation depends on a helper, fixture or service, establish that dependency
-is working before interpreting the result. A convenient substitute interface and a failed
-setup exercise different behavior from a successful interaction with the required interface.
+When an observation depends on a helper, fixture, service or environment, establish that
+it reaches the intended behavior. A trusted positive control under the same conditions
+can distinguish a measurement assumption from an implementation difference. A shared setup
+failure does not establish successful behavior or, by itself, an implementation defect.
+Apply supplied permissions and limits to their stated actors and operations; one tool's
+boundary does not silently restrict every other available capability.
 
 Use concrete differences to guide a coherent repair. Keep the motivating example and
 affected passing controls as runnable checks, proof fragments or reproducible experiments
@@ -39,8 +42,11 @@ an unchanged aggregate can conceal both. A previously passing result belongs to 
 and conditions that produced it. Do not replace earlier counterexamples with a general
 claim that everything now works. An unavailable observation differs from a complete,
 authentic observation that an expected result is absent; use each at its actual scope.
-Keep the source and launch conditions of useful probes and fixtures when cleaning build
-artifacts. Confirm that a retained check can still exercise its intended path; two setup
+Keep the generators, launch conditions and observations of useful probes when cleaning
+generated artifacts. Keep disposable probe trees separate from the intended delivery,
+especially when their links, names, sizes or structure cannot cross its capture boundary.
+Preserve the recipe and results so that cleaning such a tree does not erase the experiment.
+Confirm that a retained check can still exercise its intended path; two setup
 failures do not establish agreement on the behavior the check was meant to compare.
 
 If edits or fresh sessions keep producing the same unresolved result, investigate the

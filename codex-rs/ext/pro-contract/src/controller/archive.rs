@@ -184,6 +184,36 @@ impl EvidenceAccess {
         Ok(records)
     }
 
+    /// Operation failures are public execution evidence, not snapshot judgments.
+    async fn publication_failures(&self) -> Result<Vec<(Digest, Value, Vec<u8>)>, String> {
+        let mut records = Vec::new();
+        for row in self.ledger.experiments().await.map_err(|e| e.to_string())? {
+            let body = row.event.body;
+            if row.event.kind != ExperimentKind::Execution
+                || body["phase"] != "progress_failed"
+                || body["contract_id"].as_str() != Some(&self.contract_id.0)
+            {
+                continue;
+            }
+            let handle: Digest = serde_json::from_value(body["public_evidence"].clone())
+                .map_err(|e| e.to_string())?;
+            let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
+            let document: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+            if document["scope"] != "publication_operation"
+                || document["effects_resolved"] != true
+                || document["contract_id"] != body["contract_id"]
+                || document["publication"] != body["publication"]
+                || document["request_id"] != body["request_id"]
+                || !document["subject_hash"].is_null()
+                || !body["subject_hash"].is_null()
+            {
+                return Err("publication failure differs from its committed binding".into());
+            }
+            records.push((handle, document, bytes));
+        }
+        Ok(records)
+    }
+
     /// Only task-public diagnostic work can seed a continuation. It remains historical
     /// context, including when the current subject, terms or inspection method changes.
     pub(super) async fn diagnostic_prior(&self, handle: Digest) -> Result<Value, String> {
@@ -249,6 +279,7 @@ impl EvidenceAccess {
         let (contract, records) = self.records().await?;
         let progress = self.progress_records().await?;
         let checkpoints = self.checkpoint_records().await?;
+        let failures = self.publication_failures().await?;
         match query.op {
             Operation::Read => {
                 let handle = query.handle.ok_or("read needs a handle from this task's index")?;
@@ -257,6 +288,8 @@ impl EvidenceAccess {
                 } else if let Some((_, _, bytes)) = progress.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
                 } else if let Some((_, _, bytes)) = checkpoints.iter().find(|(id, _, _)| *id == handle) {
+                    bytes.clone()
+                } else if let Some((_, _, bytes)) = failures.iter().find(|(id, _, _)| *id == handle) {
                     bytes.clone()
                 } else if let Some((_, owner, _)) = progress.iter().find(|(_, d, _)| d["public"]["inspections"].as_array().is_some_and(|ids| ids.contains(&json!(handle))) || d["public"]["host_observations"] == json!(handle)) {
                     let bytes = self.store.get(&handle).map_err(|e| e.to_string())?;
@@ -302,6 +335,10 @@ impl EvidenceAccess {
             }))).chain(checkpoints.iter().map(|(handle, document, _)| json!({
                 "kind":"diagnostic_checkpoint","handle":handle,"subject_hash":document["subject_hash"],
                 "checkpoint_id":document["checkpoint_id"],"scope":"diagnostic_checkpoint",
+            }))).chain(failures.iter().map(|(handle, document, _)| json!({
+                "kind":"publication_operation", "handle":handle, "publication":document["publication"],
+                "scope":"publication_operation", "stage":document["stage"],
+                "error":document["error"], "effects_resolved":document["effects_resolved"],
             }))).collect(), query.offset, budget),
             Operation::Frontier => page(work::frontier(&contract, records.iter().map(|(h, r, _)| (*h, r)))
                 .into_iter().map(|entry| json!(entry)).collect(), query.offset, budget),

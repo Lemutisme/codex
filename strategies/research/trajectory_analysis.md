@@ -68,6 +68,14 @@ alternative explanations and the observation or experiment that could separate
 them. Keep negative findings and refutations, including when a prior proposed
 improvement did not produce a measured gain.
 
+When a measurement contradicts observed behavior, a trusted positive control under
+the same conditions can test the measurement's assumptions. Trace permissions and
+limits to the actors and operations where the adapter actually applied them. A
+shared failure revises attribution only for the demonstrated conditions; retain
+the original score and independent implementation counterexamples. Correct the
+affected interpretation without inventing a corrected score or discarding a useful
+artifact because its execution or reporting path failed.
+
 Establish a proposed repair's baseline trigger under the relevant conditions before
 claiming it fixed a fault. A mock must respect the producer contract relevant to the
 claim; an impossible mocked state cannot establish a real baseline failure. If the

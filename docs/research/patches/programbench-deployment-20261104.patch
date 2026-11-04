@@ -1,0 +1,63 @@
+--- a/run_case.py
++++ b/run_case.py
+@@ -86,6 +86,15 @@
+         return identity, deadline, actual
+ 
+ 
++
++def freeze_submission(run, native_shutdown, executor_shutdown):
++    # Prior cleanup errors remain in the run record. Current closure determines
++    # whether writers are gone; a failed stop attempt is not permanent activity.
++    if native_shutdown.get('status') != 'exited' or executor_shutdown is None or executor_shutdown.get('remaining') != []:
++        raise RuntimeError('cannot freeze active or unresolved writers')
++    return canonical.package_submission(run)
++
++
+ def main(task):
+     plan=json.loads((ROOT/'plan.json').read_text())
+     if task not in plan['tasks']:raise ValueError('task outside frozen plan')
+@@ -107,7 +116,7 @@
+     server=native.AppServer(native.app_server_command(Path(plan['package'])/'bin/codex',plan['arm']),env,run/'rpc.jsonl',run/'stderr.log',cwd=workspace)
+     save(run/'server-process.json',{'pid':server.process.pid,'cwd':str(workspace),'at':time.time()})
+     tracker=native.TurnTracker();thread=None;status=None;failure=None;stop_reason=None;started=None;timer=None
+-    deadline_stopped=threading.Event()
++    deadline_stopped=threading.Event();post_shutdown_stop=None
+     def handle(message):
+         tracker.observe(message)
+         if 'id' in message and 'method' in message:server.refuse(message)
+@@ -151,7 +160,9 @@
+         try:save(run/'executor-stop.json',cleanup(task))
+         except Exception as error:failure={'type':'CleanupFailure','message':str(error)}
+         shutdown=server.close()
+-        try:save(run/'post-shutdown-executor-stop.json',cleanup(task))
++        try:
++            post_shutdown_stop=cleanup(task)
++            save(run/'post-shutdown-executor-stop.json',post_shutdown_stop)
+         except Exception as error:failure={'type':'CleanupFailure','message':str(error)}
+         gateway.shutdown();gateway.server_close();gate_thread.join()
+         counters=budget.status()
+@@ -162,8 +173,7 @@
+         internal_support=bool(status and status.get('phase')=='supported') if plan['arm']=='on' else None,model_attempts=1)
+     try:
+         result['natural_delivery']=delivery.snapshot(run,thread) if thread and plan['arm']=='on' else None
+-        if failure and failure['type']=='CleanupFailure':raise RuntimeError('cannot freeze active writers')
+-        archive=canonical.package_submission(run)
++        archive=freeze_submission(run,shutdown,post_shutdown_stop)
+         result['submission_sha256']=sha(archive)
+         result['submission_kind']='stopped_workspace';save(run/'frozen-submission.json',dict(sha256=sha(archive),at=time.time(),stop_reason=stop_reason))
+         case=ROOT/'inputs/cases'/task;registry=case/'canonical-registry.json'
+--- a/bin/docker
++++ b/bin/docker
+@@ -2,11 +2,5 @@
+ import os,sys
+ args=sys.argv[1:]
+ if args and args[0] in ('run','create'):
+- networks=[]
+- for i,arg in enumerate(args):
+-  if arg in ('--network','--net') and i+1<len(args):networks.append(args[i+1])
+-  elif arg.startswith('--network=') or arg.startswith('--net='):networks.append(arg.split('=',1)[1])
+- if any(value!='none' for value in networks):raise SystemExit('This campaign admits offline containers only')
+- network_args=[] if networks else ['--network','none']
+- args=[args[0],*network_args,'--label','pc.sol61=20261104',*(['--label','pc.task='+os.environ['PC_TASK']] if os.environ.get('PC_TASK') else []),*args[1:]]
++ args=[args[0],'--label','pc.sol61=20261104',*(['--label','pc.task='+os.environ['PC_TASK']] if os.environ.get('PC_TASK') else []),*args[1:]]
+ os.execv('/data/ProContract/research/procontract-programbench-diagnostic-20261015/tools/bin/docker',['docker','--host','unix:///data/ProContract/programbench-full-procontract-20261025/docker.sock',*args])

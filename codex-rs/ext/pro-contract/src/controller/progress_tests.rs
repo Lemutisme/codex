@@ -3,6 +3,118 @@ use crate::controller::archive::{Operation, Query};
 use crate::{ProgressSettings, SuccessionSettings};
 use pretty_assertions::{assert_eq, assert_ne};
 
+#[cfg(unix)]
+#[tokio::test]
+async fn failed_capture_with_confirmed_resume_is_a_finished_operation_not_an_unresolved_effect() {
+    let lane = progressing(FakePorts::new(CONTRACT_DRAFT).checks(&[StepOutcome::Pass])).await;
+    lane.runtime.intake(INTAKE.into()).await;
+    lane.wait_for("working").await;
+    let original = lane.runtime.remaining_task_budget().await.unwrap();
+    let external = tempfile::tempdir().unwrap();
+    std::fs::write(external.path().join("fixture"), "fixture").unwrap();
+    std::os::unix::fs::symlink(
+        external.path().join("fixture"),
+        lane.workspace.join("probe-link"),
+    )
+    .unwrap();
+    let failed = lane
+        .runtime
+        .publish_progress("capture-error".into(), "one".into())
+        .await
+        .unwrap();
+    assert_eq!(failed["effects_resolved"], true);
+    assert_eq!(failed["completion_certified"], false);
+    assert!(
+        failed["error"]
+            .as_str()
+            .unwrap()
+            .contains("outside the workspace")
+    );
+    assert!(lane.ports.checked.lock().unwrap().is_empty());
+    lane.runtime.progress_ready().await.unwrap();
+    let reused = lane
+        .runtime
+        .publish_progress("capture-error".into(), "one".into())
+        .await
+        .unwrap();
+    assert_eq!(reused["handle"], failed["handle"]);
+    assert_eq!(reused["error"], failed["error"]);
+    let evidence = lane
+        .runtime
+        .evidence_access()
+        .read(
+            Query {
+                op: Operation::Read,
+                handle: Some(serde_json::from_value(failed["handle"].clone()).unwrap()),
+                offset: 0,
+            },
+            8192,
+        )
+        .await
+        .unwrap();
+    assert!(
+        evidence["text"]
+            .as_str()
+            .unwrap()
+            .contains("outside the workspace")
+    );
+    assert!(
+        lane.runtime
+            .evidence_access()
+            .review_history()
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // Reconstruct a crash between the durable outcome and grant completion.
+    let key = lane.thread_id.to_string();
+    let completed: Box<serde_json::value::RawValue> = lane
+        .ledger
+        .record("progress_grant_v1", &key)
+        .await
+        .unwrap()
+        .unwrap();
+    let value: serde_json::Value = serde_json::from_str(completed.get()).unwrap();
+    let pending = completed
+        .get()
+        .replace("\"pending\":null", "\"pending\":\"capture-error\"")
+        .replace(
+            &format!("\"completed\":{}", value["completed"]),
+            "\"completed\":[]",
+        );
+    let pending: Box<serde_json::value::RawValue> = serde_json::from_str(&pending).unwrap();
+    assert!(
+        lane.ledger
+            .compare_exchange_record("progress_grant_v1", &key, Some(&completed), &pending)
+            .await
+            .unwrap()
+    );
+    lane.runtime.progress_ready().await.unwrap();
+    assert_eq!(
+        lane.runtime
+            .publish_progress("capture-error".into(), "one".into())
+            .await
+            .unwrap()["handle"],
+        failed["handle"]
+    );
+
+    std::fs::remove_file(lane.workspace.join("probe-link")).unwrap();
+    let next = lane
+        .runtime
+        .publish_progress("repaired-input".into(), "one".into())
+        .await
+        .unwrap();
+    assert_eq!(next["effects_resolved"], true);
+    assert_ne!(next["handle"], failed["handle"]);
+    assert_eq!(lane.ports.checked.lock().unwrap().len(), 1);
+    let remaining = lane.runtime.remaining_task_budget().await.unwrap();
+    assert_eq!(remaining["started_ms"], original["started_ms"]);
+    assert_eq!(remaining["deadline_ms"], original["deadline_ms"]);
+    assert_eq!(remaining["publications_used"], 2);
+    assert_eq!(lane.ledger.events().await.unwrap().len(), 1);
+}
+
 #[tokio::test]
 async fn publication_caller_loss_does_not_abandon_the_owned_assessment() {
     let gate = Arc::new(Notify::new());

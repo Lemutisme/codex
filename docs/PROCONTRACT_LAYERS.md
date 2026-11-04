@@ -216,6 +216,20 @@ This migration does not yet provide autonomous recovery after controller process
 loss or selector failure, or execution selection independent of issued terms.
 Those broader continuation/wake capabilities remain explicit implementation work.
 
+Publication preparation has its own execution outcome. When capture fails and the
+executor has been confirmed resumed, or local materialization fails before any
+assessment dispatch, the harness records a finished operation error. The original
+reservation stays spent. The error remains readable and a repeated request recalls
+that outcome; a new request can do further authorized work under the original grant.
+An unknown barrier/resume or assessment effect remains unresolved. A failed local
+preparation does not imply either a failed artifact or an outstanding external action.
+
+These operation records use a separate public evidence scope from artifact assessment.
+They cannot become diagnostic findings, Support or Defeat. Journal recovery can
+finish an interrupted bookkeeping step from the retained operation outcome without
+replaying its effects. Choosing whether to repair a fixture, change methods or make
+another publication remains strategy work.
+
 ## Allocator observations
 
 The shared model gateway projects an allocator snapshot into every request after

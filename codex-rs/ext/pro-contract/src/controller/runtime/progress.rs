@@ -247,7 +247,10 @@ impl ThreadRuntime {
             .map_err(|e| e.to_string())?;
         for row in self.ledger.experiments().await.map_err(|e| e.to_string())? {
             if row.event.kind != ExperimentKind::Execution
-                || row.event.body["phase"] != "progress_assessed"
+                || !matches!(
+                    row.event.body["phase"].as_str(),
+                    Some("progress_assessed" | "progress_failed")
+                )
                 || row.event.body["contract_id"] != json!(self.contract_id().0)
                 || row.event.body["publication"] != json!(grant.used)
             {
@@ -263,7 +266,12 @@ impl ThreadRuntime {
                 && document["contract_id"] == row.event.body["contract_id"]
                 && document["subject_hash"] == row.event.body["subject_hash"]
                 && document["publication"] == json!(grant.used)
-                && document["scope"] == "progress_only"
+                && (row.event.body["phase"] == "progress_assessed"
+                    && document["scope"] == "progress_only"
+                    || row.event.body["phase"] == "progress_failed"
+                        && document["scope"] == "publication_operation"
+                        && document["grant_binding"] == json!(grant.binding)
+                        && document["request_id"] == row.event.body["request_id"])
             {
                 let mut completed = grant.clone();
                 completed.pending = None;
@@ -287,6 +295,63 @@ impl ThreadRuntime {
         Err(
             "a prior publication has unresolved effects; reconcile before acceptance or more work"
                 .into(),
+        )
+    }
+
+    /// A failed local preparation is finished once executor resume is confirmed.
+    /// Retain its outcome and spent reservation; it is not an artifact assessment.
+    async fn failed_publication(
+        &self,
+        grant: &Grant,
+        options: &ProgressAssessment,
+        stage: &str,
+        error: String,
+    ) -> Result<Value, String> {
+        let request = grant
+            .pending
+            .as_ref()
+            .ok_or("publication reservation is missing")?;
+        let document = json!({
+            "schema_version":1, "scope":"publication_operation",
+            "contract_id":self.contract_id().0, "grant_binding":grant.binding,
+            "publication":grant.used, "request_id":request,
+            "assessment_request":options, "stage":stage, "error":error,
+            "subject_hash":null, "effects_resolved":true, "completion_certified":false,
+        });
+        let handle = self
+            .store
+            .put(&serde_json::to_vec(&document).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        self.append_event(
+            ExperimentKind::Execution,
+            None,
+            json!({
+                "phase":"progress_failed", "contract_id":self.contract_id().0,
+                "publication":grant.used, "request_id":request,
+                "subject_hash":null, "public_evidence":handle,
+            }),
+        )
+        .await?;
+        let mut finished = grant.clone();
+        finished.pending = None;
+        finished.completed.push((request.clone(), handle));
+        if !self
+            .ledger
+            .compare_exchange_record(
+                PROGRESS,
+                &self.thread_id.to_string(),
+                Some(grant),
+                &finished,
+            )
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            return Err("publication completion lost ownership; outcome retained".into());
+        }
+        Ok(
+            json!({"handle":handle, "scope":"publication_operation", "stage":stage,
+            "error":error, "effects_resolved":true, "completion_certified":false,
+            "read_with":"contract_read_evidence"}),
         )
     }
 
@@ -390,7 +455,9 @@ impl ThreadRuntime {
                 );
             }
             return Ok(
-                json!({"handle":handle,"reused":true,"scope":"progress_only","read_with":"contract_read_evidence"}),
+                json!({"handle":handle,"reused":true,"scope":stored["scope"],
+                    "error":stored["error"],"effects_resolved":stored["effects_resolved"],
+                    "completion_certified":false,"read_with":"contract_read_evidence"}),
             );
         }
         if previous.pending.is_some() {
@@ -483,18 +550,36 @@ impl ThreadRuntime {
         .await
         .map_err(|_| "executor capture barrier exceeded its original allocation")??;
         let executor_ids = barrier.identities().to_vec();
-        let capture_seconds = self.action_seconds(Some(deadline), 60).await?;
-        let captured = tokio::time::timeout(
-            std::time::Duration::from_secs(capture_seconds),
-            self.capture_workspace(),
-        )
-        .await
-        .map_err(|_| "progress capture exceeded its original allocation".to_string())
-        .and_then(|result| result);
+        let captured = match self.action_seconds(Some(deadline), 60).await {
+            Ok(capture_seconds) => tokio::time::timeout(
+                std::time::Duration::from_secs(capture_seconds),
+                self.capture_workspace(),
+            )
+            .await
+            .map_err(|_| "progress capture exceeded its original allocation".to_string())
+            .and_then(|result| result),
+            Err(error) => Err(error),
+        };
+        // A failed/unknown resume must still retain pending ownership. Only the
+        // confirmed result below permits a local failure to finish the operation.
         barrier.resume().await?;
-        let subject = captured?;
+        let subject = match captured {
+            Ok(subject) => subject,
+            Err(error) => {
+                return self
+                    .failed_publication(&reserved, &options, "capture", error)
+                    .await;
+            }
+        };
         if self.state.lock().await.epoch != epoch {
-            return Err("publication owner was superseded".into());
+            return self
+                .failed_publication(
+                    &reserved,
+                    &options,
+                    "capture",
+                    "publication owner was superseded".into(),
+                )
+                .await;
         }
         self.append_event(ExperimentKind::Capture, None, json!({"phase":"progress_snapshot",
             "contract_id":contract.id.0,"publication":reserved.used,"request_id":request,
@@ -561,7 +646,11 @@ impl ThreadRuntime {
             .join("progress")
             .join(reserved.used.to_string())
             .join("candidate");
-        self.materialize(&subject, &work).await?;
+        if let Err(error) = self.materialize(&subject, &work).await {
+            return self
+                .failed_publication(&reserved, &options, "materialize", error)
+                .await;
+        }
         let handoff = WorkSnapshot {
             capture: super::super::observations::CaptureKind::Progress,
             response: super::delivery::ResponseCapture::Absent,
