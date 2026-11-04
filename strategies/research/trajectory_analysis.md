@@ -53,8 +53,9 @@ For a useful mechanism hypothesis, reconstruct the relevant chain: the user need
 and conditions, representation or action chosen, proposed artifact, observation or
 verification, feedback the actor actually received, correction or continuation, and
 later artifact behavior. Bind those relations to case/attempt/version identities
-and exact spans or event references. Locate the first observed failing stage where
-possible. Distinguish unavailable verification, an experiment that never reached
+and exact spans or event references. Bind errors to the relevant operation and
+stage; the first error in a transcript need not explain a later unfinished operation.
+Distinguish unavailable verification, an experiment that never reached
 the intended path, an incorrect interpretation, a repair that did not address its
 diagnosis, and a later regression. These are questions to investigate, not a fixed
 classification or a requirement to force every failure into one category.
