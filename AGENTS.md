@@ -50,3 +50,13 @@ recovery without renewed solver budgets. A separately selected independent retry
 (currently stgit) retains its original attempt and stays outside the original
 first-attempt aggregate. Keep all original raw failures/results and the frozen
 solver package. Shared admission capacity includes both original and completion jobs.
+
+Sol cohort update, 2026-11-04: the user requested GPT-6.1 Sol after the general
+trajectory-derived harness/strategy improvements. The independent full 200-task
+cohort is `/data/ProContract/programbench-sol61-20261104/`: `gpt-6.1-sol`/max for all
+roles, ProContract only, six hours per solver, unlimited requests, offline execution.
+The prior Luna runs remain separate and unchanged; live retries share admission
+capacity without renewed grants. Record capacity separately from the frozen plan.
+Retain the resource difference from Vals' 1000 steps and distinguish mean test pass
+rate, >=95% tasks and fully resolved tasks. The reused benchmark does not establish
+held-out generalization.
