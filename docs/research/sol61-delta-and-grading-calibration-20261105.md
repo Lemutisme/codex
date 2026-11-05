@@ -121,3 +121,18 @@ owner-selected receipt update handles that extra evidence; it is separate from t
 automatic primary-result pilot. This is a tested single-measurement ingress path,
 not an unreviewed subscription to all benchmark results or automatic code promotion.
 No new RSI kernel or mandatory research-stage sequence was introduced.
+
+The supplemental receipt update completed in25 requests, independently checked the
+newly supplied pin/allocation/launcher source bytes, retained the parent raw-vector
+audit at its actual scope, and superseded the environment knowledge record again.
+It selected inert wait through event110; no pending input or unresolved operation
+remains. Current retrieval has eight knowledge roots and14 retained knowledge
+versions. The four new invocations used154 requests (80 +26 +23 +25), in addition
+to the earlier108. Benchmark measurement inference remains zero.
+
+The one-shot publisher was also replayed after deliberately retaining its durable
+observation while removing only its local receipt. It recovered the identical source
+and observation IDs; the evidence event count stayed113, with no duplicate event,
+solver, measurement or model started. The original receipt was restored byte-for-byte.
+See `AUTOMATIC_INGRESS.json`, `rsi-late-audit/`, `current-knowledge.json` and
+`publisher-replay-control/result.json` for the complete retained closure.
