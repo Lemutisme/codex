@@ -60,3 +60,14 @@ capacity without renewed grants. Record capacity separately from the frozen plan
 Retain the resource difference from Vals' 1000 steps and distinguish mean test pass
 rate, >=95% tasks and fully resolved tasks. The reused benchmark does not establish
 held-out generalization.
+
+Grading calibration update, 2026-11-05: independent artifact-only measurements live
+under `/data/ProContract/programbench-sol61-grading-calibration-20261105/`. Solver
+and compile isolation remain intact; testing uses the pinned evaluator's separately
+qualified network conditions. Keep original Sol artifacts/budgets/raw scores and
+the frozen solver plan unchanged. Dog's same archive and binary measured36.77%
+versus96.46% across the two grading profiles; this is a measurement correction,
+not a solver or strategy gain, and must not be mixed selectively into the original
+aggregate. Measurement jobs share the total capacity16 through recorded scheduler
+amendments. A single-result evidence-to-RSI pilot is configured; it does not yet
+subscribe automatically to all campaign outcomes.
