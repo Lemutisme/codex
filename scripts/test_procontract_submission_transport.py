@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 import unittest
 
-from procontract_submission_transport import EXTRACT
+from procontract_submission_transport import EXTRACT, PACK_WORKSPACE
 
 
 def archive(entries):
@@ -87,6 +87,29 @@ class TransportTests(unittest.TestCase):
                 ('target', tarfile.REGTYPE, b'data', 0o644)])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((root/'alias').stat().st_ino, (root/'target').stat().st_ino)
+
+    def test_encoded_workspace_roundtrip_retains_unreadable_file_fifo_and_deep_names(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary);root=parent/'workspace';root.mkdir()
+            transfer=parent/'transfer'
+            names=['segment'+str(i).zfill(3)+'x'*90 for i in range(45)]
+            entries=[('unreadable',tarfile.REGTYPE,b'retained',0),
+                     ('fifo',tarfile.FIFOTYPE,'',0o640),
+                     ('/'.join(names)+'/deep',tarfile.REGTYPE,b'deep',0o600)]
+            self.assertEqual(self.run_extract(root,entries).returncode,0)
+            code=PACK_WORKSPACE.replace('/opt/procontract-workspace-transfer',str(transfer)).replace('/workspace',str(root))
+            packed=subprocess.run([sys.executable,'-I','-S','-c',code],capture_output=True,timeout=20)
+            self.assertEqual(packed.returncode,0,packed.stderr)
+            self.assertEqual(list(root.iterdir()),[])
+            receipt=json.loads(packed.stdout)
+            restored=subprocess.run([sys.executable,'-I','-S','-c',EXTRACT,str(root)],
+                input=(transfer/'workspace.tar.gz').read_bytes(),capture_output=True,timeout=20)
+            self.assertEqual(restored.returncode,0,restored.stderr)
+            self.assertEqual(json.loads(restored.stdout)['content_sha256'],receipt['content_sha256'])
+            self.assertEqual(stat.S_IMODE((root/'unreadable').stat().st_mode),0)
+            self.assertTrue(stat.S_ISFIFO((root/'fifo').stat().st_mode))
+            (root/'unreadable').chmod(0o600)
+            self.assertEqual((root/'unreadable').read_bytes(),b'retained')
 
 
 if __name__ == '__main__':

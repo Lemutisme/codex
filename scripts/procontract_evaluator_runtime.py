@@ -223,8 +223,10 @@ def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
         def _new_env(self, *args, **kwargs):
             env = super()._new_env(*args, **kwargs)
             try:
-                from procontract_submission_transport import install_submission_transport
+                from procontract_submission_transport import install_submission_transport, restore_workspace_transport
                 install_submission_transport(preserve_container_service(env))
+                if kwargs.get('testing'):
+                    restore_workspace_transport(env)
                 if kwargs.get('testing') and test_workspace == 'isolated':
                     # Retain the complete build tree outside the official test
                     # source tree. The compiled subject is already stashed by the
@@ -248,6 +250,7 @@ def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
             try:
                 super()._compile_executable(env, log_buf)
             finally:
+                env._pc_transport_log = log_buf
                 if hasattr(env, '_pc_submission_transport'):
                     log_buf.append({'step': 'submission_transport', **env._pc_submission_transport})
             if assets is None:
@@ -273,6 +276,9 @@ def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
 
         def _run_step(self, command, **kwargs):
             env = kwargs.get('env')
+            if env is not None and hasattr(env, '_pc_restored_workspace'):
+                kwargs['log_buf'].append({'step': 'restore_compiled_workspace', **env._pc_restored_workspace})
+                del env._pc_restored_workspace
             if env is not None and hasattr(env, '_pc_test_workspace'):
                 kwargs['log_buf'].append({'step': 'isolate_test_source_workspace', **env._pc_test_workspace})
                 del env._pc_test_workspace

@@ -62,3 +62,25 @@ These fixes belong to harness artifact/measurement transport. They add no progre
 threshold, task-solving workflow or kernel transition. The parallel Astra report is
 at `/data/ProContract/procontract-sol61-rsi-retro-20261106-astra/`; its strategy
 candidates remain research records rather than silently promoted runtime policy.
+
+## Full image transport follow-up
+
+The first repaired Felix measurement compiled successfully, then Docker/containerd
+failed while exporting its image layer: the backend prepended a host snapshot path
+to the same deep workspace names. Both failed attempts remain retained. This shows
+why decoding the submission alone did not qualify the entire transport operation.
+
+On this concrete backend path-length error, the adapter now encodes the complete
+post-compile workspace as an archive, commits that representation, and restores it
+before each official test branch. No workspace member is excluded or renamed. The
+encoder uses directory descriptors, retains FIFO/link/mode/timestamp information,
+and can copy a mode000 file without granting extra container capabilities. Archive
+hash, member count and ordered member/content digest are checked on restoration.
+The compiled executable remains in the pinned evaluator's normal stashed location.
+
+A real offline, capability-dropped container control exercised all13063 Felix
+members through decode, actual image commit and a fresh test container. The initial
+commit failure invoked the encoding path; restoration retained the mode000 file,
+all member identities/content and the unchanged compiled-subject control hash.
+Felix's follow-up measurement has its own frozen plan below the recovery root;
+the first recovery package and seven other case measurements remain unchanged.
