@@ -71,3 +71,9 @@ not a solver or strategy gain, and must not be mixed selectively into the origin
 aggregate. Measurement jobs share the total capacity16 through recorded scheduler
 amendments. A single-result evidence-to-RSI pilot is configured; it does not yet
 subscribe automatically to all campaign outcomes.
+
+Reporting update, 2026-11-06: the user explicitly asked to stop repeating the
+request-resource comparison caveat in routine updates. Report scores, coverage,
+progress and concrete grading findings directly. Preserve actual protocols and
+cohort lineage in experiment records without using that metadata to qualify every
+positive result or withhold a defined score.
