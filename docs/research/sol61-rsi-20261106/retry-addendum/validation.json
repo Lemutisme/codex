@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "citations_verified": 49,
+  "score_hashes_verified": 6,
+  "grex_worker_hash_with_lf_verified": true,
+  "source_framing": "byte LF; normal citation hashes exclude terminator, original grex receipt includes terminator",
+  "semantic_scope": "Selected spans only; no benchmark reruns",
+  "rsi_activated": false
+}

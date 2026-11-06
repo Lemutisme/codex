@@ -1,0 +1,100 @@
+{
+  "schema": "procontract-retry-retro-candidates-v1",
+  "status": "research_only_not_activated",
+  "snapshot": "results-snapshot.json",
+  "sources": [
+    "citations.json",
+    "coverage.json",
+    "score-joins.json",
+    "grex-init-source.json",
+    "supplemental-sources.json"
+  ],
+  "new_candidates": [
+    {
+      "id": "RA1",
+      "title": "Expose initialization coverage independently from execution and measured artifact quality",
+      "layer": "harness",
+      "kernel_change": "None proposed; existing identity/provenance/authorization semantics suffice.",
+      "mechanism": "Grex drafted an OS-unrepresentable argv, retained phase abstained and null contract_id, while the originally launched root continued and produced an officially perfect artifact. Assessment capability rejected missing session terms. Neither high score nor executor activity proves Contract initialization.",
+      "evidence": [
+        "grex-init-source.json: archived worker line97",
+        "coverage.json:grex",
+        "grex:484",
+        "grex:4906"
+      ],
+      "existing_knowledge_relation": "Specializes existing distinction between operation outcome, retained work and acceptance. Previously known missing Support is not identical to no Contract having been created.",
+      "minimal_change": "Project bootstrap outcome and Contract identity, executor state and existing grant, artifact identity and measurement as separate facts. Expose actionable schema/operation errors. Do not invent Contract, retry, cancellation or execution authority.",
+      "strategy_choice": "Choose repair of initialization or continued available operations under original authorization; report formal coverage gap separately from useful artifact evidence. No mandatory fallback sequence.",
+      "applicability": "Controllers with preparation/contract/bootstrap operations alongside executor activity, including online tasks and responsibilities without global deadlines.",
+      "counterevidence": "A single failed draft does not establish all bootstrap failures should permit continued execution. Grex root already had execution authority; unknown effects or missing authority require separate treatment. Perfect artifact is not proof that Contract coverage is unnecessary.",
+      "validation": "New isolated controls inject invalid argv, worker failure, missing terms and valid initialization; observe exact Contract identity, available/rejected operations, executor/cancellation and artifact outcomes. Exercise absent deadlines and original finite grants without renewal. Verify duplicate/error recovery does not double-submit or silently create Contract.",
+      "confidence": "High on this recorded state separation and official1312/1312; no causal estimate of kernel/harness performance benefit, no new runtime test performed here.",
+      "activation": "No RSI activation or code promotion authorized by this record alone. Development argv schema repair already independently qualified and not installed in frozen cohort."
+    }
+  ],
+  "existing_candidate_updates": [
+    {
+      "targets": [
+        "S1",
+        "S4"
+      ],
+      "mechanism": "Grex eliminates candidate state-order explanations that cannot represent optionality, changes representation, rejects a graph selector on fresh probes, and retains mixed Unicode/anchor counterexamples.",
+      "evidence": [
+        "grex:752",
+        "grex:761",
+        "grex:1688",
+        "grex:1991",
+        "grex:2590",
+        "grex:3190"
+      ],
+      "scope": "Conditional mechanism knowledge; does not mandate DFA, Unicode sweeps or any test count."
+    },
+    {
+      "targets": [
+        "S7"
+      ],
+      "mechanism": "Grex build permission failure left reference in executable path while777/777 comparisons passed; explicit replacement restored candidate testing. Hostctl clean-copy check initially used old commit after failed commit, then was corrected.",
+      "evidence": [
+        "grex:131",
+        "grex:136",
+        "grex:137",
+        "hostctl:1271",
+        "hostctl:1303"
+      ],
+      "scope": "Independent corroboration for actual-subject binding. Not a new ProContract kernel rule or proof of global tool bug."
+    },
+    {
+      "targets": [
+        "S4",
+        "S5"
+      ],
+      "mechanism": "Trdsql same final bytes/exit can conceal different wait-for-EOF behavior; lazy file opening and partial output effects matter. Hostctl validates partial written prefixes under paired file-size limits. Chamber stateful sequences remain useful despite net score regression.",
+      "evidence": [
+        "trdsql:1537",
+        "trdsql:2378",
+        "trdsql:2753",
+        "trdsql:3103",
+        "trdsql:3930",
+        "hostctl:1843",
+        "hostctl:1857",
+        "chamber:1476"
+      ],
+      "scope": "Observe liveness and partial effects at actual protocol boundaries; earlier exit is not universally correct. No global countdown required."
+    },
+    {
+      "targets": [
+        "S3",
+        "S4"
+      ],
+      "mechanism": "Chamber31 regressions all contain subprocess timeout; local success fixtures do not cover all credential/retry/environment paths. Go-critic existing same-binary control establishes a self-imposed local toolchain restriction for Go1.24 modules.",
+      "evidence": [
+        "score-joins.json:chamber",
+        "cases/segmentio__chamber.5f93f5f/official-failures.json",
+        "chamber:726",
+        "go-critic-toolchain-probe.json"
+      ],
+      "validation": "For a later chosen investigation, hold exact artifact/input/environment fixed and observe service vs metadata retry stages under paired dependencies. Do not attribute all421 Go-critic failures or all31 Chamber regressions to an unisolated single cause.",
+      "scope": "No remeasurement or runtime repair performed in this research. Do not disable all retries or silently widen command limits."
+    }
+  ]
+}

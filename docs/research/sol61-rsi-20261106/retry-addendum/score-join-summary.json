@@ -1,0 +1,27 @@
+[
+  {
+    "case": "hostctl",
+    "old_eval": "programbench-sol61-20261104/runs/guumaster__hostctl.d6d9699/evaluation/attempt-1/guumaster__hostctl.d6d9699/guumaster__hostctl.d6d9699.eval.json",
+    "retry_eval": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/evaluation/attempt-1/guumaster__hostctl.d6d9699/guumaster__hostctl.d6d9699.eval.json",
+    "identical_test_ids": 1051,
+    "counts": {
+      "pass->pass": 1007,
+      "nonpass->pass": 32,
+      "nonpass->nonpass": 12
+    },
+    "source_sha256": "3ff111dfd696390ce3fda51b23660ac70f1cc13c1bb446d4c43bd5a8d77c3cae"
+  },
+  {
+    "case": "chamber",
+    "old_eval": "programbench-sol61-20261104/runs/segmentio__chamber.5f93f5f/evaluation/attempt-1/segmentio__chamber.5f93f5f/segmentio__chamber.5f93f5f.eval.json",
+    "retry_eval": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/evaluation/attempt-1/segmentio__chamber.5f93f5f/segmentio__chamber.5f93f5f.eval.json",
+    "identical_test_ids": 1748,
+    "counts": {
+      "pass->nonpass": 31,
+      "pass->pass": 1582,
+      "nonpass->nonpass": 113,
+      "nonpass->pass": 22
+    },
+    "source_sha256": "3ff111dfd696390ce3fda51b23660ac70f1cc13c1bb446d4c43bd5a8d77c3cae"
+  }
+]

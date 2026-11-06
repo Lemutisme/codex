@@ -1,0 +1,495 @@
+{
+  "source_sha256": "7eb6d63fd57b093ba65ab234e5ce81d3bfdad90d9c0aae957054363d6266fb36",
+  "citations": [
+    {
+      "id": "grex:131",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 131,
+      "framing": "byte LF",
+      "line_sha256": "09c4c3ab05c10b9e540fb735a791fcf9ed87ed2484fa13974bbca94242bf965f",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:136",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 136,
+      "framing": "byte LF",
+      "line_sha256": "88552c05e5aaa397db4e1dbf774aeb738575fdec1137116cfc628efde51791ed",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:137",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 137,
+      "framing": "byte LF",
+      "line_sha256": "afd035804c02c25d6d75f547a341ac815cc7b3ad2707d8192accaa4bae3e5e6c",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:484",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 484,
+      "framing": "byte LF",
+      "line_sha256": "c5e85bcfffb166bb88250a5cb221b57a0768717137fc3788d607a067a7bc945a",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:752",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 752,
+      "framing": "byte LF",
+      "line_sha256": "eccfe7ad956457fea69d7cf2a8781312a45f33a9a313594be6324762a58cae8d",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:761",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 761,
+      "framing": "byte LF",
+      "line_sha256": "9b29c5b69867e59e0b59a1a33aabcd197bec8903aecaae59643386a9fab54c00",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:1688",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 1688,
+      "framing": "byte LF",
+      "line_sha256": "00c36dbd1ad52e0cb1f41c03a0395ea6b53ebfee8be3ae0c64839159e91f87a4",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:1991",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 1991,
+      "framing": "byte LF",
+      "line_sha256": "b54b5441c240068d8624893119761f513ba593a2158e779f2ef7638fd407e4eb",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:2509",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 2509,
+      "framing": "byte LF",
+      "line_sha256": "10e966eea8004831edfeb361e40ede23507bb9c7f80313d6cce51ff8d82711b9",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:2590",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 2590,
+      "framing": "byte LF",
+      "line_sha256": "1282f92f62286ecdf052b52ac8b71935277b62e7f3a732432dbc3bc0679200ef",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:3190",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 3190,
+      "framing": "byte LF",
+      "line_sha256": "13b5dc2279a5076e7cdd31f904e4eb8b8c7d1e9ccef99e91c7ce13e209080595",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:4858",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 4858,
+      "framing": "byte LF",
+      "line_sha256": "b962b455ee971a13457205899cbfc766e0d7260460f4b33d69d1e8c3abc2062e",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "grex:4906",
+      "source": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-33-53-01a1b1b5-a3f5-7580-bf3d-ab855cc5b175.jsonl",
+      "member_sha256": "37496af0b52f41845a900b976d760ccebb11724e6eea80eb3f2b524d6227c4e9",
+      "line": 4906,
+      "framing": "byte LF",
+      "line_sha256": "a81fcdc6d230580664ab68b45a38bba1acf9e494ea9b37a6152155cd6950327e",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:1397",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 1397,
+      "framing": "byte LF",
+      "line_sha256": "5b6c0c6fd6e82e28ecc17d96183bba75d4c79606c643039d8faaa16c983a8da8",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:1537",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 1537,
+      "framing": "byte LF",
+      "line_sha256": "ec51343c29ec7f46e4ac01258e5c09255d8f2f5af78d2795bf0d450ca046fd45",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:2378",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 2378,
+      "framing": "byte LF",
+      "line_sha256": "d76e0519fa2464c38927a82dec6424ce580e73529e84e58d51483509a42a2c15",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:2753",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 2753,
+      "framing": "byte LF",
+      "line_sha256": "acc2f25fcabb02c19a693f44b63e8830a5a3b507a342332149e1ee0efb6046a8",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:3103",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 3103,
+      "framing": "byte LF",
+      "line_sha256": "e98f03b939cdce217d50275ff98949d4f236f134812a069fe95bd99b16c933f9",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:3204",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 3204,
+      "framing": "byte LF",
+      "line_sha256": "439963a77788941080a022ce12c0e0d0456f8e292e02f645e384398d69ecb28c",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:3930",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 3930,
+      "framing": "byte LF",
+      "line_sha256": "b95120c48d09f5ea9cb79c110e83d535b2fac7a461e202c7c5f2013966fbc738",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:4907",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 4907,
+      "framing": "byte LF",
+      "line_sha256": "8740edfbb541e3e67ff7a23eb94fccc5b8dbbf310fef75a847734ed9a93a3640",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "trdsql:5132",
+      "source": "programbench-sol61-retries-20261106/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-48-01a1b19b-ed5e-7b40-b73e-c275d8cfa68c.jsonl",
+      "member_sha256": "4aad7b39a7eda0aaf2f50b6653375c3e6068b24372eb0fe80138919fb869dbc7",
+      "line": 5132,
+      "framing": "byte LF",
+      "line_sha256": "4b88df3f110caa301061aff902e32d3404366a24267a8b443e2f2d4bc3d7e264",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1271",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1271,
+      "framing": "byte LF",
+      "line_sha256": "c154c22b38a1abffc036718cde424911cb83e78d45c468a4df8f79fdc467cde0",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1303",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1303,
+      "framing": "byte LF",
+      "line_sha256": "22b7cbadb18a7871f452f4810ddf84e0e00c84a1869fe59ac0327b43aed0d523",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1541",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1541,
+      "framing": "byte LF",
+      "line_sha256": "6ab67077a34b2541da22e86a13f5883fa8b8663e52d19421e0ebb172aa2add5b",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1843",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1843,
+      "framing": "byte LF",
+      "line_sha256": "05e368758c31e3e2efa624e2c8f975b5c5f85e0dd470027986350478f9e33c4d",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1851",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1851,
+      "framing": "byte LF",
+      "line_sha256": "7882f0c646afa529f6f44d9dec97c7a2b8c7a3b801c012d47bdf09d9cd373603",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:1857",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 1857,
+      "framing": "byte LF",
+      "line_sha256": "01bdea540f393274e8e76a696bdee5924278b60c8b6506bcdb9b6517195b0f27",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:2023",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 2023,
+      "framing": "byte LF",
+      "line_sha256": "b83e811e0155b5203b98472efffc3d6ad15024536c3e6e7e5dff70110de1d51e",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:2077",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 2077,
+      "framing": "byte LF",
+      "line_sha256": "bf73561f1a70b6f9ea864c8465ec10c6c80755a4d82164ba0cdc30c185c1cf26",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "hostctl:2092",
+      "source": "programbench-sol61-retries-20261106/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T16-05-04-01a1b19b-4254-72d2-a116-66b50f70a193.jsonl",
+      "member_sha256": "9b0735f08dc3f40ee848afdf57af34de47d50698e24e58f69e52f2bb6769d006",
+      "line": 2092,
+      "framing": "byte LF",
+      "line_sha256": "e04432d8f55b8dccdb1ac8f9cdfa7af56c2d9c80dcd64fdf3c6bfe915eca836e",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:125",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 125,
+      "framing": "byte LF",
+      "line_sha256": "353f647e322d5145c63a8899d6a538ad0420af6a0f292125fabce060fcd47bb1",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:726",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 726,
+      "framing": "byte LF",
+      "line_sha256": "c2a3bc63eb31345dacdf7686c582a8fe73b3af10ea9098baa5eed0b7aa5a6de5",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:953",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 953,
+      "framing": "byte LF",
+      "line_sha256": "bcf742d4b34a39885c785702707ceb70740feacaf43d1b658febf6c5aed02166",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1078",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1078,
+      "framing": "byte LF",
+      "line_sha256": "df66238675f3d45fcbf7f9e2345ff99fd4f71c2394c7d79ea289860833a64912",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1159",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1159,
+      "framing": "byte LF",
+      "line_sha256": "efd4bef61e10611b1b8577ccd0dd5be86a37abc587092009f918cdf798e6e036",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1446",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1446,
+      "framing": "byte LF",
+      "line_sha256": "c6963dca567b71a752f2c4a1db692412be5c3ea2cb5a78147826bbcfee000f2f",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1476",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1476,
+      "framing": "byte LF",
+      "line_sha256": "348520a17f0c678445cc974a4b2762427c83928b43a57505fa8e5a3eda9509f0",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1607",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1607,
+      "framing": "byte LF",
+      "line_sha256": "abbdf422999834943cf9cb7e203b10f8e9272a38bdc62b7de557bf4ab9baf4d4",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "chamber:1837",
+      "source": "programbench-sol61-retries-20261106/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T15-01-40-01a1b161-36f3-7962-922a-ec7effc54fce.jsonl",
+      "member_sha256": "0d61908858091b4c9a04bece9b798d64daa887a8b00119ce1d4218d703a31567",
+      "line": 1837,
+      "framing": "byte LF",
+      "line_sha256": "46e52b792145c9634915002157166207362b0b2ed8be9ebff58674421d65b223",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:hostctl:374",
+      "source": "programbench-sol61-20261104/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T03-13-10-01a1aed8-8f3e-7d41-9567-e209bc1407f0.jsonl",
+      "member_sha256": "97216bd34d6546100b5a8d7ec4c456f6ec7272776efb0715461defebbf17c9c0",
+      "line": 374,
+      "framing": "byte LF",
+      "line_sha256": "fc667ed6093cb79740975adde96ce0d3f9d9030c30305957a188fe3ed020217a",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:hostctl:513",
+      "source": "programbench-sol61-20261104/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T03-13-10-01a1aed8-8f3e-7d41-9567-e209bc1407f0.jsonl",
+      "member_sha256": "97216bd34d6546100b5a8d7ec4c456f6ec7272776efb0715461defebbf17c9c0",
+      "line": 513,
+      "framing": "byte LF",
+      "line_sha256": "2e24893fbe1ae7ddca38520c63f816329984c35d416c2a1c92da45098ba4bf0c",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:hostctl:538",
+      "source": "programbench-sol61-20261104/runs/guumaster__hostctl.d6d9699/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T03-13-10-01a1aed8-8f3e-7d41-9567-e209bc1407f0.jsonl",
+      "member_sha256": "97216bd34d6546100b5a8d7ec4c456f6ec7272776efb0715461defebbf17c9c0",
+      "line": 538,
+      "framing": "byte LF",
+      "line_sha256": "04545b66573a6bcede8b305f380a8ea7adfd57d1d8371920bc6b131c59140860",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:chamber:110",
+      "source": "programbench-sol61-20261104/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T02-47-51-01a1aec1-61da-7c22-a3b9-287c4f55bb45.jsonl",
+      "member_sha256": "1ab55015089250a37936902cda7ab6951aa23664d2944a73ed7b0298f1589973",
+      "line": 110,
+      "framing": "byte LF",
+      "line_sha256": "23e433fe72199ad2f9305543c0d4d2e12ad415fedbefd9e34109659c75f70871",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:chamber:322",
+      "source": "programbench-sol61-20261104/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T02-47-51-01a1aec1-61da-7c22-a3b9-287c4f55bb45.jsonl",
+      "member_sha256": "1ab55015089250a37936902cda7ab6951aa23664d2944a73ed7b0298f1589973",
+      "line": 322,
+      "framing": "byte LF",
+      "line_sha256": "7b4b601be22d73afc929255ffbf5bc49a7bec05859e3c25d93bf84ec52f8e21d",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:chamber:729",
+      "source": "programbench-sol61-20261104/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T02-47-51-01a1aec1-61da-7c22-a3b9-287c4f55bb45.jsonl",
+      "member_sha256": "1ab55015089250a37936902cda7ab6951aa23664d2944a73ed7b0298f1589973",
+      "line": 729,
+      "framing": "byte LF",
+      "line_sha256": "aafc1fe668fd10fb8049305f77c132d7f46139d2c2628d40b4f65fa53a57be74",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:chamber:756",
+      "source": "programbench-sol61-20261104/runs/segmentio__chamber.5f93f5f/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T02-47-51-01a1aec1-61da-7c22-a3b9-287c4f55bb45.jsonl",
+      "member_sha256": "1ab55015089250a37936902cda7ab6951aa23664d2944a73ed7b0298f1589973",
+      "line": 756,
+      "framing": "byte LF",
+      "line_sha256": "b87f3a040c2ce92d96b64543c6fbc0d82ed7686c1798400cacbf0bfd0dd61492",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:trdsql:146",
+      "source": "programbench-sol61-20261104/runs/noborus__trdsql.d8c5ff6/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T03-35-00-01a1aeec-8ade-7910-8434-b1dd0fbcd50a.jsonl",
+      "member_sha256": "d3e16b585bd21fbd6d5969afec587e4b8666fbf5611a0b1e5916233f3858dd73",
+      "line": 146,
+      "framing": "byte LF",
+      "line_sha256": "de2cfbf07bcdc3d30afd4def48f639b784e22b4ddf139cd32409ded8b29bc70a",
+      "hash_scope": "record bytes excluding LF"
+    },
+    {
+      "id": "original:grex:10",
+      "source": "programbench-sol61-20261104/runs/pemistahl__grex.fa3e8ed/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T03-47-45-01a1aef8-39b8-7210-92e6-369fdc5b5115.jsonl",
+      "member_sha256": "4d9b3631723f7d25e3d23030dae0400f190d722c5cc3c307f6be2424c04d6005",
+      "line": 10,
+      "framing": "byte LF",
+      "line_sha256": "4e051ab25d37b56b18d6689b9e35ddaf7e0f7742eea7caa337915542241a3d5a",
+      "hash_scope": "record bytes excluding LF"
+    }
+  ]
+}
