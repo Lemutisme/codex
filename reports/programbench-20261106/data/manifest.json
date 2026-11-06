@@ -1,0 +1,29 @@
+{
+  "paper_commit": "60b2721bd1bcd29785f8054fd05ad1b141d11a56",
+  "snapshot_utc": "2026-11-06T20:56:21.404326+00:00",
+  "validation": "Paired statistics recomputed, unique task IDs checked, source macros and dataset hashes checked, all report links resolved locally.",
+  "files": {
+    ".gitignore": "439b3b69f8e5eb26262ea588471953897aa580891e5d0f485cf182fea47bce60",
+    "README.md": "4b96a9b02c2a184694b709231dc1b27f37f674e40000d869bf7a45da02d6a70f",
+    "assets/comparison.png": "ee341b28456a35069c9db6cb69cc82cbc4ceb3724f1572da07caad34c61d916c",
+    "assets/comparison.svg": "2c919f5a639e81b493d9a28f48ed4bde4359ea30b6a39f5d92e32a18b89c251f",
+    "assets/paired-scatter.png": "58134856208c1ec9a76c8bd32f96457e656321dad9e6b23baf6975ae6cb84b37",
+    "assets/paired-scatter.svg": "c33d52b9707dc949e9342c7edf0b9c29648a2abb58f1eef816d87fbabf8cf767",
+    "assets/paper-aligned.png": "b1be5bcf9a49767b47b103d169f0e9dadff13cddb2ce6a68336455edc0a36228",
+    "assets/paper-aligned.svg": "5e23ed5dd1fcaecce48ac8d14061f9a59603261f07d3ebb8ed459dd1516e17a2",
+    "assets/paper-gain-groups.png": "16893e424b64c2911ed8205dd7a4a3b80f43a11db3464865476ae3c0a0ac325a",
+    "assets/paper-gain-groups.svg": "27e00c3947440209ad2fbe9db7433ea80a4a8b7e81d52ff21ba40a00875ea7a6",
+    "assets/paper-scatter.png": "299d5cea05967f4b0eb64bdf6006a5b3794cab9b1a0ac7ab79660bdfdb5b3cca",
+    "assets/paper-scatter.svg": "7c3d87ff2f5eb6e04b64206819dc73cabe6166acd7b49f0f919c66a4424192e2",
+    "data/instances.csv": "a85b676a1f0468805bfa86a08df645daeebc77dbbfaf32e14b2672e17074f334",
+    "data/instances.json": "a8f640dd7142b22ef2852f1910bcf9c5b9c1f6199e8537c099a878fd78cba04b",
+    "data/paper-aligned.json": "87406b15708d07971bd4b67df3d9f473595aba32eaad3aef0e920867a6b5ec6a",
+    "data/paper-task-scores.json": "02f78587e06ac8abdf7dc0f55f41fcf77b31a869641a55d22b2335a79876f358",
+    "data/sources.json": "c649e20a1020c3db542903b38b62d5cf28f2e660078c180d36f67c41e6537d94",
+    "data/summary.json": "6583db85b874cccfedd35bf3c787cfc1c6014a1a05fb7940d93a2554b8362aff",
+    "generate_charts.py": "595a754b60528877ee0ea4c18a08ac807ec66fe053428430ffc6e2b8580c8d3e",
+    "index.html": "4650f1b88da53d5e58ed5cca17aa3899c489b61c1e354656f30be97956de266d"
+  },
+  "language": "en",
+  "publication_repository": "Lemutisme/codex"
+}

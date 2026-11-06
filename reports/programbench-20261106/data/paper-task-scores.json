@@ -1,0 +1,3690 @@
+{
+  "cohorts": [
+    {
+      "id": "luna-sep02",
+      "model": "luna",
+      "model_version": "openai/gpt-5.6-luna",
+      "effort": "max",
+      "historical_condition": "known_online_source_acquisition",
+      "reported": {
+        "denominator": 200,
+        "readable": 199,
+        "mean_percent": 70.1963129280694,
+        "full": 3,
+        "at_least_95": 28,
+        "evaluator_valid": 150,
+        "valid_full": 1,
+        "invalid_zero_mean_percent": 58.2043004073742,
+        "cost_total_usd": "651.59375308000000919166",
+        "cost_per_task_usd": 3.2579687654000002,
+        "full_ids": [
+          "lua__lua.c6b4848",
+          "luajit__luajit.a553b3d",
+          "wintermute-cell__ngrrram.8ea13c3"
+        ]
+      },
+      "rows": [
+        {
+          "task": "abishekvashok__cmatrix.5c082c6",
+          "fraction": "505/506",
+          "percent": 99.80237154150198,
+          "paper_valid": true
+        },
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "fraction": "677/680",
+          "percent": 99.55882352941177,
+          "paper_valid": true
+        },
+        {
+          "task": "ajeetdsouza__zoxide.67ca1bc",
+          "fraction": "505/531",
+          "percent": 95.10357815442562,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "fraction": "252/503",
+          "percent": 50.09940357852882,
+          "paper_valid": true
+        },
+        {
+          "task": "alexpovel__srgn.89f943b",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "fraction": "431/701",
+          "percent": 61.483594864479315,
+          "paper_valid": false
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "fraction": "1028/1095",
+          "percent": 93.88127853881278,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__fx.86d0d34",
+          "fraction": "396/511",
+          "percent": 77.49510763209393,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "fraction": "190/213",
+          "percent": 89.2018779342723,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "fraction": "509/659",
+          "percent": 77.2382397572079,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "fraction": "532/1053",
+          "percent": 50.522317188983855,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "fraction": "577/755",
+          "percent": 76.42384105960265,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "fraction": "310/877",
+          "percent": 35.34777651083238,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "fraction": "912/1091",
+          "percent": 83.59303391384051,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "fraction": "289/301",
+          "percent": 96.01328903654485,
+          "paper_valid": false
+        },
+        {
+          "task": "axodotdev__oranda.27d60c7",
+          "fraction": "547/767",
+          "percent": 71.31681877444589,
+          "paper_valid": true
+        },
+        {
+          "task": "bellard__quickjs.d7ae12a",
+          "fraction": "548/1517",
+          "percent": 36.12392880685564,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "fraction": "535/614",
+          "percent": 87.13355048859935,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "fraction": "431/508",
+          "percent": 84.84251968503938,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "fraction": "645/647",
+          "percent": 99.69088098918083,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "fraction": "135/232",
+          "percent": 58.189655172413794,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "fraction": "413/489",
+          "percent": 84.45807770961146,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "fraction": "212/249",
+          "percent": 85.14056224899599,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "fraction": "187/197",
+          "percent": 94.9238578680203,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "fraction": "639/709",
+          "percent": 90.12693935119887,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "fraction": "203/269",
+          "percent": 75.46468401486989,
+          "paper_valid": false
+        },
+        {
+          "task": "canop__rhit.ae90bcb",
+          "fraction": "612/817",
+          "percent": 74.90820073439413,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "fraction": "254/297",
+          "percent": 85.52188552188552,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "fraction": "257/598",
+          "percent": 42.97658862876254,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "fraction": "663/722",
+          "percent": 91.82825484764543,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "fraction": "389/405",
+          "percent": 96.04938271604938,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "fraction": "569/575",
+          "percent": 98.95652173913044,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "fraction": "191/218",
+          "percent": 87.61467889908256,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "fraction": "373/571",
+          "percent": 65.32399299474606,
+          "paper_valid": false
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "fraction": "485/589",
+          "percent": 82.34295415959252,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "fraction": "215/269",
+          "percent": 79.92565055762083,
+          "paper_valid": false
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "fraction": "561/631",
+          "percent": 88.90649762282092,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "fraction": "511/603",
+          "percent": 84.74295190713102,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "fraction": "98/113",
+          "percent": 86.72566371681415,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "fraction": "563/949",
+          "percent": 59.32560590094836,
+          "paper_valid": false
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "fraction": "381/2126",
+          "percent": 17.920978363123236,
+          "paper_valid": false
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "fraction": "757/849",
+          "percent": 89.16372202591283,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "fraction": "86/229",
+          "percent": 37.55458515283843,
+          "paper_valid": true
+        },
+        {
+          "task": "drew-alleman__datasurgeon.d257cee",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "fraction": "858/1171",
+          "percent": 73.27070879590094,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "fraction": "1178/5649",
+          "percent": 20.853248362542043,
+          "paper_valid": true
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "fraction": "307/387",
+          "percent": 79.32816537467701,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "fraction": "151/190",
+          "percent": 79.47368421052632,
+          "paper_valid": false
+        },
+        {
+          "task": "ekzhang__bore.8e059cd",
+          "fraction": "295/393",
+          "percent": 75.06361323155217,
+          "paper_valid": false
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "fraction": "401/430",
+          "percent": 93.25581395348837,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "fraction": "102/131",
+          "percent": 77.86259541984732,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "fraction": "555/586",
+          "percent": 94.7098976109215,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "fraction": "280/303",
+          "percent": 92.4092409240924,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "fraction": "951/1019",
+          "percent": 93.32679097154073,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "fraction": "1421/2038",
+          "percent": 69.7252208047105,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "fraction": "139/312",
+          "percent": 44.55128205128205,
+          "paper_valid": true
+        },
+        {
+          "task": "ffmpeg__ffmpeg.360a402",
+          "fraction": "248/3041",
+          "percent": 8.155212101282473,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "fraction": "416/509",
+          "percent": 81.72888015717092,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "fraction": "144/173",
+          "percent": 83.23699421965318,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "fraction": "269/502",
+          "percent": 53.58565737051792,
+          "paper_valid": false
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "fraction": "64/71",
+          "percent": 90.14084507042254,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "fraction": "326/493",
+          "percent": 66.12576064908721,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "fraction": "143/147",
+          "percent": 97.27891156462584,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "fraction": "89/1234",
+          "percent": 7.212317666126418,
+          "paper_valid": true
+        },
+        {
+          "task": "guumaster__hostctl.d6d9699",
+          "fraction": "994/1051",
+          "percent": 94.57659372026642,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "fraction": "2511/2926",
+          "percent": 85.81681476418318,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "fraction": "201/275",
+          "percent": 73.0909090909091,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "fraction": "350/391",
+          "percent": 89.51406649616368,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "fraction": "196/1931",
+          "percent": 10.150181253236665,
+          "paper_valid": false
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "fraction": "164/173",
+          "percent": 94.79768786127167,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "fraction": "1019/1201",
+          "percent": 84.84596169858452,
+          "paper_valid": false
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "fraction": "155/171",
+          "percent": 90.64327485380117,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "fraction": "692/1043",
+          "percent": 66.3470757430489,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "fraction": "607/683",
+          "percent": 88.87262079062957,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "fraction": "563/715",
+          "percent": 78.74125874125875,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "fraction": "63/118",
+          "percent": 53.38983050847458,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "fraction": "467/477",
+          "percent": 97.9035639412998,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "fraction": "563/855",
+          "percent": 65.84795321637426,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "fraction": "65/237",
+          "percent": 27.42616033755274,
+          "paper_valid": false
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "fraction": "1909/3115",
+          "percent": 61.28410914927769,
+          "paper_valid": false
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "fraction": "824/885",
+          "percent": 93.10734463276836,
+          "paper_valid": true
+        },
+        {
+          "task": "johnkerl__miller.8d85b46",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "fraction": "879/1586",
+          "percent": 55.42244640605296,
+          "paper_valid": false
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "fraction": "2825/3036",
+          "percent": 93.05006587615283,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "fraction": "403/440",
+          "percent": 91.5909090909091,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "fraction": "1619/1856",
+          "percent": 87.23060344827587,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "fraction": "306/479",
+          "percent": 63.88308977035491,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "fraction": "57/68",
+          "percent": 83.82352941176471,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "fraction": "328/385",
+          "percent": 85.19480519480518,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "fraction": "446/531",
+          "percent": 83.9924670433145,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoh86__richgo.313114f",
+          "fraction": "485/547",
+          "percent": 88.6654478976234,
+          "paper_valid": false
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "fraction": "107/167",
+          "percent": 64.07185628742515,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "fraction": "57/74",
+          "percent": 77.02702702702703,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "fraction": "326/429",
+          "percent": 75.990675990676,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": false
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": false
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "fraction": "526/575",
+          "percent": 91.47826086956522,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "fraction": "159/187",
+          "percent": 85.02673796791443,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "fraction": "803/831",
+          "percent": 96.63056558363418,
+          "paper_valid": true
+        },
+        {
+          "task": "mfridman__tparse.2416b4b",
+          "fraction": "376/425",
+          "percent": 88.47058823529412,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "fraction": "464/485",
+          "percent": 95.6701030927835,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "fraction": "354/727",
+          "percent": 48.693259972489685,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "fraction": "335/373",
+          "percent": 89.81233243967829,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "fraction": "39/80",
+          "percent": 48.75,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "fraction": "301/355",
+          "percent": 84.78873239436619,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "fraction": "542/667",
+          "percent": 81.25937031484258,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "fraction": "563/606",
+          "percent": 92.9042904290429,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "fraction": "463/542",
+          "percent": 85.42435424354244,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "fraction": "495/641",
+          "percent": 77.22308892355694,
+          "paper_valid": false
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "fraction": "178/213",
+          "percent": 83.56807511737088,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "fraction": "478/551",
+          "percent": 86.7513611615245,
+          "paper_valid": false
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "fraction": "697/721",
+          "percent": 96.67128987517337,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "fraction": "567/719",
+          "percent": 78.85952712100139,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__ov.b96c2ba",
+          "fraction": "790/901",
+          "percent": 87.6803551609323,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__trdsql.d8c5ff6",
+          "fraction": "1123/1312",
+          "percent": 85.59451219512195,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "fraction": "69/638",
+          "percent": 10.815047021943574,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "fraction": "199/245",
+          "percent": 81.22448979591836,
+          "paper_valid": false
+        },
+        {
+          "task": "o2sh__onefetch.e5958ce",
+          "fraction": "983/1166",
+          "percent": 84.30531732418525,
+          "paper_valid": true
+        },
+        {
+          "task": "ogham__dog.721440b",
+          "fraction": "249/260",
+          "percent": 95.76923076923077,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "fraction": "644/815",
+          "percent": 79.01840490797547,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "fraction": "148/169",
+          "percent": 87.57396449704143,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "fraction": "104/219",
+          "percent": 47.48858447488584,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__proj.75d455c",
+          "fraction": null,
+          "percent": null,
+          "paper_valid": false
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "fraction": "847/1978",
+          "percent": 42.82103134479272,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "fraction": "1821/2828",
+          "percent": 64.3917963224894,
+          "paper_valid": false
+        },
+        {
+          "task": "peco__peco.4e58dad",
+          "fraction": "673/1215",
+          "percent": 55.390946502057616,
+          "paper_valid": true
+        },
+        {
+          "task": "pemistahl__grex.fa3e8ed",
+          "fraction": "643/656",
+          "percent": 98.01829268292683,
+          "paper_valid": true
+        },
+        {
+          "task": "php__php-src.c891263",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "fraction": "609/692",
+          "percent": 88.0057803468208,
+          "paper_valid": false
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "fraction": "250/331",
+          "percent": 75.52870090634441,
+          "paper_valid": false
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "fraction": "50/57",
+          "percent": 87.71929824561403,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "fraction": "212/261",
+          "percent": 81.22605363984674,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "fraction": "269/292",
+          "percent": 92.12328767123287,
+          "paper_valid": false
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "fraction": "257/282",
+          "percent": 91.13475177304964,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "fraction": "697/1128",
+          "percent": 61.79078014184397,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "fraction": "539/589",
+          "percent": 91.51103565365025,
+          "paper_valid": true
+        },
+        {
+          "task": "riquito__tuc.16fb471",
+          "fraction": "289/299",
+          "percent": 96.65551839464884,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "fraction": "1656/2549",
+          "percent": 64.966653589643,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "fraction": "109/167",
+          "percent": 65.26946107784431,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "fraction": "598/693",
+          "percent": 86.2914862914863,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "fraction": "549/583",
+          "percent": 94.16809605488851,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "fraction": "107/153",
+          "percent": 69.93464052287581,
+          "paper_valid": false
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "fraction": "890/997",
+          "percent": 89.2678034102307,
+          "paper_valid": false
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "fraction": "889/1114",
+          "percent": 79.80251346499102,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "fraction": "1315/3322",
+          "percent": 39.58458759783263,
+          "paper_valid": false
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "fraction": "231/475",
+          "percent": 48.63157894736842,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "fraction": "169/419",
+          "percent": 40.334128878281625,
+          "paper_valid": false
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "fraction": "669/767",
+          "percent": 87.22294654498045,
+          "paper_valid": true
+        },
+        {
+          "task": "segmentio__chamber.5f93f5f",
+          "fraction": "81/92",
+          "percent": 88.04347826086956,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "fraction": "618/799",
+          "percent": 77.34668335419273,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "fraction": "1033/1235",
+          "percent": 83.64372469635629,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "fraction": "853/906",
+          "percent": 94.15011037527594,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "sharkdp__pastel.b60e899",
+          "fraction": "530/557",
+          "percent": 95.15260323159784,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "fraction": "91/94",
+          "percent": 96.80851063829788,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "fraction": "61/63",
+          "percent": 96.82539682539682,
+          "paper_valid": false
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "fraction": "353/396",
+          "percent": 89.14141414141415,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "fraction": "571/995",
+          "percent": 57.38693467336683,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "fraction": "339/344",
+          "percent": 98.54651162790698,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "fraction": "570/611",
+          "percent": 93.28968903436989,
+          "paper_valid": false
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "fraction": "810/823",
+          "percent": 98.42041312272175,
+          "paper_valid": true
+        },
+        {
+          "task": "skeema__skeema.6a76243",
+          "fraction": "659/854",
+          "percent": 77.1662763466042,
+          "paper_valid": true
+        },
+        {
+          "task": "sqlite__sqlite.839433d",
+          "fraction": "108/6755",
+          "percent": 1.5988156920799408,
+          "paper_valid": false
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "fraction": "43/45",
+          "percent": 95.55555555555556,
+          "paper_valid": true
+        },
+        {
+          "task": "stacked-git__stgit.430027d",
+          "fraction": "255/496",
+          "percent": 51.41129032258065,
+          "paper_valid": false
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "stranger6667__jsonschema.d52e881",
+          "fraction": "1763/2932",
+          "percent": 60.129604365620736,
+          "paper_valid": false
+        },
+        {
+          "task": "svenstaro__genact.16f96e3",
+          "fraction": "80/231",
+          "percent": 34.63203463203463,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "fraction": "273/304",
+          "percent": 89.80263157894737,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "fraction": "1137/1184",
+          "percent": 96.0304054054054,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "fraction": "128/155",
+          "percent": 82.58064516129032,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "fraction": "1427/1978",
+          "percent": 72.14357937310415,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "fraction": "59/96",
+          "percent": 61.458333333333336,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "fraction": "209/224",
+          "percent": 93.30357142857143,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "fraction": "129/262",
+          "percent": 49.23664122137404,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "fraction": "557/1232",
+          "percent": 45.211038961038966,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "fraction": "235/989",
+          "percent": 23.761375126390295,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "fraction": "429/470",
+          "percent": 91.27659574468086,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "fraction": "393/862",
+          "percent": 45.59164733178655,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "fraction": "577/724",
+          "percent": 79.69613259668509,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "fraction": "243/2258",
+          "percent": 10.761736049601417,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "fraction": "251/313",
+          "percent": 80.19169329073482,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "fraction": "333/335",
+          "percent": 99.40298507462687,
+          "paper_valid": false
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "fraction": "57/65",
+          "percent": 87.6923076923077,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "fraction": "134/183",
+          "percent": 73.224043715847,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "fraction": "272/281",
+          "percent": 96.79715302491103,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "fraction": "299/313",
+          "percent": 95.52715654952077,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "fraction": "2/3",
+          "percent": 66.66666666666666,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "fraction": "1018/1205",
+          "percent": 84.48132780082987,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "fraction": "136/223",
+          "percent": 60.98654708520179,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "fraction": "395/437",
+          "percent": 90.38901601830663,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "fraction": "0",
+          "percent": 0.0,
+          "paper_valid": false
+        }
+      ]
+    },
+    {
+      "id": "sol-sep08",
+      "model": "sol",
+      "model_version": "openai/gpt-5.6-sol",
+      "effort": "xhigh",
+      "historical_condition": "known_online_source_acquisition",
+      "reported": {
+        "denominator": 200,
+        "readable": 200,
+        "mean_percent": 75.25047099737428,
+        "full": 5,
+        "at_least_95": 30,
+        "evaluator_valid": 192,
+        "valid_full": 4,
+        "invalid_zero_mean_percent": 73.64139052008976,
+        "cost_total_usd": "628.6681296000000077",
+        "cost_per_task_usd": 3.143340648,
+        "full_ids": [
+          "abishekvashok__cmatrix.5c082c6",
+          "lua__lua.c6b4848",
+          "luajit__luajit.a553b3d",
+          "parcel-bundler__lightningcss.aa2ed1e",
+          "wintermute-cell__ngrrram.8ea13c3"
+        ]
+      },
+      "rows": [
+        {
+          "task": "abishekvashok__cmatrix.5c082c6",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": false
+        },
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "fraction": "2485294117647059/2500000000000000",
+          "percent": 99.41176470588235,
+          "paper_valid": true
+        },
+        {
+          "task": "ajeetdsouza__zoxide.67ca1bc",
+          "fraction": "2297551789077213/5000000000000000",
+          "percent": 45.951035781544256,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "fraction": "5392644135188867/12500000000000000",
+          "percent": 43.141153081510936,
+          "paper_valid": true
+        },
+        {
+          "task": "alexpovel__srgn.89f943b",
+          "fraction": "4252159827213823/5000000000000000",
+          "percent": 85.04319654427646,
+          "paper_valid": true
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "fraction": "9276437847866419/10000000000000000",
+          "percent": 92.76437847866418,
+          "paper_valid": true
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "fraction": "7781740370898717/10000000000000000",
+          "percent": 77.81740370898717,
+          "paper_valid": true
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "fraction": "183013698630137/200000000000000",
+          "percent": 91.5068493150685,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__fx.86d0d34",
+          "fraction": "6873776908023483/10000000000000000",
+          "percent": 68.73776908023484,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "fraction": "9131455399061033/10000000000000000",
+          "percent": 91.31455399061032,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "fraction": "1550834597875569/2000000000000000",
+          "percent": 77.54172989377845,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "fraction": "46533713200379867/100000000000000000",
+          "percent": 46.533713200379864,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "fraction": "9337748344370861/10000000000000000",
+          "percent": 93.37748344370861,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "fraction": "2976054732041049/10000000000000000",
+          "percent": 29.760547320410492,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "fraction": "212878093492209/250000000000000",
+          "percent": 85.1512373968836,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "fraction": "73453073089701/78125000000000",
+          "percent": 94.01993355481729,
+          "paper_valid": true
+        },
+        {
+          "task": "axodotdev__oranda.27d60c7",
+          "fraction": "3500651890482399/5000000000000000",
+          "percent": 70.01303780964798,
+          "paper_valid": true
+        },
+        {
+          "task": "bellard__quickjs.d7ae12a",
+          "fraction": "1999340804218853/2000000000000000",
+          "percent": 99.96704021094264,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "fraction": "1758957654723127/2000000000000000",
+          "percent": 87.94788273615634,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "fraction": "4197834645669291/5000000000000000",
+          "percent": 83.95669291338582,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "fraction": "9829984544049459/10000000000000000",
+          "percent": 98.2998454404946,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "fraction": "3998287671232877/5000000000000000",
+          "percent": 79.96575342465754,
+          "paper_valid": true
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "fraction": "5452586206896551/10000000000000000",
+          "percent": 54.525862068965516,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "fraction": "9212678936605317/10000000000000000",
+          "percent": 92.12678936605317,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "fraction": "1788152610441767/2000000000000000",
+          "percent": 89.40763052208835,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "fraction": "4623519458544839/5000000000000000",
+          "percent": 92.47038917089678,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "fraction": "1777150916784203/2000000000000000",
+          "percent": 88.85754583921015,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "fraction": "6877323420074349/10000000000000000",
+          "percent": 68.77323420074349,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__rhit.ae90bcb",
+          "fraction": "769889840881273/1000000000000000",
+          "percent": 76.9889840881273,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "fraction": "398989898989899/500000000000000",
+          "percent": 79.7979797979798,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "fraction": "71438127090301/160000000000000",
+          "percent": 44.64882943143812,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "fraction": "1097645429362881/1250000000000000",
+          "percent": 87.81163434903047,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "fraction": "9493827160493827/10000000000000000",
+          "percent": 94.93827160493828,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "fraction": "9739130434782609/10000000000000000",
+          "percent": 97.3913043478261,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "fraction": "1848623853211009/2000000000000000",
+          "percent": 92.43119266055045,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "fraction": "8056042031523643/10000000000000000",
+          "percent": 80.56042031523643,
+          "paper_valid": true
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "fraction": "2194397283531409/2500000000000000",
+          "percent": 87.77589134125637,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "fraction": "6084262701363073/10000000000000000",
+          "percent": 60.84262701363073,
+          "paper_valid": true
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "fraction": "6339144215530903/10000000000000000",
+          "percent": 63.39144215530903,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "fraction": "3756218905472637/5000000000000000",
+          "percent": 75.12437810945273,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "fraction": "1752212389380531/2000000000000000",
+          "percent": 87.61061946902655,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "fraction": "2160168598524763/5000000000000000",
+          "percent": 43.203371970495255,
+          "paper_valid": true
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "fraction": "21636876763875823/500000000000000000",
+          "percent": 4.327375352775165,
+          "paper_valid": true
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "fraction": "990871613663133/1250000000000000",
+          "percent": 79.26972909305064,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "fraction": "15217391304347827/50000000000000000",
+          "percent": 30.434782608695656,
+          "paper_valid": false
+        },
+        {
+          "task": "drew-alleman__datasurgeon.d257cee",
+          "fraction": "1450199203187251/2000000000000000",
+          "percent": 72.50996015936255,
+          "paper_valid": true
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "fraction": "3142613151152861/5000000000000000",
+          "percent": 62.85226302305722,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "fraction": "2219861922464153/10000000000000000",
+          "percent": 22.19861922464153,
+          "paper_valid": false
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "fraction": "7932816537467701/10000000000000000",
+          "percent": 79.32816537467701,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "fraction": "7552631578947369/10000000000000000",
+          "percent": 75.52631578947368,
+          "paper_valid": true
+        },
+        {
+          "task": "ekzhang__bore.8e059cd",
+          "fraction": "4758269720101781/5000000000000000",
+          "percent": 95.16539440203562,
+          "paper_valid": true
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "fraction": "436046511627907/500000000000000",
+          "percent": 87.20930232558139,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "fraction": "6717557251908397/10000000000000000",
+          "percent": 67.17557251908397,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "fraction": "6724028043339707/10000000000000000",
+          "percent": 67.24028043339707,
+          "paper_valid": true
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "fraction": "2333617747440273/2500000000000000",
+          "percent": 93.34470989761093,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "fraction": "8861386138613861/10000000000000000",
+          "percent": 88.61386138613861,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "fraction": "2205593719332679/2500000000000000",
+          "percent": 88.22374877330716,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "fraction": "3157507360157017/5000000000000000",
+          "percent": 63.150147203140335,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "fraction": "7788461538461539/10000000000000000",
+          "percent": 77.88461538461539,
+          "paper_valid": true
+        },
+        {
+          "task": "ffmpeg__ffmpeg.360a402",
+          "fraction": "478872081552121/6250000000000000",
+          "percent": 7.661953304833936,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "fraction": "3306213017751479/5000000000000000",
+          "percent": 66.12426035502959,
+          "paper_valid": true
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "fraction": "6542239685658153/10000000000000000",
+          "percent": 65.42239685658153,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "fraction": "1530635838150289/2000000000000000",
+          "percent": 76.53179190751445,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "fraction": "69332046812749/78125000000000",
+          "percent": 88.74501992031873,
+          "paper_valid": true
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "fraction": "1823943661971831/2000000000000000",
+          "percent": 91.19718309859155,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "fraction": "2870182555780933/5000000000000000",
+          "percent": 57.40365111561866,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "fraction": "4478458049886621/5000000000000000",
+          "percent": 89.56916099773242,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "fraction": "12155591572123177/200000000000000000",
+          "percent": 6.077795786061588,
+          "paper_valid": true
+        },
+        {
+          "task": "guumaster__hostctl.d6d9699",
+          "fraction": "9600380589914367/10000000000000000",
+          "percent": 96.00380589914367,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "fraction": "4166097060833903/5000000000000000",
+          "percent": 83.32194121667807,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "fraction": "4727272727272727/5000000000000000",
+          "percent": 94.54545454545455,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "fraction": "8822869955156951/10000000000000000",
+          "percent": 88.2286995515695,
+          "paper_valid": true
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "fraction": "4718670076726343/5000000000000000",
+          "percent": 94.37340153452686,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "fraction": "3003625064733299/10000000000000000",
+          "percent": 30.03625064733299,
+          "paper_valid": true
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "fraction": "2420520231213873/2500000000000000",
+          "percent": 96.82080924855492,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "fraction": "220233139050791/250000000000000",
+          "percent": 88.0932556203164,
+          "paper_valid": true
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "fraction": "7407407407407407/10000000000000000",
+          "percent": 74.07407407407408,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "fraction": "2550335570469799/5000000000000000",
+          "percent": 51.006711409395976,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "fraction": "9458272327964861/10000000000000000",
+          "percent": 94.5827232796486,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "fraction": "937062937062937/1250000000000000",
+          "percent": 74.96503496503496,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "fraction": "1/2",
+          "percent": 50.0,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "fraction": "9811320754716981/10000000000000000",
+          "percent": 98.11320754716981,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "fraction": "206140350877193/312500000000000",
+          "percent": 65.96491228070175,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "fraction": "11689681626390487/50000000000000000",
+          "percent": 23.379363252780973,
+          "paper_valid": true
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "fraction": "1310593900481541/2500000000000000",
+          "percent": 52.42375601926164,
+          "paper_valid": true
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "fraction": "9333333333333333/10000000000000000",
+          "percent": 93.33333333333333,
+          "paper_valid": true
+        },
+        {
+          "task": "johnkerl__miller.8d85b46",
+          "fraction": "26480836236933797/100000000000000000",
+          "percent": 26.480836236933797,
+          "paper_valid": false
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "fraction": "4177175283732661/5000000000000000",
+          "percent": 83.54350567465322,
+          "paper_valid": true
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "fraction": "1160243741765481/1250000000000000",
+          "percent": 92.81949934123847,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "fraction": "1184659090909091/1250000000000000",
+          "percent": 94.77272727272728,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "fraction": "8620689655172413/10000000000000000",
+          "percent": 86.20689655172413,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "fraction": "975991649269311/1250000000000000",
+          "percent": 78.07933194154488,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "fraction": "1514705882352941/2500000000000000",
+          "percent": 60.588235294117645,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "fraction": "8363636363636363/10000000000000000",
+          "percent": 83.63636363636363,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "fraction": "2123352165725047/2500000000000000",
+          "percent": 84.93408662900188,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoh86__richgo.313114f",
+          "fraction": "2303113553113553/2500000000000000",
+          "percent": 92.12454212454212,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "fraction": "4660678642714571/5000000000000000",
+          "percent": 93.21357285429141,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "fraction": "511448948948949/625000000000000",
+          "percent": 81.83183183183183,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "fraction": "3752913752913753/5000000000000000",
+          "percent": 75.05827505827506,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "fraction": "9686956521739131/10000000000000000",
+          "percent": 96.86956521739131,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "fraction": "402072192513369/500000000000000",
+          "percent": 80.4144385026738,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "fraction": "9614921780986763/10000000000000000",
+          "percent": 96.14921780986762,
+          "paper_valid": true
+        },
+        {
+          "task": "mfridman__tparse.2416b4b",
+          "fraction": "2164705882352941/2500000000000000",
+          "percent": 86.58823529411764,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "fraction": "9786941580756013/10000000000000000",
+          "percent": 97.86941580756013,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "fraction": "42778541953232463/100000000000000000",
+          "percent": 42.77854195323246,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "fraction": "8793565683646113/10000000000000000",
+          "percent": 87.93565683646113,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "fraction": "19/50",
+          "percent": 38.0,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "fraction": "1051056338028169/1250000000000000",
+          "percent": 84.08450704225352,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "fraction": "4992503748125937/5000000000000000",
+          "percent": 99.85007496251875,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "fraction": "4570957095709571/5000000000000000",
+          "percent": 91.41914191419141,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "fraction": "4114391143911439/5000000000000000",
+          "percent": 82.28782287822878,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "fraction": "1891575663026521/2500000000000000",
+          "percent": 75.66302652106084,
+          "paper_valid": true
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "fraction": "8294209702660407/10000000000000000",
+          "percent": 82.94209702660407,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "fraction": "7459165154264973/10000000000000000",
+          "percent": 74.59165154264973,
+          "paper_valid": true
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "fraction": "9403606102635229/10000000000000000",
+          "percent": 94.03606102635229,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "fraction": "825452016689847/1000000000000000",
+          "percent": 82.5452016689847,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__ov.b96c2ba",
+          "fraction": "8995560488346281/10000000000000000",
+          "percent": 89.95560488346281,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__trdsql.d8c5ff6",
+          "fraction": "7370426829268293/10000000000000000",
+          "percent": 73.70426829268293,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "fraction": "932601880877743/5000000000000000",
+          "percent": 18.65203761755486,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "fraction": "8734693877551021/10000000000000000",
+          "percent": 87.34693877551021,
+          "paper_valid": true
+        },
+        {
+          "task": "o2sh__onefetch.e5958ce",
+          "fraction": "8344768439108061/10000000000000000",
+          "percent": 83.44768439108061,
+          "paper_valid": true
+        },
+        {
+          "task": "ogham__dog.721440b",
+          "fraction": "9523076923076923/10000000000000000",
+          "percent": 95.23076923076923,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "fraction": "4408543263964951/5000000000000000",
+          "percent": 88.17086527929902,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "fraction": "743558282208589/1000000000000000",
+          "percent": 74.3558282208589,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "fraction": "4260355029585799/5000000000000000",
+          "percent": 85.20710059171599,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "fraction": "898021308980213/2000000000000000",
+          "percent": 44.90106544901065,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__proj.75d455c",
+          "fraction": "20360970107163/100000000000000",
+          "percent": 20.360970107163002,
+          "paper_valid": false
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "fraction": "9888776541961577/20000000000000000",
+          "percent": 49.44388270980789,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "peco__peco.4e58dad",
+          "fraction": "470679012345679/625000000000000",
+          "percent": 75.30864197530865,
+          "paper_valid": true
+        },
+        {
+          "task": "pemistahl__grex.fa3e8ed",
+          "fraction": "4817073170731707/5000000000000000",
+          "percent": 96.34146341463415,
+          "paper_valid": true
+        },
+        {
+          "task": "php__php-src.c891263",
+          "fraction": "6239501679731243/50000000000000000",
+          "percent": 12.479003359462485,
+          "paper_valid": false
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "fraction": "2319364161849711/2500000000000000",
+          "percent": 92.77456647398844,
+          "paper_valid": true
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "fraction": "3610271903323263/5000000000000000",
+          "percent": 72.20543806646525,
+          "paper_valid": true
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "fraction": "1817543859649123/2000000000000000",
+          "percent": 90.87719298245615,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "fraction": "7260536398467433/10000000000000000",
+          "percent": 72.60536398467433,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "fraction": "4503424657534247/5000000000000000",
+          "percent": 90.06849315068493,
+          "paper_valid": true
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "fraction": "74822695035461/100000000000000",
+          "percent": 74.822695035461,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "fraction": "5425531914893617/10000000000000000",
+          "percent": 54.25531914893617,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "fraction": "576188455008489/625000000000000",
+          "percent": 92.19015280135824,
+          "paper_valid": true
+        },
+        {
+          "task": "riquito__tuc.16fb471",
+          "fraction": "2443561872909699/2500000000000000",
+          "percent": 97.74247491638796,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "fraction": "3216947822675559/5000000000000000",
+          "percent": 64.33895645351117,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "fraction": "3031437125748503/5000000000000000",
+          "percent": 60.62874251497006,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "fraction": "9422799422799423/10000000000000000",
+          "percent": 94.22799422799423,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "fraction": "2607204116638079/10000000000000000",
+          "percent": 26.07204116638079,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "fraction": "7015250544662309/10000000000000000",
+          "percent": 70.1525054466231,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "fraction": "2362086258776329/2500000000000000",
+          "percent": 94.48345035105315,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "fraction": "1585278276481149/2000000000000000",
+          "percent": 79.26391382405745,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "fraction": "5033112582781457/10000000000000000",
+          "percent": 50.331125827814574,
+          "paper_valid": true
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "fraction": "39859649122807017/100000000000000000",
+          "percent": 39.859649122807014,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "fraction": "8186157517899761/10000000000000000",
+          "percent": 81.86157517899761,
+          "paper_valid": true
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "fraction": "1801825293350717/2000000000000000",
+          "percent": 90.09126466753585,
+          "paper_valid": true
+        },
+        {
+          "task": "segmentio__chamber.5f93f5f",
+          "fraction": "6762013729977117/10000000000000000",
+          "percent": 67.62013729977116,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "fraction": "6833541927409261/10000000000000000",
+          "percent": 68.33541927409262,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "fraction": "2103238866396761/2500000000000000",
+          "percent": 84.12955465587044,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "fraction": "4685430463576159/5000000000000000",
+          "percent": 93.70860927152319,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "fraction": "1711340206185567/2000000000000000",
+          "percent": 85.56701030927834,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__pastel.b60e899",
+          "fraction": "9533213644524237/10000000000000000",
+          "percent": 95.33213644524237,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "fraction": "2370345744680851/2500000000000000",
+          "percent": 94.81382978723404,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "fraction": "1947089947089947/2000000000000000",
+          "percent": 97.35449735449735,
+          "paper_valid": true
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "fraction": "9141414141414141/10000000000000000",
+          "percent": 91.41414141414141,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "fraction": "19798994974874373/50000000000000000",
+          "percent": 39.597989949748744,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "fraction": "9534883720930233/10000000000000000",
+          "percent": 95.34883720930233,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "fraction": "4705400981996727/5000000000000000",
+          "percent": 94.10801963993454,
+          "paper_valid": true
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "fraction": "193681652490887/200000000000000",
+          "percent": 96.8408262454435,
+          "paper_valid": true
+        },
+        {
+          "task": "skeema__skeema.6a76243",
+          "fraction": "7224824355971897/10000000000000000",
+          "percent": 72.24824355971897,
+          "paper_valid": true
+        },
+        {
+          "task": "sqlite__sqlite.839433d",
+          "fraction": "458179126572909/625000000000000",
+          "percent": 73.30866025166543,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "fraction": "2435672514619883/2500000000000000",
+          "percent": 97.42690058479532,
+          "paper_valid": true
+        },
+        {
+          "task": "stacked-git__stgit.430027d",
+          "fraction": "2592343854936199/5000000000000000",
+          "percent": 51.84687709872398,
+          "paper_valid": false
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "fraction": "3760262725779967/10000000000000000",
+          "percent": 37.60262725779967,
+          "paper_valid": true
+        },
+        {
+          "task": "stranger6667__jsonschema.d52e881",
+          "fraction": "72518758526603/125000000000000",
+          "percent": 58.0150068212824,
+          "paper_valid": false
+        },
+        {
+          "task": "svenstaro__genact.16f96e3",
+          "fraction": "3463203463203463/20000000000000000",
+          "percent": 17.316017316017316,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "fraction": "1743421052631579/2000000000000000",
+          "percent": 87.17105263157895,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "fraction": "1910472972972973/2000000000000000",
+          "percent": 95.52364864864865,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "fraction": "9075268817204301/10000000000000000",
+          "percent": 90.75268817204301,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "fraction": "17542972699696663/50000000000000000",
+          "percent": 35.085945399393324,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "fraction": "4583333333333333/5000000000000000",
+          "percent": 91.66666666666666,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "fraction": "9330357142857143/10000000000000000",
+          "percent": 93.30357142857143,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "fraction": "1851145038167939/2500000000000000",
+          "percent": 74.04580152671755,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "fraction": "9991883116883117/10000000000000000",
+          "percent": 99.91883116883116,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "fraction": "5055611729019211/25000000000000000",
+          "percent": 20.222446916076844,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "fraction": "4776595744680851/5000000000000000",
+          "percent": 95.53191489361701,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "fraction": "202784222737819/400000000000000",
+          "percent": 50.696055684454755,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "fraction": "7928176795580111/10000000000000000",
+          "percent": 79.28176795580112,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "fraction": "245792736935341/1250000000000000",
+          "percent": 19.66341895482728,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "fraction": "7891373801916933/10000000000000000",
+          "percent": 78.91373801916933,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "fraction": "991044776119403/1000000000000000",
+          "percent": 99.1044776119403,
+          "paper_valid": true
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "fraction": "4142857142857143/5000000000000000",
+          "percent": 82.85714285714286,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "fraction": "6912568306010929/10000000000000000",
+          "percent": 69.12568306010928,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "fraction": "9715302491103203/10000000000000000",
+          "percent": 97.15302491103202,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "fraction": "723314606741573/1000000000000000",
+          "percent": 72.3314606741573,
+          "paper_valid": true
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "fraction": "4520766773162939/5000000000000000",
+          "percent": 90.41533546325878,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "fraction": "286810551558753/400000000000000",
+          "percent": 71.70263788968825,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "fraction": "1536929460580913/2000000000000000",
+          "percent": 76.84647302904565,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "fraction": "5919282511210763/10000000000000000",
+          "percent": 59.19282511210763,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "fraction": "4387871853546911/5000000000000000",
+          "percent": 87.75743707093821,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "fraction": "1109304426377597/2000000000000000",
+          "percent": 55.465221318879856,
+          "paper_valid": true
+        }
+      ]
+    },
+    {
+      "id": "terra-r2-sep19",
+      "model": "terra",
+      "model_version": "openai/gpt-5.6-terra",
+      "effort": "max",
+      "historical_condition": "isolated_configuration",
+      "reported": {
+        "denominator": 200,
+        "readable": 199,
+        "mean_percent": 75.7181192832383,
+        "full": 3,
+        "at_least_95": 28,
+        "evaluator_valid": 198,
+        "valid_full": 3,
+        "invalid_zero_mean_percent": 75.2352719419004,
+        "cost_total_usd": "1444.4385666",
+        "cost_per_task_usd": 7.222192833,
+        "full_ids": [
+          "abishekvashok__cmatrix.5c082c6",
+          "sitkevij__hex.61ae69b",
+          "wintermute-cell__ngrrram.8ea13c3"
+        ],
+        "complete_source_scores": 199,
+        "native_deliveries": 198,
+        "joint_valid_deliveries": 197,
+        "mean_upper_percent": 76.2181192832383,
+        "sent_requests_missing_usage": 3
+      },
+      "rows": [
+        {
+          "task": "abishekvashok__cmatrix.5c082c6",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "fraction": "163/170",
+          "percent": 95.88235294117648,
+          "paper_valid": true
+        },
+        {
+          "task": "ajeetdsouza__zoxide.67ca1bc",
+          "fraction": "493/531",
+          "percent": 92.8436911487759,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "fraction": "136/503",
+          "percent": 27.037773359840955,
+          "paper_valid": true
+        },
+        {
+          "task": "alexpovel__srgn.89f943b",
+          "fraction": "1551/1852",
+          "percent": 83.74730021598272,
+          "paper_valid": true
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "fraction": "494/539",
+          "percent": 91.65120593692022,
+          "paper_valid": true
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "fraction": "1073/1402",
+          "percent": 76.53352353780313,
+          "paper_valid": true
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "fraction": "332/365",
+          "percent": 90.95890410958904,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__fx.86d0d34",
+          "fraction": "891/1022",
+          "percent": 87.18199608610567,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "fraction": "191/213",
+          "percent": 89.67136150234741,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "fraction": "917/1318",
+          "percent": 69.57511380880122,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "fraction": "230/351",
+          "percent": 65.52706552706553,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "fraction": "717/755",
+          "percent": 94.96688741721854,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "fraction": "251/877",
+          "percent": 28.62029646522235,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "fraction": "941/1091",
+          "percent": 86.25114573785518,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "fraction": "286/301",
+          "percent": 95.01661129568106,
+          "paper_valid": true
+        },
+        {
+          "task": "axodotdev__oranda.27d60c7",
+          "fraction": "340/767",
+          "percent": 44.32855280312907,
+          "paper_valid": true
+        },
+        {
+          "task": "bellard__quickjs.d7ae12a",
+          "fraction": "415/1517",
+          "percent": 27.356624917600524,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "fraction": "543/614",
+          "percent": 88.43648208469055,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "fraction": "871/1016",
+          "percent": 85.72834645669292,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "fraction": "635/647",
+          "percent": 98.145285935085,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "fraction": "57/73",
+          "percent": 78.08219178082192,
+          "paper_valid": true
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "fraction": "243/464",
+          "percent": 52.370689655172406,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "fraction": "473/489",
+          "percent": 96.7280163599182,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "fraction": "421/498",
+          "percent": 84.53815261044177,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "fraction": "541/591",
+          "percent": 91.53976311336717,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "fraction": "639/709",
+          "percent": 90.12693935119887,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "fraction": "365/538",
+          "percent": 67.84386617100373,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__rhit.ae90bcb",
+          "fraction": "647/817",
+          "percent": 79.1921664626683,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "fraction": "23/27",
+          "percent": 85.18518518518519,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "fraction": "485/1196",
+          "percent": 40.551839464882946,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "fraction": "315/361",
+          "percent": 87.25761772853186,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "fraction": "737/810",
+          "percent": 90.98765432098766,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "fraction": "111/115",
+          "percent": 96.52173913043478,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "fraction": "387/436",
+          "percent": 88.76146788990825,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "fraction": "449/571",
+          "percent": 78.6339754816112,
+          "paper_valid": true
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "fraction": "500/589",
+          "percent": 84.88964346349745,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "fraction": "592/807",
+          "percent": 73.35811648079306,
+          "paper_valid": true
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "fraction": "558/631",
+          "percent": 88.4310618066561,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "fraction": "518/603",
+          "percent": 85.90381426202322,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "fraction": "517/565",
+          "percent": 91.50442477876106,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "fraction": "486/949",
+          "percent": 51.2118018967334,
+          "paper_valid": true
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "fraction": "103/2126",
+          "percent": 4.8447789275635,
+          "paper_valid": true
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "fraction": "211/283",
+          "percent": 74.55830388692578,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "fraction": "85/229",
+          "percent": 37.117903930131,
+          "paper_valid": true
+        },
+        {
+          "task": "drew-alleman__datasurgeon.d257cee",
+          "fraction": "405/502",
+          "percent": 80.67729083665338,
+          "paper_valid": true
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "fraction": "744/1171",
+          "percent": 63.53543979504697,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "fraction": "1129/5649",
+          "percent": 19.985838201451582,
+          "paper_valid": true
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "fraction": "319/387",
+          "percent": 82.42894056847545,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "fraction": "333/380",
+          "percent": 87.63157894736841,
+          "paper_valid": true
+        },
+        {
+          "task": "ekzhang__bore.8e059cd",
+          "fraction": "364/393",
+          "percent": 92.6208651399491,
+          "paper_valid": true
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "fraction": "403/430",
+          "percent": 93.72093023255815,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "fraction": "271/524",
+          "percent": 51.717557251908396,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "fraction": "322/523",
+          "percent": 61.5678776290631,
+          "paper_valid": true
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "fraction": "541/586",
+          "percent": 92.32081911262799,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "fraction": "1079/1212",
+          "percent": 89.02640264026402,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "fraction": "861/1019",
+          "percent": 84.4946025515211,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "fraction": "1501/2038",
+          "percent": 73.65063788027479,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "fraction": "215/312",
+          "percent": 68.91025641025641,
+          "paper_valid": true
+        },
+        {
+          "task": "ffmpeg__ffmpeg.360a402",
+          "fraction": "151/3041",
+          "percent": 4.965471884248602,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "fraction": "35/52",
+          "percent": 67.3076923076923,
+          "paper_valid": true
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "fraction": "408/509",
+          "percent": 80.15717092337917,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "fraction": "141/173",
+          "percent": 81.5028901734104,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "fraction": "859/1004",
+          "percent": 85.55776892430279,
+          "paper_valid": true
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "fraction": "127/142",
+          "percent": 89.43661971830986,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "fraction": "303/493",
+          "percent": 61.4604462474645,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "fraction": "421/441",
+          "percent": 95.46485260770974,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "fraction": "127/1234",
+          "percent": 10.291734197730957,
+          "paper_valid": true
+        },
+        {
+          "task": "guumaster__hostctl.d6d9699",
+          "fraction": "760/1051",
+          "percent": 72.31208372978116,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "fraction": "1289/1463",
+          "percent": 88.10663021189336,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "fraction": "43/55",
+          "percent": 78.18181818181819,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "fraction": "200/223",
+          "percent": 89.68609865470853,
+          "paper_valid": true
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "fraction": "356/391",
+          "percent": 91.04859335038363,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "fraction": "580/1931",
+          "percent": 30.03625064733299,
+          "paper_valid": true
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "fraction": "142/173",
+          "percent": 82.08092485549133,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "fraction": "1059/1201",
+          "percent": 88.17651956702748,
+          "paper_valid": true
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "fraction": "157/171",
+          "percent": 91.81286549707602,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "fraction": "656/1043",
+          "percent": 62.89549376797699,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "fraction": "672/683",
+          "percent": 98.38945827232797,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "fraction": "492/715",
+          "percent": 68.8111888111888,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "fraction": "34/59",
+          "percent": 57.6271186440678,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "fraction": "469/477",
+          "percent": 98.32285115303984,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "fraction": "181/285",
+          "percent": 63.50877192982456,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "fraction": "212/869",
+          "percent": 24.395857307249713,
+          "paper_valid": true
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "fraction": "2308/3115",
+          "percent": 74.09309791332264,
+          "paper_valid": true
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "fraction": "166/177",
+          "percent": 93.78531073446328,
+          "paper_valid": true
+        },
+        {
+          "task": "johnkerl__miller.8d85b46",
+          "fraction": "1542/4879",
+          "percent": 31.604837056773928,
+          "paper_valid": true
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "fraction": "678/793",
+          "percent": 85.49810844892812,
+          "paper_valid": true
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "fraction": "2851/3036",
+          "percent": 93.9064558629776,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "fraction": "199/220",
+          "percent": 90.45454545454545,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "fraction": "763/928",
+          "percent": 82.21982758620689,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "fraction": "420/479",
+          "percent": 87.68267223382045,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "fraction": "283/340",
+          "percent": 83.23529411764706,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "fraction": "313/385",
+          "percent": 81.2987012987013,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "fraction": "451/531",
+          "percent": 84.93408662900188,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoh86__richgo.313114f",
+          "fraction": "35/39",
+          "percent": 89.74358974358975,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "fraction": "118/167",
+          "percent": 70.65868263473054,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "fraction": "206/333",
+          "percent": 61.86186186186187,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "fraction": "115/143",
+          "percent": 80.41958041958041,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "fraction": "1121/1338",
+          "percent": 83.78176382660688,
+          "paper_valid": true
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "fraction": "2570/2967",
+          "percent": 86.61948095719582,
+          "paper_valid": true
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "fraction": "564/575",
+          "percent": 98.08695652173913,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "fraction": "19/22",
+          "percent": 86.36363636363636,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "fraction": "797/831",
+          "percent": 95.90854392298436,
+          "paper_valid": true
+        },
+        {
+          "task": "mfridman__tparse.2416b4b",
+          "fraction": "376/425",
+          "percent": 88.47058823529412,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "fraction": "1429/1455",
+          "percent": 98.21305841924398,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "fraction": "362/727",
+          "percent": 49.79367262723521,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "fraction": "338/373",
+          "percent": 90.61662198391421,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "fraction": "41/80",
+          "percent": 51.24999999999999,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "fraction": "299/355",
+          "percent": 84.22535211267605,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "fraction": "547/667",
+          "percent": 82.00899550224887,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "fraction": "179/202",
+          "percent": 88.61386138613861,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "fraction": "227/271",
+          "percent": 83.76383763837639,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "fraction": "494/641",
+          "percent": 77.06708268330733,
+          "paper_valid": true
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "fraction": "1025/1278",
+          "percent": 80.20344287949922,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "fraction": "448/551",
+          "percent": 81.30671506352087,
+          "paper_valid": true
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "fraction": "683/721",
+          "percent": 94.72954230235784,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "fraction": "1173/1438",
+          "percent": 81.57162726008345,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__ov.b96c2ba",
+          "fraction": "715/901",
+          "percent": 79.35627081021087,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__trdsql.d8c5ff6",
+          "fraction": "69/82",
+          "percent": 84.14634146341463,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "fraction": "117/638",
+          "percent": 18.338557993730408,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "fraction": "1753/1960",
+          "percent": 89.43877551020408,
+          "paper_valid": true
+        },
+        {
+          "task": "o2sh__onefetch.e5958ce",
+          "fraction": "1059/1166",
+          "percent": 90.82332761578044,
+          "paper_valid": true
+        },
+        {
+          "task": "ogham__dog.721440b",
+          "fraction": "316/325",
+          "percent": 97.23076923076923,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "fraction": "812/913",
+          "percent": 88.93756845564074,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "fraction": "147/163",
+          "percent": 90.1840490797546,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "fraction": "145/169",
+          "percent": 85.79881656804734,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "fraction": "32/73",
+          "percent": 43.83561643835616,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__proj.75d455c",
+          "fraction": "646/1773",
+          "percent": 36.435420191765374,
+          "paper_valid": true
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "fraction": "975/1978",
+          "percent": 49.29221435793731,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "fraction": "60/101",
+          "percent": 59.4059405940594,
+          "paper_valid": true
+        },
+        {
+          "task": "peco__peco.4e58dad",
+          "fraction": "146/243",
+          "percent": 60.08230452674898,
+          "paper_valid": true
+        },
+        {
+          "task": "pemistahl__grex.fa3e8ed",
+          "fraction": "1265/1312",
+          "percent": 96.41768292682927,
+          "paper_valid": true
+        },
+        {
+          "task": "php__php-src.c891263",
+          "fraction": "2533/14288",
+          "percent": 17.728163493840984,
+          "paper_valid": true
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "fraction": "325/346",
+          "percent": 93.9306358381503,
+          "paper_valid": true
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "fraction": "237/331",
+          "percent": 71.6012084592145,
+          "paper_valid": true
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "fraction": "284/285",
+          "percent": 99.64912280701755,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "fraction": "149/174",
+          "percent": 85.63218390804597,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "fraction": "143/146",
+          "percent": 97.94520547945206,
+          "paper_valid": true
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "fraction": "523/564",
+          "percent": 92.73049645390071,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "fraction": "117/188",
+          "percent": 62.23404255319149,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "fraction": "538/589",
+          "percent": 91.34125636672326,
+          "paper_valid": true
+        },
+        {
+          "task": "riquito__tuc.16fb471",
+          "fraction": "1161/1196",
+          "percent": 97.07357859531773,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "fraction": "1491/2549",
+          "percent": 58.49352687328364,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "fraction": "215/334",
+          "percent": 64.37125748502994,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "fraction": "607/693",
+          "percent": 87.59018759018758,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "fraction": "563/583",
+          "percent": 96.56946826758147,
+          "paper_valid": false
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "fraction": "328/459",
+          "percent": 71.45969498910677,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "fraction": "929/997",
+          "percent": 93.17953861584755,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "fraction": "781/1114",
+          "percent": 70.10771992818673,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "fraction": "2033/3322",
+          "percent": 61.19807344972907,
+          "paper_valid": true
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "fraction": "32/75",
+          "percent": 42.66666666666667,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "fraction": "298/419",
+          "percent": 71.1217183770883,
+          "paper_valid": true
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "fraction": "686/767",
+          "percent": 89.4393741851369,
+          "paper_valid": true
+        },
+        {
+          "task": "segmentio__chamber.5f93f5f",
+          "fraction": "1471/1748",
+          "percent": 84.1533180778032,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "fraction": "537/799",
+          "percent": 67.2090112640801,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "fraction": "997/1235",
+          "percent": 80.72874493927125,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "fraction": "289/302",
+          "percent": 95.69536423841059,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "fraction": "241/291",
+          "percent": 82.81786941580756,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__pastel.b60e899",
+          "fraction": "519/557",
+          "percent": 93.17773788150808,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "fraction": "353/376",
+          "percent": 93.88297872340425,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "fraction": "184/189",
+          "percent": 97.35449735449735,
+          "paper_valid": true
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "fraction": "349/396",
+          "percent": 88.13131313131312,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "fraction": "513/995",
+          "percent": 51.55778894472361,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "fraction": "331/344",
+          "percent": 96.22093023255815,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "fraction": "569/611",
+          "percent": 93.12602291325696,
+          "paper_valid": true
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "skeema__skeema.6a76243",
+          "fraction": "1331/1708",
+          "percent": 77.92740046838408,
+          "paper_valid": true
+        },
+        {
+          "task": "sqlite__sqlite.839433d",
+          "fraction": "4908/6755",
+          "percent": 72.65729089563287,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "fraction": "92/95",
+          "percent": 96.84210526315789,
+          "paper_valid": true
+        },
+        {
+          "task": "stacked-git__stgit.430027d",
+          "fraction": null,
+          "percent": null,
+          "paper_valid": false
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "fraction": "257/609",
+          "percent": 42.20032840722496,
+          "paper_valid": true
+        },
+        {
+          "task": "stranger6667__jsonschema.d52e881",
+          "fraction": "2805/2932",
+          "percent": 95.66848567530695,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__genact.16f96e3",
+          "fraction": "83/231",
+          "percent": 35.93073593073593,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "fraction": "71/76",
+          "percent": 93.42105263157895,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "fraction": "1117/1184",
+          "percent": 94.34121621621621,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "fraction": "143/155",
+          "percent": 92.25806451612904,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "fraction": "413/1978",
+          "percent": 20.879676440849344,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "fraction": "29/48",
+          "percent": 60.416666666666664,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "fraction": "103/112",
+          "percent": 91.96428571428571,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "fraction": "120/131",
+          "percent": 91.6030534351145,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "fraction": "83/176",
+          "percent": 47.159090909090914,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "fraction": "155/989",
+          "percent": 15.672396359959556,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "fraction": "1199/1410",
+          "percent": 85.0354609929078,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "fraction": "899/1724",
+          "percent": 52.146171693735496,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "fraction": "581/724",
+          "percent": 80.2486187845304,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "fraction": "213/2258",
+          "percent": 9.433126660761735,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "fraction": "309/313",
+          "percent": 98.7220447284345,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "fraction": "334/335",
+          "percent": 99.70149253731343,
+          "paper_valid": true
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "fraction": "398/455",
+          "percent": 87.47252747252747,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "fraction": "1",
+          "percent": 100.0,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "fraction": "607/732",
+          "percent": 82.92349726775956,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "fraction": "278/281",
+          "percent": 98.93238434163702,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "fraction": "65/89",
+          "percent": 73.03370786516854,
+          "paper_valid": true
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "fraction": "297/313",
+          "percent": 94.88817891373802,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "fraction": "93/139",
+          "percent": 66.90647482014388,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "fraction": "882/1205",
+          "percent": 73.19502074688796,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "fraction": "134/223",
+          "percent": 60.0896860986547,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "fraction": "783/874",
+          "percent": 89.58810068649885,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "fraction": "610/1107",
+          "percent": 55.103884372177056,
+          "paper_valid": true
+        }
+      ]
+    }
+  ],
+  "paper_commit": "60b2721bd1bcd29785f8054fd05ad1b141d11a56"
+}

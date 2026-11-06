@@ -1,0 +1,24 @@
+{
+  "paper_repository": "https://github.com/Lemutisme/-ICLR27-ProContract",
+  "paper_commit": "60b2721bd1bcd29785f8054fd05ad1b141d11a56",
+  "paper_commit_date": "2026-09-26T10:05:15Z",
+  "paper_files": {
+    "contents/4_exp.tex": "e297f67ba5978b2b0d2a4ce28e387df78609ef93dfe5fe47476ce7673a54d694",
+    "contents/a_results.tex": "6afc6239cd135084cc7110d1b8ad06def16729bebaf56289d6cd04e950329afc",
+    "contents/selected_results_macros.tex": "da69d0a634817b1954c9c572c72257028d262e220a176db7fb55502e988b9dc1",
+    "contents/leaderboard_rows.tex": "ddf8da73f78c32290ded85d905a3b7d89e6e0e8f94ac37339a481304d1e9fc24",
+    "scripts/historical_frontier.py": "a5c688fc8f4653853149228a16a54ddff1c4578e1e7e2975efb70e12415b67f7"
+  },
+  "historical_row_dataset_sha256": "b912d8113882f1426452ae343118737022989ba5b56944aaae38c628fa5eda46",
+  "historical_dataset_validation": "The retained paper dataset matches its retained manifest and reproduces all selected macros in paper commit60b2721. Only selected per-task scores/flags are republished.",
+  "current_valid_view_sha256": "7a9974373eac60957106b722a3422aa670a874df21c6a9390de448bbf3dddbe9",
+  "vals_url": "https://www.vals.ai/benchmarks/programbench",
+  "vals_data_url": "https://www.vals.ai/_astro/results_analysis.3cC5mR5j.json",
+  "vals_data_sha256": "4e16f578c023eee46c13e587d99050a096abcb7802bbfb17277a5722ffcfe41a",
+  "current_model_ids": {
+    "luna": "gpt-5.6-luna/max",
+    "sol": "gpt-6.1-sol/max"
+  },
+  "paper_repository_private": true,
+  "report_repository": "https://github.com/Lemutisme/codex"
+}

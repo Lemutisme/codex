@@ -1,0 +1,4933 @@
+{
+  "luna": {
+    "same_instance_numeric": {
+      "n": 196,
+      "paper_mean": 70.68073444345549,
+      "current_mean": 76.48654502507418,
+      "delta": 5.805810581618694,
+      "wins": 125,
+      "ties": 1,
+      "losses": 70,
+      "paper_95": 27,
+      "current_95": 35,
+      "paper_full": 3,
+      "current_full": 3,
+      "rows": [
+        {
+          "task": "abishekvashok__cmatrix.5c082c6",
+          "paper": 99.80237154150198,
+          "current": 100.0,
+          "delta": 0.19762845849801636,
+          "paper_valid": true
+        },
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "paper": 99.55882352941177,
+          "current": 100.0,
+          "delta": 0.44117647058823195,
+          "paper_valid": true
+        },
+        {
+          "task": "ajeetdsouza__zoxide.67ca1bc",
+          "paper": 95.10357815442562,
+          "current": 97.74011299435028,
+          "delta": 2.636534839924664,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "paper": 50.09940357852882,
+          "current": 38.36978131212724,
+          "delta": -11.729622266401584,
+          "paper_valid": true
+        },
+        {
+          "task": "alexpovel__srgn.89f943b",
+          "paper": 0.0,
+          "current": 89.36285097192224,
+          "delta": 89.36285097192224,
+          "paper_valid": false
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "paper": 0.0,
+          "current": 98.88682745825604,
+          "delta": 98.88682745825604,
+          "paper_valid": false
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "paper": 61.483594864479315,
+          "current": 80.24251069900143,
+          "delta": 18.758915834522114,
+          "paper_valid": false
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "paper": 93.88127853881278,
+          "current": 93.15068493150685,
+          "delta": -0.7305936073059343,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__fx.86d0d34",
+          "paper": 77.49510763209393,
+          "current": 88.25831702544032,
+          "delta": 10.763209393346386,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "paper": 89.2018779342723,
+          "current": 92.72300469483568,
+          "delta": 3.5211267605633765,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "paper": 77.2382397572079,
+          "current": 78.98330804248862,
+          "delta": 1.7450682852807233,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "paper": 50.522317188983855,
+          "current": 70.56030389363723,
+          "delta": 20.03798670465337,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "paper": 76.42384105960265,
+          "current": 94.96688741721854,
+          "delta": 18.543046357615893,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "paper": 35.34777651083238,
+          "current": 37.286202964652226,
+          "delta": 1.9384264538198437,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "paper": 83.59303391384051,
+          "current": 61.86984417965169,
+          "delta": -21.72318973418882,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "paper": 96.01328903654485,
+          "current": 96.67774086378738,
+          "delta": 0.6644518272425302,
+          "paper_valid": false
+        },
+        {
+          "task": "axodotdev__oranda.27d60c7",
+          "paper": 71.31681877444589,
+          "current": 44.32855280312907,
+          "delta": -26.98826597131682,
+          "paper_valid": true
+        },
+        {
+          "task": "bellard__quickjs.d7ae12a",
+          "paper": 36.12392880685564,
+          "current": 47.462096242584046,
+          "delta": 11.338167435728408,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "paper": 87.13355048859935,
+          "current": 91.20521172638436,
+          "delta": 4.071661237785008,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "paper": 84.84251968503938,
+          "current": 85.8267716535433,
+          "delta": 0.9842519685039264,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "paper": 99.69088098918083,
+          "current": 99.22720247295209,
+          "delta": -0.46367851622873957,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "paper": 0.0,
+          "current": 82.02054794520548,
+          "delta": 82.02054794520548,
+          "paper_valid": false
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "paper": 58.189655172413794,
+          "current": 60.775862068965516,
+          "delta": 2.5862068965517224,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "paper": 84.45807770961146,
+          "current": 92.94478527607362,
+          "delta": 8.486707566462158,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "paper": 85.14056224899599,
+          "current": 90.11044176706827,
+          "delta": 4.9698795180722755,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "paper": 94.9238578680203,
+          "current": 90.1015228426396,
+          "delta": -4.82233502538071,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "paper": 90.12693935119887,
+          "current": 89.98589562764457,
+          "delta": -0.14104372355430428,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "paper": 75.46468401486989,
+          "current": 73.04832713754647,
+          "delta": -2.416356877323423,
+          "paper_valid": false
+        },
+        {
+          "task": "canop__rhit.ae90bcb",
+          "paper": 74.90820073439413,
+          "current": 72.9498164014688,
+          "delta": -1.958384332925334,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "paper": 85.52188552188552,
+          "current": 77.10437710437711,
+          "delta": -8.417508417508415,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "paper": 42.97658862876254,
+          "current": 42.558528428093645,
+          "delta": -0.41806020066889715,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "paper": 91.82825484764543,
+          "current": 92.797783933518,
+          "delta": 0.9695290858725798,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "paper": 96.04938271604938,
+          "current": 98.27160493827161,
+          "delta": 2.2222222222222285,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "paper": 98.95652173913044,
+          "current": 99.65217391304348,
+          "delta": 0.6956521739130466,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "paper": 87.61467889908256,
+          "current": 88.64678899082568,
+          "delta": 1.032110091743121,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "paper": 65.32399299474606,
+          "current": 67.07530647985989,
+          "delta": 1.7513134851138261,
+          "paper_valid": false
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "paper": 82.34295415959252,
+          "current": 90.83191850594227,
+          "delta": 8.488964346349746,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "paper": 79.92565055762083,
+          "current": 73.35811648079306,
+          "delta": -6.567534076827769,
+          "paper_valid": false
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "paper": 88.90649762282092,
+          "current": 69.73058637083993,
+          "delta": -19.175911251980992,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "paper": 84.74295190713102,
+          "current": 66.16915422885572,
+          "delta": -18.573797678275298,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "paper": 86.72566371681415,
+          "current": 86.90265486725664,
+          "delta": 0.1769911504424897,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "paper": 59.32560590094836,
+          "current": 55.42676501580611,
+          "delta": -3.898840885142249,
+          "paper_valid": false
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "paper": 17.920978363123236,
+          "current": 28.08090310442145,
+          "delta": 10.159924741298212,
+          "paper_valid": false
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "paper": 89.16372202591283,
+          "current": 80.0942285041225,
+          "delta": -9.069493521790335,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "paper": 37.55458515283843,
+          "current": 34.49781659388646,
+          "delta": -3.0567685589519655,
+          "paper_valid": true
+        },
+        {
+          "task": "drew-alleman__datasurgeon.d257cee",
+          "paper": 0.0,
+          "current": 81.67330677290836,
+          "delta": 81.67330677290836,
+          "paper_valid": false
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "paper": 73.27070879590094,
+          "current": 74.55166524338172,
+          "delta": 1.2809564474807758,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "paper": 20.853248362542043,
+          "current": 23.968844043193485,
+          "delta": 3.1155956806514418,
+          "paper_valid": true
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "paper": 79.32816537467701,
+          "current": 79.41429801894918,
+          "delta": 0.08613264427216905,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "paper": 79.47368421052632,
+          "current": 69.47368421052632,
+          "delta": -10.0,
+          "paper_valid": false
+        },
+        {
+          "task": "ekzhang__bore.8e059cd",
+          "paper": 75.06361323155217,
+          "current": 96.18320610687023,
+          "delta": 21.119592875318062,
+          "paper_valid": false
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "paper": 93.25581395348837,
+          "current": 93.02325581395348,
+          "delta": -0.2325581395348877,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "paper": 77.86259541984732,
+          "current": 66.22137404580153,
+          "delta": -11.641221374045799,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "paper": 0.0,
+          "current": 57.170172084130016,
+          "delta": 57.170172084130016,
+          "paper_valid": false
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "paper": 94.7098976109215,
+          "current": 94.02730375426621,
+          "delta": -0.6825938566552878,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "paper": 92.4092409240924,
+          "current": 90.67656765676567,
+          "delta": -1.7326732673267315,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "paper": 93.32679097154073,
+          "current": 93.71933267909715,
+          "delta": 0.3925417075564184,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "paper": 69.7252208047105,
+          "current": 54.26889106967615,
+          "delta": -15.456329735034352,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "paper": 44.55128205128205,
+          "current": 69.87179487179488,
+          "delta": 25.320512820512825,
+          "paper_valid": true
+        },
+        {
+          "task": "ffmpeg__ffmpeg.360a402",
+          "paper": 8.155212101282473,
+          "current": 8.64847089773101,
+          "delta": 0.49325879644853643,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "paper": 0.0,
+          "current": 66.42011834319527,
+          "delta": 66.42011834319527,
+          "paper_valid": false
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "paper": 81.72888015717092,
+          "current": 83.69351669941061,
+          "delta": 1.9646365422396883,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "paper": 83.23699421965318,
+          "current": 85.54913294797687,
+          "delta": 2.3121387283236885,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "paper": 53.58565737051792,
+          "current": 91.23505976095618,
+          "delta": 37.649402390438254,
+          "paper_valid": false
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "paper": 90.14084507042254,
+          "current": 95.95070422535211,
+          "delta": 5.809859154929569,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "paper": 66.12576064908721,
+          "current": 61.4604462474645,
+          "delta": -4.665314401622709,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "paper": 97.27891156462584,
+          "current": 73.46938775510205,
+          "delta": -23.809523809523796,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "paper": 7.212317666126418,
+          "current": 11.102106969205835,
+          "delta": 3.889789303079417,
+          "paper_valid": true
+        },
+        {
+          "task": "guumaster__hostctl.d6d9699",
+          "paper": 94.57659372026642,
+          "current": 95.81351094196003,
+          "delta": 1.2369172216936164,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "paper": 85.81681476418318,
+          "current": 53.041695146958304,
+          "delta": -32.775119617224874,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "paper": 73.0909090909091,
+          "current": 90.54545454545455,
+          "delta": 17.454545454545453,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "paper": 0.0,
+          "current": 74.10313901345292,
+          "delta": 74.10313901345292,
+          "paper_valid": false
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "paper": 89.51406649616368,
+          "current": 91.30434782608695,
+          "delta": 1.7902813299232747,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "paper": 10.150181253236665,
+          "current": 23.562920766442257,
+          "delta": 13.412739513205592,
+          "paper_valid": false
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "paper": 94.79768786127167,
+          "current": 98.98843930635839,
+          "delta": 4.190751445086718,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "paper": 84.84596169858452,
+          "current": 94.33805162364696,
+          "delta": 9.492089925062444,
+          "paper_valid": false
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "paper": 90.64327485380117,
+          "current": 79.14230019493178,
+          "delta": -11.500974658869396,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "paper": 66.3470757430489,
+          "current": 51.19846596356663,
+          "delta": -15.148609779482271,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "paper": 88.87262079062957,
+          "current": 94.87554904831626,
+          "delta": 6.0029282576866905,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "paper": 78.74125874125875,
+          "current": 84.05594405594405,
+          "delta": 5.314685314685306,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "paper": 53.38983050847458,
+          "current": 58.26271186440678,
+          "delta": 4.872881355932201,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "paper": 97.9035639412998,
+          "current": 98.11320754716981,
+          "delta": 0.20964360587001352,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "paper": 65.84795321637426,
+          "current": 63.04093567251462,
+          "delta": -2.8070175438596436,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "paper": 27.42616033755274,
+          "current": 23.1108553893364,
+          "delta": -4.31530494821634,
+          "paper_valid": false
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "paper": 61.28410914927769,
+          "current": 70.97913322632424,
+          "delta": 9.695024077046547,
+          "paper_valid": false
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "paper": 93.10734463276836,
+          "current": 96.38418079096046,
+          "delta": 3.276836158192097,
+          "paper_valid": true
+        },
+        {
+          "task": "johnkerl__miller.8d85b46",
+          "paper": 0.0,
+          "current": 38.334358133497304,
+          "delta": 38.334358133497304,
+          "paper_valid": false
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "paper": 55.42244640605296,
+          "current": 85.81336696090794,
+          "delta": 30.39092055485498,
+          "paper_valid": false
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "paper": 93.05006587615283,
+          "current": 83.06982872200264,
+          "delta": -9.980237154150188,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "paper": 91.5909090909091,
+          "current": 92.5,
+          "delta": 0.9090909090909065,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "paper": 87.23060344827587,
+          "current": 81.73491379310344,
+          "delta": -5.495689655172427,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "paper": 63.88308977035491,
+          "current": 86.0125260960334,
+          "delta": 22.12943632567849,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "paper": 83.82352941176471,
+          "current": 56.76470588235294,
+          "delta": -27.058823529411768,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "paper": 85.19480519480518,
+          "current": 80.77922077922078,
+          "delta": -4.415584415584405,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "paper": 83.9924670433145,
+          "current": 87.1939736346516,
+          "delta": 3.2015065913370933,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoh86__richgo.313114f",
+          "paper": 88.6654478976234,
+          "current": 91.20879120879121,
+          "delta": 2.543343311167817,
+          "paper_valid": false
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "paper": 64.07185628742515,
+          "current": 91.81636726546907,
+          "delta": 27.74451097804392,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "paper": 77.02702702702703,
+          "current": 88.43843843843844,
+          "delta": 11.411411411411407,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "paper": 75.990675990676,
+          "current": 65.96736596736596,
+          "delta": -10.023310023310032,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "paper": 100.0,
+          "current": 88.04185351270553,
+          "delta": -11.95814648729447,
+          "paper_valid": false
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "paper": 100.0,
+          "current": 88.10246039770813,
+          "delta": -11.897539602291872,
+          "paper_valid": false
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "paper": 91.47826086956522,
+          "current": 91.82608695652173,
+          "delta": 0.3478260869565162,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "paper": 85.02673796791443,
+          "current": 87.5,
+          "delta": 2.4732620320855716,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "paper": 96.63056558363418,
+          "current": 95.66787003610108,
+          "delta": -0.9626955475331016,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "paper": 95.6701030927835,
+          "current": 98.69415807560138,
+          "delta": 3.024054982817873,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "paper": 48.693259972489685,
+          "current": 52.95735900962861,
+          "delta": 4.2640990371389265,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "paper": 89.81233243967829,
+          "current": 91.42091152815013,
+          "delta": 1.608579088471842,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "paper": 48.75,
+          "current": 53.75,
+          "delta": 5.0,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "paper": 84.78873239436619,
+          "current": 99.85915492957747,
+          "delta": 15.070422535211279,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "paper": 81.25937031484258,
+          "current": 72.26386806596702,
+          "delta": -8.995502248875567,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "paper": 92.9042904290429,
+          "current": 91.91419141914191,
+          "delta": -0.9900990099009874,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "paper": 85.42435424354244,
+          "current": 85.23985239852398,
+          "delta": -0.18450184501845968,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "paper": 77.22308892355694,
+          "current": 77.22308892355694,
+          "delta": 0.0,
+          "paper_valid": false
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "paper": 83.56807511737088,
+          "current": 92.33176838810641,
+          "delta": 8.76369327073553,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "paper": 86.7513611615245,
+          "current": 74.04718693284937,
+          "delta": -12.704174228675129,
+          "paper_valid": false
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "paper": 96.67128987517337,
+          "current": 95.5617198335645,
+          "delta": -1.109570041608876,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "paper": 78.85952712100139,
+          "current": 84.56189151599443,
+          "delta": 5.70236439499304,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__ov.b96c2ba",
+          "paper": 87.6803551609323,
+          "current": 89.12319644839067,
+          "delta": 1.4428412874583785,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__trdsql.d8c5ff6",
+          "paper": 85.59451219512195,
+          "current": 88.49085365853658,
+          "delta": 2.896341463414629,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "paper": 10.815047021943574,
+          "current": 18.025078369905955,
+          "delta": 7.210031347962381,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "paper": 81.22448979591836,
+          "current": 87.8061224489796,
+          "delta": 6.581632653061234,
+          "paper_valid": false
+        },
+        {
+          "task": "o2sh__onefetch.e5958ce",
+          "paper": 84.30531732418525,
+          "current": 88.8507718696398,
+          "delta": 4.545454545454547,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "paper": 0.0,
+          "current": 99.23329682365826,
+          "delta": 99.23329682365826,
+          "paper_valid": false
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "paper": 79.01840490797547,
+          "current": 87.11656441717791,
+          "delta": 8.098159509202446,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "paper": 87.57396449704143,
+          "current": 86.98224852071006,
+          "delta": -0.591715976331372,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "paper": 47.48858447488584,
+          "current": 52.35920852359209,
+          "delta": 4.870624048706247,
+          "paper_valid": true
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "paper": 42.82103134479272,
+          "current": 48.179979777553086,
+          "delta": 5.358948432760364,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "paper": 64.3917963224894,
+          "current": 62.6944837340877,
+          "delta": -1.6973125884017009,
+          "paper_valid": false
+        },
+        {
+          "task": "peco__peco.4e58dad",
+          "paper": 55.390946502057616,
+          "current": 57.86008230452675,
+          "delta": 2.4691358024691326,
+          "paper_valid": true
+        },
+        {
+          "task": "pemistahl__grex.fa3e8ed",
+          "paper": 98.01829268292683,
+          "current": 92.60670731707317,
+          "delta": -5.411585365853654,
+          "paper_valid": true
+        },
+        {
+          "task": "php__php-src.c891263",
+          "paper": 0.0,
+          "current": 15.369540873460247,
+          "delta": 15.369540873460247,
+          "paper_valid": false
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "paper": 88.0057803468208,
+          "current": 96.53179190751445,
+          "delta": 8.526011560693647,
+          "paper_valid": false
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "paper": 75.52870090634441,
+          "current": 76.13293051359517,
+          "delta": 0.6042296072507582,
+          "paper_valid": false
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "paper": 87.71929824561403,
+          "current": 90.87719298245614,
+          "delta": 3.1578947368421098,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "paper": 81.22605363984674,
+          "current": 86.59003831417624,
+          "delta": 5.363984674329501,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "paper": 92.12328767123287,
+          "current": 97.6027397260274,
+          "delta": 5.479452054794521,
+          "paper_valid": false
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "paper": 91.13475177304964,
+          "current": 93.79432624113475,
+          "delta": 2.659574468085111,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "paper": 61.79078014184397,
+          "current": 83.59929078014184,
+          "delta": 21.808510638297875,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "paper": 91.51103565365025,
+          "current": 94.73684210526316,
+          "delta": 3.225806451612911,
+          "paper_valid": true
+        },
+        {
+          "task": "riquito__tuc.16fb471",
+          "paper": 96.65551839464884,
+          "current": 97.1571906354515,
+          "delta": 0.5016722408026624,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "paper": 64.966653589643,
+          "current": 68.96822283248332,
+          "delta": 4.0015692428403185,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "paper": 65.26946107784431,
+          "current": 67.21556886227545,
+          "delta": 1.9461077844311347,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "paper": 86.2914862914863,
+          "current": 82.82828282828282,
+          "delta": -3.4632034632034703,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "paper": 94.16809605488851,
+          "current": 82.16123499142367,
+          "delta": -12.00686106346484,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "paper": 69.93464052287581,
+          "current": 49.673202614379086,
+          "delta": -20.261437908496724,
+          "paper_valid": false
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "paper": 89.2678034102307,
+          "current": 93.98194583751254,
+          "delta": 4.714142427281843,
+          "paper_valid": false
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "paper": 79.80251346499102,
+          "current": 65.8886894075404,
+          "delta": -13.913824057450626,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "paper": 39.58458759783263,
+          "current": 62.28175797712222,
+          "delta": 22.697170379289588,
+          "paper_valid": false
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "paper": 48.63157894736842,
+          "current": 46.175438596491226,
+          "delta": -2.4561403508771917,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "paper": 40.334128878281625,
+          "current": 73.50835322195704,
+          "delta": 33.17422434367541,
+          "paper_valid": false
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "paper": 87.22294654498045,
+          "current": 89.17861799217731,
+          "delta": 1.9556714471968633,
+          "paper_valid": true
+        },
+        {
+          "task": "segmentio__chamber.5f93f5f",
+          "paper": 88.04347826086956,
+          "current": 82.89473684210526,
+          "delta": -5.148741418764303,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "paper": 77.34668335419273,
+          "current": 69.21151439299123,
+          "delta": -8.1351689612015,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "paper": 83.64372469635629,
+          "current": 84.2914979757085,
+          "delta": 0.647773279352208,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "paper": 94.15011037527594,
+          "current": 98.45474613686534,
+          "delta": 4.304635761589395,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "paper": 0.0,
+          "current": 93.81443298969072,
+          "delta": 93.81443298969072,
+          "paper_valid": false
+        },
+        {
+          "task": "sharkdp__pastel.b60e899",
+          "paper": 95.15260323159784,
+          "current": 96.6786355475763,
+          "delta": 1.526032315978469,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "paper": 96.80851063829788,
+          "current": 97.07446808510639,
+          "delta": 0.26595744680851396,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "paper": 96.82539682539682,
+          "current": 95.23809523809524,
+          "delta": -1.5873015873015817,
+          "paper_valid": false
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "paper": 89.14141414141415,
+          "current": 90.15151515151516,
+          "delta": 1.0101010101010104,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "paper": 57.38693467336683,
+          "current": 57.88944723618091,
+          "delta": 0.5025125628140756,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "paper": 98.54651162790698,
+          "current": 98.83720930232558,
+          "delta": 0.2906976744185954,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "paper": 93.28968903436989,
+          "current": 93.12602291325696,
+          "delta": -0.1636661211129251,
+          "paper_valid": false
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "paper": 98.42041312272175,
+          "current": 100.0,
+          "delta": 1.5795868772782455,
+          "paper_valid": true
+        },
+        {
+          "task": "skeema__skeema.6a76243",
+          "paper": 77.1662763466042,
+          "current": 85.4215456674473,
+          "delta": 8.255269320843098,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "paper": 95.55555555555556,
+          "current": 92.86549707602339,
+          "delta": -2.690058479532169,
+          "paper_valid": true
+        },
+        {
+          "task": "stacked-git__stgit.430027d",
+          "paper": 51.41129032258065,
+          "current": 65.45698924731182,
+          "delta": 14.045698924731177,
+          "paper_valid": false
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "paper": 0.0,
+          "current": 41.050903119868636,
+          "delta": 41.050903119868636,
+          "paper_valid": false
+        },
+        {
+          "task": "stranger6667__jsonschema.d52e881",
+          "paper": 60.129604365620736,
+          "current": 59.07230559345157,
+          "delta": -1.057298772169169,
+          "paper_valid": false
+        },
+        {
+          "task": "svenstaro__genact.16f96e3",
+          "paper": 34.63203463203463,
+          "current": 28.571428571428573,
+          "delta": -6.060606060606059,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "paper": 89.80263157894737,
+          "current": 96.38157894736842,
+          "delta": 6.578947368421055,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "paper": 96.0304054054054,
+          "current": 97.12837837837837,
+          "delta": 1.0979729729729684,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "paper": 82.58064516129032,
+          "current": 86.45161290322581,
+          "delta": 3.8709677419354875,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "paper": 72.14357937310415,
+          "current": 15.267947421638018,
+          "delta": -56.875631951466126,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "paper": 61.458333333333336,
+          "current": 43.75,
+          "delta": -17.708333333333336,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "paper": 93.30357142857143,
+          "current": 91.96428571428571,
+          "delta": -1.3392857142857224,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "paper": 49.23664122137404,
+          "current": 90.83969465648855,
+          "delta": 41.603053435114504,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "paper": 45.211038961038966,
+          "current": 50.64935064935065,
+          "delta": 5.4383116883116855,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "paper": 23.761375126390295,
+          "current": 11.425682507583417,
+          "delta": -12.335692618806878,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "paper": 91.27659574468086,
+          "current": 67.09219858156028,
+          "delta": -24.18439716312058,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "paper": 45.59164733178655,
+          "current": 41.93735498839907,
+          "delta": -3.6542923433874748,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "paper": 79.69613259668509,
+          "current": 74.17127071823204,
+          "delta": -5.524861878453052,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "paper": 10.761736049601417,
+          "current": 8.193091231178034,
+          "delta": -2.568644818423383,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "paper": 80.19169329073482,
+          "current": 99.36102236421725,
+          "delta": 19.16932907348243,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "paper": 99.40298507462687,
+          "current": 99.70149253731343,
+          "delta": 0.29850746268655826,
+          "paper_valid": false
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "paper": 87.6923076923077,
+          "current": 92.08791208791209,
+          "delta": 4.395604395604394,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "paper": 100.0,
+          "current": 99.00990099009901,
+          "delta": -0.9900990099009874,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "paper": 73.224043715847,
+          "current": 63.387978142076506,
+          "delta": -9.836065573770497,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "paper": 96.79715302491103,
+          "current": 95.72953736654804,
+          "delta": -1.067615658362982,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "paper": 0.0,
+          "current": 73.17415730337079,
+          "delta": 73.17415730337079,
+          "paper_valid": false
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "paper": 95.52715654952077,
+          "current": 98.08306709265176,
+          "delta": 2.5559105431309916,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "paper": 66.66666666666666,
+          "current": 80.3357314148681,
+          "delta": 13.66906474820145,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "paper": 84.48132780082987,
+          "current": 84.149377593361,
+          "delta": -0.3319502074688785,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "paper": 60.98654708520179,
+          "current": 69.5067264573991,
+          "delta": 8.520179372197305,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "paper": 90.38901601830663,
+          "current": 91.53318077803203,
+          "delta": 1.144164759725399,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "paper": 0.0,
+          "current": 62.87262872628726,
+          "delta": 62.87262872628726,
+          "paper_valid": false
+        }
+      ]
+    },
+    "same_instance_paper_valid": {
+      "n": 148,
+      "paper_mean": 77.40959636804267,
+      "current_mean": 77.41783095975131,
+      "delta": 0.008234591708639289,
+      "wins": 91,
+      "ties": 0,
+      "losses": 57,
+      "paper_95": 22,
+      "current_95": 27,
+      "paper_full": 1,
+      "current_full": 3,
+      "rows": [
+        {
+          "task": "abishekvashok__cmatrix.5c082c6",
+          "paper": 99.80237154150198,
+          "current": 100.0,
+          "delta": 0.19762845849801636,
+          "paper_valid": true
+        },
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "paper": 99.55882352941177,
+          "current": 100.0,
+          "delta": 0.44117647058823195,
+          "paper_valid": true
+        },
+        {
+          "task": "ajeetdsouza__zoxide.67ca1bc",
+          "paper": 95.10357815442562,
+          "current": 97.74011299435028,
+          "delta": 2.636534839924664,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "paper": 50.09940357852882,
+          "current": 38.36978131212724,
+          "delta": -11.729622266401584,
+          "paper_valid": true
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "paper": 93.88127853881278,
+          "current": 93.15068493150685,
+          "delta": -0.7305936073059343,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__fx.86d0d34",
+          "paper": 77.49510763209393,
+          "current": 88.25831702544032,
+          "delta": 10.763209393346386,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "paper": 89.2018779342723,
+          "current": 92.72300469483568,
+          "delta": 3.5211267605633765,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "paper": 77.2382397572079,
+          "current": 78.98330804248862,
+          "delta": 1.7450682852807233,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "paper": 50.522317188983855,
+          "current": 70.56030389363723,
+          "delta": 20.03798670465337,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "paper": 76.42384105960265,
+          "current": 94.96688741721854,
+          "delta": 18.543046357615893,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "paper": 35.34777651083238,
+          "current": 37.286202964652226,
+          "delta": 1.9384264538198437,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "paper": 83.59303391384051,
+          "current": 61.86984417965169,
+          "delta": -21.72318973418882,
+          "paper_valid": true
+        },
+        {
+          "task": "axodotdev__oranda.27d60c7",
+          "paper": 71.31681877444589,
+          "current": 44.32855280312907,
+          "delta": -26.98826597131682,
+          "paper_valid": true
+        },
+        {
+          "task": "bellard__quickjs.d7ae12a",
+          "paper": 36.12392880685564,
+          "current": 47.462096242584046,
+          "delta": 11.338167435728408,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "paper": 87.13355048859935,
+          "current": 91.20521172638436,
+          "delta": 4.071661237785008,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "paper": 84.84251968503938,
+          "current": 85.8267716535433,
+          "delta": 0.9842519685039264,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "paper": 99.69088098918083,
+          "current": 99.22720247295209,
+          "delta": -0.46367851622873957,
+          "paper_valid": true
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "paper": 58.189655172413794,
+          "current": 60.775862068965516,
+          "delta": 2.5862068965517224,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "paper": 84.45807770961146,
+          "current": 92.94478527607362,
+          "delta": 8.486707566462158,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "paper": 85.14056224899599,
+          "current": 90.11044176706827,
+          "delta": 4.9698795180722755,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "paper": 94.9238578680203,
+          "current": 90.1015228426396,
+          "delta": -4.82233502538071,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "paper": 90.12693935119887,
+          "current": 89.98589562764457,
+          "delta": -0.14104372355430428,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__rhit.ae90bcb",
+          "paper": 74.90820073439413,
+          "current": 72.9498164014688,
+          "delta": -1.958384332925334,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "paper": 85.52188552188552,
+          "current": 77.10437710437711,
+          "delta": -8.417508417508415,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "paper": 42.97658862876254,
+          "current": 42.558528428093645,
+          "delta": -0.41806020066889715,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "paper": 91.82825484764543,
+          "current": 92.797783933518,
+          "delta": 0.9695290858725798,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "paper": 96.04938271604938,
+          "current": 98.27160493827161,
+          "delta": 2.2222222222222285,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "paper": 98.95652173913044,
+          "current": 99.65217391304348,
+          "delta": 0.6956521739130466,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "paper": 87.61467889908256,
+          "current": 88.64678899082568,
+          "delta": 1.032110091743121,
+          "paper_valid": true
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "paper": 82.34295415959252,
+          "current": 90.83191850594227,
+          "delta": 8.488964346349746,
+          "paper_valid": true
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "paper": 88.90649762282092,
+          "current": 69.73058637083993,
+          "delta": -19.175911251980992,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "paper": 84.74295190713102,
+          "current": 66.16915422885572,
+          "delta": -18.573797678275298,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "paper": 86.72566371681415,
+          "current": 86.90265486725664,
+          "delta": 0.1769911504424897,
+          "paper_valid": true
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "paper": 89.16372202591283,
+          "current": 80.0942285041225,
+          "delta": -9.069493521790335,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "paper": 37.55458515283843,
+          "current": 34.49781659388646,
+          "delta": -3.0567685589519655,
+          "paper_valid": true
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "paper": 73.27070879590094,
+          "current": 74.55166524338172,
+          "delta": 1.2809564474807758,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "paper": 20.853248362542043,
+          "current": 23.968844043193485,
+          "delta": 3.1155956806514418,
+          "paper_valid": true
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "paper": 79.32816537467701,
+          "current": 79.41429801894918,
+          "delta": 0.08613264427216905,
+          "paper_valid": true
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "paper": 93.25581395348837,
+          "current": 93.02325581395348,
+          "delta": -0.2325581395348877,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "paper": 77.86259541984732,
+          "current": 66.22137404580153,
+          "delta": -11.641221374045799,
+          "paper_valid": true
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "paper": 94.7098976109215,
+          "current": 94.02730375426621,
+          "delta": -0.6825938566552878,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "paper": 92.4092409240924,
+          "current": 90.67656765676567,
+          "delta": -1.7326732673267315,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "paper": 93.32679097154073,
+          "current": 93.71933267909715,
+          "delta": 0.3925417075564184,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "paper": 69.7252208047105,
+          "current": 54.26889106967615,
+          "delta": -15.456329735034352,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "paper": 44.55128205128205,
+          "current": 69.87179487179488,
+          "delta": 25.320512820512825,
+          "paper_valid": true
+        },
+        {
+          "task": "ffmpeg__ffmpeg.360a402",
+          "paper": 8.155212101282473,
+          "current": 8.64847089773101,
+          "delta": 0.49325879644853643,
+          "paper_valid": true
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "paper": 81.72888015717092,
+          "current": 83.69351669941061,
+          "delta": 1.9646365422396883,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "paper": 83.23699421965318,
+          "current": 85.54913294797687,
+          "delta": 2.3121387283236885,
+          "paper_valid": true
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "paper": 90.14084507042254,
+          "current": 95.95070422535211,
+          "delta": 5.809859154929569,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "paper": 66.12576064908721,
+          "current": 61.4604462474645,
+          "delta": -4.665314401622709,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "paper": 97.27891156462584,
+          "current": 73.46938775510205,
+          "delta": -23.809523809523796,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "paper": 7.212317666126418,
+          "current": 11.102106969205835,
+          "delta": 3.889789303079417,
+          "paper_valid": true
+        },
+        {
+          "task": "guumaster__hostctl.d6d9699",
+          "paper": 94.57659372026642,
+          "current": 95.81351094196003,
+          "delta": 1.2369172216936164,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "paper": 85.81681476418318,
+          "current": 53.041695146958304,
+          "delta": -32.775119617224874,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "paper": 73.0909090909091,
+          "current": 90.54545454545455,
+          "delta": 17.454545454545453,
+          "paper_valid": true
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "paper": 89.51406649616368,
+          "current": 91.30434782608695,
+          "delta": 1.7902813299232747,
+          "paper_valid": true
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "paper": 94.79768786127167,
+          "current": 98.98843930635839,
+          "delta": 4.190751445086718,
+          "paper_valid": true
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "paper": 90.64327485380117,
+          "current": 79.14230019493178,
+          "delta": -11.500974658869396,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "paper": 66.3470757430489,
+          "current": 51.19846596356663,
+          "delta": -15.148609779482271,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "paper": 88.87262079062957,
+          "current": 94.87554904831626,
+          "delta": 6.0029282576866905,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "paper": 78.74125874125875,
+          "current": 84.05594405594405,
+          "delta": 5.314685314685306,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "paper": 53.38983050847458,
+          "current": 58.26271186440678,
+          "delta": 4.872881355932201,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "paper": 97.9035639412998,
+          "current": 98.11320754716981,
+          "delta": 0.20964360587001352,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "paper": 65.84795321637426,
+          "current": 63.04093567251462,
+          "delta": -2.8070175438596436,
+          "paper_valid": true
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "paper": 93.10734463276836,
+          "current": 96.38418079096046,
+          "delta": 3.276836158192097,
+          "paper_valid": true
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "paper": 93.05006587615283,
+          "current": 83.06982872200264,
+          "delta": -9.980237154150188,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "paper": 91.5909090909091,
+          "current": 92.5,
+          "delta": 0.9090909090909065,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "paper": 87.23060344827587,
+          "current": 81.73491379310344,
+          "delta": -5.495689655172427,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "paper": 63.88308977035491,
+          "current": 86.0125260960334,
+          "delta": 22.12943632567849,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "paper": 83.82352941176471,
+          "current": 56.76470588235294,
+          "delta": -27.058823529411768,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "paper": 85.19480519480518,
+          "current": 80.77922077922078,
+          "delta": -4.415584415584405,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "paper": 83.9924670433145,
+          "current": 87.1939736346516,
+          "delta": 3.2015065913370933,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "paper": 64.07185628742515,
+          "current": 91.81636726546907,
+          "delta": 27.74451097804392,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "paper": 77.02702702702703,
+          "current": 88.43843843843844,
+          "delta": 11.411411411411407,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "paper": 75.990675990676,
+          "current": 65.96736596736596,
+          "delta": -10.023310023310032,
+          "paper_valid": true
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "paper": 91.47826086956522,
+          "current": 91.82608695652173,
+          "delta": 0.3478260869565162,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "paper": 85.02673796791443,
+          "current": 87.5,
+          "delta": 2.4732620320855716,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "paper": 96.63056558363418,
+          "current": 95.66787003610108,
+          "delta": -0.9626955475331016,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "paper": 95.6701030927835,
+          "current": 98.69415807560138,
+          "delta": 3.024054982817873,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "paper": 48.693259972489685,
+          "current": 52.95735900962861,
+          "delta": 4.2640990371389265,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "paper": 89.81233243967829,
+          "current": 91.42091152815013,
+          "delta": 1.608579088471842,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "paper": 48.75,
+          "current": 53.75,
+          "delta": 5.0,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "paper": 84.78873239436619,
+          "current": 99.85915492957747,
+          "delta": 15.070422535211279,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "paper": 81.25937031484258,
+          "current": 72.26386806596702,
+          "delta": -8.995502248875567,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "paper": 92.9042904290429,
+          "current": 91.91419141914191,
+          "delta": -0.9900990099009874,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "paper": 85.42435424354244,
+          "current": 85.23985239852398,
+          "delta": -0.18450184501845968,
+          "paper_valid": true
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "paper": 83.56807511737088,
+          "current": 92.33176838810641,
+          "delta": 8.76369327073553,
+          "paper_valid": true
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "paper": 96.67128987517337,
+          "current": 95.5617198335645,
+          "delta": -1.109570041608876,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "paper": 78.85952712100139,
+          "current": 84.56189151599443,
+          "delta": 5.70236439499304,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__ov.b96c2ba",
+          "paper": 87.6803551609323,
+          "current": 89.12319644839067,
+          "delta": 1.4428412874583785,
+          "paper_valid": true
+        },
+        {
+          "task": "noborus__trdsql.d8c5ff6",
+          "paper": 85.59451219512195,
+          "current": 88.49085365853658,
+          "delta": 2.896341463414629,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "paper": 10.815047021943574,
+          "current": 18.025078369905955,
+          "delta": 7.210031347962381,
+          "paper_valid": true
+        },
+        {
+          "task": "o2sh__onefetch.e5958ce",
+          "paper": 84.30531732418525,
+          "current": 88.8507718696398,
+          "delta": 4.545454545454547,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "paper": 79.01840490797547,
+          "current": 87.11656441717791,
+          "delta": 8.098159509202446,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "paper": 87.57396449704143,
+          "current": 86.98224852071006,
+          "delta": -0.591715976331372,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "paper": 47.48858447488584,
+          "current": 52.35920852359209,
+          "delta": 4.870624048706247,
+          "paper_valid": true
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "paper": 42.82103134479272,
+          "current": 48.179979777553086,
+          "delta": 5.358948432760364,
+          "paper_valid": true
+        },
+        {
+          "task": "peco__peco.4e58dad",
+          "paper": 55.390946502057616,
+          "current": 57.86008230452675,
+          "delta": 2.4691358024691326,
+          "paper_valid": true
+        },
+        {
+          "task": "pemistahl__grex.fa3e8ed",
+          "paper": 98.01829268292683,
+          "current": 92.60670731707317,
+          "delta": -5.411585365853654,
+          "paper_valid": true
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "paper": 87.71929824561403,
+          "current": 90.87719298245614,
+          "delta": 3.1578947368421098,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "paper": 81.22605363984674,
+          "current": 86.59003831417624,
+          "delta": 5.363984674329501,
+          "paper_valid": true
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "paper": 91.13475177304964,
+          "current": 93.79432624113475,
+          "delta": 2.659574468085111,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "paper": 61.79078014184397,
+          "current": 83.59929078014184,
+          "delta": 21.808510638297875,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "paper": 91.51103565365025,
+          "current": 94.73684210526316,
+          "delta": 3.225806451612911,
+          "paper_valid": true
+        },
+        {
+          "task": "riquito__tuc.16fb471",
+          "paper": 96.65551839464884,
+          "current": 97.1571906354515,
+          "delta": 0.5016722408026624,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "paper": 64.966653589643,
+          "current": 68.96822283248332,
+          "delta": 4.0015692428403185,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "paper": 65.26946107784431,
+          "current": 67.21556886227545,
+          "delta": 1.9461077844311347,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "paper": 86.2914862914863,
+          "current": 82.82828282828282,
+          "delta": -3.4632034632034703,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "paper": 94.16809605488851,
+          "current": 82.16123499142367,
+          "delta": -12.00686106346484,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "paper": 79.80251346499102,
+          "current": 65.8886894075404,
+          "delta": -13.913824057450626,
+          "paper_valid": true
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "paper": 48.63157894736842,
+          "current": 46.175438596491226,
+          "delta": -2.4561403508771917,
+          "paper_valid": true
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "paper": 87.22294654498045,
+          "current": 89.17861799217731,
+          "delta": 1.9556714471968633,
+          "paper_valid": true
+        },
+        {
+          "task": "segmentio__chamber.5f93f5f",
+          "paper": 88.04347826086956,
+          "current": 82.89473684210526,
+          "delta": -5.148741418764303,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "paper": 77.34668335419273,
+          "current": 69.21151439299123,
+          "delta": -8.1351689612015,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "paper": 83.64372469635629,
+          "current": 84.2914979757085,
+          "delta": 0.647773279352208,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "paper": 94.15011037527594,
+          "current": 98.45474613686534,
+          "delta": 4.304635761589395,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__pastel.b60e899",
+          "paper": 95.15260323159784,
+          "current": 96.6786355475763,
+          "delta": 1.526032315978469,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "paper": 96.80851063829788,
+          "current": 97.07446808510639,
+          "delta": 0.26595744680851396,
+          "paper_valid": true
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "paper": 89.14141414141415,
+          "current": 90.15151515151516,
+          "delta": 1.0101010101010104,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "paper": 57.38693467336683,
+          "current": 57.88944723618091,
+          "delta": 0.5025125628140756,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "paper": 98.54651162790698,
+          "current": 98.83720930232558,
+          "delta": 0.2906976744185954,
+          "paper_valid": true
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "paper": 98.42041312272175,
+          "current": 100.0,
+          "delta": 1.5795868772782455,
+          "paper_valid": true
+        },
+        {
+          "task": "skeema__skeema.6a76243",
+          "paper": 77.1662763466042,
+          "current": 85.4215456674473,
+          "delta": 8.255269320843098,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "paper": 95.55555555555556,
+          "current": 92.86549707602339,
+          "delta": -2.690058479532169,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__genact.16f96e3",
+          "paper": 34.63203463203463,
+          "current": 28.571428571428573,
+          "delta": -6.060606060606059,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "paper": 89.80263157894737,
+          "current": 96.38157894736842,
+          "delta": 6.578947368421055,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "paper": 96.0304054054054,
+          "current": 97.12837837837837,
+          "delta": 1.0979729729729684,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "paper": 82.58064516129032,
+          "current": 86.45161290322581,
+          "delta": 3.8709677419354875,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "paper": 72.14357937310415,
+          "current": 15.267947421638018,
+          "delta": -56.875631951466126,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "paper": 61.458333333333336,
+          "current": 43.75,
+          "delta": -17.708333333333336,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "paper": 93.30357142857143,
+          "current": 91.96428571428571,
+          "delta": -1.3392857142857224,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "paper": 49.23664122137404,
+          "current": 90.83969465648855,
+          "delta": 41.603053435114504,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "paper": 45.211038961038966,
+          "current": 50.64935064935065,
+          "delta": 5.4383116883116855,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "paper": 23.761375126390295,
+          "current": 11.425682507583417,
+          "delta": -12.335692618806878,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "paper": 91.27659574468086,
+          "current": 67.09219858156028,
+          "delta": -24.18439716312058,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "paper": 45.59164733178655,
+          "current": 41.93735498839907,
+          "delta": -3.6542923433874748,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "paper": 79.69613259668509,
+          "current": 74.17127071823204,
+          "delta": -5.524861878453052,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "paper": 10.761736049601417,
+          "current": 8.193091231178034,
+          "delta": -2.568644818423383,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "paper": 80.19169329073482,
+          "current": 99.36102236421725,
+          "delta": 19.16932907348243,
+          "paper_valid": true
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "paper": 87.6923076923077,
+          "current": 92.08791208791209,
+          "delta": 4.395604395604394,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "paper": 100.0,
+          "current": 99.00990099009901,
+          "delta": -0.9900990099009874,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "paper": 73.224043715847,
+          "current": 63.387978142076506,
+          "delta": -9.836065573770497,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "paper": 96.79715302491103,
+          "current": 95.72953736654804,
+          "delta": -1.067615658362982,
+          "paper_valid": true
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "paper": 95.52715654952077,
+          "current": 98.08306709265176,
+          "delta": 2.5559105431309916,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "paper": 66.66666666666666,
+          "current": 80.3357314148681,
+          "delta": 13.66906474820145,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "paper": 84.48132780082987,
+          "current": 84.149377593361,
+          "delta": -0.3319502074688785,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "paper": 60.98654708520179,
+          "current": 69.5067264573991,
+          "delta": 8.520179372197305,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "paper": 90.38901601830663,
+          "current": 91.53318077803203,
+          "delta": 1.144164759725399,
+          "paper_valid": true
+        }
+      ]
+    },
+    "by_paper_valid_flag": {
+      "True": {
+        "n": 148,
+        "paper_mean": 77.40959636804267,
+        "current_mean": 77.41783095975131,
+        "mean_delta": 0.008234591708639289,
+        "contribution_pp": 0.006217957004482729,
+        "wins": 91,
+        "losses": 57,
+        "ties": 0
+      },
+      "False": {
+        "n": 48,
+        "paper_mean": 49.93341017597833,
+        "current_mean": 73.61508005981969,
+        "mean_delta": 23.681669883841362,
+        "contribution_pp": 5.799592624614211,
+        "wins": 34,
+        "losses": 13,
+        "ties": 1
+      }
+    }
+  },
+  "sol": {
+    "same_instance_numeric": {
+      "n": 175,
+      "paper_mean": 75.76367032987311,
+      "current_mean": 89.7696881655093,
+      "delta": 14.00601783563618,
+      "wins": 162,
+      "ties": 1,
+      "losses": 12,
+      "paper_95": 23,
+      "current_95": 94,
+      "paper_full": 4,
+      "current_full": 11,
+      "rows": [
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "paper": 99.41176470588235,
+          "current": 100.0,
+          "delta": 0.5882352941176521,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "paper": 43.141153081510936,
+          "current": 95.62624254473161,
+          "delta": 52.485089463220675,
+          "paper_valid": true
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "paper": 92.76437847866418,
+          "current": 99.81447124304268,
+          "delta": 7.0500927643784905,
+          "paper_valid": true
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "paper": 77.81740370898717,
+          "current": 94.07988587731812,
+          "delta": 16.262482168330948,
+          "paper_valid": true
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "paper": 91.5068493150685,
+          "current": 96.34703196347031,
+          "delta": 4.8401826484018216,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "paper": 91.31455399061032,
+          "current": 96.24413145539906,
+          "delta": 4.929577464788736,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "paper": 77.54172989377845,
+          "current": 91.57814871016691,
+          "delta": 14.036418816388462,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "paper": 46.533713200379864,
+          "current": 88.2241215574549,
+          "delta": 41.69040835707503,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "paper": 93.37748344370861,
+          "current": 100.0,
+          "delta": 6.622516556291387,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "paper": 29.760547320410492,
+          "current": 70.92360319270239,
+          "delta": 41.16305587229189,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "paper": 85.1512373968836,
+          "current": 68.19431714023831,
+          "delta": -16.95692025664529,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "paper": 94.01993355481729,
+          "current": 99.66777408637874,
+          "delta": 5.647840531561457,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "paper": 87.94788273615634,
+          "current": 98.69706840390879,
+          "delta": 10.749185667752442,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "paper": 83.95669291338582,
+          "current": 97.24409448818898,
+          "delta": 13.287401574803155,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "paper": 98.2998454404946,
+          "current": 99.84544049459042,
+          "delta": 1.545595054095827,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "paper": 79.96575342465754,
+          "current": 87.84246575342466,
+          "delta": 7.876712328767127,
+          "paper_valid": true
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "paper": 54.525862068965516,
+          "current": 69.39655172413794,
+          "delta": 14.87068965517242,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "paper": 92.12678936605317,
+          "current": 98.77300613496932,
+          "delta": 6.6462167689161475,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "paper": 89.40763052208835,
+          "current": 97.84136546184739,
+          "delta": 8.433734939759034,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "paper": 92.47038917089678,
+          "current": 99.32318104906938,
+          "delta": 6.852791878172596,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "paper": 88.85754583921015,
+          "current": 96.19181946403384,
+          "delta": 7.334273624823695,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "paper": 68.77323420074349,
+          "current": 93.12267657992564,
+          "delta": 24.34944237918215,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "paper": 79.7979797979798,
+          "current": 97.64309764309765,
+          "delta": 17.84511784511784,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "paper": 44.64882943143812,
+          "current": 83.4448160535117,
+          "delta": 38.79598662207358,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "paper": 87.81163434903047,
+          "current": 94.87534626038781,
+          "delta": 7.063711911357345,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "paper": 94.93827160493828,
+          "current": 99.75308641975309,
+          "delta": 4.8148148148148096,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "paper": 97.3913043478261,
+          "current": 99.30434782608695,
+          "delta": 1.9130434782608603,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "paper": 92.43119266055045,
+          "current": 99.19724770642202,
+          "delta": 6.766055045871568,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "paper": 80.56042031523643,
+          "current": 91.59369527145358,
+          "delta": 11.033274956217156,
+          "paper_valid": true
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "paper": 87.77589134125637,
+          "current": 98.81154499151104,
+          "delta": 11.035653650254673,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "paper": 60.84262701363073,
+          "current": 95.91078066914498,
+          "delta": 35.06815365551425,
+          "paper_valid": true
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "paper": 63.39144215530903,
+          "current": 99.3660855784469,
+          "delta": 35.97464342313787,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "paper": 75.12437810945273,
+          "current": 93.53233830845771,
+          "delta": 18.407960199004975,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "paper": 87.61061946902655,
+          "current": 98.58407079646018,
+          "delta": 10.973451327433636,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "paper": 43.203371970495255,
+          "current": 87.35511064278188,
+          "delta": 44.151738672286626,
+          "paper_valid": true
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "paper": 4.327375352775165,
+          "current": 51.88146754468485,
+          "delta": 47.55409219190969,
+          "paper_valid": true
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "paper": 79.26972909305064,
+          "current": 93.05064782096584,
+          "delta": 13.780918727915193,
+          "paper_valid": true
+        },
+        {
+          "task": "doxygen__doxygen.966d98e",
+          "paper": 30.434782608695656,
+          "current": 37.55458515283843,
+          "delta": 7.119802544142772,
+          "paper_valid": false
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "paper": 62.85226302305722,
+          "current": 81.04184457728437,
+          "delta": 18.189581554227146,
+          "paper_valid": true
+        },
+        {
+          "task": "duckdb__duckdb.bdb65ec",
+          "paper": 22.19861922464153,
+          "current": 48.11471056824217,
+          "delta": 25.916091343600637,
+          "paper_valid": false
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "paper": 79.32816537467701,
+          "current": 97.1576227390181,
+          "delta": 17.82945736434108,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "paper": 75.52631578947368,
+          "current": 99.73684210526315,
+          "delta": 24.210526315789465,
+          "paper_valid": true
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "paper": 87.20930232558139,
+          "current": 98.37209302325581,
+          "delta": 11.162790697674424,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "paper": 67.17557251908397,
+          "current": 89.69465648854961,
+          "delta": 22.51908396946564,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "paper": 67.24028043339707,
+          "current": 91.07711918419376,
+          "delta": 23.836838750796687,
+          "paper_valid": true
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "paper": 93.34470989761093,
+          "current": 88.05460750853243,
+          "delta": -5.290102389078498,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "paper": 88.61386138613861,
+          "current": 97.6897689768977,
+          "delta": 9.075907590759087,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "paper": 88.22374877330716,
+          "current": 98.82237487733072,
+          "delta": 10.598626104023552,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "paper": 63.150147203140335,
+          "current": 82.82630029440628,
+          "delta": 19.676153091265945,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "paper": 77.88461538461539,
+          "current": 99.67948717948718,
+          "delta": 21.794871794871796,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "paper": 66.12426035502959,
+          "current": 97.18934911242604,
+          "delta": 31.065088757396452,
+          "paper_valid": true
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "paper": 65.42239685658153,
+          "current": 88.21218074656188,
+          "delta": 22.789783889980356,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "paper": 76.53179190751445,
+          "current": 87.6300578034682,
+          "delta": 11.098265895953759,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "paper": 88.74501992031873,
+          "current": 99.00398406374502,
+          "delta": 10.258964143426297,
+          "paper_valid": true
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "paper": 91.19718309859155,
+          "current": 98.06338028169014,
+          "delta": 6.866197183098592,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "paper": 57.40365111561866,
+          "current": 14.60446247464503,
+          "delta": -42.799188640973625,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "paper": 89.56916099773242,
+          "current": 96.5986394557823,
+          "delta": 7.02947845804988,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "paper": 6.077795786061588,
+          "current": 21.79902755267423,
+          "delta": 15.72123176661264,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "paper": 83.32194121667807,
+          "current": 93.23308270676691,
+          "delta": 9.911141490088838,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "paper": 94.54545454545455,
+          "current": 98.18181818181819,
+          "delta": 3.6363636363636402,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "paper": 88.2286995515695,
+          "current": 99.43946188340807,
+          "delta": 11.210762331838566,
+          "paper_valid": true
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "paper": 94.37340153452686,
+          "current": 96.41943734015345,
+          "delta": 2.0460358056265875,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "paper": 30.03625064733299,
+          "current": 74.00310719834283,
+          "delta": 43.96685655100984,
+          "paper_valid": true
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "paper": 96.82080924855492,
+          "current": 83.38150289017341,
+          "delta": -13.439306358381515,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "paper": 88.0932556203164,
+          "current": 99.16736053288926,
+          "delta": 11.074104912572864,
+          "paper_valid": true
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "paper": 74.07407407407408,
+          "current": 76.60818713450293,
+          "delta": 2.534113060428851,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "paper": 51.006711409395976,
+          "current": 91.56279961649089,
+          "delta": 40.556088207094916,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "paper": 94.5827232796486,
+          "current": 100.0,
+          "delta": 5.417276720351396,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "paper": 74.96503496503496,
+          "current": 92.44755244755245,
+          "delta": 17.482517482517494,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "paper": 50.0,
+          "current": 83.47457627118644,
+          "delta": 33.474576271186436,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "paper": 98.11320754716981,
+          "current": 99.37106918238993,
+          "delta": 1.2578616352201237,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "paper": 65.96491228070175,
+          "current": 84.7953216374269,
+          "delta": 18.83040935672514,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "paper": 23.379363252780973,
+          "current": 49.290372075182205,
+          "delta": 25.911008822401232,
+          "paper_valid": true
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "paper": 52.42375601926164,
+          "current": 89.18138041733548,
+          "delta": 36.75762439807384,
+          "paper_valid": true
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "paper": 93.33333333333333,
+          "current": 98.75706214689266,
+          "delta": 5.423728813559336,
+          "paper_valid": true
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "paper": 83.54350567465322,
+          "current": 92.93820933165196,
+          "delta": 9.394703656998743,
+          "paper_valid": true
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "paper": 92.81949934123847,
+          "current": 96.96969696969697,
+          "delta": 4.1501976284585,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "paper": 94.77272727272728,
+          "current": 99.77272727272727,
+          "delta": 4.999999999999986,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "paper": 86.20689655172413,
+          "current": 95.04310344827587,
+          "delta": 8.836206896551744,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "paper": 78.07933194154488,
+          "current": 99.16492693110646,
+          "delta": 21.085594989561585,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "paper": 60.588235294117645,
+          "current": 85.29411764705883,
+          "delta": 24.70588235294118,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "paper": 83.63636363636363,
+          "current": 91.16883116883116,
+          "delta": 7.532467532467535,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "paper": 84.93408662900188,
+          "current": 88.32391713747646,
+          "delta": 3.3898305084745743,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "paper": 93.21357285429141,
+          "current": 76.04790419161677,
+          "delta": -17.165668662674648,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "paper": 81.83183183183183,
+          "current": 96.84684684684684,
+          "delta": 15.01501501501501,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "paper": 75.05827505827506,
+          "current": 90.20979020979021,
+          "delta": 15.151515151515156,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "paper": 100.0,
+          "current": 97.45889387144993,
+          "delta": -2.5411061285500693,
+          "paper_valid": true
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "paper": 100.0,
+          "current": 97.23626558813616,
+          "delta": -2.7637344118638367,
+          "paper_valid": true
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "paper": 96.86956521739131,
+          "current": 98.95652173913044,
+          "delta": 2.0869565217391255,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "paper": 80.4144385026738,
+          "current": 98.3288770053476,
+          "delta": 17.91443850267379,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "paper": 96.14921780986762,
+          "current": 99.15764139590854,
+          "delta": 3.0084235860409194,
+          "paper_valid": true
+        },
+        {
+          "task": "mfridman__tparse.2416b4b",
+          "paper": 86.58823529411764,
+          "current": 94.58823529411765,
+          "delta": 8.000000000000014,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "paper": 97.86941580756013,
+          "current": 100.0,
+          "delta": 2.130584192439869,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "paper": 42.77854195323246,
+          "current": 43.60385144429161,
+          "delta": 0.8253094910591443,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "paper": 87.93565683646113,
+          "current": 96.7828418230563,
+          "delta": 8.847184986595167,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "paper": 38.0,
+          "current": 86.75,
+          "delta": 48.75,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "paper": 84.08450704225352,
+          "current": 99.5774647887324,
+          "delta": 15.49295774647888,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "paper": 99.85007496251875,
+          "current": 93.10344827586206,
+          "delta": -6.746626686656683,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "paper": 91.41914191419141,
+          "current": 93.72937293729373,
+          "delta": 2.310231023102318,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "paper": 82.28782287822878,
+          "current": 96.49446494464945,
+          "delta": 14.20664206642067,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "paper": 75.66302652106084,
+          "current": 77.69110764430577,
+          "delta": 2.028081123244931,
+          "paper_valid": true
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "paper": 82.94209702660407,
+          "current": 94.60093896713614,
+          "delta": 11.65884194053207,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "paper": 74.59165154264973,
+          "current": 98.54809437386571,
+          "delta": 23.95644283121598,
+          "paper_valid": true
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "paper": 94.03606102635229,
+          "current": 97.78085991678225,
+          "delta": 3.744798890429962,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "paper": 82.5452016689847,
+          "current": 98.26147426981919,
+          "delta": 15.716272600834486,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "paper": 18.65203761755486,
+          "current": 54.54545454545454,
+          "delta": 35.89341692789968,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "paper": 87.34693877551021,
+          "current": 96.78571428571429,
+          "delta": 9.438775510204081,
+          "paper_valid": true
+        },
+        {
+          "task": "ogham__dog.721440b",
+          "paper": 95.23076923076923,
+          "current": 96.46153846153847,
+          "delta": 1.2307692307692406,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "paper": 88.17086527929902,
+          "current": 100.0,
+          "delta": 11.829134720700978,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "paper": 74.3558282208589,
+          "current": 99.14110429447854,
+          "delta": 24.78527607361964,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "paper": 85.20710059171599,
+          "current": 99.11242603550295,
+          "delta": 13.905325443786964,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "paper": 44.90106544901065,
+          "current": 80.51750380517504,
+          "delta": 35.61643835616439,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__proj.75d455c",
+          "paper": 20.360970107163002,
+          "current": 87.94886256815191,
+          "delta": 67.58789246098891,
+          "paper_valid": false
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "paper": 49.44388270980789,
+          "current": 84.27704752275025,
+          "delta": 34.833164812942364,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "paper": 100.0,
+          "current": 87.97736916548797,
+          "delta": -12.022630834512029,
+          "paper_valid": true
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "paper": 92.77456647398844,
+          "current": 97.6878612716763,
+          "delta": 4.913294797687854,
+          "paper_valid": true
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "paper": 72.20543806646525,
+          "current": 77.94561933534743,
+          "delta": 5.740181268882182,
+          "paper_valid": true
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "paper": 90.87719298245615,
+          "current": 100.0,
+          "delta": 9.122807017543849,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "paper": 72.60536398467433,
+          "current": 98.08429118773945,
+          "delta": 25.478927203065126,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "paper": 90.06849315068493,
+          "current": 98.97260273972603,
+          "delta": 8.904109589041099,
+          "paper_valid": true
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "paper": 74.822695035461,
+          "current": 94.50354609929079,
+          "delta": 19.68085106382979,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "paper": 54.25531914893617,
+          "current": 94.06028368794325,
+          "delta": 39.80496453900709,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "paper": 92.19015280135824,
+          "current": 99.66044142614601,
+          "delta": 7.47028862478777,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "paper": 64.33895645351117,
+          "current": 92.6637897214594,
+          "delta": 28.32483326794822,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "paper": 60.62874251497006,
+          "current": 82.48502994011976,
+          "delta": 21.856287425149702,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "paper": 94.22799422799423,
+          "current": 95.81529581529583,
+          "delta": 1.5873015873015959,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "paper": 26.07204116638079,
+          "current": 95.54030874785592,
+          "delta": 69.46826758147513,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "paper": 70.1525054466231,
+          "current": 72.00435729847494,
+          "delta": 1.8518518518518476,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "paper": 94.48345035105315,
+          "current": 99.89969909729187,
+          "delta": 5.416248746238722,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "paper": 79.26391382405745,
+          "current": 93.6265709156194,
+          "delta": 14.362657091561942,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "paper": 50.331125827814574,
+          "current": 81.96869355809753,
+          "delta": 31.637567730282953,
+          "paper_valid": true
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "paper": 39.859649122807014,
+          "current": 76.0,
+          "delta": 36.140350877192986,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "paper": 81.86157517899761,
+          "current": 91.40811455847255,
+          "delta": 9.546539379474936,
+          "paper_valid": true
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "paper": 90.09126466753585,
+          "current": 98.04432855280312,
+          "delta": 7.9530638852672695,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "paper": 68.33541927409262,
+          "current": 91.36420525657071,
+          "delta": 23.028785982478098,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "paper": 84.12955465587044,
+          "current": 87.61133603238866,
+          "delta": 3.481781376518228,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "paper": 93.70860927152319,
+          "current": 99.55849889624724,
+          "delta": 5.849889624724057,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "paper": 85.56701030927834,
+          "current": 97.59450171821305,
+          "delta": 12.027491408934708,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "paper": 94.81382978723404,
+          "current": 98.93617021276596,
+          "delta": 4.122340425531917,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "paper": 97.35449735449735,
+          "current": 98.67724867724867,
+          "delta": 1.3227513227513157,
+          "paper_valid": true
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "paper": 91.41414141414141,
+          "current": 94.82323232323232,
+          "delta": 3.4090909090909065,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "paper": 39.597989949748744,
+          "current": 79.69849246231155,
+          "delta": 40.100502512562805,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "paper": 95.34883720930233,
+          "current": 100.0,
+          "delta": 4.6511627906976685,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "paper": 94.10801963993454,
+          "current": 97.21767594108019,
+          "delta": 3.109656301145648,
+          "paper_valid": true
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "paper": 96.8408262454435,
+          "current": 100.0,
+          "delta": 3.1591737545565053,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "paper": 97.42690058479532,
+          "current": 99.29824561403508,
+          "delta": 1.8713450292397624,
+          "paper_valid": true
+        },
+        {
+          "task": "stacked-git__stgit.430027d",
+          "paper": 51.84687709872398,
+          "current": 88.84408602150538,
+          "delta": 36.9972089227814,
+          "paper_valid": false
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "paper": 37.60262725779967,
+          "current": 92.61083743842364,
+          "delta": 55.008210180623976,
+          "paper_valid": true
+        },
+        {
+          "task": "stranger6667__jsonschema.d52e881",
+          "paper": 58.0150068212824,
+          "current": 62.38062755798091,
+          "delta": 4.36562073669851,
+          "paper_valid": false
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "paper": 87.17105263157895,
+          "current": 99.3421052631579,
+          "delta": 12.17105263157896,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "paper": 95.52364864864865,
+          "current": 98.5641891891892,
+          "delta": 3.0405405405405475,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "paper": 90.75268817204301,
+          "current": 97.41935483870968,
+          "delta": 6.666666666666671,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "paper": 35.085945399393324,
+          "current": 22.093023255813954,
+          "delta": -12.99292214357937,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "paper": 91.66666666666666,
+          "current": 63.74999999999999,
+          "delta": -27.916666666666664,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "paper": 93.30357142857143,
+          "current": 98.21428571428571,
+          "delta": 4.910714285714278,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "paper": 74.04580152671755,
+          "current": 100.0,
+          "delta": 25.954198473282446,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "paper": 99.91883116883116,
+          "current": 73.62012987012987,
+          "delta": -26.29870129870129,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "paper": 20.222446916076844,
+          "current": 56.31951466127402,
+          "delta": 36.09706774519718,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "paper": 95.53191489361701,
+          "current": 98.79432624113475,
+          "delta": 3.262411347517741,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "paper": 50.696055684454755,
+          "current": 75.1740139211137,
+          "delta": 24.477958236658942,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "paper": 79.28176795580112,
+          "current": 92.81767955801105,
+          "delta": 13.535911602209936,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "paper": 19.66341895482728,
+          "current": 47.60850310008857,
+          "delta": 27.94508414526129,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "paper": 78.91373801916933,
+          "current": 99.68051118210862,
+          "delta": 20.766773162939288,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "paper": 99.1044776119403,
+          "current": 100.0,
+          "delta": 0.8955223880597032,
+          "paper_valid": true
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "paper": 82.85714285714286,
+          "current": 96.04395604395604,
+          "delta": 13.186813186813183,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "paper": 100.0,
+          "current": 100.0,
+          "delta": 0.0,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "paper": 69.12568306010928,
+          "current": 97.40437158469946,
+          "delta": 28.27868852459018,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "paper": 97.15302491103202,
+          "current": 98.93238434163702,
+          "delta": 1.7793594306049982,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "paper": 72.3314606741573,
+          "current": 95.36516853932584,
+          "delta": 23.033707865168537,
+          "paper_valid": true
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "paper": 90.41533546325878,
+          "current": 99.04153354632588,
+          "delta": 8.626198083067095,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "paper": 71.70263788968825,
+          "current": 85.85131894484412,
+          "delta": 14.148681055155876,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "paper": 76.84647302904565,
+          "current": 99.91701244813278,
+          "delta": 23.070539419087126,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "paper": 59.19282511210763,
+          "current": 99.55156950672645,
+          "delta": 40.358744394618824,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "paper": 87.75743707093821,
+          "current": 93.93592677345538,
+          "delta": 6.178489702517169,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "paper": 55.465221318879856,
+          "current": 84.5528455284553,
+          "delta": 29.087624209575438,
+          "paper_valid": true
+        }
+      ]
+    },
+    "same_instance_paper_valid": {
+      "n": 170,
+      "paper_mean": 76.91638854039581,
+      "current_mean": 90.49913268879651,
+      "delta": 13.582744148400701,
+      "wins": 157,
+      "ties": 1,
+      "losses": 12,
+      "paper_95": 23,
+      "current_95": 94,
+      "paper_full": 4,
+      "current_full": 11,
+      "rows": [
+        {
+          "task": "agourlay__zip-password-finder.704700d",
+          "paper": 99.41176470588235,
+          "current": 100.0,
+          "delta": 0.5882352941176521,
+          "paper_valid": true
+        },
+        {
+          "task": "alecthomas__chroma.8d04def",
+          "paper": 43.141153081510936,
+          "current": 95.62624254473161,
+          "delta": 52.485089463220675,
+          "paper_valid": true
+        },
+        {
+          "task": "altdesktop__i3-style.f93821b",
+          "paper": 92.76437847866418,
+          "current": 99.81447124304268,
+          "delta": 7.0500927643784905,
+          "paper_valid": true
+        },
+        {
+          "task": "ammarabouzor__tui-journal.2b4540d",
+          "paper": 77.81740370898717,
+          "current": 94.07988587731812,
+          "delta": 16.262482168330948,
+          "paper_valid": true
+        },
+        {
+          "task": "anordal__shellharden.6a6ffd4",
+          "paper": 91.5068493150685,
+          "current": 96.34703196347031,
+          "delta": 4.8401826484018216,
+          "paper_valid": true
+        },
+        {
+          "task": "antonmedv__walk.bf802ef",
+          "paper": 91.31455399061032,
+          "current": 96.24413145539906,
+          "delta": 4.929577464788736,
+          "paper_valid": true
+        },
+        {
+          "task": "ariga__atlas.6d81150",
+          "paper": 77.54172989377845,
+          "current": 91.57814871016691,
+          "delta": 14.036418816388462,
+          "paper_valid": true
+        },
+        {
+          "task": "arq5x__bedtools2.dd57059",
+          "paper": 46.533713200379864,
+          "current": 88.2241215574549,
+          "delta": 41.69040835707503,
+          "paper_valid": true
+        },
+        {
+          "task": "arthursonzogni__json-tui.17a22b6",
+          "paper": 93.37748344370861,
+          "current": 100.0,
+          "delta": 6.622516556291387,
+          "paper_valid": true
+        },
+        {
+          "task": "ast-grep__ast-grep.dde0fe0",
+          "paper": 29.760547320410492,
+          "current": 70.92360319270239,
+          "delta": 41.16305587229189,
+          "paper_valid": true
+        },
+        {
+          "task": "astaxie__bat.17d1080",
+          "paper": 85.1512373968836,
+          "current": 68.19431714023831,
+          "delta": -16.95692025664529,
+          "paper_valid": true
+        },
+        {
+          "task": "astro__deadnix.d590041",
+          "paper": 94.01993355481729,
+          "current": 99.66777408637874,
+          "delta": 5.647840531561457,
+          "paper_valid": true
+        },
+        {
+          "task": "bensadeh__tailspin.6278437",
+          "paper": 87.94788273615634,
+          "current": 98.69706840390879,
+          "delta": 10.749185667752442,
+          "paper_valid": true
+        },
+        {
+          "task": "blacknon__hwatch.edfcb62",
+          "paper": 83.95669291338582,
+          "current": 97.24409448818898,
+          "delta": 13.287401574803155,
+          "paper_valid": true
+        },
+        {
+          "task": "blake3-team__blake3.15e83a5",
+          "paper": 98.2998454404946,
+          "current": 99.84544049459042,
+          "delta": 1.545595054095827,
+          "paper_valid": true
+        },
+        {
+          "task": "bootandy__dust.62bf1e1",
+          "paper": 79.96575342465754,
+          "current": 87.84246575342466,
+          "delta": 7.876712328767127,
+          "paper_valid": true
+        },
+        {
+          "task": "boyter__scc.515f91c",
+          "paper": 54.525862068965516,
+          "current": 69.39655172413794,
+          "delta": 14.87068965517242,
+          "paper_valid": true
+        },
+        {
+          "task": "brocode__fblog.3b54330",
+          "paper": 92.12678936605317,
+          "current": 98.77300613496932,
+          "delta": 6.6462167689161475,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__ripgrep.3b7fd44",
+          "paper": 89.40763052208835,
+          "current": 97.84136546184739,
+          "delta": 8.433734939759034,
+          "paper_valid": true
+        },
+        {
+          "task": "burntsushi__xsv.f430466",
+          "paper": 92.47038917089678,
+          "current": 99.32318104906938,
+          "delta": 6.852791878172596,
+          "paper_valid": true
+        },
+        {
+          "task": "byron__dua-cli.8570c15",
+          "paper": 88.85754583921015,
+          "current": 96.19181946403384,
+          "delta": 7.334273624823695,
+          "paper_valid": true
+        },
+        {
+          "task": "canop__broot.d6c798e",
+          "paper": 68.77323420074349,
+          "current": 93.12267657992564,
+          "delta": 24.34944237918215,
+          "paper_valid": true
+        },
+        {
+          "task": "cheat__cheat.b8098dc",
+          "paper": 79.7979797979798,
+          "current": 97.64309764309765,
+          "delta": 17.84511784511784,
+          "paper_valid": true
+        },
+        {
+          "task": "chirlu__sox.42b3557",
+          "paper": 44.64882943143812,
+          "current": 83.4448160535117,
+          "delta": 38.79598662207358,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__handlr.90e78ba",
+          "paper": 87.81163434903047,
+          "current": 94.87534626038781,
+          "delta": 7.063711911357345,
+          "paper_valid": true
+        },
+        {
+          "task": "chmln__sd.87d1ba5",
+          "paper": 94.93827160493828,
+          "current": 99.75308641975309,
+          "delta": 4.8148148148148096,
+          "paper_valid": true
+        },
+        {
+          "task": "clog-tool__clog-cli.7066cba",
+          "paper": 97.3913043478261,
+          "current": 99.30434782608695,
+          "delta": 1.9130434782608603,
+          "paper_valid": true
+        },
+        {
+          "task": "cmatsuoka__figlet.202a0a8",
+          "paper": 92.43119266055045,
+          "current": 99.19724770642202,
+          "delta": 6.766055045871568,
+          "paper_valid": true
+        },
+        {
+          "task": "codesnap-rs__codesnap.f81e4f3",
+          "paper": 80.56042031523643,
+          "current": 91.59369527145358,
+          "delta": 11.033274956217156,
+          "paper_valid": true
+        },
+        {
+          "task": "cordx56__rustowl.655bc5c",
+          "paper": 87.77589134125637,
+          "current": 98.81154499151104,
+          "delta": 11.035653650254673,
+          "paper_valid": true
+        },
+        {
+          "task": "crowdagger__crowbook.ea214d7",
+          "paper": 60.84262701363073,
+          "current": 95.91078066914498,
+          "delta": 35.06815365551425,
+          "paper_valid": true
+        },
+        {
+          "task": "cslarsen__jp2a.61d205f",
+          "paper": 63.39144215530903,
+          "current": 99.3660855784469,
+          "delta": 35.97464342313787,
+          "paper_valid": true
+        },
+        {
+          "task": "cweill__gotests.2a672c5",
+          "paper": 75.12437810945273,
+          "current": 93.53233830845771,
+          "delta": 18.407960199004975,
+          "paper_valid": true
+        },
+        {
+          "task": "dalance__amber.69a0f52",
+          "paper": 87.61061946902655,
+          "current": 98.58407079646018,
+          "delta": 10.973451327433636,
+          "paper_valid": true
+        },
+        {
+          "task": "dandavison__delta.acd758f",
+          "paper": 43.203371970495255,
+          "current": 87.35511064278188,
+          "delta": 44.151738672286626,
+          "paper_valid": true
+        },
+        {
+          "task": "danmar__cppcheck.0a5b103",
+          "paper": 4.327375352775165,
+          "current": 51.88146754468485,
+          "delta": 47.55409219190969,
+          "paper_valid": true
+        },
+        {
+          "task": "direnv__direnv.02040c7",
+          "paper": 79.26972909305064,
+          "current": 93.05064782096584,
+          "delta": 13.780918727915193,
+          "paper_valid": true
+        },
+        {
+          "task": "ducaale__xh.4a6e44f",
+          "paper": 62.85226302305722,
+          "current": 81.04184457728437,
+          "delta": 18.189581554227146,
+          "paper_valid": true
+        },
+        {
+          "task": "dundee__gdu.ede21d2",
+          "paper": 79.32816537467701,
+          "current": 97.1576227390181,
+          "delta": 17.82945736434108,
+          "paper_valid": true
+        },
+        {
+          "task": "ecumene__rust-sloth.051c559",
+          "paper": 75.52631578947368,
+          "current": 99.73684210526315,
+          "delta": 24.210526315789465,
+          "paper_valid": true
+        },
+        {
+          "task": "eliukblau__pixterm.1a93fd5",
+          "paper": 87.20930232558139,
+          "current": 98.37209302325581,
+          "delta": 11.162790697674424,
+          "paper_valid": true
+        },
+        {
+          "task": "elkowar__pipr.fae0b17",
+          "paper": 67.17557251908397,
+          "current": 89.69465648854961,
+          "delta": 22.51908396946564,
+          "paper_valid": true
+        },
+        {
+          "task": "epistates__treemd.825c6dd",
+          "paper": 67.24028043339707,
+          "current": 91.07711918419376,
+          "delta": 23.836838750796687,
+          "paper_valid": true
+        },
+        {
+          "task": "eradman__entr.8e2e8b4",
+          "paper": 93.34470989761093,
+          "current": 88.05460750853243,
+          "delta": -5.290102389078498,
+          "paper_valid": true
+        },
+        {
+          "task": "esubaalew__run.0fb9dec",
+          "paper": 88.61386138613861,
+          "current": 97.6897689768977,
+          "delta": 9.075907590759087,
+          "paper_valid": true
+        },
+        {
+          "task": "eudoxia0__hashcards.48aa136",
+          "paper": 88.22374877330716,
+          "current": 98.82237487733072,
+          "delta": 10.598626104023552,
+          "paper_valid": true
+        },
+        {
+          "task": "facebook__zstd.1168da0",
+          "paper": 63.150147203140335,
+          "current": 82.82630029440628,
+          "delta": 19.676153091265945,
+          "paper_valid": true
+        },
+        {
+          "task": "facebookresearch__fasttext.1142dc4",
+          "paper": 77.88461538461539,
+          "current": 99.67948717948718,
+          "delta": 21.794871794871796,
+          "paper_valid": true
+        },
+        {
+          "task": "filosottile__age.706dfc1",
+          "paper": 66.12426035502959,
+          "current": 97.18934911242604,
+          "delta": 31.065088757396452,
+          "paper_valid": true
+        },
+        {
+          "task": "foriequal0__git-trim.07c2f50",
+          "paper": 65.42239685658153,
+          "current": 88.21218074656188,
+          "delta": 22.789783889980356,
+          "paper_valid": true
+        },
+        {
+          "task": "gabotechs__dep-tree.60a95a2",
+          "paper": 76.53179190751445,
+          "current": 87.6300578034682,
+          "delta": 11.098265895953759,
+          "paper_valid": true
+        },
+        {
+          "task": "ggreer__the_silver_searcher.a61f178",
+          "paper": 88.74501992031873,
+          "current": 99.00398406374502,
+          "delta": 10.258964143426297,
+          "paper_valid": true
+        },
+        {
+          "task": "git-bahn__git-graph.87b4473",
+          "paper": 91.19718309859155,
+          "current": 98.06338028169014,
+          "delta": 6.866197183098592,
+          "paper_valid": true
+        },
+        {
+          "task": "go-critic__go-critic.9aea378",
+          "paper": 57.40365111561866,
+          "current": 14.60446247464503,
+          "delta": -42.799188640973625,
+          "paper_valid": true
+        },
+        {
+          "task": "google__brotli.b3dc9cc",
+          "paper": 89.56916099773242,
+          "current": 96.5986394557823,
+          "delta": 7.02947845804988,
+          "paper_valid": true
+        },
+        {
+          "task": "gromacs__gromacs.665ea4c",
+          "paper": 6.077795786061588,
+          "current": 21.79902755267423,
+          "delta": 15.72123176661264,
+          "paper_valid": true
+        },
+        {
+          "task": "hairyhenderson__gomplate.05eb3aa",
+          "paper": 83.32194121667807,
+          "current": 93.23308270676691,
+          "delta": 9.911141490088838,
+          "paper_valid": true
+        },
+        {
+          "task": "halitechallenge__halite.822cfb6",
+          "paper": 94.54545454545455,
+          "current": 98.18181818181819,
+          "delta": 3.6363636363636402,
+          "paper_valid": true
+        },
+        {
+          "task": "hatoo__oha.8dc6349",
+          "paper": 88.2286995515695,
+          "current": 99.43946188340807,
+          "delta": 11.210762331838566,
+          "paper_valid": true
+        },
+        {
+          "task": "hooklift__gowsdl.2a06cec",
+          "paper": 94.37340153452686,
+          "current": 96.41943734015345,
+          "delta": 2.0460358056265875,
+          "paper_valid": true
+        },
+        {
+          "task": "hpjansson__chafa.dd4d4c1",
+          "paper": 30.03625064733299,
+          "current": 74.00310719834283,
+          "delta": 43.96685655100984,
+          "paper_valid": true
+        },
+        {
+          "task": "htop-dev__htop.523600b",
+          "paper": 96.82080924855492,
+          "current": 83.38150289017341,
+          "delta": -13.439306358381515,
+          "paper_valid": true
+        },
+        {
+          "task": "hush-shell__hush.560c33a",
+          "paper": 88.0932556203164,
+          "current": 99.16736053288926,
+          "delta": 11.074104912572864,
+          "paper_valid": true
+        },
+        {
+          "task": "incu6us__goimports-reviser.81bd549",
+          "paper": 74.07407407407408,
+          "current": 76.60818713450293,
+          "delta": 2.534113060428851,
+          "paper_valid": true
+        },
+        {
+          "task": "ip7z__7zip.839151e",
+          "paper": 51.006711409395976,
+          "current": 91.56279961649089,
+          "delta": 40.556088207094916,
+          "paper_valid": true
+        },
+        {
+          "task": "ismaelgv__rnr.fc0733b",
+          "paper": 94.5827232796486,
+          "current": 100.0,
+          "delta": 5.417276720351396,
+          "paper_valid": true
+        },
+        {
+          "task": "isona__dirble.e2dea9f",
+          "paper": 74.96503496503496,
+          "current": 92.44755244755245,
+          "delta": 17.482517482517494,
+          "paper_valid": true
+        },
+        {
+          "task": "ivanceras__svgbob.6d00ad9",
+          "paper": 50.0,
+          "current": 83.47457627118644,
+          "delta": 33.474576271186436,
+          "paper_valid": true
+        },
+        {
+          "task": "jarun__nnn.cb2c535",
+          "paper": 98.11320754716981,
+          "current": 99.37106918238993,
+          "delta": 1.2578616352201237,
+          "paper_valid": true
+        },
+        {
+          "task": "jesseduffield__lazygit.1d0db51",
+          "paper": 65.96491228070175,
+          "current": 84.7953216374269,
+          "delta": 18.83040935672514,
+          "paper_valid": true
+        },
+        {
+          "task": "jgm__pandoc.5caad90",
+          "paper": 23.379363252780973,
+          "current": 49.290372075182205,
+          "delta": 25.911008822401232,
+          "paper_valid": true
+        },
+        {
+          "task": "jhspetersson__fselect.c3559ca",
+          "paper": 52.42375601926164,
+          "current": 89.18138041733548,
+          "delta": 36.75762439807384,
+          "paper_valid": true
+        },
+        {
+          "task": "johanneskaufmann__html-to-markdown.3006818",
+          "paper": 93.33333333333333,
+          "current": 98.75706214689266,
+          "delta": 5.423728813559336,
+          "paper_valid": true
+        },
+        {
+          "task": "jonas__tig.8334123",
+          "paper": 83.54350567465322,
+          "current": 92.93820933165196,
+          "delta": 9.394703656998743,
+          "paper_valid": true
+        },
+        {
+          "task": "jqlang__jq.b33a763",
+          "paper": 92.81949934123847,
+          "current": 96.96969696969697,
+          "delta": 4.1501976284585,
+          "paper_valid": true
+        },
+        {
+          "task": "jrnxf__thokr.09375ef",
+          "paper": 94.77272727272728,
+          "current": 99.77272727272727,
+          "delta": 4.999999999999986,
+          "paper_valid": true
+        },
+        {
+          "task": "junegunn__fzf.b56d614",
+          "paper": 86.20689655172413,
+          "current": 95.04310344827587,
+          "delta": 8.836206896551744,
+          "paper_valid": true
+        },
+        {
+          "task": "kaushiksrini__parqeye.8072121",
+          "paper": 78.07933194154488,
+          "current": 99.16492693110646,
+          "delta": 21.085594989561585,
+          "paper_valid": true
+        },
+        {
+          "task": "kisielk__errcheck.dacab89",
+          "paper": 60.588235294117645,
+          "current": 85.29411764705883,
+          "delta": 24.70588235294118,
+          "paper_valid": true
+        },
+        {
+          "task": "konradsz__igrep.aa75630",
+          "paper": 83.63636363636363,
+          "current": 91.16883116883116,
+          "delta": 7.532467532467535,
+          "paper_valid": true
+        },
+        {
+          "task": "ksxgithub__parallel-disk-usage.96978ed",
+          "paper": 84.93408662900188,
+          "current": 88.32391713747646,
+          "delta": 3.3898305084745743,
+          "paper_valid": true
+        },
+        {
+          "task": "kyoheiu__felix.95df390",
+          "paper": 93.21357285429141,
+          "current": 76.04790419161677,
+          "delta": -17.165668662674648,
+          "paper_valid": true
+        },
+        {
+          "task": "lfos__calcurse.49180d5",
+          "paper": 81.83183183183183,
+          "current": 96.84684684684684,
+          "delta": 15.01501501501501,
+          "paper_valid": true
+        },
+        {
+          "task": "lh3__seqtk.94e7070",
+          "paper": 75.05827505827506,
+          "current": 90.20979020979021,
+          "delta": 15.151515151515156,
+          "paper_valid": true
+        },
+        {
+          "task": "lua__lua.c6b4848",
+          "paper": 100.0,
+          "current": 97.45889387144993,
+          "delta": -2.5411061285500693,
+          "paper_valid": true
+        },
+        {
+          "task": "luajit__luajit.a553b3d",
+          "paper": 100.0,
+          "current": 97.23626558813616,
+          "delta": -2.7637344118638367,
+          "paper_valid": true
+        },
+        {
+          "task": "lymphatus__caesium-clt.a529b2e",
+          "paper": 96.86956521739131,
+          "current": 98.95652173913044,
+          "delta": 2.0869565217391255,
+          "paper_valid": true
+        },
+        {
+          "task": "lz4__lz4.1519f46",
+          "paper": 80.4144385026738,
+          "current": 98.3288770053476,
+          "delta": 17.91443850267379,
+          "paper_valid": true
+        },
+        {
+          "task": "madler__pigz.fe4894f",
+          "paper": 96.14921780986762,
+          "current": 99.15764139590854,
+          "delta": 3.0084235860409194,
+          "paper_valid": true
+        },
+        {
+          "task": "mfridman__tparse.2416b4b",
+          "paper": 86.58823529411764,
+          "current": 94.58823529411765,
+          "delta": 8.000000000000014,
+          "paper_valid": true
+        },
+        {
+          "task": "mgdm__htmlq.6e31bc8",
+          "paper": 97.86941580756013,
+          "current": 100.0,
+          "delta": 2.130584192439869,
+          "paper_valid": true
+        },
+        {
+          "task": "mgechev__revive.201451e",
+          "paper": 42.77854195323246,
+          "current": 43.60385144429161,
+          "delta": 0.8253094910591443,
+          "paper_valid": true
+        },
+        {
+          "task": "mibk__dupl.1bf052b",
+          "paper": 87.93565683646113,
+          "current": 96.7828418230563,
+          "delta": 8.847184986595167,
+          "paper_valid": true
+        },
+        {
+          "task": "mikefarah__yq.602586d",
+          "paper": 38.0,
+          "current": 86.75,
+          "delta": 48.75,
+          "paper_valid": true
+        },
+        {
+          "task": "miserlou__loop.209927c",
+          "paper": 84.08450704225352,
+          "current": 99.5774647887324,
+          "delta": 15.49295774647888,
+          "paper_valid": true
+        },
+        {
+          "task": "mkj__dropbear.75f699b",
+          "paper": 99.85007496251875,
+          "current": 93.10344827586206,
+          "delta": -6.746626686656683,
+          "paper_valid": true
+        },
+        {
+          "task": "mookid__diffr.2152742",
+          "paper": 91.41914191419141,
+          "current": 93.72937293729373,
+          "delta": 2.310231023102318,
+          "paper_valid": true
+        },
+        {
+          "task": "multiprocessio__dsq.c3ae0ba",
+          "paper": 82.28782287822878,
+          "current": 96.49446494464945,
+          "delta": 14.20664206642067,
+          "paper_valid": true
+        },
+        {
+          "task": "nachoparker__dutree.44e877d",
+          "paper": 75.66302652106084,
+          "current": 77.69110764430577,
+          "delta": 2.028081123244931,
+          "paper_valid": true
+        },
+        {
+          "task": "naggie__dstask.ff57396",
+          "paper": 82.94209702660407,
+          "current": 94.60093896713614,
+          "delta": 11.65884194053207,
+          "paper_valid": true
+        },
+        {
+          "task": "nikoladucak__caps-log.2cf2d1e",
+          "paper": 74.59165154264973,
+          "current": 98.54809437386571,
+          "delta": 23.95644283121598,
+          "paper_valid": true
+        },
+        {
+          "task": "nikolassv__bartib.6b9b5ce",
+          "paper": 94.03606102635229,
+          "current": 97.78085991678225,
+          "delta": 3.744798890429962,
+          "paper_valid": true
+        },
+        {
+          "task": "ninja-build__ninja.cc60300",
+          "paper": 82.5452016689847,
+          "current": 98.26147426981919,
+          "delta": 15.716272600834486,
+          "paper_valid": true
+        },
+        {
+          "task": "nukesor__pueue.8b9d6fe",
+          "paper": 18.65203761755486,
+          "current": 54.54545454545454,
+          "delta": 35.89341692789968,
+          "paper_valid": true
+        },
+        {
+          "task": "nuta__nsh.bdd0702",
+          "paper": 87.34693877551021,
+          "current": 96.78571428571429,
+          "delta": 9.438775510204081,
+          "paper_valid": true
+        },
+        {
+          "task": "ogham__dog.721440b",
+          "paper": 95.23076923076923,
+          "current": 96.46153846153847,
+          "delta": 1.2307692307692406,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__eva.41ae245",
+          "paper": 88.17086527929902,
+          "current": 100.0,
+          "delta": 11.829134720700978,
+          "paper_valid": true
+        },
+        {
+          "task": "oppiliappan__statix.e9df54c",
+          "paper": 74.3558282208589,
+          "current": 99.14110429447854,
+          "delta": 24.78527607361964,
+          "paper_valid": true
+        },
+        {
+          "task": "orf__gping.26eb5b9",
+          "paper": 85.20710059171599,
+          "current": 99.11242603550295,
+          "delta": 13.905325443786964,
+          "paper_valid": true
+        },
+        {
+          "task": "osgeo__gdal.0847f12",
+          "paper": 44.90106544901065,
+          "current": 80.51750380517504,
+          "delta": 35.61643835616439,
+          "paper_valid": true
+        },
+        {
+          "task": "paradigmxyz__solar.5190d0e",
+          "paper": 49.44388270980789,
+          "current": 84.27704752275025,
+          "delta": 34.833164812942364,
+          "paper_valid": true
+        },
+        {
+          "task": "parcel-bundler__lightningcss.aa2ed1e",
+          "paper": 100.0,
+          "current": 87.97736916548797,
+          "delta": -12.022630834512029,
+          "paper_valid": true
+        },
+        {
+          "task": "pier-cli__pier.5e1bde9",
+          "paper": 92.77456647398844,
+          "current": 97.6878612716763,
+          "delta": 4.913294797687854,
+          "paper_valid": true
+        },
+        {
+          "task": "pls-rs__pls.4e1ae50",
+          "paper": 72.20543806646525,
+          "current": 77.94561933534743,
+          "delta": 5.740181268882182,
+          "paper_valid": true
+        },
+        {
+          "task": "psampaz__go-mod-outdated.bb79367",
+          "paper": 90.87719298245615,
+          "current": 100.0,
+          "delta": 9.122807017543849,
+          "paper_valid": true
+        },
+        {
+          "task": "quinn-rs__quinn.bb359cc",
+          "paper": 72.60536398467433,
+          "current": 98.08429118773945,
+          "delta": 25.478927203065126,
+          "paper_valid": true
+        },
+        {
+          "task": "raviqqe__muffet.a882908",
+          "paper": 90.06849315068493,
+          "current": 98.97260273972603,
+          "delta": 8.904109589041099,
+          "paper_valid": true
+        },
+        {
+          "task": "rbakbashev__elfcat.52f8cc7",
+          "paper": 74.822695035461,
+          "current": 94.50354609929079,
+          "delta": 19.68085106382979,
+          "paper_valid": true
+        },
+        {
+          "task": "rcoh__angle-grinder.9c2fc88",
+          "paper": 54.25531914893617,
+          "current": 94.06028368794325,
+          "delta": 39.80496453900709,
+          "paper_valid": true
+        },
+        {
+          "task": "rhysd__kiro-editor.4157485",
+          "paper": 92.19015280135824,
+          "current": 99.66044142614601,
+          "delta": 7.47028862478777,
+          "paper_valid": true
+        },
+        {
+          "task": "robertdavidgraham__masscan.b99d433",
+          "paper": 64.33895645351117,
+          "current": 92.6637897214594,
+          "delta": 28.32483326794822,
+          "paper_valid": true
+        },
+        {
+          "task": "rochacbruno__marmite.7d4bc2d",
+          "paper": 60.62874251497006,
+          "current": 82.48502994011976,
+          "delta": 21.856287425149702,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__curlie.5dfcbb1",
+          "paper": 94.22799422799423,
+          "current": 95.81529581529583,
+          "delta": 1.5873015873015959,
+          "paper_valid": true
+        },
+        {
+          "task": "rs__jplot.2a54bcc",
+          "paper": 26.07204116638079,
+          "current": 95.54030874785592,
+          "delta": 69.46826758147513,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-embedded__svd2rust.1760b5e",
+          "paper": 70.1525054466231,
+          "current": 72.00435729847494,
+          "delta": 1.8518518518518476,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-ethereum__ethabi.b1710ad",
+          "paper": 94.48345035105315,
+          "current": 99.89969909729187,
+          "delta": 5.416248746238722,
+          "paper_valid": true
+        },
+        {
+          "task": "rust-lang__mdbook.37273ba",
+          "paper": 79.26391382405745,
+          "current": 93.6265709156194,
+          "delta": 14.362657091561942,
+          "paper_valid": true
+        },
+        {
+          "task": "rvben__rumdl.2d75c4d",
+          "paper": 50.331125827814574,
+          "current": 81.96869355809753,
+          "delta": 31.637567730282953,
+          "paper_valid": true
+        },
+        {
+          "task": "samtools__samtools.aa823b5",
+          "paper": 39.859649122807014,
+          "current": 76.0,
+          "delta": 36.140350877192986,
+          "paper_valid": true
+        },
+        {
+          "task": "sayanarijit__xplr.1751065",
+          "paper": 81.86157517899761,
+          "current": 91.40811455847255,
+          "delta": 9.546539379474936,
+          "paper_valid": true
+        },
+        {
+          "task": "sclevine__yj.8016400",
+          "paper": 90.09126466753585,
+          "current": 98.04432855280312,
+          "delta": 7.9530638852672695,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__bat.f822bd0",
+          "paper": 68.33541927409262,
+          "current": 91.36420525657071,
+          "delta": 23.028785982478098,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__fd.40d8eb3",
+          "paper": 84.12955465587044,
+          "current": 87.61133603238866,
+          "delta": 3.481781376518228,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hexyl.2e26437",
+          "paper": 93.70860927152319,
+          "current": 99.55849889624724,
+          "delta": 5.849889624724057,
+          "paper_valid": true
+        },
+        {
+          "task": "sharkdp__hyperfine.327d5f4",
+          "paper": 85.56701030927834,
+          "current": 97.59450171821305,
+          "delta": 12.027491408934708,
+          "paper_valid": true
+        },
+        {
+          "task": "shashwatah__jot.a92aad8",
+          "paper": 94.81382978723404,
+          "current": 98.93617021276596,
+          "delta": 4.122340425531917,
+          "paper_valid": true
+        },
+        {
+          "task": "sheepla__pingu.926d475",
+          "paper": 97.35449735449735,
+          "current": 98.67724867724867,
+          "delta": 1.3227513227513157,
+          "paper_valid": true
+        },
+        {
+          "task": "sibprogrammer__xq.b89f681",
+          "paper": 91.41414141414141,
+          "current": 94.82323232323232,
+          "delta": 3.4090909090909065,
+          "paper_valid": true
+        },
+        {
+          "task": "sigoden__argc.04a08f1",
+          "paper": 39.597989949748744,
+          "current": 79.69849246231155,
+          "delta": 40.100502512562805,
+          "paper_valid": true
+        },
+        {
+          "task": "simeg__eureka.df3796c",
+          "paper": 95.34883720930233,
+          "current": 100.0,
+          "delta": 4.6511627906976685,
+          "paper_valid": true
+        },
+        {
+          "task": "sirwart__ripsecrets.34c9e03",
+          "paper": 94.10801963993454,
+          "current": 97.21767594108019,
+          "delta": 3.109656301145648,
+          "paper_valid": true
+        },
+        {
+          "task": "sitkevij__hex.61ae69b",
+          "paper": 96.8408262454435,
+          "current": 100.0,
+          "delta": 3.1591737545565053,
+          "paper_valid": true
+        },
+        {
+          "task": "sstadick__hck.b66c751",
+          "paper": 97.42690058479532,
+          "current": 99.29824561403508,
+          "delta": 1.8713450292397624,
+          "paper_valid": true
+        },
+        {
+          "task": "stathissideris__ditaa.f2286c4",
+          "paper": 37.60262725779967,
+          "current": 92.61083743842364,
+          "delta": 55.008210180623976,
+          "paper_valid": true
+        },
+        {
+          "task": "svenstaro__miniserve.8449e8b",
+          "paper": 87.17105263157895,
+          "current": 99.3421052631579,
+          "delta": 12.17105263157896,
+          "paper_valid": true
+        },
+        {
+          "task": "tarka__xcp.5e5b448",
+          "paper": 95.52364864864865,
+          "current": 98.5641891891892,
+          "delta": 3.0405405405405475,
+          "paper_valid": true
+        },
+        {
+          "task": "thezoraiz__ascii-image-converter.d05a757",
+          "paper": 90.75268817204301,
+          "current": 97.41935483870968,
+          "delta": 6.666666666666671,
+          "paper_valid": true
+        },
+        {
+          "task": "tinycc__tinycc.9b8765d",
+          "paper": 35.085945399393324,
+          "current": 22.093023255813954,
+          "delta": -12.99292214357937,
+          "paper_valid": true
+        },
+        {
+          "task": "tomarrell__wrapcheck.c058da1",
+          "paper": 91.66666666666666,
+          "current": 63.74999999999999,
+          "delta": -27.916666666666664,
+          "paper_valid": true
+        },
+        {
+          "task": "tomnomnom__gron.88a6234",
+          "paper": 93.30357142857143,
+          "current": 98.21428571428571,
+          "delta": 4.910714285714278,
+          "paper_valid": true
+        },
+        {
+          "task": "trasta298__keifu.3331426",
+          "paper": 74.04580152671755,
+          "current": 100.0,
+          "delta": 25.954198473282446,
+          "paper_valid": true
+        },
+        {
+          "task": "tree-sitter__tree-sitter.5e23cca",
+          "paper": 99.91883116883116,
+          "current": 73.62012987012987,
+          "delta": -26.29870129870129,
+          "paper_valid": true
+        },
+        {
+          "task": "tstack__lnav.ee34494",
+          "paper": 20.222446916076844,
+          "current": 56.31951466127402,
+          "delta": 36.09706774519718,
+          "paper_valid": true
+        },
+        {
+          "task": "tukaani-project__xz.1007bf0",
+          "paper": 95.53191489361701,
+          "current": 98.79432624113475,
+          "delta": 3.262411347517741,
+          "paper_valid": true
+        },
+        {
+          "task": "typst__typst.88356d0",
+          "paper": 50.696055684454755,
+          "current": 75.1740139211137,
+          "delta": 24.477958236658942,
+          "paper_valid": true
+        },
+        {
+          "task": "unhappychoice__gittype.34b72d0",
+          "paper": 79.28176795580112,
+          "current": 92.81767955801105,
+          "delta": 13.535911602209936,
+          "paper_valid": true
+        },
+        {
+          "task": "universal-ctags__ctags.243595e",
+          "paper": 19.66341895482728,
+          "current": 47.60850310008857,
+          "delta": 27.94508414526129,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__code-minimap.0ddeea5",
+          "paper": 78.91373801916933,
+          "current": 99.68051118210862,
+          "delta": 20.766773162939288,
+          "paper_valid": true
+        },
+        {
+          "task": "wfxr__csview.8ac4de0",
+          "paper": 99.1044776119403,
+          "current": 100.0,
+          "delta": 0.8955223880597032,
+          "paper_valid": true
+        },
+        {
+          "task": "wgunderwood__tex-fmt.3f1aef6",
+          "paper": 82.85714285714286,
+          "current": 96.04395604395604,
+          "delta": 13.186813186813183,
+          "paper_valid": true
+        },
+        {
+          "task": "wintermute-cell__ngrrram.8ea13c3",
+          "paper": 100.0,
+          "current": 100.0,
+          "delta": 0.0,
+          "paper_valid": true
+        },
+        {
+          "task": "xampprocky__tokei.505d648",
+          "paper": 69.12568306010928,
+          "current": 97.40437158469946,
+          "delta": 28.27868852459018,
+          "paper_valid": true
+        },
+        {
+          "task": "xorg62__tty-clock.f2f847c",
+          "paper": 97.15302491103202,
+          "current": 98.93238434163702,
+          "delta": 1.7793594306049982,
+          "paper_valid": true
+        },
+        {
+          "task": "y2z__monolith.8702e66",
+          "paper": 72.3314606741573,
+          "current": 95.36516853932584,
+          "delta": 23.033707865168537,
+          "paper_valid": true
+        },
+        {
+          "task": "yaa110__nomino.f892499",
+          "paper": 90.41533546325878,
+          "current": 99.04153354632588,
+          "delta": 8.626198083067095,
+          "paper_valid": true
+        },
+        {
+          "task": "yassinebridi__serpl.c48a9d7",
+          "paper": 71.70263788968825,
+          "current": 85.85131894484412,
+          "delta": 14.148681055155876,
+          "paper_valid": true
+        },
+        {
+          "task": "yoav-lavi__melody.f4af9b4",
+          "paper": 76.84647302904565,
+          "current": 99.91701244813278,
+          "delta": 23.070539419087126,
+          "paper_valid": true
+        },
+        {
+          "task": "ys-l__flamelens.0b4dc33",
+          "paper": 59.19282511210763,
+          "current": 99.55156950672645,
+          "delta": 40.358744394618824,
+          "paper_valid": true
+        },
+        {
+          "task": "zevv__duc.a58fa4e",
+          "paper": 87.75743707093821,
+          "current": 93.93592677345538,
+          "delta": 6.178489702517169,
+          "paper_valid": true
+        },
+        {
+          "task": "zk-org__zk.10d93d5",
+          "paper": 55.465221318879856,
+          "current": 84.5528455284553,
+          "delta": 29.087624209575438,
+          "paper_valid": true
+        }
+      ]
+    },
+    "by_paper_valid_flag": {
+      "True": {
+        "n": 170,
+        "paper_mean": 76.91638854039581,
+        "current_mean": 90.49913268879651,
+        "mean_delta": 13.582744148400701,
+        "contribution_pp": 13.194665744160682,
+        "wins": 157,
+        "losses": 12,
+        "ties": 1
+      },
+      "False": {
+        "n": 5,
+        "paper_mean": 36.57125117210131,
+        "current_mean": 64.96857437374376,
+        "mean_delta": 28.397323201642447,
+        "contribution_pp": 0.8113520914754985,
+        "wins": 5,
+        "losses": 0,
+        "ties": 0
+      }
+    }
+  }
+}

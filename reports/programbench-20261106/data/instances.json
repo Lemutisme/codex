@@ -1,0 +1,4202 @@
+[
+  {
+    "task": "abishekvashok__cmatrix.5c082c6",
+    "luna": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.8,
+      "paper": 99.80237154150198,
+      "paper_valid": true,
+      "vs_vals": 0.20000000000000284,
+      "vs_paper": 0.19762845849801636
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 100.0,
+      "paper": 100.0,
+      "paper_valid": false,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "agourlay__zip-password-finder.704700d",
+    "luna": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 98.68,
+      "paper": 99.55882352941177,
+      "paper_valid": true,
+      "vs_vals": 1.3199999999999932,
+      "vs_paper": 0.44117647058823195
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.85,
+      "paper": 99.41176470588235,
+      "paper_valid": true,
+      "vs_vals": 0.15000000000000568,
+      "vs_paper": 0.5882352941176521
+    }
+  },
+  {
+    "task": "ajeetdsouza__zoxide.67ca1bc",
+    "luna": {
+      "current": 97.74011299435028,
+      "valid": true,
+      "vals": 88.14,
+      "paper": 95.10357815442562,
+      "paper_valid": true,
+      "vs_vals": 9.600112994350283,
+      "vs_paper": 2.636534839924664
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 98.31,
+      "paper": 45.951035781544256,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "alecthomas__chroma.8d04def",
+    "luna": {
+      "current": 38.36978131212724,
+      "valid": true,
+      "vals": 41.75,
+      "paper": 50.09940357852882,
+      "paper_valid": true,
+      "vs_vals": -3.3802186878727625,
+      "vs_paper": -11.729622266401584
+    },
+    "sol": {
+      "current": 95.62624254473161,
+      "valid": true,
+      "vals": 58.45,
+      "paper": 43.141153081510936,
+      "paper_valid": true,
+      "vs_vals": 37.17624254473161,
+      "vs_paper": 52.485089463220675
+    }
+  },
+  {
+    "task": "alexpovel__srgn.89f943b",
+    "luna": {
+      "current": 89.36285097192224,
+      "valid": true,
+      "vals": 83.42,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 5.94285097192224,
+      "vs_paper": 89.36285097192224
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 96.73,
+      "paper": 85.04319654427646,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "altdesktop__i3-style.f93821b",
+    "luna": {
+      "current": 98.88682745825604,
+      "valid": true,
+      "vals": 85.16,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 13.72682745825604,
+      "vs_paper": 98.88682745825604
+    },
+    "sol": {
+      "current": 99.81447124304268,
+      "valid": true,
+      "vals": 96.35,
+      "paper": 92.76437847866418,
+      "paper_valid": true,
+      "vs_vals": 3.4644712430426807,
+      "vs_paper": 7.0500927643784905
+    }
+  },
+  {
+    "task": "ammarabouzor__tui-journal.2b4540d",
+    "luna": {
+      "current": 80.24251069900143,
+      "valid": true,
+      "vals": 56.56,
+      "paper": 61.483594864479315,
+      "paper_valid": false,
+      "vs_vals": 23.682510699001426,
+      "vs_paper": 18.758915834522114
+    },
+    "sol": {
+      "current": 94.07988587731812,
+      "valid": true,
+      "vals": 83.83,
+      "paper": 77.81740370898717,
+      "paper_valid": true,
+      "vs_vals": 10.249885877318121,
+      "vs_paper": 16.262482168330948
+    }
+  },
+  {
+    "task": "anordal__shellharden.6a6ffd4",
+    "luna": {
+      "current": 93.15068493150685,
+      "valid": true,
+      "vals": 54.43,
+      "paper": 93.88127853881278,
+      "paper_valid": true,
+      "vs_vals": 38.720684931506845,
+      "vs_paper": -0.7305936073059343
+    },
+    "sol": {
+      "current": 96.34703196347031,
+      "valid": true,
+      "vals": 94.89,
+      "paper": 91.5068493150685,
+      "paper_valid": true,
+      "vs_vals": 1.457031963470314,
+      "vs_paper": 4.8401826484018216
+    }
+  },
+  {
+    "task": "antonmedv__fx.86d0d34",
+    "luna": {
+      "current": 88.25831702544032,
+      "valid": true,
+      "vals": 79.73,
+      "paper": 77.49510763209393,
+      "paper_valid": true,
+      "vs_vals": 8.528317025440316,
+      "vs_paper": 10.763209393346386
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 98.0,
+      "paper": 68.73776908023484,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "antonmedv__walk.bf802ef",
+    "luna": {
+      "current": 92.72300469483568,
+      "valid": true,
+      "vals": 88.51,
+      "paper": 89.2018779342723,
+      "paper_valid": true,
+      "vs_vals": 4.213004694835675,
+      "vs_paper": 3.5211267605633765
+    },
+    "sol": {
+      "current": 96.24413145539906,
+      "valid": true,
+      "vals": 95.09,
+      "paper": 91.31455399061032,
+      "paper_valid": true,
+      "vs_vals": 1.1541314553990532,
+      "vs_paper": 4.929577464788736
+    }
+  },
+  {
+    "task": "ariga__atlas.6d81150",
+    "luna": {
+      "current": 78.98330804248862,
+      "valid": true,
+      "vals": 62.75,
+      "paper": 77.2382397572079,
+      "paper_valid": true,
+      "vs_vals": 16.233308042488616,
+      "vs_paper": 1.7450682852807233
+    },
+    "sol": {
+      "current": 91.57814871016691,
+      "valid": true,
+      "vals": 88.86,
+      "paper": 77.54172989377845,
+      "paper_valid": true,
+      "vs_vals": 2.718148710166915,
+      "vs_paper": 14.036418816388462
+    }
+  },
+  {
+    "task": "arq5x__bedtools2.dd57059",
+    "luna": {
+      "current": 70.56030389363723,
+      "valid": true,
+      "vals": 58.31,
+      "paper": 50.522317188983855,
+      "paper_valid": true,
+      "vs_vals": 12.250303893637223,
+      "vs_paper": 20.03798670465337
+    },
+    "sol": {
+      "current": 88.2241215574549,
+      "valid": true,
+      "vals": 90.88,
+      "paper": 46.533713200379864,
+      "paper_valid": true,
+      "vs_vals": -2.6558784425451023,
+      "vs_paper": 41.69040835707503
+    }
+  },
+  {
+    "task": "arthursonzogni__json-tui.17a22b6",
+    "luna": {
+      "current": 94.96688741721854,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 76.42384105960265,
+      "paper_valid": true,
+      "vs_vals": 94.96688741721854,
+      "vs_paper": 18.543046357615893
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.74,
+      "paper": 93.37748344370861,
+      "paper_valid": true,
+      "vs_vals": 0.2600000000000051,
+      "vs_paper": 6.622516556291387
+    }
+  },
+  {
+    "task": "ast-grep__ast-grep.dde0fe0",
+    "luna": {
+      "current": 37.286202964652226,
+      "valid": true,
+      "vals": 24.72,
+      "paper": 35.34777651083238,
+      "paper_valid": true,
+      "vs_vals": 12.566202964652227,
+      "vs_paper": 1.9384264538198437
+    },
+    "sol": {
+      "current": 70.92360319270239,
+      "valid": true,
+      "vals": 67.5,
+      "paper": 29.760547320410492,
+      "paper_valid": true,
+      "vs_vals": 3.4236031927023873,
+      "vs_paper": 41.16305587229189
+    }
+  },
+  {
+    "task": "astaxie__bat.17d1080",
+    "luna": {
+      "current": 61.86984417965169,
+      "valid": true,
+      "vals": 83.41,
+      "paper": 83.59303391384051,
+      "paper_valid": true,
+      "vs_vals": -21.540155820348303,
+      "vs_paper": -21.72318973418882
+    },
+    "sol": {
+      "current": 68.19431714023831,
+      "valid": true,
+      "vals": 91.49,
+      "paper": 85.1512373968836,
+      "paper_valid": true,
+      "vs_vals": -23.295682859761683,
+      "vs_paper": -16.95692025664529
+    }
+  },
+  {
+    "task": "astro__deadnix.d590041",
+    "luna": {
+      "current": 96.67774086378738,
+      "valid": true,
+      "vals": 96.18,
+      "paper": 96.01328903654485,
+      "paper_valid": false,
+      "vs_vals": 0.4977408637873708,
+      "vs_paper": 0.6644518272425302
+    },
+    "sol": {
+      "current": 99.66777408637874,
+      "valid": true,
+      "vals": 99.69,
+      "paper": 94.01993355481729,
+      "paper_valid": true,
+      "vs_vals": -0.0222259136212557,
+      "vs_paper": 5.647840531561457
+    }
+  },
+  {
+    "task": "axodotdev__oranda.27d60c7",
+    "luna": {
+      "current": 44.32855280312907,
+      "valid": true,
+      "vals": 45.37,
+      "paper": 71.31681877444589,
+      "paper_valid": true,
+      "vs_vals": -1.0414471968709265,
+      "vs_paper": -26.98826597131682
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 47.59,
+      "paper": 70.01303780964798,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "bellard__quickjs.d7ae12a",
+    "luna": {
+      "current": 47.462096242584046,
+      "valid": true,
+      "vals": 39.45,
+      "paper": 36.12392880685564,
+      "paper_valid": true,
+      "vs_vals": 8.012096242584043,
+      "vs_paper": 11.338167435728408
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 83.29,
+      "paper": 99.96704021094264,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "bensadeh__tailspin.6278437",
+    "luna": {
+      "current": 91.20521172638436,
+      "valid": true,
+      "vals": 82.6,
+      "paper": 87.13355048859935,
+      "paper_valid": true,
+      "vs_vals": 8.605211726384368,
+      "vs_paper": 4.071661237785008
+    },
+    "sol": {
+      "current": 98.69706840390879,
+      "valid": true,
+      "vals": 97.25,
+      "paper": 87.94788273615634,
+      "paper_valid": true,
+      "vs_vals": 1.447068403908787,
+      "vs_paper": 10.749185667752442
+    }
+  },
+  {
+    "task": "blacknon__hwatch.edfcb62",
+    "luna": {
+      "current": 85.8267716535433,
+      "valid": true,
+      "vals": 78.94,
+      "paper": 84.84251968503938,
+      "paper_valid": true,
+      "vs_vals": 6.886771653543306,
+      "vs_paper": 0.9842519685039264
+    },
+    "sol": {
+      "current": 97.24409448818898,
+      "valid": true,
+      "vals": 95.97,
+      "paper": 83.95669291338582,
+      "paper_valid": true,
+      "vs_vals": 1.2740944881889789,
+      "vs_paper": 13.287401574803155
+    }
+  },
+  {
+    "task": "blake3-team__blake3.15e83a5",
+    "luna": {
+      "current": 99.22720247295209,
+      "valid": true,
+      "vals": 94.44,
+      "paper": 99.69088098918083,
+      "paper_valid": true,
+      "vs_vals": 4.787202472952089,
+      "vs_paper": -0.46367851622873957
+    },
+    "sol": {
+      "current": 99.84544049459042,
+      "valid": true,
+      "vals": 100.0,
+      "paper": 98.2998454404946,
+      "paper_valid": true,
+      "vs_vals": -0.15455950540957986,
+      "vs_paper": 1.545595054095827
+    }
+  },
+  {
+    "task": "bootandy__dust.62bf1e1",
+    "luna": {
+      "current": 82.02054794520548,
+      "valid": true,
+      "vals": 73.97,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 8.05054794520548,
+      "vs_paper": 82.02054794520548
+    },
+    "sol": {
+      "current": 87.84246575342466,
+      "valid": true,
+      "vals": 89.5,
+      "paper": 79.96575342465754,
+      "paper_valid": true,
+      "vs_vals": -1.657534246575338,
+      "vs_paper": 7.876712328767127
+    }
+  },
+  {
+    "task": "boyter__scc.515f91c",
+    "luna": {
+      "current": 60.775862068965516,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 58.189655172413794,
+      "paper_valid": true,
+      "vs_vals": 60.775862068965516,
+      "vs_paper": 2.5862068965517224
+    },
+    "sol": {
+      "current": 69.39655172413794,
+      "valid": true,
+      "vals": 71.34,
+      "paper": 54.525862068965516,
+      "paper_valid": true,
+      "vs_vals": -1.9434482758620675,
+      "vs_paper": 14.87068965517242
+    }
+  },
+  {
+    "task": "brocode__fblog.3b54330",
+    "luna": {
+      "current": 92.94478527607362,
+      "valid": true,
+      "vals": 83.23,
+      "paper": 84.45807770961146,
+      "paper_valid": true,
+      "vs_vals": 9.714785276073613,
+      "vs_paper": 8.486707566462158
+    },
+    "sol": {
+      "current": 98.77300613496932,
+      "valid": true,
+      "vals": 98.66,
+      "paper": 92.12678936605317,
+      "paper_valid": true,
+      "vs_vals": 0.11300613496932499,
+      "vs_paper": 6.6462167689161475
+    }
+  },
+  {
+    "task": "burntsushi__ripgrep.3b7fd44",
+    "luna": {
+      "current": 90.11044176706827,
+      "valid": true,
+      "vals": 87.56,
+      "paper": 85.14056224899599,
+      "paper_valid": true,
+      "vs_vals": 2.550441767068264,
+      "vs_paper": 4.9698795180722755
+    },
+    "sol": {
+      "current": 97.84136546184739,
+      "valid": true,
+      "vals": 98.04,
+      "paper": 89.40763052208835,
+      "paper_valid": true,
+      "vs_vals": -0.19863453815261778,
+      "vs_paper": 8.433734939759034
+    }
+  },
+  {
+    "task": "burntsushi__xsv.f430466",
+    "luna": {
+      "current": 90.1015228426396,
+      "valid": true,
+      "vals": 90.52,
+      "paper": 94.9238578680203,
+      "paper_valid": true,
+      "vs_vals": -0.4184771573603996,
+      "vs_paper": -4.82233502538071
+    },
+    "sol": {
+      "current": 99.32318104906938,
+      "valid": true,
+      "vals": 99.32,
+      "paper": 92.47038917089678,
+      "paper_valid": true,
+      "vs_vals": 0.0031810490693828797,
+      "vs_paper": 6.852791878172596
+    }
+  },
+  {
+    "task": "byron__dua-cli.8570c15",
+    "luna": {
+      "current": 89.98589562764457,
+      "valid": true,
+      "vals": 93.09,
+      "paper": 90.12693935119887,
+      "paper_valid": true,
+      "vs_vals": -3.1041043723554367,
+      "vs_paper": -0.14104372355430428
+    },
+    "sol": {
+      "current": 96.19181946403384,
+      "valid": true,
+      "vals": 93.87,
+      "paper": 88.85754583921015,
+      "paper_valid": true,
+      "vs_vals": 2.3218194640338368,
+      "vs_paper": 7.334273624823695
+    }
+  },
+  {
+    "task": "canop__broot.d6c798e",
+    "luna": {
+      "current": 73.04832713754647,
+      "valid": true,
+      "vals": 69.7,
+      "paper": 75.46468401486989,
+      "paper_valid": false,
+      "vs_vals": 3.3483271375464625,
+      "vs_paper": -2.416356877323423
+    },
+    "sol": {
+      "current": 93.12267657992564,
+      "valid": true,
+      "vals": 87.36,
+      "paper": 68.77323420074349,
+      "paper_valid": true,
+      "vs_vals": 5.762676579925639,
+      "vs_paper": 24.34944237918215
+    }
+  },
+  {
+    "task": "canop__rhit.ae90bcb",
+    "luna": {
+      "current": 72.9498164014688,
+      "valid": true,
+      "vals": 74.66,
+      "paper": 74.90820073439413,
+      "paper_valid": true,
+      "vs_vals": -1.7101835985312022,
+      "vs_paper": -1.958384332925334
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 96.29,
+      "paper": 76.9889840881273,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "cheat__cheat.b8098dc",
+    "luna": {
+      "current": 77.10437710437711,
+      "valid": true,
+      "vals": 80.81,
+      "paper": 85.52188552188552,
+      "paper_valid": true,
+      "vs_vals": -3.705622895622895,
+      "vs_paper": -8.417508417508415
+    },
+    "sol": {
+      "current": 97.64309764309765,
+      "valid": true,
+      "vals": 97.64,
+      "paper": 79.7979797979798,
+      "paper_valid": true,
+      "vs_vals": 0.0030976430976465963,
+      "vs_paper": 17.84511784511784
+    }
+  },
+  {
+    "task": "chirlu__sox.42b3557",
+    "luna": {
+      "current": 42.558528428093645,
+      "valid": true,
+      "vals": 44.93,
+      "paper": 42.97658862876254,
+      "paper_valid": true,
+      "vs_vals": -2.371471571906355,
+      "vs_paper": -0.41806020066889715
+    },
+    "sol": {
+      "current": 83.4448160535117,
+      "valid": true,
+      "vals": 74.33,
+      "paper": 44.64882943143812,
+      "paper_valid": true,
+      "vs_vals": 9.114816053511703,
+      "vs_paper": 38.79598662207358
+    }
+  },
+  {
+    "task": "chmln__handlr.90e78ba",
+    "luna": {
+      "current": 92.797783933518,
+      "valid": true,
+      "vals": 79.09,
+      "paper": 91.82825484764543,
+      "paper_valid": true,
+      "vs_vals": 13.707783933518002,
+      "vs_paper": 0.9695290858725798
+    },
+    "sol": {
+      "current": 94.87534626038781,
+      "valid": true,
+      "vals": 94.46,
+      "paper": 87.81163434903047,
+      "paper_valid": true,
+      "vs_vals": 0.4153462603878211,
+      "vs_paper": 7.063711911357345
+    }
+  },
+  {
+    "task": "chmln__sd.87d1ba5",
+    "luna": {
+      "current": 98.27160493827161,
+      "valid": true,
+      "vals": 97.53,
+      "paper": 96.04938271604938,
+      "paper_valid": true,
+      "vs_vals": 0.7416049382716068,
+      "vs_paper": 2.2222222222222285
+    },
+    "sol": {
+      "current": 99.75308641975309,
+      "valid": true,
+      "vals": 99.75,
+      "paper": 94.93827160493828,
+      "paper_valid": true,
+      "vs_vals": 0.003086419753088876,
+      "vs_paper": 4.8148148148148096
+    }
+  },
+  {
+    "task": "clog-tool__clog-cli.7066cba",
+    "luna": {
+      "current": 99.65217391304348,
+      "valid": true,
+      "vals": 96.87,
+      "paper": 98.95652173913044,
+      "paper_valid": true,
+      "vs_vals": 2.7821739130434793,
+      "vs_paper": 0.6956521739130466
+    },
+    "sol": {
+      "current": 99.30434782608695,
+      "valid": true,
+      "vals": 98.81,
+      "paper": 97.3913043478261,
+      "paper_valid": true,
+      "vs_vals": 0.49434782608695116,
+      "vs_paper": 1.9130434782608603
+    }
+  },
+  {
+    "task": "cmatsuoka__figlet.202a0a8",
+    "luna": {
+      "current": 88.64678899082568,
+      "valid": true,
+      "vals": 82.91,
+      "paper": 87.61467889908256,
+      "paper_valid": true,
+      "vs_vals": 5.736788990825687,
+      "vs_paper": 1.032110091743121
+    },
+    "sol": {
+      "current": 99.19724770642202,
+      "valid": true,
+      "vals": 97.59,
+      "paper": 92.43119266055045,
+      "paper_valid": true,
+      "vs_vals": 1.6072477064220152,
+      "vs_paper": 6.766055045871568
+    }
+  },
+  {
+    "task": "codesnap-rs__codesnap.f81e4f3",
+    "luna": {
+      "current": 67.07530647985989,
+      "valid": true,
+      "vals": 52.36,
+      "paper": 65.32399299474606,
+      "paper_valid": false,
+      "vs_vals": 14.71530647985989,
+      "vs_paper": 1.7513134851138261
+    },
+    "sol": {
+      "current": 91.59369527145358,
+      "valid": true,
+      "vals": 67.6,
+      "paper": 80.56042031523643,
+      "paper_valid": true,
+      "vs_vals": 23.99369527145359,
+      "vs_paper": 11.033274956217156
+    }
+  },
+  {
+    "task": "cordx56__rustowl.655bc5c",
+    "luna": {
+      "current": 90.83191850594227,
+      "valid": true,
+      "vals": 81.49,
+      "paper": 82.34295415959252,
+      "paper_valid": true,
+      "vs_vals": 9.341918505942274,
+      "vs_paper": 8.488964346349746
+    },
+    "sol": {
+      "current": 98.81154499151104,
+      "valid": true,
+      "vals": 96.43,
+      "paper": 87.77589134125637,
+      "paper_valid": true,
+      "vs_vals": 2.381544991511035,
+      "vs_paper": 11.035653650254673
+    }
+  },
+  {
+    "task": "crowdagger__crowbook.ea214d7",
+    "luna": {
+      "current": 73.35811648079306,
+      "valid": true,
+      "vals": 73.23,
+      "paper": 79.92565055762083,
+      "paper_valid": false,
+      "vs_vals": 0.1281164807930537,
+      "vs_paper": -6.567534076827769
+    },
+    "sol": {
+      "current": 95.91078066914498,
+      "valid": true,
+      "vals": 91.82,
+      "paper": 60.84262701363073,
+      "paper_valid": true,
+      "vs_vals": 4.090780669144991,
+      "vs_paper": 35.06815365551425
+    }
+  },
+  {
+    "task": "cslarsen__jp2a.61d205f",
+    "luna": {
+      "current": 69.73058637083993,
+      "valid": true,
+      "vals": 80.67,
+      "paper": 88.90649762282092,
+      "paper_valid": true,
+      "vs_vals": -10.939413629160072,
+      "vs_paper": -19.175911251980992
+    },
+    "sol": {
+      "current": 99.3660855784469,
+      "valid": true,
+      "vals": 98.73,
+      "paper": 63.39144215530903,
+      "paper_valid": true,
+      "vs_vals": 0.6360855784468953,
+      "vs_paper": 35.97464342313787
+    }
+  },
+  {
+    "task": "cweill__gotests.2a672c5",
+    "luna": {
+      "current": 66.16915422885572,
+      "valid": true,
+      "vals": 49.75,
+      "paper": 84.74295190713102,
+      "paper_valid": true,
+      "vs_vals": 16.419154228855717,
+      "vs_paper": -18.573797678275298
+    },
+    "sol": {
+      "current": 93.53233830845771,
+      "valid": true,
+      "vals": 66.33,
+      "paper": 75.12437810945273,
+      "paper_valid": true,
+      "vs_vals": 27.202338308457712,
+      "vs_paper": 18.407960199004975
+    }
+  },
+  {
+    "task": "dalance__amber.69a0f52",
+    "luna": {
+      "current": 86.90265486725664,
+      "valid": true,
+      "vals": 86.19,
+      "paper": 86.72566371681415,
+      "paper_valid": true,
+      "vs_vals": 0.7126548672566457,
+      "vs_paper": 0.1769911504424897
+    },
+    "sol": {
+      "current": 98.58407079646018,
+      "valid": true,
+      "vals": 99.29,
+      "paper": 87.61061946902655,
+      "paper_valid": true,
+      "vs_vals": -0.7059292035398244,
+      "vs_paper": 10.973451327433636
+    }
+  },
+  {
+    "task": "dandavison__delta.acd758f",
+    "luna": {
+      "current": 55.42676501580611,
+      "valid": true,
+      "vals": 40.57,
+      "paper": 59.32560590094836,
+      "paper_valid": false,
+      "vs_vals": 14.856765015806111,
+      "vs_paper": -3.898840885142249
+    },
+    "sol": {
+      "current": 87.35511064278188,
+      "valid": true,
+      "vals": 76.24,
+      "paper": 43.203371970495255,
+      "paper_valid": true,
+      "vs_vals": 11.115110642781886,
+      "vs_paper": 44.151738672286626
+    }
+  },
+  {
+    "task": "danmar__cppcheck.0a5b103",
+    "luna": {
+      "current": 28.08090310442145,
+      "valid": true,
+      "vals": 3.34,
+      "paper": 17.920978363123236,
+      "paper_valid": false,
+      "vs_vals": 24.74090310442145,
+      "vs_paper": 10.159924741298212
+    },
+    "sol": {
+      "current": 51.88146754468485,
+      "valid": true,
+      "vals": 28.22,
+      "paper": 4.327375352775165,
+      "paper_valid": true,
+      "vs_vals": 23.661467544684854,
+      "vs_paper": 47.55409219190969
+    }
+  },
+  {
+    "task": "direnv__direnv.02040c7",
+    "luna": {
+      "current": 80.0942285041225,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 89.16372202591283,
+      "paper_valid": true,
+      "vs_vals": 80.0942285041225,
+      "vs_paper": -9.069493521790335
+    },
+    "sol": {
+      "current": 93.05064782096584,
+      "valid": true,
+      "vals": 94.7,
+      "paper": 79.26972909305064,
+      "paper_valid": true,
+      "vs_vals": -1.6493521790341674,
+      "vs_paper": 13.780918727915193
+    }
+  },
+  {
+    "task": "doxygen__doxygen.966d98e",
+    "luna": {
+      "current": 34.49781659388646,
+      "valid": true,
+      "vals": 35.81,
+      "paper": 37.55458515283843,
+      "paper_valid": true,
+      "vs_vals": -1.3121834061135402,
+      "vs_paper": -3.0567685589519655
+    },
+    "sol": {
+      "current": 37.55458515283843,
+      "valid": true,
+      "vals": 39.3,
+      "paper": 30.434782608695656,
+      "paper_valid": false,
+      "vs_vals": -1.7454148471615696,
+      "vs_paper": 7.119802544142772
+    }
+  },
+  {
+    "task": "drew-alleman__datasurgeon.d257cee",
+    "luna": {
+      "current": 81.67330677290836,
+      "valid": true,
+      "vals": 72.71,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 8.963306772908368,
+      "vs_paper": 81.67330677290836
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 85.82,
+      "paper": 72.50996015936255,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "ducaale__xh.4a6e44f",
+    "luna": {
+      "current": 74.55166524338172,
+      "valid": true,
+      "vals": 59.27,
+      "paper": 73.27070879590094,
+      "paper_valid": true,
+      "vs_vals": 15.281665243381717,
+      "vs_paper": 1.2809564474807758
+    },
+    "sol": {
+      "current": 81.04184457728437,
+      "valid": true,
+      "vals": 85.5,
+      "paper": 62.85226302305722,
+      "paper_valid": true,
+      "vs_vals": -4.458155422715635,
+      "vs_paper": 18.189581554227146
+    }
+  },
+  {
+    "task": "duckdb__duckdb.bdb65ec",
+    "luna": {
+      "current": 23.968844043193485,
+      "valid": true,
+      "vals": 17.79,
+      "paper": 20.853248362542043,
+      "paper_valid": true,
+      "vs_vals": 6.178844043193486,
+      "vs_paper": 3.1155956806514418
+    },
+    "sol": {
+      "current": 48.11471056824217,
+      "valid": true,
+      "vals": 46.45,
+      "paper": 22.19861922464153,
+      "paper_valid": false,
+      "vs_vals": 1.664710568242164,
+      "vs_paper": 25.916091343600637
+    }
+  },
+  {
+    "task": "dundee__gdu.ede21d2",
+    "luna": {
+      "current": 79.41429801894918,
+      "valid": true,
+      "vals": 79.84,
+      "paper": 79.32816537467701,
+      "paper_valid": true,
+      "vs_vals": -0.42570198105082113,
+      "vs_paper": 0.08613264427216905
+    },
+    "sol": {
+      "current": 97.1576227390181,
+      "valid": true,
+      "vals": 87.99,
+      "paper": 79.32816537467701,
+      "paper_valid": true,
+      "vs_vals": 9.1676227390181,
+      "vs_paper": 17.82945736434108
+    }
+  },
+  {
+    "task": "ecumene__rust-sloth.051c559",
+    "luna": {
+      "current": 69.47368421052632,
+      "valid": true,
+      "vals": 60.26,
+      "paper": 79.47368421052632,
+      "paper_valid": false,
+      "vs_vals": 9.213684210526317,
+      "vs_paper": -10.0
+    },
+    "sol": {
+      "current": 99.73684210526315,
+      "valid": true,
+      "vals": 96.84,
+      "paper": 75.52631578947368,
+      "paper_valid": true,
+      "vs_vals": 2.896842105263147,
+      "vs_paper": 24.210526315789465
+    }
+  },
+  {
+    "task": "ekzhang__bore.8e059cd",
+    "luna": {
+      "current": 96.18320610687023,
+      "valid": true,
+      "vals": 90.84,
+      "paper": 75.06361323155217,
+      "paper_valid": false,
+      "vs_vals": 5.343206106870227,
+      "vs_paper": 21.119592875318062
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 99.49,
+      "paper": 95.16539440203562,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "eliukblau__pixterm.1a93fd5",
+    "luna": {
+      "current": 93.02325581395348,
+      "valid": true,
+      "vals": 87.21,
+      "paper": 93.25581395348837,
+      "paper_valid": true,
+      "vs_vals": 5.813255813953489,
+      "vs_paper": -0.2325581395348877
+    },
+    "sol": {
+      "current": 98.37209302325581,
+      "valid": true,
+      "vals": 99.07,
+      "paper": 87.20930232558139,
+      "paper_valid": true,
+      "vs_vals": -0.6979069767441786,
+      "vs_paper": 11.162790697674424
+    }
+  },
+  {
+    "task": "elkowar__pipr.fae0b17",
+    "luna": {
+      "current": 66.22137404580153,
+      "valid": true,
+      "vals": 52.67,
+      "paper": 77.86259541984732,
+      "paper_valid": true,
+      "vs_vals": 13.551374045801523,
+      "vs_paper": -11.641221374045799
+    },
+    "sol": {
+      "current": 89.69465648854961,
+      "valid": true,
+      "vals": 92.68,
+      "paper": 67.17557251908397,
+      "paper_valid": true,
+      "vs_vals": -2.9853435114503952,
+      "vs_paper": 22.51908396946564
+    }
+  },
+  {
+    "task": "epistates__treemd.825c6dd",
+    "luna": {
+      "current": 57.170172084130016,
+      "valid": true,
+      "vals": 56.6,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 0.5701720841300144,
+      "vs_paper": 57.170172084130016
+    },
+    "sol": {
+      "current": 91.07711918419376,
+      "valid": true,
+      "vals": 91.59,
+      "paper": 67.24028043339707,
+      "paper_valid": true,
+      "vs_vals": -0.5128808158062412,
+      "vs_paper": 23.836838750796687
+    }
+  },
+  {
+    "task": "eradman__entr.8e2e8b4",
+    "luna": {
+      "current": 94.02730375426621,
+      "valid": true,
+      "vals": 92.66,
+      "paper": 94.7098976109215,
+      "paper_valid": true,
+      "vs_vals": 1.3673037542662172,
+      "vs_paper": -0.6825938566552878
+    },
+    "sol": {
+      "current": 88.05460750853243,
+      "valid": true,
+      "vals": 99.49,
+      "paper": 93.34470989761093,
+      "paper_valid": true,
+      "vs_vals": -11.435392491467567,
+      "vs_paper": -5.290102389078498
+    }
+  },
+  {
+    "task": "esubaalew__run.0fb9dec",
+    "luna": {
+      "current": 90.67656765676567,
+      "valid": true,
+      "vals": 86.47,
+      "paper": 92.4092409240924,
+      "paper_valid": true,
+      "vs_vals": 4.206567656765671,
+      "vs_paper": -1.7326732673267315
+    },
+    "sol": {
+      "current": 97.6897689768977,
+      "valid": true,
+      "vals": 96.76,
+      "paper": 88.61386138613861,
+      "paper_valid": true,
+      "vs_vals": 0.9297689768976909,
+      "vs_paper": 9.075907590759087
+    }
+  },
+  {
+    "task": "eudoxia0__hashcards.48aa136",
+    "luna": {
+      "current": 93.71933267909715,
+      "valid": true,
+      "vals": 82.34,
+      "paper": 93.32679097154073,
+      "paper_valid": true,
+      "vs_vals": 11.379332679097146,
+      "vs_paper": 0.3925417075564184
+    },
+    "sol": {
+      "current": 98.82237487733072,
+      "valid": true,
+      "vals": 98.14,
+      "paper": 88.22374877330716,
+      "paper_valid": true,
+      "vs_vals": 0.6823748773307159,
+      "vs_paper": 10.598626104023552
+    }
+  },
+  {
+    "task": "facebook__zstd.1168da0",
+    "luna": {
+      "current": 54.26889106967615,
+      "valid": true,
+      "vals": 65.75,
+      "paper": 69.7252208047105,
+      "paper_valid": true,
+      "vs_vals": -11.481108930323849,
+      "vs_paper": -15.456329735034352
+    },
+    "sol": {
+      "current": 82.82630029440628,
+      "valid": true,
+      "vals": 87.59,
+      "paper": 63.150147203140335,
+      "paper_valid": true,
+      "vs_vals": -4.763699705593723,
+      "vs_paper": 19.676153091265945
+    }
+  },
+  {
+    "task": "facebookresearch__fasttext.1142dc4",
+    "luna": {
+      "current": 69.87179487179488,
+      "valid": true,
+      "vals": 63.46,
+      "paper": 44.55128205128205,
+      "paper_valid": true,
+      "vs_vals": 6.411794871794875,
+      "vs_paper": 25.320512820512825
+    },
+    "sol": {
+      "current": 99.67948717948718,
+      "valid": true,
+      "vals": 38.14,
+      "paper": 77.88461538461539,
+      "paper_valid": true,
+      "vs_vals": 61.53948717948718,
+      "vs_paper": 21.794871794871796
+    }
+  },
+  {
+    "task": "ffmpeg__ffmpeg.360a402",
+    "luna": {
+      "current": 8.64847089773101,
+      "valid": true,
+      "vals": 5.85,
+      "paper": 8.155212101282473,
+      "paper_valid": true,
+      "vs_vals": 2.7984708977310095,
+      "vs_paper": 0.49325879644853643
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 14.14,
+      "paper": 7.661953304833936,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "filosottile__age.706dfc1",
+    "luna": {
+      "current": 66.42011834319527,
+      "valid": true,
+      "vals": 45.12,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 21.300118343195273,
+      "vs_paper": 66.42011834319527
+    },
+    "sol": {
+      "current": 97.18934911242604,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 66.12426035502959,
+      "paper_valid": true,
+      "vs_vals": 97.18934911242604,
+      "vs_paper": 31.065088757396452
+    }
+  },
+  {
+    "task": "foriequal0__git-trim.07c2f50",
+    "luna": {
+      "current": 83.69351669941061,
+      "valid": true,
+      "vals": 71.71,
+      "paper": 81.72888015717092,
+      "paper_valid": true,
+      "vs_vals": 11.983516699410615,
+      "vs_paper": 1.9646365422396883
+    },
+    "sol": {
+      "current": 88.21218074656188,
+      "valid": true,
+      "vals": 92.93,
+      "paper": 65.42239685658153,
+      "paper_valid": true,
+      "vs_vals": -4.7178192534381225,
+      "vs_paper": 22.789783889980356
+    }
+  },
+  {
+    "task": "gabotechs__dep-tree.60a95a2",
+    "luna": {
+      "current": 85.54913294797687,
+      "valid": true,
+      "vals": 67.4,
+      "paper": 83.23699421965318,
+      "paper_valid": true,
+      "vs_vals": 18.149132947976867,
+      "vs_paper": 2.3121387283236885
+    },
+    "sol": {
+      "current": 87.6300578034682,
+      "valid": true,
+      "vals": 81.97,
+      "paper": 76.53179190751445,
+      "paper_valid": true,
+      "vs_vals": 5.660057803468206,
+      "vs_paper": 11.098265895953759
+    }
+  },
+  {
+    "task": "ggreer__the_silver_searcher.a61f178",
+    "luna": {
+      "current": 91.23505976095618,
+      "valid": true,
+      "vals": 55.08,
+      "paper": 53.58565737051792,
+      "paper_valid": false,
+      "vs_vals": 36.15505976095618,
+      "vs_paper": 37.649402390438254
+    },
+    "sol": {
+      "current": 99.00398406374502,
+      "valid": true,
+      "vals": 87.85,
+      "paper": 88.74501992031873,
+      "paper_valid": true,
+      "vs_vals": 11.153984063745028,
+      "vs_paper": 10.258964143426297
+    }
+  },
+  {
+    "task": "git-bahn__git-graph.87b4473",
+    "luna": {
+      "current": 95.95070422535211,
+      "valid": true,
+      "vals": 89.44,
+      "paper": 90.14084507042254,
+      "paper_valid": true,
+      "vs_vals": 6.510704225352114,
+      "vs_paper": 5.809859154929569
+    },
+    "sol": {
+      "current": 98.06338028169014,
+      "valid": true,
+      "vals": 95.64,
+      "paper": 91.19718309859155,
+      "paper_valid": true,
+      "vs_vals": 2.423380281690143,
+      "vs_paper": 6.866197183098592
+    }
+  },
+  {
+    "task": "go-critic__go-critic.9aea378",
+    "luna": {
+      "current": 61.4604462474645,
+      "valid": true,
+      "vals": 60.04,
+      "paper": 66.12576064908721,
+      "paper_valid": true,
+      "vs_vals": 1.420446247464504,
+      "vs_paper": -4.665314401622709
+    },
+    "sol": {
+      "current": 14.60446247464503,
+      "valid": true,
+      "vals": 73.83,
+      "paper": 57.40365111561866,
+      "paper_valid": true,
+      "vs_vals": -59.225537525354966,
+      "vs_paper": -42.799188640973625
+    }
+  },
+  {
+    "task": "google__brotli.b3dc9cc",
+    "luna": {
+      "current": 73.46938775510205,
+      "valid": true,
+      "vals": 85.26,
+      "paper": 97.27891156462584,
+      "paper_valid": true,
+      "vs_vals": -11.790612244897957,
+      "vs_paper": -23.809523809523796
+    },
+    "sol": {
+      "current": 96.5986394557823,
+      "valid": true,
+      "vals": 99.55,
+      "paper": 89.56916099773242,
+      "paper_valid": true,
+      "vs_vals": -2.9513605442176924,
+      "vs_paper": 7.02947845804988
+    }
+  },
+  {
+    "task": "gromacs__gromacs.665ea4c",
+    "luna": {
+      "current": 11.102106969205835,
+      "valid": true,
+      "vals": 6.81,
+      "paper": 7.212317666126418,
+      "paper_valid": true,
+      "vs_vals": 4.292106969205835,
+      "vs_paper": 3.889789303079417
+    },
+    "sol": {
+      "current": 21.79902755267423,
+      "valid": true,
+      "vals": 21.8,
+      "paper": 6.077795786061588,
+      "paper_valid": true,
+      "vs_vals": -0.0009724473257719524,
+      "vs_paper": 15.72123176661264
+    }
+  },
+  {
+    "task": "guumaster__hostctl.d6d9699",
+    "luna": {
+      "current": 95.81351094196003,
+      "valid": true,
+      "vals": 92.01,
+      "paper": 94.57659372026642,
+      "paper_valid": true,
+      "vs_vals": 3.8035109419600275,
+      "vs_paper": 1.2369172216936164
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 96.33,
+      "paper": 96.00380589914367,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "hairyhenderson__gomplate.05eb3aa",
+    "luna": {
+      "current": 53.041695146958304,
+      "valid": true,
+      "vals": 79.05,
+      "paper": 85.81681476418318,
+      "paper_valid": true,
+      "vs_vals": -26.008304853041693,
+      "vs_paper": -32.775119617224874
+    },
+    "sol": {
+      "current": 93.23308270676691,
+      "valid": true,
+      "vals": 90.7,
+      "paper": 83.32194121667807,
+      "paper_valid": true,
+      "vs_vals": 2.533082706766905,
+      "vs_paper": 9.911141490088838
+    }
+  },
+  {
+    "task": "halitechallenge__halite.822cfb6",
+    "luna": {
+      "current": 90.54545454545455,
+      "valid": true,
+      "vals": 72.0,
+      "paper": 73.0909090909091,
+      "paper_valid": true,
+      "vs_vals": 18.545454545454547,
+      "vs_paper": 17.454545454545453
+    },
+    "sol": {
+      "current": 98.18181818181819,
+      "valid": true,
+      "vals": 92.5,
+      "paper": 94.54545454545455,
+      "paper_valid": true,
+      "vs_vals": 5.681818181818187,
+      "vs_paper": 3.6363636363636402
+    }
+  },
+  {
+    "task": "hatoo__oha.8dc6349",
+    "luna": {
+      "current": 74.10313901345292,
+      "valid": true,
+      "vals": 85.43,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": -11.32686098654709,
+      "vs_paper": 74.10313901345292
+    },
+    "sol": {
+      "current": 99.43946188340807,
+      "valid": true,
+      "vals": 97.65,
+      "paper": 88.2286995515695,
+      "paper_valid": true,
+      "vs_vals": 1.789461883408066,
+      "vs_paper": 11.210762331838566
+    }
+  },
+  {
+    "task": "hooklift__gowsdl.2a06cec",
+    "luna": {
+      "current": 91.30434782608695,
+      "valid": true,
+      "vals": 87.21,
+      "paper": 89.51406649616368,
+      "paper_valid": true,
+      "vs_vals": 4.09434782608696,
+      "vs_paper": 1.7902813299232747
+    },
+    "sol": {
+      "current": 96.41943734015345,
+      "valid": true,
+      "vals": 98.72,
+      "paper": 94.37340153452686,
+      "paper_valid": true,
+      "vs_vals": -2.3005626598465483,
+      "vs_paper": 2.0460358056265875
+    }
+  },
+  {
+    "task": "hpjansson__chafa.dd4d4c1",
+    "luna": {
+      "current": 23.562920766442257,
+      "valid": true,
+      "vals": 45.26,
+      "paper": 10.150181253236665,
+      "paper_valid": false,
+      "vs_vals": -21.69707923355774,
+      "vs_paper": 13.412739513205592
+    },
+    "sol": {
+      "current": 74.00310719834283,
+      "valid": true,
+      "vals": 66.96,
+      "paper": 30.03625064733299,
+      "paper_valid": true,
+      "vs_vals": 7.043107198342838,
+      "vs_paper": 43.96685655100984
+    }
+  },
+  {
+    "task": "htop-dev__htop.523600b",
+    "luna": {
+      "current": 98.98843930635839,
+      "valid": true,
+      "vals": 95.66,
+      "paper": 94.79768786127167,
+      "paper_valid": true,
+      "vs_vals": 3.3284393063583906,
+      "vs_paper": 4.190751445086718
+    },
+    "sol": {
+      "current": 83.38150289017341,
+      "valid": true,
+      "vals": 96.24,
+      "paper": 96.82080924855492,
+      "paper_valid": true,
+      "vs_vals": -12.858497109826587,
+      "vs_paper": -13.439306358381515
+    }
+  },
+  {
+    "task": "hush-shell__hush.560c33a",
+    "luna": {
+      "current": 94.33805162364696,
+      "valid": true,
+      "vals": 77.85,
+      "paper": 84.84596169858452,
+      "paper_valid": false,
+      "vs_vals": 16.488051623646967,
+      "vs_paper": 9.492089925062444
+    },
+    "sol": {
+      "current": 99.16736053288926,
+      "valid": true,
+      "vals": 97.75,
+      "paper": 88.0932556203164,
+      "paper_valid": true,
+      "vs_vals": 1.417360532889262,
+      "vs_paper": 11.074104912572864
+    }
+  },
+  {
+    "task": "incu6us__goimports-reviser.81bd549",
+    "luna": {
+      "current": 79.14230019493178,
+      "valid": true,
+      "vals": 66.67,
+      "paper": 90.64327485380117,
+      "paper_valid": true,
+      "vs_vals": 12.472300194931776,
+      "vs_paper": -11.500974658869396
+    },
+    "sol": {
+      "current": 76.60818713450293,
+      "valid": true,
+      "vals": 85.19,
+      "paper": 74.07407407407408,
+      "paper_valid": true,
+      "vs_vals": -8.58181286549707,
+      "vs_paper": 2.534113060428851
+    }
+  },
+  {
+    "task": "ip7z__7zip.839151e",
+    "luna": {
+      "current": 51.19846596356663,
+      "valid": true,
+      "vals": 58.77,
+      "paper": 66.3470757430489,
+      "paper_valid": true,
+      "vs_vals": -7.57153403643337,
+      "vs_paper": -15.148609779482271
+    },
+    "sol": {
+      "current": 91.56279961649089,
+      "valid": true,
+      "vals": 83.32,
+      "paper": 51.006711409395976,
+      "paper_valid": true,
+      "vs_vals": 8.242799616490899,
+      "vs_paper": 40.556088207094916
+    }
+  },
+  {
+    "task": "ismaelgv__rnr.fc0733b",
+    "luna": {
+      "current": 94.87554904831626,
+      "valid": true,
+      "vals": 93.12,
+      "paper": 88.87262079062957,
+      "paper_valid": true,
+      "vs_vals": 1.7555490483162544,
+      "vs_paper": 6.0029282576866905
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.74,
+      "paper": 94.5827232796486,
+      "paper_valid": true,
+      "vs_vals": 0.2600000000000051,
+      "vs_paper": 5.417276720351396
+    }
+  },
+  {
+    "task": "isona__dirble.e2dea9f",
+    "luna": {
+      "current": 84.05594405594405,
+      "valid": true,
+      "vals": 73.29,
+      "paper": 78.74125874125875,
+      "paper_valid": true,
+      "vs_vals": 10.765944055944047,
+      "vs_paper": 5.314685314685306
+    },
+    "sol": {
+      "current": 92.44755244755245,
+      "valid": true,
+      "vals": 94.82,
+      "paper": 74.96503496503496,
+      "paper_valid": true,
+      "vs_vals": -2.3724475524475395,
+      "vs_paper": 17.482517482517494
+    }
+  },
+  {
+    "task": "ivanceras__svgbob.6d00ad9",
+    "luna": {
+      "current": 58.26271186440678,
+      "valid": true,
+      "vals": 55.08,
+      "paper": 53.38983050847458,
+      "paper_valid": true,
+      "vs_vals": 3.1827118644067838,
+      "vs_paper": 4.872881355932201
+    },
+    "sol": {
+      "current": 83.47457627118644,
+      "valid": true,
+      "vals": 84.53,
+      "paper": 50.0,
+      "paper_valid": true,
+      "vs_vals": -1.0554237288135653,
+      "vs_paper": 33.474576271186436
+    }
+  },
+  {
+    "task": "jarun__nnn.cb2c535",
+    "luna": {
+      "current": 98.11320754716981,
+      "valid": true,
+      "vals": 98.53,
+      "paper": 97.9035639412998,
+      "paper_valid": true,
+      "vs_vals": -0.41679245283019384,
+      "vs_paper": 0.20964360587001352
+    },
+    "sol": {
+      "current": 99.37106918238993,
+      "valid": true,
+      "vals": 67.3,
+      "paper": 98.11320754716981,
+      "paper_valid": true,
+      "vs_vals": 32.071069182389934,
+      "vs_paper": 1.2578616352201237
+    }
+  },
+  {
+    "task": "jesseduffield__lazygit.1d0db51",
+    "luna": {
+      "current": 63.04093567251462,
+      "valid": true,
+      "vals": 59.65,
+      "paper": 65.84795321637426,
+      "paper_valid": true,
+      "vs_vals": 3.3909356725146225,
+      "vs_paper": -2.8070175438596436
+    },
+    "sol": {
+      "current": 84.7953216374269,
+      "valid": true,
+      "vals": 73.03,
+      "paper": 65.96491228070175,
+      "paper_valid": true,
+      "vs_vals": 11.765321637426894,
+      "vs_paper": 18.83040935672514
+    }
+  },
+  {
+    "task": "jgm__pandoc.5caad90",
+    "luna": {
+      "current": 23.1108553893364,
+      "valid": true,
+      "vals": 19.93,
+      "paper": 27.42616033755274,
+      "paper_valid": false,
+      "vs_vals": 3.1808553893364007,
+      "vs_paper": -4.31530494821634
+    },
+    "sol": {
+      "current": 49.290372075182205,
+      "valid": true,
+      "vals": 41.87,
+      "paper": 23.379363252780973,
+      "paper_valid": true,
+      "vs_vals": 7.4203720751822075,
+      "vs_paper": 25.911008822401232
+    }
+  },
+  {
+    "task": "jhspetersson__fselect.c3559ca",
+    "luna": {
+      "current": 70.97913322632424,
+      "valid": true,
+      "vals": 78.39,
+      "paper": 61.28410914927769,
+      "paper_valid": false,
+      "vs_vals": -7.410866773675764,
+      "vs_paper": 9.695024077046547
+    },
+    "sol": {
+      "current": 89.18138041733548,
+      "valid": true,
+      "vals": 85.52,
+      "paper": 52.42375601926164,
+      "paper_valid": true,
+      "vs_vals": 3.6613804173354794,
+      "vs_paper": 36.75762439807384
+    }
+  },
+  {
+    "task": "johanneskaufmann__html-to-markdown.3006818",
+    "luna": {
+      "current": 96.38418079096046,
+      "valid": true,
+      "vals": 89.04,
+      "paper": 93.10734463276836,
+      "paper_valid": true,
+      "vs_vals": 7.344180790960451,
+      "vs_paper": 3.276836158192097
+    },
+    "sol": {
+      "current": 98.75706214689266,
+      "valid": true,
+      "vals": 99.1,
+      "paper": 93.33333333333333,
+      "paper_valid": true,
+      "vs_vals": -0.3429378531073297,
+      "vs_paper": 5.423728813559336
+    }
+  },
+  {
+    "task": "johnkerl__miller.8d85b46",
+    "luna": {
+      "current": 38.334358133497304,
+      "valid": true,
+      "vals": 33.66,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 4.674358133497307,
+      "vs_paper": 38.334358133497304
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 37.55,
+      "paper": 26.480836236933797,
+      "paper_valid": false,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "jonas__tig.8334123",
+    "luna": {
+      "current": 85.81336696090794,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 55.42244640605296,
+      "paper_valid": false,
+      "vs_vals": 85.81336696090794,
+      "vs_paper": 30.39092055485498
+    },
+    "sol": {
+      "current": 92.93820933165196,
+      "valid": true,
+      "vals": 90.61,
+      "paper": 83.54350567465322,
+      "paper_valid": true,
+      "vs_vals": 2.328209331651962,
+      "vs_paper": 9.394703656998743
+    }
+  },
+  {
+    "task": "jqlang__jq.b33a763",
+    "luna": {
+      "current": 83.06982872200264,
+      "valid": true,
+      "vals": 74.9,
+      "paper": 93.05006587615283,
+      "paper_valid": true,
+      "vs_vals": 8.169828722002634,
+      "vs_paper": -9.980237154150188
+    },
+    "sol": {
+      "current": 96.96969696969697,
+      "valid": true,
+      "vals": 96.96,
+      "paper": 92.81949934123847,
+      "paper_valid": true,
+      "vs_vals": 0.009696969696975088,
+      "vs_paper": 4.1501976284585
+    }
+  },
+  {
+    "task": "jrnxf__thokr.09375ef",
+    "luna": {
+      "current": 92.5,
+      "valid": true,
+      "vals": 90.0,
+      "paper": 91.5909090909091,
+      "paper_valid": true,
+      "vs_vals": 2.5,
+      "vs_paper": 0.9090909090909065
+    },
+    "sol": {
+      "current": 99.77272727272727,
+      "valid": true,
+      "vals": 98.64,
+      "paper": 94.77272727272728,
+      "paper_valid": true,
+      "vs_vals": 1.1327272727272657,
+      "vs_paper": 4.999999999999986
+    }
+  },
+  {
+    "task": "junegunn__fzf.b56d614",
+    "luna": {
+      "current": 81.73491379310344,
+      "valid": true,
+      "vals": 84.32,
+      "paper": 87.23060344827587,
+      "paper_valid": true,
+      "vs_vals": -2.5850862068965483,
+      "vs_paper": -5.495689655172427
+    },
+    "sol": {
+      "current": 95.04310344827587,
+      "valid": true,
+      "vals": 89.92,
+      "paper": 86.20689655172413,
+      "paper_valid": true,
+      "vs_vals": 5.12310344827587,
+      "vs_paper": 8.836206896551744
+    }
+  },
+  {
+    "task": "kaushiksrini__parqeye.8072121",
+    "luna": {
+      "current": 86.0125260960334,
+      "valid": true,
+      "vals": 63.88,
+      "paper": 63.88308977035491,
+      "paper_valid": true,
+      "vs_vals": 22.132526096033395,
+      "vs_paper": 22.12943632567849
+    },
+    "sol": {
+      "current": 99.16492693110646,
+      "valid": true,
+      "vals": 98.06,
+      "paper": 78.07933194154488,
+      "paper_valid": true,
+      "vs_vals": 1.104926931106462,
+      "vs_paper": 21.085594989561585
+    }
+  },
+  {
+    "task": "kisielk__errcheck.dacab89",
+    "luna": {
+      "current": 56.76470588235294,
+      "valid": true,
+      "vals": 75.29,
+      "paper": 83.82352941176471,
+      "paper_valid": true,
+      "vs_vals": -18.525294117647064,
+      "vs_paper": -27.058823529411768
+    },
+    "sol": {
+      "current": 85.29411764705883,
+      "valid": true,
+      "vals": 84.16,
+      "paper": 60.588235294117645,
+      "paper_valid": true,
+      "vs_vals": 1.1341176470588294,
+      "vs_paper": 24.70588235294118
+    }
+  },
+  {
+    "task": "konradsz__igrep.aa75630",
+    "luna": {
+      "current": 80.77922077922078,
+      "valid": true,
+      "vals": 74.81,
+      "paper": 85.19480519480518,
+      "paper_valid": true,
+      "vs_vals": 5.969220779220777,
+      "vs_paper": -4.415584415584405
+    },
+    "sol": {
+      "current": 91.16883116883116,
+      "valid": true,
+      "vals": 89.93,
+      "paper": 83.63636363636363,
+      "paper_valid": true,
+      "vs_vals": 1.2388311688311546,
+      "vs_paper": 7.532467532467535
+    }
+  },
+  {
+    "task": "ksxgithub__parallel-disk-usage.96978ed",
+    "luna": {
+      "current": 87.1939736346516,
+      "valid": true,
+      "vals": 89.64,
+      "paper": 83.9924670433145,
+      "paper_valid": true,
+      "vs_vals": -2.446026365348402,
+      "vs_paper": 3.2015065913370933
+    },
+    "sol": {
+      "current": 88.32391713747646,
+      "valid": true,
+      "vals": 89.12,
+      "paper": 84.93408662900188,
+      "paper_valid": true,
+      "vs_vals": -0.7960828625235479,
+      "vs_paper": 3.3898305084745743
+    }
+  },
+  {
+    "task": "kyoh86__richgo.313114f",
+    "luna": {
+      "current": 91.20879120879121,
+      "valid": true,
+      "vals": 87.73,
+      "paper": 88.6654478976234,
+      "paper_valid": false,
+      "vs_vals": 3.4787912087912076,
+      "vs_paper": 2.543343311167817
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 94.69,
+      "paper": 92.12454212454212,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "kyoheiu__felix.95df390",
+    "luna": {
+      "current": 91.81636726546907,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 64.07185628742515,
+      "paper_valid": true,
+      "vs_vals": 91.81636726546907,
+      "vs_paper": 27.74451097804392
+    },
+    "sol": {
+      "current": 76.04790419161677,
+      "valid": true,
+      "vals": 97.6,
+      "paper": 93.21357285429141,
+      "paper_valid": true,
+      "vs_vals": -21.55209580838323,
+      "vs_paper": -17.165668662674648
+    }
+  },
+  {
+    "task": "lfos__calcurse.49180d5",
+    "luna": {
+      "current": 88.43843843843844,
+      "valid": true,
+      "vals": 69.67,
+      "paper": 77.02702702702703,
+      "paper_valid": true,
+      "vs_vals": 18.768438438438437,
+      "vs_paper": 11.411411411411407
+    },
+    "sol": {
+      "current": 96.84684684684684,
+      "valid": true,
+      "vals": 94.74,
+      "paper": 81.83183183183183,
+      "paper_valid": true,
+      "vs_vals": 2.1068468468468495,
+      "vs_paper": 15.01501501501501
+    }
+  },
+  {
+    "task": "lh3__seqtk.94e7070",
+    "luna": {
+      "current": 65.96736596736596,
+      "valid": true,
+      "vals": 80.89,
+      "paper": 75.990675990676,
+      "paper_valid": true,
+      "vs_vals": -14.922634032634036,
+      "vs_paper": -10.023310023310032
+    },
+    "sol": {
+      "current": 90.20979020979021,
+      "valid": true,
+      "vals": 89.74,
+      "paper": 75.05827505827506,
+      "paper_valid": true,
+      "vs_vals": 0.4697902097902187,
+      "vs_paper": 15.151515151515156
+    }
+  },
+  {
+    "task": "lua__lua.c6b4848",
+    "luna": {
+      "current": 88.04185351270553,
+      "valid": true,
+      "vals": 78.77,
+      "paper": 100.0,
+      "paper_valid": false,
+      "vs_vals": 9.271853512705533,
+      "vs_paper": -11.95814648729447
+    },
+    "sol": {
+      "current": 97.45889387144993,
+      "valid": true,
+      "vals": 96.86,
+      "paper": 100.0,
+      "paper_valid": true,
+      "vs_vals": 0.5988938714499312,
+      "vs_paper": -2.5411061285500693
+    }
+  },
+  {
+    "task": "luajit__luajit.a553b3d",
+    "luna": {
+      "current": 88.10246039770813,
+      "valid": true,
+      "vals": 73.61,
+      "paper": 100.0,
+      "paper_valid": false,
+      "vs_vals": 14.492460397708129,
+      "vs_paper": -11.897539602291872
+    },
+    "sol": {
+      "current": 97.23626558813616,
+      "valid": true,
+      "vals": 97.98,
+      "paper": 100.0,
+      "paper_valid": true,
+      "vs_vals": -0.7437344118638407,
+      "vs_paper": -2.7637344118638367
+    }
+  },
+  {
+    "task": "lymphatus__caesium-clt.a529b2e",
+    "luna": {
+      "current": 91.82608695652173,
+      "valid": true,
+      "vals": 86.43,
+      "paper": 91.47826086956522,
+      "paper_valid": true,
+      "vs_vals": 5.396086956521728,
+      "vs_paper": 0.3478260869565162
+    },
+    "sol": {
+      "current": 98.95652173913044,
+      "valid": true,
+      "vals": 99.03,
+      "paper": 96.86956521739131,
+      "paper_valid": true,
+      "vs_vals": -0.07347826086956388,
+      "vs_paper": 2.0869565217391255
+    }
+  },
+  {
+    "task": "lz4__lz4.1519f46",
+    "luna": {
+      "current": 87.5,
+      "valid": true,
+      "vals": 81.62,
+      "paper": 85.02673796791443,
+      "paper_valid": true,
+      "vs_vals": 5.8799999999999955,
+      "vs_paper": 2.4732620320855716
+    },
+    "sol": {
+      "current": 98.3288770053476,
+      "valid": true,
+      "vals": 98.26,
+      "paper": 80.4144385026738,
+      "paper_valid": true,
+      "vs_vals": 0.06887700534758778,
+      "vs_paper": 17.91443850267379
+    }
+  },
+  {
+    "task": "madler__pigz.fe4894f",
+    "luna": {
+      "current": 95.66787003610108,
+      "valid": true,
+      "vals": 89.05,
+      "paper": 96.63056558363418,
+      "paper_valid": true,
+      "vs_vals": 6.617870036101081,
+      "vs_paper": -0.9626955475331016
+    },
+    "sol": {
+      "current": 99.15764139590854,
+      "valid": true,
+      "vals": 99.52,
+      "paper": 96.14921780986762,
+      "paper_valid": true,
+      "vs_vals": -0.3623586040914546,
+      "vs_paper": 3.0084235860409194
+    }
+  },
+  {
+    "task": "mfridman__tparse.2416b4b",
+    "luna": {
+      "current": null,
+      "valid": false,
+      "vals": 81.65,
+      "paper": 88.47058823529412,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    },
+    "sol": {
+      "current": 94.58823529411765,
+      "valid": true,
+      "vals": 92.94,
+      "paper": 86.58823529411764,
+      "paper_valid": true,
+      "vs_vals": 1.6482352941176543,
+      "vs_paper": 8.000000000000014
+    }
+  },
+  {
+    "task": "mgdm__htmlq.6e31bc8",
+    "luna": {
+      "current": 98.69415807560138,
+      "valid": true,
+      "vals": 98.01,
+      "paper": 95.6701030927835,
+      "paper_valid": true,
+      "vs_vals": 0.6841580756013741,
+      "vs_paper": 3.024054982817873
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.66,
+      "paper": 97.86941580756013,
+      "paper_valid": true,
+      "vs_vals": 0.3400000000000034,
+      "vs_paper": 2.130584192439869
+    }
+  },
+  {
+    "task": "mgechev__revive.201451e",
+    "luna": {
+      "current": 52.95735900962861,
+      "valid": true,
+      "vals": 45.8,
+      "paper": 48.693259972489685,
+      "paper_valid": true,
+      "vs_vals": 7.157359009628614,
+      "vs_paper": 4.2640990371389265
+    },
+    "sol": {
+      "current": 43.60385144429161,
+      "valid": true,
+      "vals": 63.41,
+      "paper": 42.77854195323246,
+      "paper_valid": true,
+      "vs_vals": -19.80614855570839,
+      "vs_paper": 0.8253094910591443
+    }
+  },
+  {
+    "task": "mibk__dupl.1bf052b",
+    "luna": {
+      "current": 91.42091152815013,
+      "valid": true,
+      "vals": 83.38,
+      "paper": 89.81233243967829,
+      "paper_valid": true,
+      "vs_vals": 8.040911528150133,
+      "vs_paper": 1.608579088471842
+    },
+    "sol": {
+      "current": 96.7828418230563,
+      "valid": true,
+      "vals": 97.59,
+      "paper": 87.93565683646113,
+      "paper_valid": true,
+      "vs_vals": -0.8071581769437017,
+      "vs_paper": 8.847184986595167
+    }
+  },
+  {
+    "task": "mikefarah__yq.602586d",
+    "luna": {
+      "current": 53.75,
+      "valid": true,
+      "vals": 49.75,
+      "paper": 48.75,
+      "paper_valid": true,
+      "vs_vals": 4.0,
+      "vs_paper": 5.0
+    },
+    "sol": {
+      "current": 86.75,
+      "valid": true,
+      "vals": 78.9,
+      "paper": 38.0,
+      "paper_valid": true,
+      "vs_vals": 7.849999999999994,
+      "vs_paper": 48.75
+    }
+  },
+  {
+    "task": "miserlou__loop.209927c",
+    "luna": {
+      "current": 99.85915492957747,
+      "valid": true,
+      "vals": 84.23,
+      "paper": 84.78873239436619,
+      "paper_valid": true,
+      "vs_vals": 15.629154929577467,
+      "vs_paper": 15.070422535211279
+    },
+    "sol": {
+      "current": 99.5774647887324,
+      "valid": true,
+      "vals": 85.92,
+      "paper": 84.08450704225352,
+      "paper_valid": true,
+      "vs_vals": 13.657464788732398,
+      "vs_paper": 15.49295774647888
+    }
+  },
+  {
+    "task": "mkj__dropbear.75f699b",
+    "luna": {
+      "current": 72.26386806596702,
+      "valid": true,
+      "vals": 75.11,
+      "paper": 81.25937031484258,
+      "paper_valid": true,
+      "vs_vals": -2.8461319340329823,
+      "vs_paper": -8.995502248875567
+    },
+    "sol": {
+      "current": 93.10344827586206,
+      "valid": true,
+      "vals": 96.7,
+      "paper": 99.85007496251875,
+      "paper_valid": true,
+      "vs_vals": -3.5965517241379388,
+      "vs_paper": -6.746626686656683
+    }
+  },
+  {
+    "task": "mookid__diffr.2152742",
+    "luna": {
+      "current": 91.91419141914191,
+      "valid": true,
+      "vals": 89.6,
+      "paper": 92.9042904290429,
+      "paper_valid": true,
+      "vs_vals": 2.3141914191419204,
+      "vs_paper": -0.9900990099009874
+    },
+    "sol": {
+      "current": 93.72937293729373,
+      "valid": true,
+      "vals": 93.73,
+      "paper": 91.41914191419141,
+      "paper_valid": true,
+      "vs_vals": -0.0006270627062718859,
+      "vs_paper": 2.310231023102318
+    }
+  },
+  {
+    "task": "multiprocessio__dsq.c3ae0ba",
+    "luna": {
+      "current": 85.23985239852398,
+      "valid": true,
+      "vals": 77.31,
+      "paper": 85.42435424354244,
+      "paper_valid": true,
+      "vs_vals": 7.929852398523977,
+      "vs_paper": -0.18450184501845968
+    },
+    "sol": {
+      "current": 96.49446494464945,
+      "valid": true,
+      "vals": 90.77,
+      "paper": 82.28782287822878,
+      "paper_valid": true,
+      "vs_vals": 5.724464944649455,
+      "vs_paper": 14.20664206642067
+    }
+  },
+  {
+    "task": "nachoparker__dutree.44e877d",
+    "luna": {
+      "current": 77.22308892355694,
+      "valid": true,
+      "vals": 80.97,
+      "paper": 77.22308892355694,
+      "paper_valid": false,
+      "vs_vals": -3.7469110764430553,
+      "vs_paper": 0.0
+    },
+    "sol": {
+      "current": 77.69110764430577,
+      "valid": true,
+      "vals": 77.69,
+      "paper": 75.66302652106084,
+      "paper_valid": true,
+      "vs_vals": 0.0011076443057760343,
+      "vs_paper": 2.028081123244931
+    }
+  },
+  {
+    "task": "naggie__dstask.ff57396",
+    "luna": {
+      "current": 92.33176838810641,
+      "valid": true,
+      "vals": 61.82,
+      "paper": 83.56807511737088,
+      "paper_valid": true,
+      "vs_vals": 30.51176838810641,
+      "vs_paper": 8.76369327073553
+    },
+    "sol": {
+      "current": 94.60093896713614,
+      "valid": true,
+      "vals": 96.64,
+      "paper": 82.94209702660407,
+      "paper_valid": true,
+      "vs_vals": -2.039061032863856,
+      "vs_paper": 11.65884194053207
+    }
+  },
+  {
+    "task": "nikoladucak__caps-log.2cf2d1e",
+    "luna": {
+      "current": 74.04718693284937,
+      "valid": true,
+      "vals": 68.24,
+      "paper": 86.7513611615245,
+      "paper_valid": false,
+      "vs_vals": 5.807186932849376,
+      "vs_paper": -12.704174228675129
+    },
+    "sol": {
+      "current": 98.54809437386571,
+      "valid": true,
+      "vals": 94.74,
+      "paper": 74.59165154264973,
+      "paper_valid": true,
+      "vs_vals": 3.808094373865714,
+      "vs_paper": 23.95644283121598
+    }
+  },
+  {
+    "task": "nikolassv__bartib.6b9b5ce",
+    "luna": {
+      "current": 95.5617198335645,
+      "valid": true,
+      "vals": 94.04,
+      "paper": 96.67128987517337,
+      "paper_valid": true,
+      "vs_vals": 1.5217198335644895,
+      "vs_paper": -1.109570041608876
+    },
+    "sol": {
+      "current": 97.78085991678225,
+      "valid": true,
+      "vals": 97.66,
+      "paper": 94.03606102635229,
+      "paper_valid": true,
+      "vs_vals": 0.12085991678225128,
+      "vs_paper": 3.744798890429962
+    }
+  },
+  {
+    "task": "ninja-build__ninja.cc60300",
+    "luna": {
+      "current": 84.56189151599443,
+      "valid": true,
+      "vals": 71.84,
+      "paper": 78.85952712100139,
+      "paper_valid": true,
+      "vs_vals": 12.721891515994429,
+      "vs_paper": 5.70236439499304
+    },
+    "sol": {
+      "current": 98.26147426981919,
+      "valid": true,
+      "vals": 96.04,
+      "paper": 82.5452016689847,
+      "paper_valid": true,
+      "vs_vals": 2.2214742698191827,
+      "vs_paper": 15.716272600834486
+    }
+  },
+  {
+    "task": "noborus__ov.b96c2ba",
+    "luna": {
+      "current": 89.12319644839067,
+      "valid": true,
+      "vals": 83.35,
+      "paper": 87.6803551609323,
+      "paper_valid": true,
+      "vs_vals": 5.773196448390678,
+      "vs_paper": 1.4428412874583785
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 95.67,
+      "paper": 89.95560488346281,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "noborus__trdsql.d8c5ff6",
+    "luna": {
+      "current": 88.49085365853658,
+      "valid": true,
+      "vals": 77.21,
+      "paper": 85.59451219512195,
+      "paper_valid": true,
+      "vs_vals": 11.280853658536586,
+      "vs_paper": 2.896341463414629
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 94.21,
+      "paper": 73.70426829268293,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "nukesor__pueue.8b9d6fe",
+    "luna": {
+      "current": 18.025078369905955,
+      "valid": true,
+      "vals": 17.71,
+      "paper": 10.815047021943574,
+      "paper_valid": true,
+      "vs_vals": 0.3150783699059545,
+      "vs_paper": 7.210031347962381
+    },
+    "sol": {
+      "current": 54.54545454545454,
+      "valid": true,
+      "vals": 32.13,
+      "paper": 18.65203761755486,
+      "paper_valid": true,
+      "vs_vals": 22.415454545454537,
+      "vs_paper": 35.89341692789968
+    }
+  },
+  {
+    "task": "nuta__nsh.bdd0702",
+    "luna": {
+      "current": 87.8061224489796,
+      "valid": true,
+      "vals": 66.43,
+      "paper": 81.22448979591836,
+      "paper_valid": false,
+      "vs_vals": 21.376122448979586,
+      "vs_paper": 6.581632653061234
+    },
+    "sol": {
+      "current": 96.78571428571429,
+      "valid": true,
+      "vals": 95.21,
+      "paper": 87.34693877551021,
+      "paper_valid": true,
+      "vs_vals": 1.575714285714298,
+      "vs_paper": 9.438775510204081
+    }
+  },
+  {
+    "task": "o2sh__onefetch.e5958ce",
+    "luna": {
+      "current": 88.8507718696398,
+      "valid": true,
+      "vals": 78.56,
+      "paper": 84.30531732418525,
+      "paper_valid": true,
+      "vs_vals": 10.290771869639798,
+      "vs_paper": 4.545454545454547
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 98.42,
+      "paper": 83.44768439108061,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "ogham__dog.721440b",
+    "luna": {
+      "current": null,
+      "valid": false,
+      "vals": 93.77,
+      "paper": 95.76923076923077,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    },
+    "sol": {
+      "current": 96.46153846153847,
+      "valid": true,
+      "vals": 98.69,
+      "paper": 95.23076923076923,
+      "paper_valid": true,
+      "vs_vals": -2.2284615384615307,
+      "vs_paper": 1.2307692307692406
+    }
+  },
+  {
+    "task": "oppiliappan__eva.41ae245",
+    "luna": {
+      "current": 99.23329682365826,
+      "valid": true,
+      "vals": 88.17,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 11.063296823658263,
+      "vs_paper": 99.23329682365826
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 100.0,
+      "paper": 88.17086527929902,
+      "paper_valid": true,
+      "vs_vals": 0.0,
+      "vs_paper": 11.829134720700978
+    }
+  },
+  {
+    "task": "oppiliappan__statix.e9df54c",
+    "luna": {
+      "current": 87.11656441717791,
+      "valid": true,
+      "vals": 80.61,
+      "paper": 79.01840490797547,
+      "paper_valid": true,
+      "vs_vals": 6.506564417177913,
+      "vs_paper": 8.098159509202446
+    },
+    "sol": {
+      "current": 99.14110429447854,
+      "valid": true,
+      "vals": 97.55,
+      "paper": 74.3558282208589,
+      "paper_valid": true,
+      "vs_vals": 1.5911042944785407,
+      "vs_paper": 24.78527607361964
+    }
+  },
+  {
+    "task": "orf__gping.26eb5b9",
+    "luna": {
+      "current": 86.98224852071006,
+      "valid": true,
+      "vals": 80.77,
+      "paper": 87.57396449704143,
+      "paper_valid": true,
+      "vs_vals": 6.212248520710062,
+      "vs_paper": -0.591715976331372
+    },
+    "sol": {
+      "current": 99.11242603550295,
+      "valid": true,
+      "vals": 96.75,
+      "paper": 85.20710059171599,
+      "paper_valid": true,
+      "vs_vals": 2.362426035502949,
+      "vs_paper": 13.905325443786964
+    }
+  },
+  {
+    "task": "osgeo__gdal.0847f12",
+    "luna": {
+      "current": 52.35920852359209,
+      "valid": true,
+      "vals": 33.49,
+      "paper": 47.48858447488584,
+      "paper_valid": true,
+      "vs_vals": 18.869208523592086,
+      "vs_paper": 4.870624048706247
+    },
+    "sol": {
+      "current": 80.51750380517504,
+      "valid": true,
+      "vals": 68.8,
+      "paper": 44.90106544901065,
+      "paper_valid": true,
+      "vs_vals": 11.717503805175042,
+      "vs_paper": 35.61643835616439
+    }
+  },
+  {
+    "task": "osgeo__proj.75d455c",
+    "luna": {
+      "current": 25.869524346681708,
+      "valid": true,
+      "vals": 20.02,
+      "paper": null,
+      "paper_valid": false,
+      "vs_vals": 5.849524346681708,
+      "vs_paper": null
+    },
+    "sol": {
+      "current": 87.94886256815191,
+      "valid": true,
+      "vals": 85.54,
+      "paper": 20.360970107163002,
+      "paper_valid": false,
+      "vs_vals": 2.4088625681519034,
+      "vs_paper": 67.58789246098891
+    }
+  },
+  {
+    "task": "paradigmxyz__solar.5190d0e",
+    "luna": {
+      "current": 48.179979777553086,
+      "valid": true,
+      "vals": 45.5,
+      "paper": 42.82103134479272,
+      "paper_valid": true,
+      "vs_vals": 2.6799797775530863,
+      "vs_paper": 5.358948432760364
+    },
+    "sol": {
+      "current": 84.27704752275025,
+      "valid": true,
+      "vals": 71.34,
+      "paper": 49.44388270980789,
+      "paper_valid": true,
+      "vs_vals": 12.937047522750248,
+      "vs_paper": 34.833164812942364
+    }
+  },
+  {
+    "task": "parcel-bundler__lightningcss.aa2ed1e",
+    "luna": {
+      "current": 62.6944837340877,
+      "valid": true,
+      "vals": 61.42,
+      "paper": 64.3917963224894,
+      "paper_valid": false,
+      "vs_vals": 1.2744837340876956,
+      "vs_paper": -1.6973125884017009
+    },
+    "sol": {
+      "current": 87.97736916548797,
+      "valid": true,
+      "vals": 76.39,
+      "paper": 100.0,
+      "paper_valid": true,
+      "vs_vals": 11.58736916548797,
+      "vs_paper": -12.022630834512029
+    }
+  },
+  {
+    "task": "peco__peco.4e58dad",
+    "luna": {
+      "current": 57.86008230452675,
+      "valid": true,
+      "vals": 77.94,
+      "paper": 55.390946502057616,
+      "paper_valid": true,
+      "vs_vals": -20.07991769547325,
+      "vs_paper": 2.4691358024691326
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 95.97,
+      "paper": 75.30864197530865,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "pemistahl__grex.fa3e8ed",
+    "luna": {
+      "current": 92.60670731707317,
+      "valid": true,
+      "vals": 90.85,
+      "paper": 98.01829268292683,
+      "paper_valid": true,
+      "vs_vals": 1.7567073170731788,
+      "vs_paper": -5.411585365853654
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 99.24,
+      "paper": 96.34146341463415,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "php__php-src.c891263",
+    "luna": {
+      "current": 15.369540873460247,
+      "valid": true,
+      "vals": 8.21,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 7.159540873460246,
+      "vs_paper": 15.369540873460247
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 12.32,
+      "paper": 12.479003359462485,
+      "paper_valid": false,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "pier-cli__pier.5e1bde9",
+    "luna": {
+      "current": 96.53179190751445,
+      "valid": true,
+      "vals": 94.65,
+      "paper": 88.0057803468208,
+      "paper_valid": false,
+      "vs_vals": 1.8817919075144403,
+      "vs_paper": 8.526011560693647
+    },
+    "sol": {
+      "current": 97.6878612716763,
+      "valid": true,
+      "vals": 97.36,
+      "paper": 92.77456647398844,
+      "paper_valid": true,
+      "vs_vals": 0.32786127167629786,
+      "vs_paper": 4.913294797687854
+    }
+  },
+  {
+    "task": "pls-rs__pls.4e1ae50",
+    "luna": {
+      "current": 76.13293051359517,
+      "valid": true,
+      "vals": 74.02,
+      "paper": 75.52870090634441,
+      "paper_valid": false,
+      "vs_vals": 2.112930513595174,
+      "vs_paper": 0.6042296072507582
+    },
+    "sol": {
+      "current": 77.94561933534743,
+      "valid": true,
+      "vals": 78.85,
+      "paper": 72.20543806646525,
+      "paper_valid": true,
+      "vs_vals": -0.9043806646525638,
+      "vs_paper": 5.740181268882182
+    }
+  },
+  {
+    "task": "psampaz__go-mod-outdated.bb79367",
+    "luna": {
+      "current": 90.87719298245614,
+      "valid": true,
+      "vals": 95.09,
+      "paper": 87.71929824561403,
+      "paper_valid": true,
+      "vs_vals": -4.2128070175438666,
+      "vs_paper": 3.1578947368421098
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 98.36,
+      "paper": 90.87719298245615,
+      "paper_valid": true,
+      "vs_vals": 1.6400000000000006,
+      "vs_paper": 9.122807017543849
+    }
+  },
+  {
+    "task": "quinn-rs__quinn.bb359cc",
+    "luna": {
+      "current": 86.59003831417624,
+      "valid": true,
+      "vals": 86.02,
+      "paper": 81.22605363984674,
+      "paper_valid": true,
+      "vs_vals": 0.5700383141762444,
+      "vs_paper": 5.363984674329501
+    },
+    "sol": {
+      "current": 98.08429118773945,
+      "valid": true,
+      "vals": 92.53,
+      "paper": 72.60536398467433,
+      "paper_valid": true,
+      "vs_vals": 5.554291187739452,
+      "vs_paper": 25.478927203065126
+    }
+  },
+  {
+    "task": "raviqqe__muffet.a882908",
+    "luna": {
+      "current": 97.6027397260274,
+      "valid": true,
+      "vals": 95.89,
+      "paper": 92.12328767123287,
+      "paper_valid": false,
+      "vs_vals": 1.7127397260273938,
+      "vs_paper": 5.479452054794521
+    },
+    "sol": {
+      "current": 98.97260273972603,
+      "valid": true,
+      "vals": 99.09,
+      "paper": 90.06849315068493,
+      "paper_valid": true,
+      "vs_vals": -0.11739726027397523,
+      "vs_paper": 8.904109589041099
+    }
+  },
+  {
+    "task": "rbakbashev__elfcat.52f8cc7",
+    "luna": {
+      "current": 93.79432624113475,
+      "valid": true,
+      "vals": 88.48,
+      "paper": 91.13475177304964,
+      "paper_valid": true,
+      "vs_vals": 5.314326241134751,
+      "vs_paper": 2.659574468085111
+    },
+    "sol": {
+      "current": 94.50354609929079,
+      "valid": true,
+      "vals": 99.82,
+      "paper": 74.822695035461,
+      "paper_valid": true,
+      "vs_vals": -5.316453900709206,
+      "vs_paper": 19.68085106382979
+    }
+  },
+  {
+    "task": "rcoh__angle-grinder.9c2fc88",
+    "luna": {
+      "current": 83.59929078014184,
+      "valid": true,
+      "vals": 76.06,
+      "paper": 61.79078014184397,
+      "paper_valid": true,
+      "vs_vals": 7.53929078014184,
+      "vs_paper": 21.808510638297875
+    },
+    "sol": {
+      "current": 94.06028368794325,
+      "valid": true,
+      "vals": 92.02,
+      "paper": 54.25531914893617,
+      "paper_valid": true,
+      "vs_vals": 2.0402836879432584,
+      "vs_paper": 39.80496453900709
+    }
+  },
+  {
+    "task": "rhysd__kiro-editor.4157485",
+    "luna": {
+      "current": 94.73684210526316,
+      "valid": true,
+      "vals": 92.53,
+      "paper": 91.51103565365025,
+      "paper_valid": true,
+      "vs_vals": 2.2068421052631635,
+      "vs_paper": 3.225806451612911
+    },
+    "sol": {
+      "current": 99.66044142614601,
+      "valid": true,
+      "vals": 99.49,
+      "paper": 92.19015280135824,
+      "paper_valid": true,
+      "vs_vals": 0.170441426146013,
+      "vs_paper": 7.47028862478777
+    }
+  },
+  {
+    "task": "riquito__tuc.16fb471",
+    "luna": {
+      "current": 97.1571906354515,
+      "valid": true,
+      "vals": 93.39,
+      "paper": 96.65551839464884,
+      "paper_valid": true,
+      "vs_vals": 3.767190635451499,
+      "vs_paper": 0.5016722408026624
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 99.77,
+      "paper": 97.74247491638796,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "robertdavidgraham__masscan.b99d433",
+    "luna": {
+      "current": 68.96822283248332,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 64.966653589643,
+      "paper_valid": true,
+      "vs_vals": 68.96822283248332,
+      "vs_paper": 4.0015692428403185
+    },
+    "sol": {
+      "current": 92.6637897214594,
+      "valid": true,
+      "vals": 92.27,
+      "paper": 64.33895645351117,
+      "paper_valid": true,
+      "vs_vals": 0.39378972145939883,
+      "vs_paper": 28.32483326794822
+    }
+  },
+  {
+    "task": "rochacbruno__marmite.7d4bc2d",
+    "luna": {
+      "current": 67.21556886227545,
+      "valid": true,
+      "vals": 51.65,
+      "paper": 65.26946107784431,
+      "paper_valid": true,
+      "vs_vals": 15.565568862275448,
+      "vs_paper": 1.9461077844311347
+    },
+    "sol": {
+      "current": 82.48502994011976,
+      "valid": true,
+      "vals": 79.19,
+      "paper": 60.62874251497006,
+      "paper_valid": true,
+      "vs_vals": 3.295029940119761,
+      "vs_paper": 21.856287425149702
+    }
+  },
+  {
+    "task": "rs__curlie.5dfcbb1",
+    "luna": {
+      "current": 82.82828282828282,
+      "valid": true,
+      "vals": 74.17,
+      "paper": 86.2914862914863,
+      "paper_valid": true,
+      "vs_vals": 8.658282828282822,
+      "vs_paper": -3.4632034632034703
+    },
+    "sol": {
+      "current": 95.81529581529583,
+      "valid": true,
+      "vals": 85.82,
+      "paper": 94.22799422799423,
+      "paper_valid": true,
+      "vs_vals": 9.995295815295833,
+      "vs_paper": 1.5873015873015959
+    }
+  },
+  {
+    "task": "rs__jplot.2a54bcc",
+    "luna": {
+      "current": 82.16123499142367,
+      "valid": true,
+      "vals": 85.25,
+      "paper": 94.16809605488851,
+      "paper_valid": true,
+      "vs_vals": -3.088765008576331,
+      "vs_paper": -12.00686106346484
+    },
+    "sol": {
+      "current": 95.54030874785592,
+      "valid": true,
+      "vals": 98.11,
+      "paper": 26.07204116638079,
+      "paper_valid": true,
+      "vs_vals": -2.5696912521440822,
+      "vs_paper": 69.46826758147513
+    }
+  },
+  {
+    "task": "rust-embedded__svd2rust.1760b5e",
+    "luna": {
+      "current": 49.673202614379086,
+      "valid": true,
+      "vals": 78.32,
+      "paper": 69.93464052287581,
+      "paper_valid": false,
+      "vs_vals": -28.646797385620907,
+      "vs_paper": -20.261437908496724
+    },
+    "sol": {
+      "current": 72.00435729847494,
+      "valid": true,
+      "vals": 43.65,
+      "paper": 70.1525054466231,
+      "paper_valid": true,
+      "vs_vals": 28.354357298474945,
+      "vs_paper": 1.8518518518518476
+    }
+  },
+  {
+    "task": "rust-ethereum__ethabi.b1710ad",
+    "luna": {
+      "current": 93.98194583751254,
+      "valid": true,
+      "vals": 88.87,
+      "paper": 89.2678034102307,
+      "paper_valid": false,
+      "vs_vals": 5.111945837512536,
+      "vs_paper": 4.714142427281843
+    },
+    "sol": {
+      "current": 99.89969909729187,
+      "valid": true,
+      "vals": 97.82,
+      "paper": 94.48345035105315,
+      "paper_valid": true,
+      "vs_vals": 2.079699097291879,
+      "vs_paper": 5.416248746238722
+    }
+  },
+  {
+    "task": "rust-lang__mdbook.37273ba",
+    "luna": {
+      "current": 65.8886894075404,
+      "valid": true,
+      "vals": 65.08,
+      "paper": 79.80251346499102,
+      "paper_valid": true,
+      "vs_vals": 0.808689407540399,
+      "vs_paper": -13.913824057450626
+    },
+    "sol": {
+      "current": 93.6265709156194,
+      "valid": true,
+      "vals": 91.11,
+      "paper": 79.26391382405745,
+      "paper_valid": true,
+      "vs_vals": 2.516570915619397,
+      "vs_paper": 14.362657091561942
+    }
+  },
+  {
+    "task": "rvben__rumdl.2d75c4d",
+    "luna": {
+      "current": 62.28175797712222,
+      "valid": true,
+      "vals": 44.45,
+      "paper": 39.58458759783263,
+      "paper_valid": false,
+      "vs_vals": 17.831757977122216,
+      "vs_paper": 22.697170379289588
+    },
+    "sol": {
+      "current": 81.96869355809753,
+      "valid": true,
+      "vals": 75.61,
+      "paper": 50.331125827814574,
+      "paper_valid": true,
+      "vs_vals": 6.358693558097528,
+      "vs_paper": 31.637567730282953
+    }
+  },
+  {
+    "task": "samtools__samtools.aa823b5",
+    "luna": {
+      "current": 46.175438596491226,
+      "valid": true,
+      "vals": 14.04,
+      "paper": 48.63157894736842,
+      "paper_valid": true,
+      "vs_vals": 32.13543859649123,
+      "vs_paper": -2.4561403508771917
+    },
+    "sol": {
+      "current": 76.0,
+      "valid": true,
+      "vals": 67.44,
+      "paper": 39.859649122807014,
+      "paper_valid": true,
+      "vs_vals": 8.560000000000002,
+      "vs_paper": 36.140350877192986
+    }
+  },
+  {
+    "task": "sayanarijit__xplr.1751065",
+    "luna": {
+      "current": 73.50835322195704,
+      "valid": true,
+      "vals": 39.62,
+      "paper": 40.334128878281625,
+      "paper_valid": false,
+      "vs_vals": 33.88835322195704,
+      "vs_paper": 33.17422434367541
+    },
+    "sol": {
+      "current": 91.40811455847255,
+      "valid": true,
+      "vals": 89.5,
+      "paper": 81.86157517899761,
+      "paper_valid": true,
+      "vs_vals": 1.9081145584725476,
+      "vs_paper": 9.546539379474936
+    }
+  },
+  {
+    "task": "sclevine__yj.8016400",
+    "luna": {
+      "current": 89.17861799217731,
+      "valid": true,
+      "vals": 81.88,
+      "paper": 87.22294654498045,
+      "paper_valid": true,
+      "vs_vals": 7.298617992177313,
+      "vs_paper": 1.9556714471968633
+    },
+    "sol": {
+      "current": 98.04432855280312,
+      "valid": true,
+      "vals": 98.77,
+      "paper": 90.09126466753585,
+      "paper_valid": true,
+      "vs_vals": -0.7256714471968735,
+      "vs_paper": 7.9530638852672695
+    }
+  },
+  {
+    "task": "segmentio__chamber.5f93f5f",
+    "luna": {
+      "current": 82.89473684210526,
+      "valid": true,
+      "vals": 87.87,
+      "paper": 88.04347826086956,
+      "paper_valid": true,
+      "vs_vals": -4.975263157894744,
+      "vs_paper": -5.148741418764303
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 91.82,
+      "paper": 67.62013729977116,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "sharkdp__bat.f822bd0",
+    "luna": {
+      "current": 69.21151439299123,
+      "valid": true,
+      "vals": 65.46,
+      "paper": 77.34668335419273,
+      "paper_valid": true,
+      "vs_vals": 3.75151439299124,
+      "vs_paper": -8.1351689612015
+    },
+    "sol": {
+      "current": 91.36420525657071,
+      "valid": true,
+      "vals": 85.61,
+      "paper": 68.33541927409262,
+      "paper_valid": true,
+      "vs_vals": 5.754205256570714,
+      "vs_paper": 23.028785982478098
+    }
+  },
+  {
+    "task": "sharkdp__fd.40d8eb3",
+    "luna": {
+      "current": 84.2914979757085,
+      "valid": true,
+      "vals": 84.21,
+      "paper": 83.64372469635629,
+      "paper_valid": true,
+      "vs_vals": 0.08149797570850126,
+      "vs_paper": 0.647773279352208
+    },
+    "sol": {
+      "current": 87.61133603238866,
+      "valid": true,
+      "vals": 98.84,
+      "paper": 84.12955465587044,
+      "paper_valid": true,
+      "vs_vals": -11.22866396761134,
+      "vs_paper": 3.481781376518228
+    }
+  },
+  {
+    "task": "sharkdp__hexyl.2e26437",
+    "luna": {
+      "current": 98.45474613686534,
+      "valid": true,
+      "vals": 93.71,
+      "paper": 94.15011037527594,
+      "paper_valid": true,
+      "vs_vals": 4.744746136865345,
+      "vs_paper": 4.304635761589395
+    },
+    "sol": {
+      "current": 99.55849889624724,
+      "valid": true,
+      "vals": 99.69,
+      "paper": 93.70860927152319,
+      "paper_valid": true,
+      "vs_vals": -0.13150110375275403,
+      "vs_paper": 5.849889624724057
+    }
+  },
+  {
+    "task": "sharkdp__hyperfine.327d5f4",
+    "luna": {
+      "current": 93.81443298969072,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 93.81443298969072,
+      "vs_paper": 93.81443298969072
+    },
+    "sol": {
+      "current": 97.59450171821305,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 85.56701030927834,
+      "paper_valid": true,
+      "vs_vals": 97.59450171821305,
+      "vs_paper": 12.027491408934708
+    }
+  },
+  {
+    "task": "sharkdp__pastel.b60e899",
+    "luna": {
+      "current": 96.6786355475763,
+      "valid": true,
+      "vals": 89.23,
+      "paper": 95.15260323159784,
+      "paper_valid": true,
+      "vs_vals": 7.448635547576302,
+      "vs_paper": 1.526032315978469
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 99.55,
+      "paper": 95.33213644524237,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "shashwatah__jot.a92aad8",
+    "luna": {
+      "current": 97.07446808510639,
+      "valid": true,
+      "vals": 98.14,
+      "paper": 96.80851063829788,
+      "paper_valid": true,
+      "vs_vals": -1.0655319148936115,
+      "vs_paper": 0.26595744680851396
+    },
+    "sol": {
+      "current": 98.93617021276596,
+      "valid": true,
+      "vals": 99.07,
+      "paper": 94.81382978723404,
+      "paper_valid": true,
+      "vs_vals": -0.13382978723403482,
+      "vs_paper": 4.122340425531917
+    }
+  },
+  {
+    "task": "sheepla__pingu.926d475",
+    "luna": {
+      "current": 95.23809523809524,
+      "valid": true,
+      "vals": 52.91,
+      "paper": 96.82539682539682,
+      "paper_valid": false,
+      "vs_vals": 42.328095238095244,
+      "vs_paper": -1.5873015873015817
+    },
+    "sol": {
+      "current": 98.67724867724867,
+      "valid": true,
+      "vals": 43.12,
+      "paper": 97.35449735449735,
+      "paper_valid": true,
+      "vs_vals": 55.55724867724867,
+      "vs_paper": 1.3227513227513157
+    }
+  },
+  {
+    "task": "sibprogrammer__xq.b89f681",
+    "luna": {
+      "current": 90.15151515151516,
+      "valid": true,
+      "vals": 86.74,
+      "paper": 89.14141414141415,
+      "paper_valid": true,
+      "vs_vals": 3.411515151515161,
+      "vs_paper": 1.0101010101010104
+    },
+    "sol": {
+      "current": 94.82323232323232,
+      "valid": true,
+      "vals": 94.19,
+      "paper": 91.41414141414141,
+      "paper_valid": true,
+      "vs_vals": 0.6332323232323205,
+      "vs_paper": 3.4090909090909065
+    }
+  },
+  {
+    "task": "sigoden__argc.04a08f1",
+    "luna": {
+      "current": 57.88944723618091,
+      "valid": true,
+      "vals": 62.71,
+      "paper": 57.38693467336683,
+      "paper_valid": true,
+      "vs_vals": -4.820552763819094,
+      "vs_paper": 0.5025125628140756
+    },
+    "sol": {
+      "current": 79.69849246231155,
+      "valid": true,
+      "vals": 78.29,
+      "paper": 39.597989949748744,
+      "paper_valid": true,
+      "vs_vals": 1.4084924623115427,
+      "vs_paper": 40.100502512562805
+    }
+  },
+  {
+    "task": "simeg__eureka.df3796c",
+    "luna": {
+      "current": 98.83720930232558,
+      "valid": true,
+      "vals": 98.55,
+      "paper": 98.54651162790698,
+      "paper_valid": true,
+      "vs_vals": 0.2872093023255786,
+      "vs_paper": 0.2906976744185954
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 100.0,
+      "paper": 95.34883720930233,
+      "paper_valid": true,
+      "vs_vals": 0.0,
+      "vs_paper": 4.6511627906976685
+    }
+  },
+  {
+    "task": "sirwart__ripsecrets.34c9e03",
+    "luna": {
+      "current": 93.12602291325696,
+      "valid": true,
+      "vals": 88.87,
+      "paper": 93.28968903436989,
+      "paper_valid": false,
+      "vs_vals": 4.256022913256956,
+      "vs_paper": -0.1636661211129251
+    },
+    "sol": {
+      "current": 97.21767594108019,
+      "valid": true,
+      "vals": 93.13,
+      "paper": 94.10801963993454,
+      "paper_valid": true,
+      "vs_vals": 4.087675941080192,
+      "vs_paper": 3.109656301145648
+    }
+  },
+  {
+    "task": "sitkevij__hex.61ae69b",
+    "luna": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 98.54,
+      "paper": 98.42041312272175,
+      "paper_valid": true,
+      "vs_vals": 1.4599999999999937,
+      "vs_paper": 1.5795868772782455
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 98.54,
+      "paper": 96.8408262454435,
+      "paper_valid": true,
+      "vs_vals": 1.4599999999999937,
+      "vs_paper": 3.1591737545565053
+    }
+  },
+  {
+    "task": "skeema__skeema.6a76243",
+    "luna": {
+      "current": 85.4215456674473,
+      "valid": true,
+      "vals": 82.96,
+      "paper": 77.1662763466042,
+      "paper_valid": true,
+      "vs_vals": 2.461545667447311,
+      "vs_paper": 8.255269320843098
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 94.61,
+      "paper": 72.24824355971897,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "sqlite__sqlite.839433d",
+    "luna": {
+      "current": null,
+      "valid": false,
+      "vals": 70.51,
+      "paper": 1.5988156920799408,
+      "paper_valid": false,
+      "vs_vals": null,
+      "vs_paper": null
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 1.87,
+      "paper": 73.30866025166543,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "sstadick__hck.b66c751",
+    "luna": {
+      "current": 92.86549707602339,
+      "valid": true,
+      "vals": 95.2,
+      "paper": 95.55555555555556,
+      "paper_valid": true,
+      "vs_vals": -2.334502923976615,
+      "vs_paper": -2.690058479532169
+    },
+    "sol": {
+      "current": 99.29824561403508,
+      "valid": true,
+      "vals": 99.67,
+      "paper": 97.42690058479532,
+      "paper_valid": true,
+      "vs_vals": -0.3717543859649197,
+      "vs_paper": 1.8713450292397624
+    }
+  },
+  {
+    "task": "stacked-git__stgit.430027d",
+    "luna": {
+      "current": 65.45698924731182,
+      "valid": true,
+      "vals": 58.79,
+      "paper": 51.41129032258065,
+      "paper_valid": false,
+      "vs_vals": 6.666989247311825,
+      "vs_paper": 14.045698924731177
+    },
+    "sol": {
+      "current": 88.84408602150538,
+      "valid": true,
+      "vals": 84.27,
+      "paper": 51.84687709872398,
+      "paper_valid": false,
+      "vs_vals": 4.57408602150538,
+      "vs_paper": 36.9972089227814
+    }
+  },
+  {
+    "task": "stathissideris__ditaa.f2286c4",
+    "luna": {
+      "current": 41.050903119868636,
+      "valid": true,
+      "vals": 35.3,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 5.750903119868639,
+      "vs_paper": 41.050903119868636
+    },
+    "sol": {
+      "current": 92.61083743842364,
+      "valid": true,
+      "vals": 85.88,
+      "paper": 37.60262725779967,
+      "paper_valid": true,
+      "vs_vals": 6.730837438423649,
+      "vs_paper": 55.008210180623976
+    }
+  },
+  {
+    "task": "stranger6667__jsonschema.d52e881",
+    "luna": {
+      "current": 59.07230559345157,
+      "valid": true,
+      "vals": 57.5,
+      "paper": 60.129604365620736,
+      "paper_valid": false,
+      "vs_vals": 1.572305593451567,
+      "vs_paper": -1.057298772169169
+    },
+    "sol": {
+      "current": 62.38062755798091,
+      "valid": true,
+      "vals": 83.12,
+      "paper": 58.0150068212824,
+      "paper_valid": false,
+      "vs_vals": -20.739372442019096,
+      "vs_paper": 4.36562073669851
+    }
+  },
+  {
+    "task": "svenstaro__genact.16f96e3",
+    "luna": {
+      "current": 28.571428571428573,
+      "valid": true,
+      "vals": 54.98,
+      "paper": 34.63203463203463,
+      "paper_valid": true,
+      "vs_vals": -26.408571428571424,
+      "vs_paper": -6.060606060606059
+    },
+    "sol": {
+      "current": null,
+      "valid": false,
+      "vals": 90.48,
+      "paper": 17.316017316017316,
+      "paper_valid": true,
+      "vs_vals": null,
+      "vs_paper": null
+    }
+  },
+  {
+    "task": "svenstaro__miniserve.8449e8b",
+    "luna": {
+      "current": 96.38157894736842,
+      "valid": true,
+      "vals": 86.18,
+      "paper": 89.80263157894737,
+      "paper_valid": true,
+      "vs_vals": 10.201578947368418,
+      "vs_paper": 6.578947368421055
+    },
+    "sol": {
+      "current": 99.3421052631579,
+      "valid": true,
+      "vals": 99.34,
+      "paper": 87.17105263157895,
+      "paper_valid": true,
+      "vs_vals": 0.0021052631579010495,
+      "vs_paper": 12.17105263157896
+    }
+  },
+  {
+    "task": "tarka__xcp.5e5b448",
+    "luna": {
+      "current": 97.12837837837837,
+      "valid": true,
+      "vals": 95.27,
+      "paper": 96.0304054054054,
+      "paper_valid": true,
+      "vs_vals": 1.8583783783783758,
+      "vs_paper": 1.0979729729729684
+    },
+    "sol": {
+      "current": 98.5641891891892,
+      "valid": true,
+      "vals": 98.73,
+      "paper": 95.52364864864865,
+      "paper_valid": true,
+      "vs_vals": -0.16581081081081095,
+      "vs_paper": 3.0405405405405475
+    }
+  },
+  {
+    "task": "thezoraiz__ascii-image-converter.d05a757",
+    "luna": {
+      "current": 86.45161290322581,
+      "valid": true,
+      "vals": 77.85,
+      "paper": 82.58064516129032,
+      "paper_valid": true,
+      "vs_vals": 8.601612903225814,
+      "vs_paper": 3.8709677419354875
+    },
+    "sol": {
+      "current": 97.41935483870968,
+      "valid": true,
+      "vals": 96.99,
+      "paper": 90.75268817204301,
+      "paper_valid": true,
+      "vs_vals": 0.4293548387096848,
+      "vs_paper": 6.666666666666671
+    }
+  },
+  {
+    "task": "tinycc__tinycc.9b8765d",
+    "luna": {
+      "current": 15.267947421638018,
+      "valid": true,
+      "vals": 11.73,
+      "paper": 72.14357937310415,
+      "paper_valid": true,
+      "vs_vals": 3.537947421638018,
+      "vs_paper": -56.875631951466126
+    },
+    "sol": {
+      "current": 22.093023255813954,
+      "valid": true,
+      "vals": 25.99,
+      "paper": 35.085945399393324,
+      "paper_valid": true,
+      "vs_vals": -3.896976744186045,
+      "vs_paper": -12.99292214357937
+    }
+  },
+  {
+    "task": "tomarrell__wrapcheck.c058da1",
+    "luna": {
+      "current": 43.75,
+      "valid": true,
+      "vals": 62.58,
+      "paper": 61.458333333333336,
+      "paper_valid": true,
+      "vs_vals": -18.83,
+      "vs_paper": -17.708333333333336
+    },
+    "sol": {
+      "current": 63.74999999999999,
+      "valid": true,
+      "vals": 68.96,
+      "paper": 91.66666666666666,
+      "paper_valid": true,
+      "vs_vals": -5.210000000000001,
+      "vs_paper": -27.916666666666664
+    }
+  },
+  {
+    "task": "tomnomnom__gron.88a6234",
+    "luna": {
+      "current": 91.96428571428571,
+      "valid": true,
+      "vals": 92.41,
+      "paper": 93.30357142857143,
+      "paper_valid": true,
+      "vs_vals": -0.4457142857142884,
+      "vs_paper": -1.3392857142857224
+    },
+    "sol": {
+      "current": 98.21428571428571,
+      "valid": true,
+      "vals": 97.77,
+      "paper": 93.30357142857143,
+      "paper_valid": true,
+      "vs_vals": 0.4442857142857122,
+      "vs_paper": 4.910714285714278
+    }
+  },
+  {
+    "task": "trasta298__keifu.3331426",
+    "luna": {
+      "current": 90.83969465648855,
+      "valid": true,
+      "vals": 84.73,
+      "paper": 49.23664122137404,
+      "paper_valid": true,
+      "vs_vals": 6.109694656488543,
+      "vs_paper": 41.603053435114504
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 99.28,
+      "paper": 74.04580152671755,
+      "paper_valid": true,
+      "vs_vals": 0.7199999999999989,
+      "vs_paper": 25.954198473282446
+    }
+  },
+  {
+    "task": "tree-sitter__tree-sitter.5e23cca",
+    "luna": {
+      "current": 50.64935064935065,
+      "valid": true,
+      "vals": 38.15,
+      "paper": 45.211038961038966,
+      "paper_valid": true,
+      "vs_vals": 12.499350649350653,
+      "vs_paper": 5.4383116883116855
+    },
+    "sol": {
+      "current": 73.62012987012987,
+      "valid": true,
+      "vals": 62.74,
+      "paper": 99.91883116883116,
+      "paper_valid": true,
+      "vs_vals": 10.88012987012987,
+      "vs_paper": -26.29870129870129
+    }
+  },
+  {
+    "task": "tstack__lnav.ee34494",
+    "luna": {
+      "current": 11.425682507583417,
+      "valid": true,
+      "vals": 14.56,
+      "paper": 23.761375126390295,
+      "paper_valid": true,
+      "vs_vals": -3.1343174924165833,
+      "vs_paper": -12.335692618806878
+    },
+    "sol": {
+      "current": 56.31951466127402,
+      "valid": true,
+      "vals": 56.93,
+      "paper": 20.222446916076844,
+      "paper_valid": true,
+      "vs_vals": -0.6104853387259794,
+      "vs_paper": 36.09706774519718
+    }
+  },
+  {
+    "task": "tukaani-project__xz.1007bf0",
+    "luna": {
+      "current": 67.09219858156028,
+      "valid": true,
+      "vals": 0.0,
+      "paper": 91.27659574468086,
+      "paper_valid": true,
+      "vs_vals": 67.09219858156028,
+      "vs_paper": -24.18439716312058
+    },
+    "sol": {
+      "current": 98.79432624113475,
+      "valid": true,
+      "vals": 96.6,
+      "paper": 95.53191489361701,
+      "paper_valid": true,
+      "vs_vals": 2.1943262411347604,
+      "vs_paper": 3.262411347517741
+    }
+  },
+  {
+    "task": "typst__typst.88356d0",
+    "luna": {
+      "current": 41.93735498839907,
+      "valid": true,
+      "vals": 42.0,
+      "paper": 45.59164733178655,
+      "paper_valid": true,
+      "vs_vals": -0.06264501160092806,
+      "vs_paper": -3.6542923433874748
+    },
+    "sol": {
+      "current": 75.1740139211137,
+      "valid": true,
+      "vals": 69.43,
+      "paper": 50.696055684454755,
+      "paper_valid": true,
+      "vs_vals": 5.744013921113691,
+      "vs_paper": 24.477958236658942
+    }
+  },
+  {
+    "task": "unhappychoice__gittype.34b72d0",
+    "luna": {
+      "current": 74.17127071823204,
+      "valid": true,
+      "vals": 78.87,
+      "paper": 79.69613259668509,
+      "paper_valid": true,
+      "vs_vals": -4.698729281767967,
+      "vs_paper": -5.524861878453052
+    },
+    "sol": {
+      "current": 92.81767955801105,
+      "valid": true,
+      "vals": 80.35,
+      "paper": 79.28176795580112,
+      "paper_valid": true,
+      "vs_vals": 12.467679558011056,
+      "vs_paper": 13.535911602209936
+    }
+  },
+  {
+    "task": "universal-ctags__ctags.243595e",
+    "luna": {
+      "current": 8.193091231178034,
+      "valid": true,
+      "vals": 11.51,
+      "paper": 10.761736049601417,
+      "paper_valid": true,
+      "vs_vals": -3.316908768821966,
+      "vs_paper": -2.568644818423383
+    },
+    "sol": {
+      "current": 47.60850310008857,
+      "valid": true,
+      "vals": 31.67,
+      "paper": 19.66341895482728,
+      "paper_valid": true,
+      "vs_vals": 15.938503100088568,
+      "vs_paper": 27.94508414526129
+    }
+  },
+  {
+    "task": "wfxr__code-minimap.0ddeea5",
+    "luna": {
+      "current": 99.36102236421725,
+      "valid": true,
+      "vals": 97.44,
+      "paper": 80.19169329073482,
+      "paper_valid": true,
+      "vs_vals": 1.9210223642172508,
+      "vs_paper": 19.16932907348243
+    },
+    "sol": {
+      "current": 99.68051118210862,
+      "valid": true,
+      "vals": 99.46,
+      "paper": 78.91373801916933,
+      "paper_valid": true,
+      "vs_vals": 0.22051118210862342,
+      "vs_paper": 20.766773162939288
+    }
+  },
+  {
+    "task": "wfxr__csview.8ac4de0",
+    "luna": {
+      "current": 99.70149253731343,
+      "valid": true,
+      "vals": 99.1,
+      "paper": 99.40298507462687,
+      "paper_valid": false,
+      "vs_vals": 0.6014925373134332,
+      "vs_paper": 0.29850746268655826
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 100.0,
+      "paper": 99.1044776119403,
+      "paper_valid": true,
+      "vs_vals": 0.0,
+      "vs_paper": 0.8955223880597032
+    }
+  },
+  {
+    "task": "wgunderwood__tex-fmt.3f1aef6",
+    "luna": {
+      "current": 92.08791208791209,
+      "valid": true,
+      "vals": 86.59,
+      "paper": 87.6923076923077,
+      "paper_valid": true,
+      "vs_vals": 5.497912087912084,
+      "vs_paper": 4.395604395604394
+    },
+    "sol": {
+      "current": 96.04395604395604,
+      "valid": true,
+      "vals": 98.02,
+      "paper": 82.85714285714286,
+      "paper_valid": true,
+      "vs_vals": -1.9760439560439522,
+      "vs_paper": 13.186813186813183
+    }
+  },
+  {
+    "task": "wintermute-cell__ngrrram.8ea13c3",
+    "luna": {
+      "current": 99.00990099009901,
+      "valid": true,
+      "vals": 98.02,
+      "paper": 100.0,
+      "paper_valid": true,
+      "vs_vals": 0.9899009900990166,
+      "vs_paper": -0.9900990099009874
+    },
+    "sol": {
+      "current": 100.0,
+      "valid": true,
+      "vals": 100.0,
+      "paper": 100.0,
+      "paper_valid": true,
+      "vs_vals": 0.0,
+      "vs_paper": 0.0
+    }
+  },
+  {
+    "task": "xampprocky__tokei.505d648",
+    "luna": {
+      "current": 63.387978142076506,
+      "valid": true,
+      "vals": 72.95,
+      "paper": 73.224043715847,
+      "paper_valid": true,
+      "vs_vals": -9.562021857923497,
+      "vs_paper": -9.836065573770497
+    },
+    "sol": {
+      "current": 97.40437158469946,
+      "valid": true,
+      "vals": 96.21,
+      "paper": 69.12568306010928,
+      "paper_valid": true,
+      "vs_vals": 1.1943715846994678,
+      "vs_paper": 28.27868852459018
+    }
+  },
+  {
+    "task": "xorg62__tty-clock.f2f847c",
+    "luna": {
+      "current": 95.72953736654804,
+      "valid": true,
+      "vals": 87.54,
+      "paper": 96.79715302491103,
+      "paper_valid": true,
+      "vs_vals": 8.189537366548038,
+      "vs_paper": -1.067615658362982
+    },
+    "sol": {
+      "current": 98.93238434163702,
+      "valid": true,
+      "vals": 98.93,
+      "paper": 97.15302491103202,
+      "paper_valid": true,
+      "vs_vals": 0.002384341637011289,
+      "vs_paper": 1.7793594306049982
+    }
+  },
+  {
+    "task": "y2z__monolith.8702e66",
+    "luna": {
+      "current": 73.17415730337079,
+      "valid": true,
+      "vals": 66.43,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 6.744157303370784,
+      "vs_paper": 73.17415730337079
+    },
+    "sol": {
+      "current": 95.36516853932584,
+      "valid": true,
+      "vals": 94.66,
+      "paper": 72.3314606741573,
+      "paper_valid": true,
+      "vs_vals": 0.7051685393258396,
+      "vs_paper": 23.033707865168537
+    }
+  },
+  {
+    "task": "yaa110__nomino.f892499",
+    "luna": {
+      "current": 98.08306709265176,
+      "valid": true,
+      "vals": 91.05,
+      "paper": 95.52715654952077,
+      "paper_valid": true,
+      "vs_vals": 7.033067092651763,
+      "vs_paper": 2.5559105431309916
+    },
+    "sol": {
+      "current": 99.04153354632588,
+      "valid": true,
+      "vals": 98.4,
+      "paper": 90.41533546325878,
+      "paper_valid": true,
+      "vs_vals": 0.6415335463258742,
+      "vs_paper": 8.626198083067095
+    }
+  },
+  {
+    "task": "yassinebridi__serpl.c48a9d7",
+    "luna": {
+      "current": 80.3357314148681,
+      "valid": true,
+      "vals": 64.75,
+      "paper": 66.66666666666666,
+      "paper_valid": true,
+      "vs_vals": 15.585731414868107,
+      "vs_paper": 13.66906474820145
+    },
+    "sol": {
+      "current": 85.85131894484412,
+      "valid": true,
+      "vals": 89.21,
+      "paper": 71.70263788968825,
+      "paper_valid": true,
+      "vs_vals": -3.35868105515587,
+      "vs_paper": 14.148681055155876
+    }
+  },
+  {
+    "task": "yoav-lavi__melody.f4af9b4",
+    "luna": {
+      "current": 84.149377593361,
+      "valid": true,
+      "vals": 69.63,
+      "paper": 84.48132780082987,
+      "paper_valid": true,
+      "vs_vals": 14.519377593361,
+      "vs_paper": -0.3319502074688785
+    },
+    "sol": {
+      "current": 99.91701244813278,
+      "valid": true,
+      "vals": 89.71,
+      "paper": 76.84647302904565,
+      "paper_valid": true,
+      "vs_vals": 10.207012448132787,
+      "vs_paper": 23.070539419087126
+    }
+  },
+  {
+    "task": "ys-l__flamelens.0b4dc33",
+    "luna": {
+      "current": 69.5067264573991,
+      "valid": true,
+      "vals": 58.3,
+      "paper": 60.98654708520179,
+      "paper_valid": true,
+      "vs_vals": 11.2067264573991,
+      "vs_paper": 8.520179372197305
+    },
+    "sol": {
+      "current": 99.55156950672645,
+      "valid": true,
+      "vals": 99.55,
+      "paper": 59.19282511210763,
+      "paper_valid": true,
+      "vs_vals": 0.001569506726454506,
+      "vs_paper": 40.358744394618824
+    }
+  },
+  {
+    "task": "zevv__duc.a58fa4e",
+    "luna": {
+      "current": 91.53318077803203,
+      "valid": true,
+      "vals": 91.3,
+      "paper": 90.38901601830663,
+      "paper_valid": true,
+      "vs_vals": 0.23318077803203607,
+      "vs_paper": 1.144164759725399
+    },
+    "sol": {
+      "current": 93.93592677345538,
+      "valid": true,
+      "vals": 93.02,
+      "paper": 87.75743707093821,
+      "paper_valid": true,
+      "vs_vals": 0.9159267734553822,
+      "vs_paper": 6.178489702517169
+    }
+  },
+  {
+    "task": "zk-org__zk.10d93d5",
+    "luna": {
+      "current": 62.87262872628726,
+      "valid": true,
+      "vals": 15.36,
+      "paper": 0.0,
+      "paper_valid": false,
+      "vs_vals": 47.51262872628726,
+      "vs_paper": 62.87262872628726
+    },
+    "sol": {
+      "current": 84.5528455284553,
+      "valid": true,
+      "vals": 21.77,
+      "paper": 55.465221318879856,
+      "paper_valid": true,
+      "vs_vals": 62.7828455284553,
+      "vs_paper": 29.087624209575438
+    }
+  }
+]

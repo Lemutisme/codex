@@ -1,0 +1,174 @@
+{
+  "snapshot_utc": "2026-11-06T20:56:21.404326+00:00",
+  "vals_updated": "2026-11-05",
+  "luna": {
+    "n": 197,
+    "ours_mean": 76.22960583381331,
+    "reference_mean": 68.08218274111675,
+    "mean_delta": 8.147423092696553,
+    "wins": 156,
+    "ties": 0,
+    "losses": 41,
+    "ours_95": 35,
+    "reference_95": 18,
+    "ours_full": 3,
+    "reference_full": 0
+  },
+  "sol": {
+    "n": 175,
+    "ours_mean": 89.7696881655093,
+    "reference_mean": 85.87308571428571,
+    "mean_delta": 3.896602451223578,
+    "wins": 111,
+    "ties": 13,
+    "losses": 51,
+    "ours_95": 94,
+    "reference_95": 79,
+    "ours_full": 11,
+    "reference_full": 5
+  },
+  "sol_vs_luna": {
+    "n": 173,
+    "ours_mean": 89.70315407634953,
+    "reference_mean": 76.54476456083776,
+    "mean_delta": 13.15838951551178,
+    "wins": 163,
+    "ties": 2,
+    "losses": 8,
+    "ours_95": 93,
+    "reference_95": 29,
+    "ours_full": 11,
+    "reference_full": 2
+  },
+  "paper_reported": [
+    {
+      "model": "openai/gpt-5.6-luna",
+      "effort": "max",
+      "denominator": 200,
+      "readable": 199,
+      "mean_percent": 70.1963129280694,
+      "full": 3,
+      "at_least_95": 28,
+      "evaluator_valid": 150,
+      "valid_full": 1,
+      "invalid_zero_mean_percent": 58.2043004073742,
+      "cost_total_usd": "651.59375308000000919166",
+      "cost_per_task_usd": 3.2579687654000002,
+      "full_ids": [
+        "lua__lua.c6b4848",
+        "luajit__luajit.a553b3d",
+        "wintermute-cell__ngrrram.8ea13c3"
+      ]
+    },
+    {
+      "model": "openai/gpt-5.6-sol",
+      "effort": "xhigh",
+      "denominator": 200,
+      "readable": 200,
+      "mean_percent": 75.25047099737428,
+      "full": 5,
+      "at_least_95": 30,
+      "evaluator_valid": 192,
+      "valid_full": 4,
+      "invalid_zero_mean_percent": 73.64139052008976,
+      "cost_total_usd": "628.6681296000000077",
+      "cost_per_task_usd": 3.143340648,
+      "full_ids": [
+        "abishekvashok__cmatrix.5c082c6",
+        "lua__lua.c6b4848",
+        "luajit__luajit.a553b3d",
+        "parcel-bundler__lightningcss.aa2ed1e",
+        "wintermute-cell__ngrrram.8ea13c3"
+      ]
+    },
+    {
+      "model": "openai/gpt-5.6-terra",
+      "effort": "max",
+      "denominator": 200,
+      "readable": 199,
+      "mean_percent": 75.7181192832383,
+      "full": 3,
+      "at_least_95": 28,
+      "evaluator_valid": 198,
+      "valid_full": 3,
+      "invalid_zero_mean_percent": 75.2352719419004,
+      "cost_total_usd": "1444.4385666",
+      "cost_per_task_usd": 7.222192833,
+      "full_ids": [
+        "abishekvashok__cmatrix.5c082c6",
+        "sitkevij__hex.61ae69b",
+        "wintermute-cell__ngrrram.8ea13c3"
+      ],
+      "complete_source_scores": 199,
+      "native_deliveries": 198,
+      "joint_valid_deliveries": 197,
+      "mean_upper_percent": 76.2181192832383,
+      "sent_requests_missing_usage": 3
+    }
+  ],
+  "paper_aligned": {
+    "luna": {
+      "same_instance_numeric": {
+        "n": 196,
+        "paper_mean": 70.68073444345549,
+        "current_mean": 76.48654502507418,
+        "delta": 5.805810581618694,
+        "wins": 125,
+        "ties": 1,
+        "losses": 70,
+        "paper_95": 27,
+        "current_95": 35,
+        "paper_full": 3,
+        "current_full": 3
+      },
+      "same_instance_paper_valid": {
+        "n": 148,
+        "paper_mean": 77.40959636804267,
+        "current_mean": 77.41783095975131,
+        "delta": 0.008234591708639289,
+        "wins": 91,
+        "ties": 0,
+        "losses": 57,
+        "paper_95": 22,
+        "current_95": 27,
+        "paper_full": 1,
+        "current_full": 3
+      }
+    },
+    "sol": {
+      "same_instance_numeric": {
+        "n": 175,
+        "paper_mean": 75.76367032987311,
+        "current_mean": 89.7696881655093,
+        "delta": 14.00601783563618,
+        "wins": 162,
+        "ties": 1,
+        "losses": 12,
+        "paper_95": 23,
+        "current_95": 94,
+        "paper_full": 4,
+        "current_full": 11
+      },
+      "same_instance_paper_valid": {
+        "n": 170,
+        "paper_mean": 76.91638854039581,
+        "current_mean": 90.49913268879651,
+        "delta": 13.582744148400701,
+        "wins": 157,
+        "ties": 1,
+        "losses": 12,
+        "paper_95": 23,
+        "current_95": 94,
+        "paper_full": 4,
+        "current_full": 11
+      }
+    }
+  },
+  "rules": [
+    "Only current valid runs enter the primary comparison. Confirmed API and grading-configuration failures are not model zeroes.",
+    "The designated rerun replaces its earlier attempt even if the new score is lower. No historical maximum is selected.",
+    "The Vals comparison uses exactly the current valid set of instance IDs.",
+    "The original paper table retains its fixed200-task denominator. Aligned comparisons require numeric scores on both sides and do not fill missing paper scores.",
+    "The paper historical-valid flag is retained as a separate grouping variable, not equated with the current API/configuration rule."
+  ]
+}
