@@ -4297,6 +4297,7 @@ dependencies = [
  "codex-utils-absolute-path",
  "libc",
  "pretty_assertions",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.10.9",

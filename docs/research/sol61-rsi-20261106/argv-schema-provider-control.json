@@ -1,0 +1,46 @@
+{
+  "status": 200,
+  "elapsed_seconds": 5.975866317749023,
+  "request_sha256": "adfa7cf56a26ee04a757b9c1f3687fc6b41479eff413dad74dc0e50890a6561e",
+  "response_sha256": "0115711a4595405939740f6dbb3c8edf3189c5c3cd1e09236b76dc5fd77b680c",
+  "parsed": {
+    "cases": [
+      {
+        "id": "unicode-spaces",
+        "args": [
+          "-s",
+          "\u00a0\u2003\u2028"
+        ],
+        "stdin": null
+      },
+      {
+        "id": "nul-stream",
+        "args": [
+          "-"
+        ],
+        "stdin": "\u0000"
+      }
+    ]
+  },
+  "argv_os_valid": true,
+  "nul_stdin_retained": true,
+  "unicode_retained": true,
+  "unicode_codepoints": [
+    [
+      "0x2d",
+      "0x73",
+      "0xa0",
+      "0x2003",
+      "0x2028"
+    ],
+    [
+      "0x2d"
+    ]
+  ],
+  "model_requests": 1,
+  "sse_decoder": "LF-delimited bytes; Unicode line separators inside JSON are data",
+  "scope": "Standalone Sol/max structured-output transport control; no benchmark solver or artifact changed.",
+  "passed": true,
+  "response_model": "gpt-6.1-sol",
+  "response_effort": "max"
+}

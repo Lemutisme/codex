@@ -34,10 +34,11 @@ pub(crate) const CASE_RULES: &str = "Each case runs in a fresh copy of the base 
 documentation and assets resolve), with the case's own files and empty directories added on top, a fixed environment \
 plus the case's env, and the case's stdin. Both programs run at the same path with the same arguments; their exit \
 status, standard output, standard error and the files left in the case directory are compared. Give each case a plain \
-id (letters, digits, '-', '_', '.'), a short family tag naming the behavior it exercises, args (the argument vector \
-after the program name), stdin (text up to 64 KiB, or null), files (path relative to the case directory, text, and \
+id (letters, digits, '-', '_', '.'), a short family tag naming the behavior it exercises, args (at most 64 arguments \
+after the program name, with no NUL characters because operating-system argument vectors cannot carry them), \
+stdin (text up to 64 KiB, or null), files (path relative to the case directory, text, and \
 repeat: the content is text repeated that many times; at most 256 KiB per case), dirs (empty directories), and env \
-(name/value pairs). Set terminal to null for ordinary pipe execution, or to {rows, cols, input, dialogue} \
+(name/value pairs). NUL data is representable in stdin or fixture contents. Set terminal to null for ordinary pipe execution, or to {rows, cols, input, dialogue} \
 for a controlling PTY with stdout and stderr merged into terminal output. With a PTY, null stdin attaches \
 stdin to the terminal; text stdin supplies that text separately while terminal.input feeds /dev/tty. \
 Choose TERM and dimensions from the documented interface. input is sent once at startup. dialogue is an \
@@ -50,7 +51,9 @@ pub(crate) fn case_schema() -> Value {
     strict_object(json!({
         "id": {"type": "string"},
         "family": {"type": "string"},
-        "args": {"type": "array", "items": {"type": "string"}},
+        "args": {"type": "array", "maxItems": MAX_ARGS, "items": {
+            "type": "string", "pattern": r"^[^\u0000]*$"
+        }},
         "stdin": {"type": ["string", "null"]},
         "files": {"type": "array", "items": strict_object(json!({
             "path": {"type": "string"},
@@ -136,8 +139,15 @@ pub(crate) fn validate_cases(
         if !ids.insert(id.clone()) {
             return malformed(format!("duplicate case id {id}"));
         }
-        if case.args.len() > MAX_ARGS || case.args.iter().any(|arg| arg.contains('\0')) {
-            return malformed(format!("case {id} has too many or invalid arguments"));
+        if case.args.len() > MAX_ARGS {
+            return malformed(format!(
+                "case {id} exceeds the limit of {MAX_ARGS} arguments"
+            ));
+        }
+        if let Some(index) = case.args.iter().position(|arg| arg.contains('\0')) {
+            return malformed(format!(
+                "case {id} argument {index} contains NUL, which an operating-system argument cannot represent"
+            ));
         }
         if case
             .stdin

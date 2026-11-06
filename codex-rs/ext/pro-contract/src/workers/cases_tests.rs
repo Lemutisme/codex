@@ -98,6 +98,58 @@ fn optional_fields_default_to_empty() {
 }
 
 #[test]
+fn argument_schema_agrees_with_os_transport_and_runtime_validation() {
+    let schema = super::case_schema();
+    let shape = &schema["properties"]["args"];
+    let pattern = regex::Regex::new(shape["items"]["pattern"].as_str().unwrap()).unwrap();
+    for argument in [
+        "",
+        "two words\t\n\r",
+        "a\u{a0}b\u{2003}c\u{2028}d",
+        "\0",
+        "a\0a0f\u{2}003g",
+    ] {
+        let representable = std::ffi::CString::new(argument).is_ok();
+        assert_eq!(pattern.is_match(argument), representable);
+        let outcome = validate_cases(
+            raw(json!([{"id":"unicode-spaces", "args":["-s",argument]}])),
+            1,
+        );
+        assert_eq!(outcome.is_ok(), representable);
+        if !representable {
+            assert!(
+                outcome
+                    .unwrap_err()
+                    .to_string()
+                    .contains("argument 1 contains NUL")
+            );
+        }
+    }
+    let maximum = shape["maxItems"].as_u64().unwrap() as usize;
+    for length in [maximum, maximum + 1] {
+        let outcome = validate_cases(
+            raw(json!([{"id":"argv-boundary", "args":vec!["x";length]}])),
+            1,
+        );
+        assert_eq!(outcome.is_ok(), length <= maximum);
+    }
+}
+
+#[test]
+fn nul_input_remains_available_through_stdin_and_files() {
+    let cases = validate_cases(
+        raw(json!([{
+            "id":"nul-stream", "args":["-"], "stdin":"a\0b",
+            "files":[{"path":"input.txt", "text":"a\0b", "repeat":1}]
+        }])),
+        1,
+    )
+    .expect("NUL is valid stream and file content");
+    assert_eq!(cases[0].stdin.as_deref(), Some("a\0b"));
+    assert_eq!(cases[0].files[0].text, "a\0b");
+}
+
+#[test]
 fn ids_must_be_plain_and_unique() {
     assert!(malformed(json!([{"id": "a b", "args": []}])).contains("plain token"));
     assert!(

@@ -1,0 +1,22 @@
+{
+  "file": "programbench-sol61-retries-20261106/runs/pemistahl__grex.fa3e8ed/codex-home/sessions/2026/11/06/rollout-2026-11-06T16-34-13-01a1b1b5-f327-77e3-bb69-33f456648a8e.jsonl",
+  "line": 97,
+  "line_sha256": "c8d0d908221bbb30a94872f8346ffa1b48ef6e2970ffa2ce93ff3a1e3a6e2b5a",
+  "case": {
+    "id": "unicode-spaces",
+    "family": "character-conversion",
+    "args": [
+      "-s",
+      "a b\tc\nd\re\u0000a0f\u0002003g\u0002028h"
+    ],
+    "stdin": null,
+    "files": [],
+    "dirs": [],
+    "env": [],
+    "terminal": null
+  },
+  "argument_count": 2,
+  "nul_argument_indices": [
+    1
+  ]
+}
