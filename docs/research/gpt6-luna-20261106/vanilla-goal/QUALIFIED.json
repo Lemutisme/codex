@@ -1,0 +1,12 @@
+{
+  "at": 1794008512.5000532,
+  "plan_sha256": "b730b82d4eb625504e38492533435e4f94744ffbb6153dbf9f2dd1e78f94b295",
+  "qualified": true,
+  "model": "gpt-6-luna",
+  "effort": "max",
+  "solver_binary_sha256": "cdcb45aaa01d0f14e298985e09465aebccd47f64ecd298aea44814af7b62bbda",
+  "native_qualification_sha256": "78d42eafca4ff7549c170009714276cf7e3854e542b6b2ab8520ec1e81e50265",
+  "process_limit_seconds": 180,
+  "solver_allocations_started": 0,
+  "rsi_candidates_activated": false
+}

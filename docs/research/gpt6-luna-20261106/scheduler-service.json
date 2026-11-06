@@ -1,0 +1,7 @@
+{
+  "unit": "procontract-programbench-gpt6-luna-20261106.service",
+  "registered_at": 1794008598.6130197,
+  "scheduler": "/data/ProContract/programbench-gpt6-luna-20261106/supervise_pairs.py",
+  "scheduler_sha256": "f2b839b70e3a614dd79dd302640281377b9cfb26bedcbcfe683070916044dc2d",
+  "restart_policy": "Supervisor on-failure with preserved job PID/start identity; no solver restart or budget renewal."
+}

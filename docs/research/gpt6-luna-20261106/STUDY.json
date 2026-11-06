@@ -1,0 +1,13 @@
+{
+  "at": 1794008512.6840546,
+  "state": "qualified",
+  "plans": {
+    "procontract": "5b6b3efedb460a5ed85eda44d0ec91d8e615fc40961f2a24d8e14652e8cf8954",
+    "vanilla-goal": "b730b82d4eb625504e38492533435e4f94744ffbb6153dbf9f2dd1e78f94b295"
+  },
+  "tasks_per_arm": 200,
+  "model": "gpt-6-luna",
+  "effort": "max",
+  "rsi_candidates_activated": false,
+  "adapter_source_commit": "c1df4683367a5a0af8087f5d3cbf0ee30f7009fa"
+}

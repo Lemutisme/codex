@@ -1,0 +1,39 @@
+{
+  "at": 1794008554.5520039,
+  "type": "register_gpt6_luna_pair",
+  "before": {
+    "at": 1793984091.9811301,
+    "max_concurrent_attempts": 16,
+    "authorized_max": 16,
+    "admission_memory_reserve_bytes": 17179869184,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery"
+    ],
+    "reason": "Reserved scoring-recovery admissions registered; all Sol and artifact-only jobs share16 slots without changed solver grants.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json"
+  },
+  "after": {
+    "at": 1794008554.551044,
+    "max_concurrent_attempts": 16,
+    "authorized_max": 16,
+    "admission_memory_reserve_bytes": 17179869184,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal"
+    ],
+    "reason": "Register the user-authorized paired GPT-6-Luna full200-per-arm study under the same total16 capacity. Existing allocations and frozen Sol plans unchanged.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json"
+  },
+  "solver_allocations_renewed": false
+}
