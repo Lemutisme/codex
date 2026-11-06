@@ -1,0 +1,55 @@
+{
+  "at": 1794008765.430548,
+  "states": {
+    "procontract": {
+      "at": 1794008765.42048,
+      "root": "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "states": {
+        "solving": 3,
+        "queued": 197
+      },
+      "selected": 200,
+      "active_jobs": 3,
+      "other_active_jobs": 13,
+      "combined_active_jobs": 16,
+      "shared_capacity": 16,
+      "admission_wait_reason": "shared_capacity",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "solver_seconds": 21600,
+      "request_limit": null,
+      "scored": 0,
+      "scored_mean_percent": null,
+      "at_least_95_percent_count": 0,
+      "fully_resolved_count": 0,
+      "scope": "Independent GPT-6-Luna/max first attempts; fixed arm, shared six-hour allocation, unlimited requests."
+    },
+    "vanilla-goal": {
+      "at": 1794008765.4298954,
+      "root": "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "states": {
+        "solving": 2,
+        "queued": 198
+      },
+      "selected": 200,
+      "active_jobs": 2,
+      "other_active_jobs": 14,
+      "combined_active_jobs": 16,
+      "shared_capacity": 16,
+      "admission_wait_reason": "shared_capacity",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "solver_seconds": 21600,
+      "request_limit": null,
+      "scored": 0,
+      "scored_mean_percent": null,
+      "at_least_95_percent_count": 0,
+      "fully_resolved_count": 0,
+      "scope": "Independent GPT-6-Luna/max first attempts; fixed arm, shared six-hour allocation, unlimited requests."
+    }
+  },
+  "admission_wait_reason": "shared_capacity",
+  "shared_capacity": 16,
+  "pair_order": "interleaved, original fixed task order",
+  "rsi_candidates_activated": false
+}

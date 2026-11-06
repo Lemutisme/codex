@@ -1,0 +1,22 @@
+{
+  "at": 1794008774.914105,
+  "status": "retained_for_post_comparison_rsi",
+  "trigger_requirement": "Both frozen arms have terminal trajectories and valid-measurement coverage is resolved; ending jobs alone is insufficient.",
+  "evidence_roots": [
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+    "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+    "/data/ProContract/programbench-sol61-retries-20261106"
+  ],
+  "questions": [
+    "Which paired behavior gains were retained through repair and which regressed?",
+    "Which verification actions resolved uncertainty, and which repeated an unresolvable demand on unavailable action evidence?",
+    "Which failures belong to execution infrastructure, artifact behavior, contract initialization, or task orchestration?"
+  ],
+  "layer_ownership": {
+    "kernel": "Only a missing general progress/responsibility semantic relation or authorized transition.",
+    "harness": "Expose and preserve execution, artifact and evidence capabilities without choosing workflow.",
+    "strategy": "Replaceable context controlling diagnosis, review, repair, handoff and evidence use."
+  },
+  "qualification_insight": "Correct artifact and runtime checks coexisted with review repeatedly requesting provenance of an action sequence. Compare accessible execution evidence with the responsibility before proposing stronger review gates.",
+  "candidate_activation": "Deferred until comparison. This record does not activate a campaign-wide native RSI subscription; the prior one-shot Dog pilot remains inert."
+}

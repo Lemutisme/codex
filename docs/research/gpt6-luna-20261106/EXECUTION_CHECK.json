@@ -1,0 +1,76 @@
+{
+  "at": 1794008737.0260596,
+  "passed": true,
+  "scope": "Actual first admitted benchmark attempts for both arms. No qualification sample counted as a benchmark score.",
+  "arms": {
+    "procontract": {
+      "task": "jesseduffield__lazygit.1d0db51",
+      "model_identities": [
+        [
+          "gpt-6-luna",
+          "max"
+        ]
+      ],
+      "original_allocation": {
+        "seconds": 21600,
+        "requests": null,
+        "model": "gpt-6-luna",
+        "effort": "max",
+        "started": 1794008556.7604382,
+        "deadline": 1794030156.7604382,
+        "used": 0,
+        "last_rejection": null
+      },
+      "first_request_at": 1794008574.9320376,
+      "model_inference_inside_original_allocation": true,
+      "first_request_sha256": "70e97125ca6229ebf6ad3f3ccfd30359d210158ba82da338c419987066e4652d",
+      "solver_network": "none",
+      "uid": 1000,
+      "context_window_setting": 1050000,
+      "strategy_observed": {
+        "request": 1,
+        "work_method_sha256": "d6c5fe813b103ee30d8e18bcba56972514a410718bd58ed61d99d1cb5cad96bc",
+        "original_sha256": "b787a437c5852a9790c97a7accfa7101a0e0fd3946c9a01dc117db829dfb22a8",
+        "forwarded_sha256": "70e97125ca6229ebf6ad3f3ccfd30359d210158ba82da338c419987066e4652d",
+        "scope": "Exact strategy text in actual original and gateway-forwarded developer context; recording changes neither payload nor grant."
+      }
+    },
+    "vanilla-goal": {
+      "task": "jesseduffield__lazygit.1d0db51",
+      "model_identities": [
+        [
+          "gpt-6-luna",
+          "max"
+        ]
+      ],
+      "original_allocation": {
+        "seconds": 21600,
+        "requests": null,
+        "model": "gpt-6-luna",
+        "effort": "max",
+        "started": 1794008693.136716,
+        "deadline": 1794030293.136716,
+        "used": 0,
+        "last_rejection": null
+      },
+      "first_request_at": 1794008693.991121,
+      "model_inference_inside_original_allocation": true,
+      "first_request_sha256": "d799fdc1ec34a22a28b4a31bcf2b6757c142194fad45d02d6ef9109f6a021c82",
+      "solver_network": "none",
+      "uid": 1000,
+      "context_window_setting": 1050000,
+      "native_goal_activation": {
+        "threadId": "01a1b340-24bb-7002-84ab-8c6933d1a8a8",
+        "objective": "Complete the ProgramBench implementation task supplied in the initial user message, obeying its rules and the original shared allocation. Deliver independently authored source and an executable compile.sh that rebuilds ./executable in a fresh workspace.",
+        "status": "active",
+        "tokenBudget": null,
+        "tokensUsed": 0,
+        "timeUsedSeconds": 0,
+        "createdAt": 1794008693,
+        "updatedAt": 1794008693
+      },
+      "procontract_tools_or_policy_present": false
+    }
+  },
+  "rsi_candidates_activated": false
+}
