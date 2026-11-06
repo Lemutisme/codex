@@ -77,3 +77,10 @@ request-resource comparison caveat in routine updates. Report scores, coverage,
 progress and concrete grading findings directly. Preserve actual protocols and
 cohort lineage in experiment records without using that metadata to qualify every
 positive result or withhold a defined score.
+
+Valid-run reporting update, 2026-11-06: repair/repeat attempts invalidated by API or
+settings failures and report the actual valid instance count. Ended jobs are not
+valid evaluation coverage; do not headline such external failures as model zeroes.
+Keep raw runs and declared retries/corrected measurements traceable. Genuine
+artifact failures under a functioning environment remain outcomes; low score alone
+does not justify invalidation or rerunning. Do not take the higher of old/new scores.
