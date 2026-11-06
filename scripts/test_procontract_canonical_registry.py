@@ -89,6 +89,17 @@ class RegistryTest(unittest.TestCase):
             self.document['docker_cpus']=invalid
             with self.assertRaisesRegex(ValueError,'CPU'):registry.load(self.path,self.write())
 
+    def test_test_workspace_profile_is_explicit_and_bound(self):
+        self.assertEqual(registry.load(self.path,self.write()).test_workspace,'inherit')
+        self.document['test_workspace']='isolated'
+        loaded=registry.load(self.path,self.write())
+        self.assertEqual(loaded.test_workspace,'isolated')
+        self.document['test_workspace']='inherit'
+        self.write()
+        with self.assertRaisesRegex(ValueError,'identity'):loaded.verify_source()
+        self.document['test_workspace']='drop-some-source-files'
+        with self.assertRaisesRegex(ValueError,'workspace'):registry.load(self.path,self.write())
+
     def test_grader_assets_are_bound_and_rechecked_independently_of_registry_bytes(self):
         archive = self.root / "grader-assets.tar.gz"
         archive.write_bytes(b"original toolchain")

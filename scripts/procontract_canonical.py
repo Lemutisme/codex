@@ -282,6 +282,7 @@ def pin_state():
         "adapter_modules_sha256": {name:sha256(SCRIPTS / name) for name in (
             "procontract_canonical_registry.py", "procontract_canonical_recovery.py",
             "procontract_owned_process.py", "procontract_evaluation.py", "procontract_evaluator_readiness.py",
+            "procontract_submission_transport.py",
             "procontract_evaluator_scope.py",
             "procontract_evaluator_runtime.py",
         )},
@@ -301,6 +302,7 @@ def pin_state():
         "evaluator_attempts": 2,
         "branch_workers": 1,
         "branch_retries": 1,
+        "test_workspace": frozen.test_workspace,
         "docker_cpus": frozen.docker_cpus,
     }
     if frozen.dependency_policy is not None:
@@ -482,7 +484,8 @@ def make_evaluator(task, archive, *, collection=False):
     image_name, image_digest = TASKS[task]["image"].split(":", 1)
     evaluator_class = with_grader_requirements(Evaluator, registry().grader_requirements)
     from procontract_evaluator_runtime import runtime_evaluator
-    evaluator_class = runtime_evaluator(evaluator_class, registry().grader_assets)
+    evaluator_class = runtime_evaluator(evaluator_class, registry().grader_assets,
+                                        test_workspace=registry().test_workspace)
     from procontract_evaluator_scope import scoped_evaluator
     evaluator_class = scoped_evaluator(evaluator_class)
     if collection:

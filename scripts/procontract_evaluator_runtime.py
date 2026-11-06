@@ -216,18 +216,40 @@ def load_assets(value):
     return result
 
 
-def runtime_evaluator(base, assets=None):
+def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
+    if test_workspace not in ("inherit", "isolated"):
+        raise ValueError("unknown test workspace profile")
     class RuntimeEvaluator(base):
         def _new_env(self, *args, **kwargs):
             env = super()._new_env(*args, **kwargs)
             try:
-                return preserve_container_service(env)
+                from procontract_submission_transport import install_submission_transport
+                install_submission_transport(preserve_container_service(env))
+                if kwargs.get('testing') and test_workspace == 'isolated':
+                    # Retain the complete build tree outside the official test
+                    # source tree. The compiled subject is already stashed by the
+                    # pinned evaluator and is restored/hashed by its normal path.
+                    code = ("import json,os,subprocess,tempfile; "
+                            "retained=tempfile.mkdtemp(prefix='procontract-candidate-build-',dir='/opt'); "
+                            "subprocess.run(['cp','-a','--reflink=auto','/workspace/.',retained+'/workspace'],check=True); "
+                            "[subprocess.run(['rm','-rf','--',entry.path],check=True) for entry in os.scandir('/workspace')]; "
+                            "print(json.dumps({'retained_build_workspace':retained+'/workspace',"
+                            "'test_workspace':'/workspace','compiled_subject':'unchanged stashed executable'}))")
+                    result = env.execute(shlex.join(['python3', '-I', '-S', '-c', code]), timeout=30)
+                    if result['returncode']:
+                        raise RuntimeError('cannot isolate test source workspace: ' + result['output'])
+                    env._pc_test_workspace = result
+                return env
             except BaseException:
                 env.cleanup()
                 raise
 
         def _compile_executable(self, env, log_buf):
-            super()._compile_executable(env, log_buf)
+            try:
+                super()._compile_executable(env, log_buf)
+            finally:
+                if hasattr(env, '_pc_submission_transport'):
+                    log_buf.append({'step': 'submission_transport', **env._pc_submission_transport})
             if assets is None:
                 return
             assets.verify()
@@ -250,6 +272,10 @@ def runtime_evaluator(base, assets=None):
                 raise RuntimeError("grader assets changed the compiled candidate")
 
         def _run_step(self, command, **kwargs):
+            env = kwargs.get('env')
+            if env is not None and hasattr(env, '_pc_test_workspace'):
+                kwargs['log_buf'].append({'step': 'isolate_test_source_workspace', **env._pc_test_workspace})
+                del env._pc_test_workspace
             if kwargs.get("step_name") != "run_tests":
                 return super()._run_step(command, **kwargs)
             env = kwargs["env"]

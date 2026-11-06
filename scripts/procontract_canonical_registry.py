@@ -81,6 +81,7 @@ class Registry:
     grader_requirements: tuple[str, ...] = ()
     grader_assets: object = None
     docker_cpus: int = 4
+    test_workspace: str = "inherit"
 
     def verify_source(self):
         _source(self.path, self.digest)
@@ -155,6 +156,7 @@ def load(path: Path, expected_sha256: str) -> Registry:
             "grader_requirements",
             "grader_assets",
             "docker_cpus",
+            "test_workspace",
         }
         or type(data["schema"]) is not int
         or data["schema"] != 1
@@ -223,6 +225,9 @@ def load(path: Path, expected_sha256: str) -> Registry:
     docker_cpus = data.get("docker_cpus", 4)
     if type(docker_cpus) is not int or docker_cpus <= 0:
         raise ValueError("evaluator CPU allocation must be a positive integer")
+    test_workspace = data.get("test_workspace", "inherit")
+    if test_workspace not in ("inherit", "isolated"):
+        raise ValueError("test workspace must inherit build files or be isolated")
     grader_requirements = data.get("grader_requirements", [])
     if (not isinstance(grader_requirements, list) or len(grader_requirements) > 64
             or any(not isinstance(item, str) or len(item) > 160
@@ -267,4 +272,5 @@ def load(path: Path, expected_sha256: str) -> Registry:
         grader_requirements=tuple(grader_requirements),
         grader_assets=grader_assets,
         docker_cpus=docker_cpus,
+        test_workspace=test_workspace,
     )
