@@ -84,3 +84,14 @@ valid evaluation coverage; do not headline such external failures as model zeroe
 Keep raw runs and declared retries/corrected measurements traceable. Genuine
 artifact failures under a functioning environment remain outcomes; low score alone
 does not justify invalidation or rerunning. Do not take the higher of old/new scores.
+
+GPT-6-Luna comparison update, 2026-11-06: the user explicitly requested both
+ProContract and vanilla Codex on `gpt-6-luna`, followed by deep RSI. The paired
+study is `/data/ProContract/programbench-gpt6-luna-20261106/`, with 200 independent
+tasks per arm, max effort, one six-hour allocation, unlimited counted requests,
+offline execution and the declared command/environment limits. Vanilla means a
+pinned unmodified Codex 0.167.0 package with actual native `/goal`; an idle ordinary
+turn does not end that attempt. Both arms use the same external process-lifetime
+adapter and corrected grader profile. Share the existing capacity16 without
+renewing Sol allocations. Retain new insights, but do not activate RSI candidates
+inside these frozen cohorts. Perform the deep comparison-driven RSI afterward.

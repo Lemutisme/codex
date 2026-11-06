@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+import json,os,sys,time
+from pathlib import Path
+args=sys.argv[1:]
+if args and args[0] in ('run','create'):
+ networks=[]
+ for i,arg in enumerate(args):
+  if arg in ('--network','--net') and i+1<len(args):networks.append(args[i+1])
+  elif arg.startswith('--network=') or arg.startswith('--net='):networks.append(arg.split('=',1)[1])
+ selected=networks[-1] if networks else 'procontract-grader-calibration-20261105'
+ extra=[] if networks else ['--network',selected]
+ args=[args[0],*extra,'--label','pc.luna6-grading=vanilla-goal',*(['--label','pc.task='+os.environ['PC_TASK']] if os.environ.get('PC_TASK') else []),*args[1:]]
+ record={'at':time.time(),'operation':args[0],'explicit_network':bool(networks),'network':selected,'task':os.environ.get('PC_TASK'),'args_sha256':__import__('hashlib').sha256(json.dumps(args).encode()).hexdigest()}
+ descriptor=os.open(str(Path(__file__).resolve().parent.parent/'docker-launches.jsonl'),os.O_WRONLY|os.O_CREAT|os.O_APPEND,0o600)
+ try:os.write(descriptor,(json.dumps(record)+'\n').encode())
+ finally:os.close(descriptor)
+os.execv('/usr/bin/docker',['docker','--host','unix:///var/run/docker.sock',*args])

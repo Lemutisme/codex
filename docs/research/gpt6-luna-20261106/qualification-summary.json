@@ -1,0 +1,72 @@
+{
+  "vanilla-goal": {
+    "at": 1794007954.1350384,
+    "arm": "goal",
+    "goal": {
+      "threadId": "01a1b334-54b8-7203-8e53-5c25c9c72a7b",
+      "objective": "Complete the two-turn qualification exactly as requested in the initial task: first write step1.txt and finish an ordinary turn; on automatic continuation write step2.txt and complete this goal.",
+      "status": "complete",
+      "tokenBudget": null,
+      "tokensUsed": 14615,
+      "timeUsedSeconds": 27,
+      "createdAt": 1794007918,
+      "updatedAt": 1794007946
+    },
+    "turn_statuses": [
+      "completed",
+      "completed"
+    ],
+    "errors": [],
+    "budget": {
+      "seconds": 600,
+      "requests": null,
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "started": 1794007918.8917007,
+      "deadline": 1794008518.8917007,
+      "used": 7,
+      "last_rejection": null
+    },
+    "files": {
+      "step1.txt": "FIRST",
+      "step2.txt": "SECOND"
+    },
+    "passed": true
+  },
+  "procontract": {
+    "at": 1794008388.4566884,
+    "passed": true,
+    "qualification_scope": "Actual GPT-6-Luna/max root and workers, offline UID1000 tool execution, issued contract, artifact capture/publication and independent review. Not a claim of native settlement or internal Support.",
+    "model_identities": [
+      [
+        "gpt-6-luna",
+        "max"
+      ]
+    ],
+    "requests_observed": 25,
+    "status": {
+      "thread_id": "01a1b337-7ecd-75d3-bba8-dd145fabda73",
+      "contract_id": "01a1b337-7ecd-75d3-bba8-dd145fabda73.1",
+      "phase": "working",
+      "detail": "",
+      "resting": false,
+      "repairs_used": 0
+    },
+    "artifact_exact_bytes_hex": "34320a",
+    "stop": "Operator ends the capability qualification after the requested transport observations; no benchmark solver allocation has started.",
+    "retrospective": "Artifact was correct; review repeatedly requested stronger evidence of the action sequence. Retain this success/overhead separation for post-comparison RSI; do not activate a new strategy during this study."
+  },
+  "process_lifetime_control": {
+    "seconds": 180,
+    "result": "passed",
+    "elapsed_seconds": 180.18,
+    "binary": "unmodified Codex 0.167.0 standalone exec-server",
+    "checks": [
+      "process and child terminated",
+      "process/read did not renew lifetime",
+      "subsequent command succeeded",
+      "failed start retained error",
+      "internal RPC reply filtered"
+    ]
+  }
+}
