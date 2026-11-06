@@ -20,6 +20,35 @@ def payload(output=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_http_capacity_advice_and_error_identity_survive_gateway_accounting(self):
+        body=json.dumps({'error':{'code':'rate_limit_exceeded','message':'temporary capacity'}}).encode()
+        class Upstream(http.server.BaseHTTPRequestHandler):
+            def log_message(self,*_):pass
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                self.send_response(429);self.send_header('Content-Type','application/json')
+                self.send_header('Retry-After','7');self.send_header('Content-Length',str(len(body)))
+                self.end_headers();self.wfile.write(body)
+        upstream=http.server.ThreadingHTTPServer(('127.0.0.1',0),Upstream)
+        threading.Thread(target=upstream.serve_forever,daemon=True).start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                budget=Budget(Path(directory)/'budget.sqlite',seconds=60,requests=None);grant=budget.arm()
+                gateway=Gateway(budget,f'http://127.0.0.1:{upstream.server_port}/v1')
+                threading.Thread(target=gateway.serve_forever,daemon=True).start()
+                try:
+                    for _ in range(2):
+                        client=http.client.HTTPConnection('127.0.0.1',gateway.server_port)
+                        client.request('POST','/v1/responses',body=payload())
+                        response=client.getresponse();self.assertEqual(response.status,429)
+                        self.assertEqual(response.getheader('Retry-After'),'7');self.assertEqual(response.read(),body)
+                        client.close()
+                    self.assertEqual(budget.status()['used'],2)
+                    self.assertIsNone(budget.status()['requests'])
+                    self.assertEqual(budget.status()['deadline'],grant['deadline'])
+                finally:gateway.shutdown();gateway.server_close();budget.close()
+        finally:upstream.shutdown();upstream.server_close()
+
     def test_resource_projection_counts_this_call_and_survives_restart_without_renewal(self):
         with tempfile.TemporaryDirectory() as root:
             path=Path(root)/'budget.sqlite'

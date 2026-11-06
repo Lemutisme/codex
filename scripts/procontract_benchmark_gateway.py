@@ -368,7 +368,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             response = connection.getresponse()
             budget.checkpoint(request, status=response.status)
             if response.status != 200:
-                return self.refuse(f"upstream_http_{response.status}", response.status if response.status >= 400 else 502)
+                body = response.read(MAX_BODY + 1)
+                if len(body) > MAX_BODY:
+                    raise ValueError('upstream error body too large')
+                # Preserve capacity/billing/error identity and server wait advice.
+                # Each native retry re-enters this gateway and is charged anew.
+                self.send_response(response.status if response.status >= 400 else 502)
+                self.send_header('Content-Type', response.getheader('Content-Type') or 'application/json')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Connection', 'close')
+                if response.getheader('Retry-After') is not None:
+                    self.send_header('Retry-After', response.getheader('Retry-After'))
+                self.end_headers()
+                began = True
+                self.wfile.write(body)
+                self.wfile.flush()
+                return
             if not (response.getheader('Content-Type') or '').startswith('text/event-stream'):
                 raise ValueError("upstream did not return an event stream")
             self.send_response(200)

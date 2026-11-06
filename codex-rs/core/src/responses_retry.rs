@@ -1,6 +1,7 @@
 //! Shared retry and transport fallback decisions for Responses requests.
 //! Content-filter guidance is recorded for sampling requests before retry decisions.
-//! Server advice controls timing without extending configured retry limits.
+//! Server advice controls timing. Explicit capacity waiting remains cancellable
+//! under the caller's original grant, separately from ordinary stream retries.
 
 use std::time::Duration;
 
@@ -33,6 +34,8 @@ pub(crate) struct ResponsesStreamRetryState {
     retries: u64,
     connection_retries: u64,
     connection_retry_delay: Duration,
+    capacity_retries: u64,
+    capacity_retry_delay: Duration,
 }
 
 impl Default for ResponsesStreamRetryState {
@@ -41,6 +44,8 @@ impl Default for ResponsesStreamRetryState {
             retries: 0,
             connection_retries: 0,
             connection_retry_delay: INITIAL_CONNECTION_RETRY_DELAY,
+            capacity_retries: 0,
+            capacity_retry_delay: INITIAL_CONNECTION_RETRY_DELAY,
         }
     }
 }
@@ -84,6 +89,39 @@ pub(crate) async fn handle_response_stream_error(
         ResponsesStreamRequest::Sampling => RetryOperation::Sampling,
         ResponsesStreamRequest::RemoteCompactionV2 => RetryOperation::RemoteCompactionV2,
     };
+    let transient_capacity = matches!(err.details(), CodexErrorDetails::RateLimitExceeded(_))
+        || matches!(err.details(), CodexErrorDetails::RetryLimit(details)
+            if details.status.as_u16() == 429);
+    if turn_context.provider.info().wait_on_rate_limits && transient_capacity {
+        // Rate-limit refusal is an availability observation, not exhaustion of a
+        // task's model-request grant. The existing request loop retains tool
+        // history; its enclosing cancellation/action timeout still owns lifetime.
+        let delay = codex_client::backoff(retry_state.capacity_retry_delay, 1)
+            .min(MAX_CONNECTION_RETRY_DELAY);
+        let now = Instant::now();
+        let retry_at = err
+            .retry_after()
+            .map(RetryAfter::deadline)
+            .map_or(now + delay, |server| server.max(now + delay));
+        retry_state.capacity_retries = retry_state.capacity_retries.saturating_add(1);
+        retry_state.capacity_retry_delay = retry_state
+            .capacity_retry_delay
+            .saturating_mul(2)
+            .min(MAX_CONNECTION_RETRY_DELAY);
+        sess.notify_stream_error(
+            turn_context,
+            "Waiting for model capacity; original task limits still apply",
+            err,
+        )
+        .await;
+        codex_client::record_retry!(
+            retry_state.capacity_retries,
+            retry_at.saturating_duration_since(Instant::now()),
+            operation
+        );
+        tokio::time::sleep_until(retry_at).await;
+        return Ok(());
+    }
     let retry_count = retry_state.retries.saturating_add(1);
     let Some(delay) = err.retry_delay(retry_count) else {
         return Err(err);

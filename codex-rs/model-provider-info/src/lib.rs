@@ -181,6 +181,10 @@ pub struct ModelProviderInfo {
     pub request_max_retries: Option<u64>,
     /// Number of times to retry reconnecting a dropped streaming response before failing.
     pub stream_max_retries: Option<u64>,
+    /// Wait through transient provider rate limits until the caller cancels or its
+    /// existing action/task timeout expires. Does not extend a grant or retry quota errors.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wait_on_rate_limits: bool,
     /// Idle timeout (in milliseconds) to wait for activity on a streaming response before treating
     /// the connection as lost.
     pub stream_idle_timeout_ms: Option<u64>,
@@ -555,6 +559,7 @@ other non-default provider fields are not supported"
             // Use global defaults for retry/timeout unless overridden in config.toml.
             request_max_retries: None,
             stream_max_retries: None,
+            wait_on_rate_limits: false,
             stream_idle_timeout_ms: None,
             websocket_connect_timeout_ms: None,
             requires_openai_auth: true,
@@ -595,6 +600,7 @@ other non-default provider fields are not supported"
             env_http_headers: None,
             request_max_retries: None,
             stream_max_retries: None,
+            wait_on_rate_limits: false,
             stream_idle_timeout_ms: None,
             websocket_connect_timeout_ms: None,
             requires_openai_auth: false,
@@ -769,6 +775,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         env_http_headers: None,
         request_max_retries: None,
         stream_max_retries: None,
+        wait_on_rate_limits: false,
         stream_idle_timeout_ms: None,
         websocket_connect_timeout_ms: None,
         requires_openai_auth: false,

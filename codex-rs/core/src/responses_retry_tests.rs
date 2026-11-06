@@ -14,6 +14,116 @@ use tokio::time::Instant;
 use tracing_test::internal::MockWriter;
 
 #[tokio::test]
+async fn capacity_wait_survives_zero_stream_retries_and_honors_server_advice() {
+    let (session, turn, _events) =
+        crate::session::tests::make_session_and_context_with_auth_and_config_and_rx(
+            codex_login::CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+            Vec::new(),
+            |config| {
+                config.model_provider.wait_on_rate_limits = true;
+                config.model_provider.supports_websockets = false;
+            },
+        )
+        .await;
+    let step = StepContext::for_test(turn);
+    let mut client = session.services.model_client.new_session();
+    let mut state = ResponsesStreamRetryState::default();
+    tokio::time::pause();
+    let advice = RetryAfter::from_delay(Duration::from_secs(12)).unwrap();
+    let request = handle_response_stream_error(
+        &mut state,
+        0,
+        CodexErr::new(codex_protocol::error::CodexErrorDetails::RateLimitExceeded(
+            "temporary capacity".into(),
+        ))
+        .with_retry_after(advice),
+        &mut client,
+        &session,
+        &step,
+        ResponsesStreamRequest::Sampling,
+    );
+    tokio::pin!(request);
+    assert!(futures::poll!(&mut request).is_pending());
+    tokio::time::advance(Duration::from_secs(11)).await;
+    assert!(futures::poll!(&mut request).is_pending());
+    request.await.unwrap();
+    assert!(Instant::now() >= advice.deadline());
+}
+
+#[tokio::test]
+async fn capacity_wait_does_not_retry_billing_or_context_errors() {
+    let (session, turn, _events) =
+        crate::session::tests::make_session_and_context_with_auth_and_config_and_rx(
+            codex_login::CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+            Vec::new(),
+            |config| {
+                config.model_provider.wait_on_rate_limits = true;
+                config.model_provider.supports_websockets = false;
+            },
+        )
+        .await;
+    let step = StepContext::for_test(turn);
+    let mut client = session.services.model_client.new_session();
+    let mut state = ResponsesStreamRetryState::default();
+    for error in [CodexErr::QuotaExceeded, CodexErr::ContextWindowExceeded] {
+        assert!(
+            handle_response_stream_error(
+                &mut state,
+                0,
+                error,
+                &mut client,
+                &session,
+                &step,
+                ResponsesStreamRequest::Sampling
+            )
+            .await
+            .is_err()
+        );
+    }
+    assert_eq!(state.capacity_retries, 0);
+}
+
+#[tokio::test]
+async fn capacity_wait_is_owned_by_caller_cancellation() {
+    let (session, turn, _events) =
+        crate::session::tests::make_session_and_context_with_auth_and_config_and_rx(
+            codex_login::CodexAuth::create_dummy_chatgpt_auth_for_testing(),
+            Vec::new(),
+            |config| {
+                config.model_provider.wait_on_rate_limits = true;
+                config.model_provider.supports_websockets = false;
+            },
+        )
+        .await;
+    let step = StepContext::for_test(turn);
+    let mut client = session.services.model_client.new_session();
+    let mut state = ResponsesStreamRetryState::default();
+    tokio::time::pause();
+    let advice = RetryAfter::from_delay(Duration::from_secs(3600)).unwrap();
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let request = handle_response_stream_error(
+        &mut state,
+        0,
+        CodexErr::new(codex_protocol::error::CodexErrorDetails::RateLimitExceeded(
+            "temporary capacity".into(),
+        ))
+        .with_retry_after(advice),
+        &mut client,
+        &session,
+        &step,
+        ResponsesStreamRequest::RemoteCompactionV2,
+    );
+    tokio::pin!(request);
+    assert!(futures::poll!(&mut request).is_pending());
+    cancel.cancel();
+    tokio::select! {
+        _ = cancel.cancelled() => {},
+        value = &mut request => panic!("server delay was not honored: {value:?}"),
+    }
+    assert!(Instant::now() < advice.deadline());
+}
+
+#[tokio::test]
 async fn sampling_retry_logs_stream_error_context() {
     let (_session, turn_context) = make_session_and_context().await;
     let buffer: &'static std::sync::Mutex<Vec<u8>> =
