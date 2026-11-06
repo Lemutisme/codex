@@ -1,0 +1,20 @@
+{
+  "initial": {
+    "citation_payload_hash_checks": 49,
+    "score_hash_bindings": 12,
+    "candidate_schema_reference_checks": 8,
+    "indexed_sessions": 312,
+    "indexed_lines": 133039,
+    "scope": "Checks retained identities and explicit references, not independent semantic review or rerun.",
+    "passed": true
+  },
+  "addendum": {
+    "passed": true,
+    "addendum_citation_checks": 21,
+    "score_hash_checks": 4,
+    "frozen_source_span_checks": 5,
+    "candidates_v2": 9,
+    "scope": "Read-only identity and record checks; historical behavior not rerun."
+  },
+  "candidate_evidence_references_resolve": true
+}

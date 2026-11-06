@@ -1,0 +1,694 @@
+{
+  "schema": 1,
+  "citations": [
+    {
+      "id": "H1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 855,
+      "line_sha256": "b2dc32ba5c5a8495d834789870785c4d43aa92cb047527c2d91fbedd10665f05",
+      "event_type": "message"
+    },
+    {
+      "id": "H2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1096,
+      "line_sha256": "d26c13fed6c3a2f69630af6cc988e55b8d86f85474cb2ccac07aba52a9d6901d",
+      "call_id": "call_oHOrAv4ouO4mFf9CQ7mupU48",
+      "event_type": "custom_tool_call"
+    },
+    {
+      "id": "H3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1116,
+      "line_sha256": "37cffad04d315a685517b7f2705e0825838b1bc8a4a8f4291b97733e539da1f3",
+      "call_id": "call_dvGKjWZCJl6U5LYh5M4e57vP",
+      "event_type": "custom_tool_call_output"
+    },
+    {
+      "id": "H4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1134,
+      "line_sha256": "2079b34f4b6efbaa75e6e210845b842adc7ef313bd502b6e7aa59d1bd8ca8f6a",
+      "call_id": "call_Bb5goIoRq7D9Sfic4v6BRvPh",
+      "event_type": "custom_tool_call"
+    },
+    {
+      "id": "H5",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1137,
+      "line_sha256": "da319e8789271a0e7ae1c28cfd05741f6657cec445f2da48c28a60288feecd4a",
+      "call_id": "call_Bb5goIoRq7D9Sfic4v6BRvPh",
+      "event_type": "custom_tool_call_output"
+    },
+    {
+      "id": "H6",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1174,
+      "line_sha256": "2531db8e4ac795904da5108f4a248186a9d8b96653d4d655cd0d29bb8c4d2f91",
+      "call_id": "call_bN6TkRzpFjOHXpKsvvJna5uX",
+      "event_type": "custom_tool_call"
+    },
+    {
+      "id": "H7",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1217,
+      "line_sha256": "b92cfd8f106cdbd0096fca99fa1e694094055f75c5876d77622eb78be7ce1c84",
+      "call_id": "call_hedAQ5ySYMMAYxMRL7V5cMoh",
+      "event_type": "custom_tool_call_output"
+    },
+    {
+      "id": "H8",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgdm__htmlq.6e31bc8/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-43-41-01a1a9ce-24c7-71a0-a209-07ec6e130bad.jsonl",
+      "member_sha256": "21e538e58bd8cb9e3a0be8f653a681e81971a64e580c280fef1e5d1ef6486af8",
+      "line": 1429,
+      "line_sha256": "664e7b57d5a9c34c55dd188e5041264dc48011c428688ea4e996b5ad12d63e78",
+      "event_type": "message"
+    },
+    {
+      "id": "F1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 206,
+      "line_sha256": "6f9e4d7a3e3d61c10bb0830db5824cf7ca3d8838334e2d26dd284d86e61af2c0",
+      "event_type": "message"
+    },
+    {
+      "id": "F2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 520,
+      "line_sha256": "f27263d77a0cca4b747966f10ccad335405ce19bf726618e9322dcd9d92d1887",
+      "event_type": "message"
+    },
+    {
+      "id": "F3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 1037,
+      "line_sha256": "270a791763d317c6d9e0542c9668f46ce7bb0ad2110951b60cbd1be5a14486a8",
+      "event_type": "message"
+    },
+    {
+      "id": "F4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 2071,
+      "line_sha256": "189e59c1a6890655e679eeb2fa949dfb97c9eb920d94ebd3f3225287cccb5a15",
+      "event_type": "message"
+    },
+    {
+      "id": "F5",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 2635,
+      "line_sha256": "8ff54eb354807c33088d75826ae889673a588b68b9ef464554bbb413e44104e6",
+      "call_id": "call_tla3yp1Hx0wlXgAPOeeEuvuu",
+      "event_type": "custom_tool_call_output"
+    },
+    {
+      "id": "F6",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 2647,
+      "line_sha256": "f0df4295bd3ef3430e1268712d9addeacefb6f26caaac181449dcb87c3b963eb",
+      "call_id": "call_3fONgOem60pZyGZSLptPs6kA",
+      "event_type": "custom_tool_call_output"
+    },
+    {
+      "id": "F7",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 3142,
+      "line_sha256": "8dbd43564e7ef71ef2b0e5663d794d6a0009335cff9d8838dd41ea88214332af",
+      "event_type": "message"
+    },
+    {
+      "id": "F8",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 3545,
+      "line_sha256": "a6be366ab2d6fcbedef0e5641a90fd8747d9bcab66e23a9800814f50b2fdd497",
+      "event_type": "message"
+    },
+    {
+      "id": "F9",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 3554,
+      "line_sha256": "4d4b753c9511bdf9038d23b3d1bd5ad47cb14fd256598d7db1ae14c0852b2a53",
+      "call_id": "call_X5URzM0Pb9hXkvsGLBpJhBGT",
+      "event_type": "custom_tool_call"
+    },
+    {
+      "id": "F10",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/facebookresearch__fasttext.1142dc4/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T23-19-34-01a1ae02-b1a6-7a01-a6eb-ac5f23b717d7.jsonl",
+      "member_sha256": "5b964b7a61574811ba35bb77bb03a05bfeb9ca10e8ad57b146e2ff4b1f5c5c52",
+      "line": 3819,
+      "line_sha256": "de51be89dcf3c3cb4fd0bb8ebc4428b640f25f64501a1c43b196b2e5509f4c21",
+      "event_type": "message"
+    },
+    {
+      "id": "G1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/gromacs__gromacs.665ea4c/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T19-33-44-01a1a80d-94e2-7f81-89c5-d62fb3928994.jsonl",
+      "member_sha256": "a9562388fd350e731c30bc0c72ec8f7ff2c7bb8e2d9c833d76622f8829c36606",
+      "line": 102,
+      "line_sha256": "e502b1f3a1c24fefa610a50f82114c0a10c5be24cb023a32c9316d10968d3017",
+      "event_type": "message"
+    },
+    {
+      "id": "G2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/gromacs__gromacs.665ea4c/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T19-33-44-01a1a80d-94e2-7f81-89c5-d62fb3928994.jsonl",
+      "member_sha256": "a9562388fd350e731c30bc0c72ec8f7ff2c7bb8e2d9c833d76622f8829c36606",
+      "line": 864,
+      "line_sha256": "36545f9eb5c14823c6362eb171fa691782976b22fbdfa6896ee2f833de22b4be",
+      "event_type": "message"
+    },
+    {
+      "id": "G3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/gromacs__gromacs.665ea4c/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T19-33-44-01a1a80d-94e2-7f81-89c5-d62fb3928994.jsonl",
+      "member_sha256": "a9562388fd350e731c30bc0c72ec8f7ff2c7bb8e2d9c833d76622f8829c36606",
+      "line": 1121,
+      "line_sha256": "e32436a57694a87df510fd12f87289deac43b9c657ed1707b2801452c2a6c4aa",
+      "event_type": "message"
+    },
+    {
+      "id": "G4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/gromacs__gromacs.665ea4c/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T19-33-44-01a1a80d-94e2-7f81-89c5-d62fb3928994.jsonl",
+      "member_sha256": "a9562388fd350e731c30bc0c72ec8f7ff2c7bb8e2d9c833d76622f8829c36606",
+      "line": 1483,
+      "line_sha256": "a274a4269283e2810ccccff038f97a50d4be1a8218fce1daba6aabf0b67c607e",
+      "event_type": "message"
+    },
+    {
+      "id": "T1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/tinycc__tinycc.9b8765d/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T07-25-55-01a1a573-3f36-78c2-96db-80c408b4ee1d.jsonl",
+      "member_sha256": "d9330b057790d81fa82890d30e25c1eae5c88a7c76bee2115afe2403cb30eb5e",
+      "line": 36,
+      "line_sha256": "79da8104551e4b534fd4e5bd9fcf23085846a17140817613128fa7a59649ef0a",
+      "event_type": "message"
+    },
+    {
+      "id": "T2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/tinycc__tinycc.9b8765d/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T07-25-55-01a1a573-3f36-78c2-96db-80c408b4ee1d.jsonl",
+      "member_sha256": "d9330b057790d81fa82890d30e25c1eae5c88a7c76bee2115afe2403cb30eb5e",
+      "line": 218,
+      "line_sha256": "a0c6e9fd38f71bb9c90f25ecb8f471096bc39a30b3327217e935ca645233e3f5",
+      "event_type": "message"
+    },
+    {
+      "id": "T3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/tinycc__tinycc.9b8765d/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T07-25-55-01a1a573-3f36-78c2-96db-80c408b4ee1d.jsonl",
+      "member_sha256": "d9330b057790d81fa82890d30e25c1eae5c88a7c76bee2115afe2403cb30eb5e",
+      "line": 4805,
+      "line_sha256": "1cdf0ae2389d52c9b0f75ba64663c8badcda77bbdfa7051b83c4fedb6401053a",
+      "event_type": "message"
+    },
+    {
+      "id": "V1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 1334,
+      "line_sha256": "ae1d90412cd5c0f458a985ebe92ab3e509c79dbdfb2de2e6458c255e2197aa29",
+      "event_type": "message"
+    },
+    {
+      "id": "V2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 1402,
+      "line_sha256": "af8a109481c2ced1d8cb6b7ca64b68b7c6062efd3336f29e63d60e8760f5e694",
+      "event_type": "message"
+    },
+    {
+      "id": "V3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 2233,
+      "line_sha256": "912303d28fe0d8aa1750a3e3789cad88fbfb9b750fbe9635140bfdd00b223c3e",
+      "event_type": "message"
+    },
+    {
+      "id": "V4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 2463,
+      "line_sha256": "af88657911bf3810c81c52cd20e30fb22de5075d18c4d6729de313cb8d3ae8fc",
+      "event_type": "message"
+    },
+    {
+      "id": "V5",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 2481,
+      "line_sha256": "14afb578b96bfacbabdedbed6adbe129215d0a727bb4b4e0c84c21f1124dc477",
+      "event_type": "message"
+    },
+    {
+      "id": "V6",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/mgechev__revive.201451e/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T03-34-18-01a1a9c5-8dc2-7892-8636-b5673f98bd0f.jsonl",
+      "member_sha256": "e5f4ed60181e05185276d30e78d297b5a4748741bd973319b82393f7f2dfeea2",
+      "line": 4133,
+      "line_sha256": "2d78a6b5e57f4cbba9e0e90bb0f90eb1fa6984eda4a449764fc66f1a0d05ccbf",
+      "event_type": "message"
+    },
+    {
+      "id": "D1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/duckdb__duckdb.bdb65ec/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T13-33-39-01a1a6c3-e998-7110-b132-e7cc0e8a6e4d.jsonl",
+      "member_sha256": "9bfc84a6fc8d78d3c4ab752fec75a8ce150ebf1b7eec9cb275a6c30a1279e045",
+      "line": 658,
+      "line_sha256": "cd502f242b0ae720bde656c563c4228bf513640d745edd3648f9c65ec3362829",
+      "event_type": "message"
+    },
+    {
+      "id": "D2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/duckdb__duckdb.bdb65ec/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T13-33-39-01a1a6c3-e998-7110-b132-e7cc0e8a6e4d.jsonl",
+      "member_sha256": "9bfc84a6fc8d78d3c4ab752fec75a8ce150ebf1b7eec9cb275a6c30a1279e045",
+      "line": 740,
+      "line_sha256": "3671aa57e26d24e8fe8191c23272fd3ccf2c1f52d6f564efe2debd4c6fe9abb2",
+      "event_type": "message"
+    },
+    {
+      "id": "D3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/duckdb__duckdb.bdb65ec/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T13-33-39-01a1a6c3-e998-7110-b132-e7cc0e8a6e4d.jsonl",
+      "member_sha256": "9bfc84a6fc8d78d3c4ab752fec75a8ce150ebf1b7eec9cb275a6c30a1279e045",
+      "line": 3612,
+      "line_sha256": "66dfae1539b912af1cb58a67cf45b037677d7550e275f1ce2dde29661cf1b7af",
+      "event_type": "message"
+    },
+    {
+      "id": "D4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/duckdb__duckdb.bdb65ec/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T13-33-39-01a1a6c3-e998-7110-b132-e7cc0e8a6e4d.jsonl",
+      "member_sha256": "9bfc84a6fc8d78d3c4ab752fec75a8ce150ebf1b7eec9cb275a6c30a1279e045",
+      "line": 3802,
+      "line_sha256": "63b701046a55f954f19dfa0c6ae46c0a5a758abdbd4bffde4336016f8df7aad7",
+      "event_type": "message"
+    },
+    {
+      "id": "D5",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/duckdb__duckdb.bdb65ec/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/04/rollout-2026-11-04T13-33-39-01a1a6c3-e998-7110-b132-e7cc0e8a6e4d.jsonl",
+      "member_sha256": "9bfc84a6fc8d78d3c4ab752fec75a8ce150ebf1b7eec9cb275a6c30a1279e045",
+      "line": 4591,
+      "line_sha256": "7891c5b5149a09a2d40da38e371f335b3886feec1fb06485e80c25480a481ae9",
+      "event_type": "message"
+    },
+    {
+      "id": "P1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/jgm__pandoc.5caad90/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T17-13-56-01a1acb3-f04f-7940-b057-b1123e112b9b.jsonl",
+      "member_sha256": "00ddcdc1480642f7867d046a5c9c0a1e10f9e3b3c6dd4c06e114b90a7588100f",
+      "line": 817,
+      "line_sha256": "9adebbf0cecf3603507e498dced92c0db7e61db2d10713174d7c34e1e6fb1ab0",
+      "event_type": "message"
+    },
+    {
+      "id": "P2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/jgm__pandoc.5caad90/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T17-13-56-01a1acb3-f04f-7940-b057-b1123e112b9b.jsonl",
+      "member_sha256": "00ddcdc1480642f7867d046a5c9c0a1e10f9e3b3c6dd4c06e114b90a7588100f",
+      "line": 1435,
+      "line_sha256": "c3a5939d2abf91af63bfc9d50fab585e410eebfc1db0ee28e6e910deee95bfe7",
+      "event_type": "message"
+    },
+    {
+      "id": "R1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/ismaelgv__rnr.fc0733b/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T12-38-30-01a1abb7-c932-7c83-800d-ba31576490f0.jsonl",
+      "member_sha256": "95000f762101572b86b99ffdf9d26c7edd90510006b39da7dc84f59cd100cf96",
+      "line": 81,
+      "line_sha256": "01e9c356552e8a982749588292bae3f4139ad1d87dc3b8e6916f79b237e2820e",
+      "event_type": "message"
+    },
+    {
+      "id": "R2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/ismaelgv__rnr.fc0733b/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T12-38-30-01a1abb7-c932-7c83-800d-ba31576490f0.jsonl",
+      "member_sha256": "95000f762101572b86b99ffdf9d26c7edd90510006b39da7dc84f59cd100cf96",
+      "line": 642,
+      "line_sha256": "4c40f0ddacd4ffa01d51a346d69d984d3225265b3483a74aed24f530b4cbef1c",
+      "event_type": "message"
+    },
+    {
+      "id": "R3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/ismaelgv__rnr.fc0733b/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T12-38-30-01a1abb7-c932-7c83-800d-ba31576490f0.jsonl",
+      "member_sha256": "95000f762101572b86b99ffdf9d26c7edd90510006b39da7dc84f59cd100cf96",
+      "line": 710,
+      "line_sha256": "200e868b12b340645045747fbb4691e9d5a050e5dc2d1b8f11e2eaf774117ae5",
+      "event_type": "message"
+    },
+    {
+      "id": "R4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/ismaelgv__rnr.fc0733b/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T12-38-30-01a1abb7-c932-7c83-800d-ba31576490f0.jsonl",
+      "member_sha256": "95000f762101572b86b99ffdf9d26c7edd90510006b39da7dc84f59cd100cf96",
+      "line": 866,
+      "line_sha256": "c1e179c9535016ddb7d750460d516eeddf8dcba7c0e867314240272cb206f2b1",
+      "event_type": "message"
+    },
+    {
+      "id": "M1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/psampaz__go-mod-outdated.bb79367/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T00-09-11-01a1ae30-1eff-7803-882a-d1f712371983.jsonl",
+      "member_sha256": "97607ca086f37ec1ea50bc8e8ce447bd9b6c1bc583eb7d3d0bce11802dea64b9",
+      "line": 104,
+      "line_sha256": "bdf8bc4aa4f717a1400a1cca6bdd7d759eca1727548dc3834be6f48da7d77cef",
+      "event_type": "message"
+    },
+    {
+      "id": "M2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/psampaz__go-mod-outdated.bb79367/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T00-09-11-01a1ae30-1eff-7803-882a-d1f712371983.jsonl",
+      "member_sha256": "97607ca086f37ec1ea50bc8e8ce447bd9b6c1bc583eb7d3d0bce11802dea64b9",
+      "line": 436,
+      "line_sha256": "6f7fa82348b93855f88f79db28e6dae694fe7ab3a0b8e25768081303ad9f8037",
+      "event_type": "message"
+    },
+    {
+      "id": "M3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/psampaz__go-mod-outdated.bb79367/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T00-09-11-01a1ae30-1eff-7803-882a-d1f712371983.jsonl",
+      "member_sha256": "97607ca086f37ec1ea50bc8e8ce447bd9b6c1bc583eb7d3d0bce11802dea64b9",
+      "line": 773,
+      "line_sha256": "bad7412ef38065aaea210a4a79c13d19060f3bdf6e47c522741a63d5b581bd24",
+      "event_type": "message"
+    },
+    {
+      "id": "E1",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/rust-ethereum__ethabi.b1710ad/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T07-45-59-01a1aaab-f7fb-7b71-81ca-71347d336b7c.jsonl",
+      "member_sha256": "dd5fa0e2a8ae3bc4a679b0cd817c608be04a15aadfe41406375f302ef4a1b9c8",
+      "line": 926,
+      "line_sha256": "b793bc06650ac6db3545ad6d48bf33b9efab1818545be0ad40c4a81d14454de8",
+      "event_type": "message"
+    },
+    {
+      "id": "E2",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/rust-ethereum__ethabi.b1710ad/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T07-45-59-01a1aaab-f7fb-7b71-81ca-71347d336b7c.jsonl",
+      "member_sha256": "dd5fa0e2a8ae3bc4a679b0cd817c608be04a15aadfe41406375f302ef4a1b9c8",
+      "line": 1141,
+      "line_sha256": "e0694b20283da91dc1b10ceb12d989e1f90e757f353caf6b845bfeecb41982ad",
+      "event_type": "message"
+    },
+    {
+      "id": "E3",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/rust-ethereum__ethabi.b1710ad/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T07-45-59-01a1aaab-f7fb-7b71-81ca-71347d336b7c.jsonl",
+      "member_sha256": "dd5fa0e2a8ae3bc4a679b0cd817c608be04a15aadfe41406375f302ef4a1b9c8",
+      "line": 1471,
+      "line_sha256": "69f833caa043b868bda242edd2fb29297977041135d67e6d8f1b47d3130dc784",
+      "event_type": "message"
+    },
+    {
+      "id": "E4",
+      "index_source": "citations.json",
+      "archive": "programbench-sol61-20261104/runs/rust-ethereum__ethabi.b1710ad/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/05/rollout-2026-11-05T07-45-59-01a1aaab-f7fb-7b71-81ca-71347d336b7c.jsonl",
+      "member_sha256": "dd5fa0e2a8ae3bc4a679b0cd817c608be04a15aadfe41406375f302ef4a1b9c8",
+      "line": 1604,
+      "line_sha256": "6caf2e61dec2d7101bf89df1ec06336a37ec5b0f3a0fd48013bcd1422f60e930",
+      "event_type": "message"
+    },
+    {
+      "id": "J1",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 100,
+      "line_sha256": "6ce457284b734f19d3550e9f22deb8826d29858f99dc61c8f10b4bd7e0904acd"
+    },
+    {
+      "id": "J2",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 511,
+      "line_sha256": "1b702cca5123a07bb5e8c4f107560e79066d012923eef21ec2495efe31347a76"
+    },
+    {
+      "id": "J3",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 991,
+      "line_sha256": "e314300ffe3e5194f313dd88d49bbb8d4ecac744e334a13066c275154e2a1f18"
+    },
+    {
+      "id": "J4",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 1186,
+      "line_sha256": "3e5f1413fa461bfafddd4297907bbfff37f0a0d3467a831d047a7197ed206d74"
+    },
+    {
+      "id": "J5",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 1237,
+      "line_sha256": "24a311f81e451a8e133a665230a5398c880813e4f876fd7dba30c3120347d6a6"
+    },
+    {
+      "id": "J6",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 1263,
+      "line_sha256": "3d44ecc7c3ee1bf199ad34db6b7894e73efcad7c2f8985b66683c2d4ac627788"
+    },
+    {
+      "id": "J7",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 1278,
+      "line_sha256": "e908d33b7c84a9bd3a14b2087e23aa16d22f8d19565f5499bbf9a4ebd57e28b5"
+    },
+    {
+      "id": "J8",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 1279,
+      "line_sha256": "bff17a06f368dea43269182158308cbb126ddaa6e7f6e41dc60b9fb2c40ea7ff"
+    },
+    {
+      "id": "J9",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 3359,
+      "line_sha256": "9bfa52f17c5c91209cfcf7f2c118eb51e5688562eecab237a7509441709b123e"
+    },
+    {
+      "id": "J10",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4461,
+      "line_sha256": "1c4a1177ec2a24f71dc5168f588703c57e198b8fc9819ee786025e3f8e547d83"
+    },
+    {
+      "id": "J11",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4490,
+      "line_sha256": "6743642bcc2b6ca3bd69b97265827a4cdaa2a12b6dcb071df9d16f055c5d77f0"
+    },
+    {
+      "id": "J12",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4505,
+      "line_sha256": "04768ccbde35d398efbefd65c43e298ff166ea42eef73704fad11e0a3778167f"
+    },
+    {
+      "id": "J13",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4516,
+      "line_sha256": "1e47163748f4153155cf3347cbe4bc65913d4eff2fabaad293d56c1343873731"
+    },
+    {
+      "id": "J14",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4569,
+      "line_sha256": "23f33c024cc4978d92b222cad1f21548ffa1dfe7197a40dd8b684403d65d2d95"
+    },
+    {
+      "id": "J15",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4582,
+      "line_sha256": "3735da355f93594254851bee6313019ec2c1c4482bbd1f4be8c124c16bd4db0e"
+    },
+    {
+      "id": "J16",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4587,
+      "line_sha256": "25e853f53b475d7855127abcbfb5af64f6d59a33d61c342cd8d3e486497a23a7"
+    },
+    {
+      "id": "J17",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4588,
+      "line_sha256": "12a989aeb3180ea1de8e7eaefb0300c2a585002668d71d6072727796052eb2d9"
+    },
+    {
+      "id": "J18",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4833,
+      "line_sha256": "2c6e828fbe95b95261a05dc635a0d8000aeee0e84592d7e7e8dc393e2a318177"
+    },
+    {
+      "id": "J19",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 4965,
+      "line_sha256": "d1ddce5f91a0d261d41a5d15d6c68b218b90d1e8c562e489e4e9dfc2ccce10f8"
+    },
+    {
+      "id": "J20",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 5171,
+      "line_sha256": "e6aee9c665eeb718a08a1483fb6ac575adb3581e06c36bba6084b8d3c97db502"
+    },
+    {
+      "id": "J21",
+      "index_source": "addendum-citations.json",
+      "archive": "programbench-sol61-20261104/runs/rs__jplot.2a54bcc/retained-work.tar.zst",
+      "member": "codex-home/sessions/2026/11/06/rollout-2026-11-06T10-00-34-01a1b04d-8a16-7201-b869-8c1a281f9212.jsonl",
+      "member_sha256": "23bc0477c9574aa8cb1c1dae467323515c9521429b6c5b50c3cb4ebf9590028b",
+      "line": 5218,
+      "line_sha256": "5504adb9fe0aac4ba5104c4f44cd2c4834a43b62ba4e6df830e7e9e5499416d7"
+    }
+  ],
+  "scope": "Retained source identities and locations; complete original payloads remain in the campaign archives."
+}

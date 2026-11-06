@@ -1,0 +1,161 @@
+{
+  "at": 1794001534.0218153,
+  "selected": 37,
+  "states": {
+    "finished": 14,
+    "solving": 16,
+    "queued": 7
+  },
+  "valid_scored": 14,
+  "mean_percent": 85.94094860527225,
+  "at_least_95_count": 6,
+  "full_count": 2,
+  "plan_sha256": "7fce906e2e80165699044c55df4542b1260573986392695c8d981055d983f0d3",
+  "model": "gpt-6.1-sol",
+  "effort": "max",
+  "shared_capacity": 16,
+  "solver_seconds": 21600,
+  "request_limit": null,
+  "rows": [
+    {
+      "task": "jgm__pandoc.5caad90",
+      "percent": 49.290372075182205,
+      "passed": 2570,
+      "eligible": 5214,
+      "eval_sha256": "d6fc800317fecb7b39e3a789b18d212dbdd384f5275ed98a3e55a3332a058d7d",
+      "stop_reason": "wall_time_limit",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "astro__deadnix.d590041",
+      "percent": 99.66777408637874,
+      "passed": 600,
+      "eligible": 602,
+      "eval_sha256": "b97f84d5ffb1bd9fa2edde8002ad8e5c55f4b70bb72b5f1507150a92e43453a5",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "mkj__dropbear.75f699b",
+      "percent": 93.10344827586206,
+      "passed": 621,
+      "eligible": 667,
+      "eval_sha256": "b70bd336bd51aa354aef46ca34528b851993606766f12a194e39279be1a41e22",
+      "stop_reason": "wall_time_limit",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "jonas__tig.8334123",
+      "percent": 92.93820933165196,
+      "passed": 1474,
+      "eligible": 1586,
+      "eval_sha256": "8e141ad8d8b8ff0d0ac7921fdb8f90f4c418562896dd279c53695e651bcdddc5",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "go-critic__go-critic.9aea378",
+      "percent": 14.60446247464503,
+      "passed": 72,
+      "eligible": 493,
+      "eval_sha256": "c058ff8dd55205562ce78b29237555ce551c4e2dc2aa4dd5e06a0fcf32f128ff",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "rochacbruno__marmite.7d4bc2d",
+      "percent": 82.48502994011976,
+      "passed": 551,
+      "eligible": 668,
+      "eval_sha256": "178436fe185f27b410f4e52e401a75ccf232a7609fcfba8e4eeccdc591ae2e8b",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "psampaz__go-mod-outdated.bb79367",
+      "percent": 100.0,
+      "passed": 285,
+      "eligible": 285,
+      "eval_sha256": "a80d857c9266fab00ac74181f42421ff307760d30b74f6bfa1ded84f229ffe29",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "orf__gping.26eb5b9",
+      "percent": 99.11242603550295,
+      "passed": 335,
+      "eligible": 338,
+      "eval_sha256": "1f0d4715b5aad92d34e165c37a39f9850fc943db3b4f0b0c05c2462053ea65df",
+      "stop_reason": "wall_time_limit",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "parcel-bundler__lightningcss.aa2ed1e",
+      "percent": 87.97736916548797,
+      "passed": 2488,
+      "eligible": 2828,
+      "eval_sha256": "bd0b58d105fba51b623b1d01d8f5cfb52c50f79edd69a2ca25dcfa068e87d8b9",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "brocode__fblog.3b54330",
+      "percent": 98.77300613496932,
+      "passed": 966,
+      "eligible": 978,
+      "eval_sha256": "4648a35c38389764a9579872ff8a499b3e478bfe302b5bbda10ed2c323cd3b9e",
+      "stop_reason": "wall_time_limit",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "naggie__dstask.ff57396",
+      "percent": 94.60093896713614,
+      "passed": 1209,
+      "eligible": 1278,
+      "eval_sha256": "9a8b50e03e502f7f556ec2667b6c43a3c95d4815617ef06b03551f33715cf20c",
+      "stop_reason": "wall_time_limit",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "segmentio__chamber.5f93f5f",
+      "percent": 91.76201372997713,
+      "passed": 1604,
+      "eligible": 1748,
+      "eval_sha256": "60051eea0397f6326306fa110a08dfed13fc88375214261b06814d390c44e118",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "guumaster__hostctl.d6d9699",
+      "percent": 98.8582302568982,
+      "passed": 1039,
+      "eligible": 1051,
+      "eval_sha256": "de891d52a29a119ff4b615492e95d9e4250aefb9d791e141cca27c010f572265",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    },
+    {
+      "task": "oppiliappan__eva.41ae245",
+      "percent": 100.0,
+      "passed": 913,
+      "eligible": 913,
+      "eval_sha256": "66f3f6e833824d7ac3d4aeff122f9459c223771121b86c12e4857d18e21a3511",
+      "stop_reason": "controller_resting",
+      "runtime_failure": null,
+      "last_gateway_rejection": null
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "at": 1793997635.480072,
+  "source_archive_sha256": "91ee6c71cc401e9f490b50676043cf2535070816528a1f9eed42a72451565390",
+  "graded_binary_sha256": "eb4bc1dd1f76284da9a372bba45af2cdc9ebc9a33f723392af5bd89b11dd3d11",
+  "model_calls": 0,
+  "rebuilt_binary_sha256": "eb4bc1dd1f76284da9a372bba45af2cdc9ebc9a33f723392af5bd89b11dd3d11",
+  "binary_identical": true,
+  "toolchains": {
+    "output": "go version go1.21.0 linux/amd64\n/usr/local/go\n/root/go\nauto\n",
+    "returncode": 0,
+    "exception_info": ""
+  },
+  "cases": {
+    "module21": {
+      "output": "",
+      "returncode": 0,
+      "exception_info": ""
+    },
+    "module24": {
+      "output": "load packages: err: exit status 1: stderr: go: go.mod requires go >= 1.24.0 (running go 1.21.0; GOTOOLCHAIN=local)\n\n",
+      "returncode": 1,
+      "exception_info": ""
+    }
+  },
+  "default_go24": {
+    "output": "go version go1.24.0 linux/amd64\n{\n\t\"Dir\": \"/tmp/pc-module24\",\n\t\"ImportPath\": \"command-line-arguments\",\n\t\"Name\": \"main\",\n\t\"Target\": \"/root/go/bin/main\",\n\t\"Match\": [\n\t\t\"/tmp/pc-module24/main.go\"\n\t],\n\t\"Stale\": true,\n\t\"StaleReason\": \"stale dependency: internal/goarch\",\n\t\"GoFiles\": [\n\t\t\"main.go\"\n\t],\n\t\"Deps\": [\n\t\t\"internal/abi\",\n\t\t\"internal/asan\",\n\t\t\"internal/bytealg\",\n\t\t\"internal/byteorder\",\n\t\t\"internal/chacha8rand\",\n\t\t\"internal/coverage/rtcov\",\n\t\t\"internal/cpu\",\n\t\t\"internal/goarch\",\n\t\t\"internal/godebugs\",\n\t\t\"internal/goexperiment\",\n\t\t\"internal/goos\",\n\t\t\"internal/msan\",\n\t\t\"internal/profilerecord\",\n\t\t\"internal/race\",\n\t\t\"internal/runtime/atomic\",\n\t\t\"internal/runtime/exithook\",\n\t\t\"internal/runtime/maps\",\n\t\t\"internal/runtime/math\",\n\t\t\"internal/runtime/sys\",\n\t\t\"internal/runtime/syscall\",\n\t\t\"internal/stringslite\",\n\t\t\"runtime\",\n\t\t\"unsafe\"\n\t]\n}\n",
+    "returncode": 0,
+    "exception_info": ""
+  },
+  "local_go24": {
+    "output": "go: go.mod requires go >= 1.24.0 (running go 1.21.0; GOTOOLCHAIN=local)\n",
+    "returncode": 1,
+    "exception_info": ""
+  }
+}

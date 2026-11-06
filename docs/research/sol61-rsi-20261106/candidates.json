@@ -1,0 +1,221 @@
+{
+  "schema": 1,
+  "status": "retained_research_candidates",
+  "source_sha256": "d17bf2eaa7d5b4754a602fda44cb0674d7a3a16da5874657c5182c2d9ed0653b",
+  "no_kernel_extension_proposed": true,
+  "candidates": [
+    {
+      "id": "S1",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ],
+      "existing_knowledge": [
+        "dbd0a49a80f9d56b29191bc0d4b08965ff4d4ed72bacb6a6ca19131424b26a2b",
+        "4e419f7ddda412eb6ce4940b8cf1dbc755d0eb993f9cf6258d3af00b071b4ca5"
+      ],
+      "novelty": "new concrete mechanism-discrimination episode; specialization of existing bounded-regression knowledge, not a new kernel rule",
+      "applicability": "Observable stateful operations, parsers, caches, transactions, concurrent services; useful when multiple explanations fit current observations.",
+      "minimal_change": "Retrieval-scoped strategy note: when a repair explanation remains ambiguous, compare competing models on a small input where their predictions differ; retain old controls and test a fresh interaction distribution. No required number of hypotheses/cases.",
+      "validation_design": "Replay retained htmlq historical checkpoint and four model variants on original controls and 35 discriminators; independently generate new combinations before examining outcome. Separately test strategy prompt on fresh stateful tasks with equal allocations and blinded scoring.",
+      "confidence_boundaries": "High confidence that recorded outputs distinguish the tested models; no replay here and no proof of actual upstream internal ownership implementation or external-score contribution. Hand-tuned models may still overfit.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Distinguish competing explanations with new inputs",
+      "mechanism": "Several htmlq cursor models fit the same207 failures and76 controls. A new35-case ownership discriminator separated their predictions. Retain earlier controls while seeking observations that distinguish the remaining explanations."
+    },
+    {
+      "id": "S2",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "G1",
+        "G3",
+        "G4"
+      ],
+      "existing_knowledge": [
+        "dbd0a49a80f9d56b29191bc0d4b08965ff4d4ed72bacb6a6ca19131424b26a2b",
+        "836c9ee31a5e72a9a3bf28a5f57845f03d3c134fb9d386558712258b17d6ad73"
+      ],
+      "novelty": "new observed cross-generation bottleneck, not merely repeat more tests",
+      "applicability": "Compatibility/import tasks with artifacts from multiple producers or format generations; networked long-horizon tasks can obtain authorized historic specimens and compatibility docs.",
+      "minimal_change": "Scoped strategy guidance: track which versions/producers/dependency conditions each successful end-to-end path covers. If many failures stop at the same early operation, investigate that boundary before unrelated leaf symptoms. Do not hardcode old-format priority globally.",
+      "validation_design": "Artifact-only paired reference/candidate controls on lawful v129/v138 inputs; then independent candidate variant with generalized format parsing and fresh per-version downstream probes. Keep original artifact/results immutable.",
+      "confidence_boundaries": "326 is a text-marker count among965 nonpassing tests, not326 recoverable passes. No independent replay; supporting the header may expose missing semantics. Source ./src/tpr.py:51-52 and official /test_results/2 establish narrow rejection, not all low-score causes.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Find shared entry points and uncovered format generations",
+      "mechanism": "Gromacs accepted generated v138 inputs but rejected v129 inputs at a shared loader boundary. Group failures by the first shared divergence and characterize supported producer/version conditions before extending downstream features."
+    },
+    {
+      "id": "S3",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "T1",
+        "T2",
+        "T3",
+        "V1",
+        "V2",
+        "V6"
+      ],
+      "existing_knowledge": [
+        "836c9ee31a5e72a9a3bf28a5f57845f03d3c134fb9d386558712258b17d6ad73",
+        "b559389478b2543f4d0e972fd780dc69b67b10a0f7b2259b7467fcdadd43f3ce"
+      ],
+      "novelty": "new boundary evidence and strong counterexample to local-count-as-quality; core observation rule already absorbed",
+      "applicability": "Tools with compiler/runtime/database/service dependencies; ordinary connected tasks may provision approved dependencies, benchmark attempts cannot retroactively change grants or hidden fixtures.",
+      "minimal_change": "Retain a capability-conditioned observation matrix in knowledge; diagnose through a successful minimal transaction where authorized. Harness need only expose actual environment and process results; strategy chooses provisioning/checks.",
+      "validation_design": "Fresh paired runs under dependency absent/present while holding source and invocation fixed; compare reference and candidate stage of failure and output files. For Revive first capture actual evaluator stderr/PATH and go list std before asserting a cause.",
+      "confidence_boundaries": "Tinycc candidate source genuinely checks filesystem, not merely hardcoded failure; provisioning may help but compiler defects remain. Revive official excerpts lack enough stderr to attribute all410 failures. No assertion that grading repair alone restores their scores.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Preserve the conditions under which behavior was observed",
+      "mechanism": "Missing runtime, compiler or standard-library capabilities change which behavior a probe reaches. Record successful-path conditions and test materially different deployment conditions instead of learning an initialization failure as the complete behavior."
+    },
+    {
+      "id": "S4",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5",
+        "F6",
+        "F7"
+      ],
+      "existing_knowledge": [
+        "dbd0a49a80f9d56b29191bc0d4b08965ff4d4ed72bacb6a6ca19131424b26a2b",
+        "4e419f7ddda412eb6ce4940b8cf1dbc755d0eb993f9cf6258d3af00b071b4ca5"
+      ],
+      "novelty": "new controlled-substitution and negative-transfer evidence, reinforcing existing preservation mechanism",
+      "applicability": "Pipelines: train/load/predict, parse/plan/execute, produce/serialize/read, API/cache/storage. Works without global deadline; expected usefulness guides choice, actual limits bound execution.",
+      "minimal_change": "Keep as retrieval-scoped mechanism knowledge: use controlled intermediate artifacts to isolate a suspect stage, preserve passing cases that distinguish collateral damage, and retain an unresolved mismatch when proposed fixes regress better-supported behavior.",
+      "validation_design": "Rerun synthetic inference with identical model bytes across candidate versions; paired ordinary/partial-pretrained controls; separate deterministic from allocator-sensitive cases. Fresh-task experiment measures regression rate and verified useful progress, not just number of probes.",
+      "confidence_boundaries": "Observed artifact score311/312; remaining official failure is empty-vocabulary diagnostic, not automatically the historical allocation counterexample. Memory-layout imitation is benchmark compatibility work, not advice to introduce undefined behavior in production.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Use controlled intermediate artifacts and preserve regression evidence",
+      "mechanism": "FastText isolated training, inference and quantization with controlled model artifacts. A change that improved aggregate matches also broke a previously passing case; retain that counterexample when choosing the next revision."
+    },
+    {
+      "id": "S5",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "F8",
+        "F9",
+        "F10"
+      ],
+      "existing_knowledge": [
+        "4e419f7ddda412eb6ce4940b8cf1dbc755d0eb993f9cf6258d3af00b071b4ca5",
+        "836c9ee31a5e72a9a3bf28a5f57845f03d3c134fb9d386558712258b17d6ad73"
+      ],
+      "novelty": "new transaction/reopen/interrupt chains; general progress/cancellation distinction already specified",
+      "applicability": "Long-running training, migrations, services, financial/workflow tools; cancellation semantics depend on user contract.",
+      "minimal_change": "Scoped strategy asks what must survive error/reopen/cancel and verifies those observable postconditions. Essential harness can expose cancellation acknowledgment, process liveness and retained artifact identities, without deciding that every task needs graceful best-model saving.",
+      "validation_design": "Fault injection before first artifact, after checkpoint and during replacement; verify original artifact identity, final liveness and user-required output. For transactions, distinguish parse/bind/runtime errors and inspect both current and reopened state.",
+      "confidence_boundaries": "Duckdb remains48.11%, so these successful repairs do not establish whole-engine equivalence. fasttext SIGINT is domain behavior, not evidence ProContract kernel needs a new transition. Cancellation never implies completion automatically.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Check state transitions and artifacts after cancellation",
+      "mechanism": "DuckDB constraints changed across reopen, while FastText cancellation had observable output-model semantics. Check the user-visible transition, retained artifact and process shutdown separately; no universal checkpoint-on-cancel rule follows."
+    },
+    {
+      "id": "S6",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "M2",
+        "M3",
+        "E3",
+        "E4"
+      ],
+      "existing_knowledge": [
+        "4e419f7ddda412eb6ce4940b8cf1dbc755d0eb993f9cf6258d3af00b071b4ca5"
+      ],
+      "novelty": "reinforcement with new cases, not a newly discovered rule",
+      "applicability": "Nondeterministic services, timestamps, addresses, concurrency, locale; stable business effects still need verification.",
+      "minimal_change": "Retain variability specification with repeated observations and raw output; normalize only fields whose variation was observed and irrelevant to stated obligation. No scorer modifications.",
+      "validation_design": "Counter-control changes stable text/order/side effect and must still fail the comparator; repeated identical launches estimate variability at the recorded condition. Never transfer a normalizer from local tests into pinned official scorer.",
+      "confidence_boundaries": "rnr and go-mod-outdated are official full scores; not proof their local normalizers caused success. ethabi sole official failure involves duplicate param type; no rerun establishes it is the same varying-error family.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Normalize only observed variation within the relevant obligation",
+      "mechanism": "rnr, go-mod-outdated and ethabi exposed variable ordering or addresses alongside stable behavior. Preserve raw observations and negative controls so normalization cannot conceal changed stable output or side effects."
+    },
+    {
+      "id": "H1",
+      "status": "unadopted_research_candidate",
+      "layer": "harness",
+      "evidence_ids": [
+        "H8",
+        "M3",
+        "E4"
+      ],
+      "existing_knowledge": [
+        "007de5c127bda9552a7a6486f0708b180cc86840f00f06daaf755fbdbc5aef5c",
+        "b559389478b2543f4d0e972fd780dc69b67b10a0f7b2259b7467fcdadd43f3ce"
+      ],
+      "novelty": "prior mechanism plus parent-reported concrete recovery cases; this study does not requalify the ongoing fixes",
+      "applicability": "Durable operations and artifact-only measurement, including tasks without global deadlines.",
+      "minimal_change": "Essential mechanism only: retain operation/stage identity, immutable source hash, liveness/closure receipt and original allocation; expose lossless supported artifact capture and precise unsupported-member error. Strategy decides remeasurement/repair; no automatic grading retries or work heuristics in kernel.",
+      "validation_design": "Parent owns Felix/FIFO/Oha controls. Qualify closed-vs-active-vs-unknown writers, long relative names, FIFO metadata without reads, and interrupted extraction/recovery idempotency; measure same archive independently, never overwrite raw result.",
+      "confidence_boundaries": "Parent-reported age first cause is helper build package collision before pytest; receipt absence is downstream. No score predicted for eight cases. No blanket relaxation for devices, escaping symlinks or unknown writers.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Keep operation outcomes, current closure and artifact measurements distinct",
+      "mechanism": "Publication errors, final writer closure, filesystem transport and official grading are separate observations. Implement reliable identity and lossless transport without turning an empirical workflow into a kernel invariant."
+    },
+    {
+      "id": "R1",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [],
+      "existing_knowledge": [],
+      "novelty": "application design built on existing qualified RSI operations, not a claim of current campaign-wide subscription",
+      "applicability": "Research responsibilities consuming terminal outcomes and later corrections, no mandatory finite deadline.",
+      "minimal_change": "Prepare immutable evidence bundles and scoped knowledge proposals; register proposed context/code versions only within admitted scope. Strategy selects relevant investigations and protected experiments. Harness deduplicates transport and retains receipts; existing kernel governs authorized adoption.",
+      "validation_design": "Replay same evidence ID after receipt loss (no duplicate action); correction after wait remains pending until selected handler sees it; stale-incumbent adoption rejected; trial with unseen tasks, actual version-bound execution and raw scores before any promotion.",
+      "confidence_boundaries": "No RSI runtime was activated by this retrospective. Correlation in a selected reused benchmark cannot authorize automatic code deployment. Retrieval should bring applicable counterevidence, not append every lesson to all prompts.",
+      "score_effect": "No causal score-gain estimate. Official scores retained independently of internal Support.",
+      "title": "Receiving evidence does not itself select or promote a strategy",
+      "mechanism": "Retain immutable source identities and late corrections in the existing RSI input/knowledge flow. The selected strategy interprets evidence and proposes scoped validation; evidence arrival alone does not authorize code promotion."
+    },
+    {
+      "id": "S7",
+      "status": "unadopted_research_candidate",
+      "layer": "strategy",
+      "evidence_ids": [
+        "J6",
+        "J7",
+        "J8",
+        "J14",
+        "J15",
+        "J16",
+        "J17"
+      ],
+      "existing_knowledge": [
+        "836c9ee31a5e72a9a3bf28a5f57845f03d3c134fb9d386558712258b17d6ad73"
+      ],
+      "novelty": "Specific false-equivalence failure and minimal observer-interface mechanism; general source/subject binding already exists.",
+      "applicability": "Differential testing, A/B experiments, model/evaluator selection, old/new API or database comparisons; when wrappers/defaults can substitute targets.",
+      "minimal_change": "Scoped strategy knowledge: qualify actual target propagation and, when consequential, use a known-distinct control. Tool candidate: require target explicitly and capture resolved identity, without installing a mandatory global test workflow.",
+      "validation_design": "Replay omitted-argument probe against a deliberately different executable; old probe should falsely match and corrected probe distinguish. Include path aliases, two valid identical-content builds, stale capture reuse and target identity changing between selection/execution. Separately test on fresh tasks before broad adoption.",
+      "confidence_boundaries": "Direct historical call/patch/output evidence; no fresh probe rerun here. Solver-authored tool bug, not evidence of a global ProContract implementation defect. Same hash can be legitimate. No attribution of82 improved tests to this fix.",
+      "score_effect": "No isolated estimate; jplot original Luna479/583, original Sol557/583;82 improve and4 regress on matched IDs.",
+      "title": "Bind differential probes to the actual execution targets",
+      "mechanism": "Two jplot probes labeled outputs ref/new while invoking the reference twice because an executable argument was omitted. Make target selection explicit and retain actual target identities; a deliberately different control can test comparator detection capability."
+    }
+  ]
+}
