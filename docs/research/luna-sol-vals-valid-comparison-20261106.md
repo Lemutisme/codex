@@ -9,7 +9,7 @@ as a completed evaluation. Existing raw records and first-attempt aggregates are
 unchanged. The effective view selects declared replacement attempts, including
 lower results; it does not maximize old/new scores.
 
-| Matched valid tasks | ProContract mean | Vals mean | ≥95% tasks, ours/Vars | Full, ours/Vals |
+| Matched valid tasks | ProContract mean | Vals mean | ≥95% tasks, ours/Vals | Full, ours/Vals |
 |---|---:|---:|---:|---:|
 | Luna,197 |76.2296%|68.0822%|35/18|3/0|
 | Sol,175 |89.7697%|85.8731%|94/79|11/5|
