@@ -1,0 +1,36 @@
+{
+  "at": 1794021350.1228695,
+  "rows": [
+    {
+      "kind": "independent_solver_retry",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/tparse-retry",
+      "task": "mfridman__tparse.2416b4b",
+      "reason": "Terminal upstream503 invalidated the prior solve.",
+      "state": "queued"
+    },
+    {
+      "kind": "artifact_only_measurement",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/measurements",
+      "task": "ogham__dog.721440b",
+      "reason": "Correct grading network conditions.",
+      "state": "queued"
+    },
+    {
+      "kind": "artifact_only_measurement",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/measurements",
+      "task": "sqlite__sqlite.839433d",
+      "reason": "Allow the unchanged large test suite to finish.",
+      "state": "queued"
+    }
+  ],
+  "states": {
+    "queued": 3
+  },
+  "scored": 0,
+  "total": 3,
+  "active_jobs": 0,
+  "authorized_shared_capacity": 24,
+  "admission_wait_reason": "shared_capacity",
+  "audit_pending": false,
+  "scope": "Only the three missing Luna5.6 results; designated retries/corrected measurements, never maximum-score selection."
+}

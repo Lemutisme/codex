@@ -1,0 +1,10 @@
+{
+  "at": 1794021352.3312993,
+  "task": "gabotechs__dep-tree.60a95a2",
+  "source_projection_sha256": "c9bb7f53036f34388ba52dfa0c51ca05c38e574ad218e64f0a83cc9df25102e2",
+  "new_projection_sha256": "cec72b699600bd503e207a7bec8005edea2a8170ae0853e6b0085fcea7d09b74",
+  "old_score_percent": 73.98843930635837,
+  "new_score_percent": 73.98843930635837,
+  "all_raw_test_outcomes_equal": true,
+  "compiled_executable_equal": true
+}

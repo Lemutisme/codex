@@ -1,0 +1,6 @@
+{
+  "at": 1794021067.948874,
+  "plan_sha256": "48ae959a7eeb6f6faa98dae2c7d780ecd8beca0cc14fb8978a9f43ad7b7ffb21",
+  "scope": "Retained qualified adapters and explicit new allocation/measurement bindings; per-case collection and native image readiness still required before admission to model work.",
+  "model_probe": "/data/ProContract/programbench-luna56-completion-20261107/qualification/model-result.json"
+}

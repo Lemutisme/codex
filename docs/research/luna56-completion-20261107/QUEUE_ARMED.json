@@ -1,0 +1,21 @@
+{
+  "at": 1794021161.255937,
+  "queue_sha256": "08ec6e3c5291324b5ef991894c6a46e7a3d50f85b8fff6e544e5237b2ef5af2e",
+  "plan_sha256": {
+    "/data/ProContract/programbench-luna56-completion-20261107/tparse-retry": "48ae959a7eeb6f6faa98dae2c7d780ecd8beca0cc14fb8978a9f43ad7b7ffb21",
+    "/data/ProContract/programbench-luna56-completion-20261107/measurements": "8d7dda730c91698767aa0c855199ffb024e999ac6742e7c0e77aae7e33efe9a4"
+  },
+  "supervisor_sha256": "b56b3f6e04c61d1a0b2cfe0402d6bbfa9eeaa8f2abf0b9b48f80b8aa286ce5ef",
+  "model_route_qualified": {
+    "at": 1794020990.5933292,
+    "passed": true,
+    "model": "gpt-5.6-luna",
+    "effort": "max",
+    "elapsed": 0.9872090816497803,
+    "response_sha256": "66088ab10e6334f2e4d5c9f9f98a503e051dec5410296ecfc804dd71a52d6473",
+    "qualification_calls": 1,
+    "scope": "Task-independent route qualification only; no task input or solver allocation."
+  },
+  "state": "ready_for_shared_admission",
+  "baseline_sha256": "9564e149c5292608078fbc4d44396b6b307c6462c579791041ebb283ab0a6da5"
+}

@@ -103,3 +103,14 @@ memory reserve to64 GiB. The amendment and host/cgroup observations are retained
 preserve the existing per-instance limits, original allocations, frozen packages
 and strategies. Keep the historical capacity16 records as history. A later
 increase to32 requires an actual decision from subsequent capacity observations.
+
+Luna completion update, 2026-11-07: the user authorized queueing the remaining
+GPT-5.6-Luna cases. `/data/ProContract/programbench-luna56-completion-20261107/`
+contains an independent six-hour/max/unlimited/offline Tparse retry after its
+terminal503, and artifact-only Dog/SQLite measurements. Tparse retains the
+November3 Luna policy bundle with the qualified c2130fc07 repaired native binary.
+The measurements use the qualified grader bridge, two10-core branches and the
+declared larger suite/measurement grants. They share capacity24; the next three
+admissions are reserved outside frozen plans. `COMPLETION.json` adds only the
+independently verified declared results to the frozen197-case Luna baseline.
+No maximum-score selection, original-attempt resume or RSI candidate activation.

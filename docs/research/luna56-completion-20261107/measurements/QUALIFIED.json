@@ -1,0 +1,6 @@
+{
+  "at": 1794021065.4466035,
+  "plan_sha256": "8d7dda730c91698767aa0c855199ffb024e999ac6742e7c0e77aae7e33efe9a4",
+  "scope": "Retained qualified adapters and explicit new allocation/measurement bindings; per-case collection and native image readiness still required before admission to model work.",
+  "model_probe": null
+}

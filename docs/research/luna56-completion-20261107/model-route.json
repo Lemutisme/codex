@@ -1,0 +1,10 @@
+{
+  "at": 1794020990.5933292,
+  "passed": true,
+  "model": "gpt-5.6-luna",
+  "effort": "max",
+  "elapsed": 0.9872090816497803,
+  "response_sha256": "66088ab10e6334f2e4d5c9f9f98a503e051dec5410296ecfc804dd71a52d6473",
+  "qualification_calls": 1,
+  "scope": "Task-independent route qualification only; no task input or solver allocation."
+}

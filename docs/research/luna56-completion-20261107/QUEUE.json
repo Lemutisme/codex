@@ -1,0 +1,25 @@
+{
+  "at": 1794021067.9496617,
+  "authorized_by": "User: \u9700\u8981\u8865\u6d4b/\u8865\u8dd1\u7684\u8fdb\u5165queue",
+  "rows": [
+    {
+      "kind": "independent_solver_retry",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/tparse-retry",
+      "task": "mfridman__tparse.2416b4b",
+      "reason": "Terminal upstream503 invalidated the prior solve."
+    },
+    {
+      "kind": "artifact_only_measurement",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/measurements",
+      "task": "ogham__dog.721440b",
+      "reason": "Correct grading network conditions."
+    },
+    {
+      "kind": "artifact_only_measurement",
+      "root": "/data/ProContract/programbench-luna56-completion-20261107/measurements",
+      "task": "sqlite__sqlite.839433d",
+      "reason": "Allow the unchanged large test suite to finish."
+    }
+  ],
+  "scope": "Exactly the three remaining Luna5.6 cases. Existing Sol pending jobs continue; no duplicate Sol admissions."
+}

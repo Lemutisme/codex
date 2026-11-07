@@ -1,0 +1,53 @@
+{
+  "at": 1794021259.6655996,
+  "before": {
+    "at": 1794018090.400466,
+    "max_concurrent_attempts": 24,
+    "authorized_max": 24,
+    "admission_memory_reserve_bytes": 68719476736,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "/data/ProContract/programbench-sol61-score-recovery-20261107",
+      "/data/ProContract/programbench-grader-resources-20261107"
+    ],
+    "reason": "First grader resource calibration has been admitted. Restore the full shared24 target; subsequent calibration awaits its source terminal receipt and an available existing slot.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json",
+    "capacity_analysis": "/data/ProContract/programbench-concurrency-20261107/latest.json"
+  },
+  "after": {
+    "at": 1794021259.6653352,
+    "max_concurrent_attempts": 21,
+    "authorized_max": 24,
+    "admission_memory_reserve_bytes": 68719476736,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "/data/ProContract/programbench-sol61-score-recovery-20261107",
+      "/data/ProContract/programbench-grader-resources-20261107",
+      "/data/ProContract/programbench-luna56-completion-20261107/tparse-retry",
+      "/data/ProContract/programbench-luna56-completion-20261107/measurements"
+    ],
+    "reason": "User authorized the three missing Luna5.6 jobs. Reserve the next three admissions within total24: one independent six-hour Tparse retry and two artifact-only remeasurements. Restore ordinary24 after all three admit.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json",
+    "capacity_analysis": "/data/ProContract/programbench-concurrency-20261107/latest.json",
+    "measurement_slot_reservation": {
+      "owner": "/data/ProContract/programbench-luna56-completion-20261107",
+      "base_target": 24,
+      "slots": 3
+    }
+  },
+  "existing_allocations_changed": false
+}
