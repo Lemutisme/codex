@@ -1,0 +1,17 @@
+{
+  "at": 1794017287.5459657,
+  "task": "peco__peco.4e58dad",
+  "source_artifact_sha256": "84f02865614b355f47efcbbe461596526e5fe1eb32483636751f1396a7b47326",
+  "fifo_count": 1326,
+  "failure": "Legacy extractor rejected FIFO archive members before compile.",
+  "repair": "Use previously qualified lossless artifact transport for artifact-only remeasurement.",
+  "plan_sha256": "cb9a4833a2ead73cee182a110a717d947c402990751f3fe6f7cec101ee00f76c",
+  "runtime_root": "/data/ProContract/programbench-sol61-score-recovery-20261107",
+  "state": {
+    "queued": 1
+  },
+  "model_calls": 0,
+  "solver_restarted": false,
+  "preserved_original_files_verified": true,
+  "corrected_projection": "/data/ProContract/programbench-sol61-retries-20261106/MEASURED_COMPLETION.json"
+}
