@@ -1,5 +1,12 @@
 # Durable operations and scoped version selection
 
+Under the [kernel + evolvable harness architecture](PROCONTRACT_LAYERS.md), this
+interface is a harness capability. The same kernel carries ordinary task and RSI
+improvement responsibilities; the harness's strategy library chooses their work
+and research methods. Version adoption and actual later use retain separate
+receipts. This ownership does not add a second RSI kernel or automatically enable
+campaign-wide analysis/adoption.
+
 `scripts/procontract_operations.py` supplies execution and evidence operations to
 ordinary tasks and improvement responsibilities. It calls the existing
 `pro-contract-store` kernel; it adds no learning or goal transitions. The older

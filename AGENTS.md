@@ -1,26 +1,34 @@
 # ProContract architecture
 
-For ProContract work, follow the user's layer definitions in
+For ProContract work, follow the user's architecture definitions in
 [docs/PROCONTRACT_LAYERS.md](docs/PROCONTRACT_LAYERS.md):
 
-- **Strategy** is context-level instruction: prompts, skills, and other supplied
-  context, including how to compose and orchestrate the workflow.
-- **Harness** is agent-control and tool-layer code. Keep it essential: expose and
-  execute capabilities, retain state, and enforce actual authorization/resource
-  boundaries without embedding task-solving strategy.
-- **Kernel** contains the domain-independent progress/responsibility semantics
-  and authorized transitions. Do not promote empirical workflow heuristics into
-  kernel invariants.
+- **Two components**, per the user's 2026-11-07 decision: ProContract kernel and
+  an evolvable harness. Strategy is an internal harness component.
+- **Kernel** contains domain-independent responsibility, task progress/lifecycle
+  semantics and authorized transitions, including RSI improvement responsibilities.
+  Ordinary work and self-improvement use the same kernel; empirical workflow
+  heuristics do not become kernel invariants.
+- **Harness** contains execution, context management/retrieval, tools, measurement,
+  observability, version delivery and a replaceable strategy/instruction library.
+  It implements concrete process execution/cancellation and actual resource limits.
+- **Strategy library** contains prompts, skills and other supplied context,
+  including how to compose and orchestrate task and research workflows. Keep its
+  choices decoupled from the harness mechanisms that execute them.
+- **RSI** uses kernel responsibility, progress, evidence bindings and authorized
+  adoption. Harness capabilities and strategy perform analysis, propose changes,
+  run experiments and deploy selected versions. No separate RSI kernel is needed.
 - **Time**: a task may have no hard deadline. User time expectations guide strategy;
   explicit user/benchmark/environment resource limits constrain execution. Durable
   progress, continuation and cancellation must not depend on a finite global
   countdown. Existing mandatory task-lifetime assumptions are migration work.
 
-Keep these layers decoupled. Choosing when to diagnose, review, hand off, change
-methods, or replay checks belongs to strategy; implementing those operations
-belongs to harness. Moving a hard-coded workflow into a configuration file does
-not, by itself, make it a context-level strategy. Existing coupling is migration
-work, not a precedent for new coupling.
+Keep the kernel/harness boundary explicit and the harness's strategy and mechanisms
+decoupled. Choosing when to diagnose, review, hand off, change methods, or replay
+checks belongs to strategy; harness mechanisms implement those operations. Moving
+a hard-coded workflow into a configuration file does not, by itself, make it a
+context-level strategy. Existing coupling is migration work, not a precedent for
+new coupling. This architecture decision does not change frozen experiment inputs.
 
 Benchmark preference, 2026-10-24: validate ProContract only by default. Do not add
 native Codex comparison runs. If a native or remote Codex comparison is explicitly

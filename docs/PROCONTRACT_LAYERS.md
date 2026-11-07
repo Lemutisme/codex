@@ -1,23 +1,54 @@
-# ProContract: kernel, harness, strategy
+# ProContract: kernel and evolvable harness
 
-User architecture decision, 2026-10-18:
+User architecture decision, 2026-11-07:
 
-> strategy 为 prompt/skill 等 context level，包括如何编排工作流；
-> harness 是 agent 控制/tool 层面的代码，保持本质性与解耦。
+> 分为 ProContract kernel 和细分的 harness，harness 可以进化，
+> kernel 负责责任，进程，和 RSI。
 
-This is the ownership boundary for subsequent development. It does not claim
-that the current controller already satisfies it everywhere.
+There are two top-level components. The harness includes the replaceable strategy
+and instruction library alongside its execution mechanisms. The October18
+distinction between context-level workflow choices and agent-control/tool code
+remains an internal harness boundary. They can share a repository and runtime
+while retaining explicit interfaces and independently identified versions.
+
+Kernel process responsibility here means task progress and lifecycle semantics:
+who remains responsible, what progress/evidence belongs to which subject, and
+which transitions are authorized. Concrete OS processes, asynchronous jobs,
+delivery, cancellation and recovery are implemented by the harness. RSI uses the
+same kernel for improvement responsibilities; its analysis and experimentation
+methods are evolvable harness capabilities and strategy.
+
+This is the development contract. The capability decomposition below is an
+ownership map, not a claim that existing modules are already fully separated or
+that new behavior has been deployed into frozen experiments.
 
 ## Ownership
 
-| Layer | Owns | Examples |
+| Component | Owns | Examples |
 |---|---|---|
-| Kernel | Domain-independent progress/responsibility semantics, identities, coordinates, provenance relations, and authorized transitions | An observation belongs to a particular subject; replacing an executor does not erase the original responsibility; support and settlement are distinct |
-| Harness | Agent-control and tool implementation, state/evidence transport and persistence, execution and cancellation, environment provisioning, and enforcement of actual grants | Launch or continue an agent; expose a verifier; capture a version; mount an input read-only; count requests against the original allocation |
-| Strategy | Prompts, skills and supplied context that direct task reasoning and workflow orchestration | Decide what to investigate, which verifier to invoke, when to request diagnostic review, which regression controls to replay, whether to change methods or hand off |
+| ProContract kernel | Domain-independent responsibility/progress semantics, identities, coordinates, provenance relations and authorized transitions for tasks and RSI | Replacing an executor preserves responsibility; evidence has a subject and scope; support and settlement are distinct; an improvement proposal uses the existing authorized transitions |
+| Evolvable harness | Execution mechanisms, context/retrieval, tools, state/evidence transport and persistence, measurement, observability, version delivery and strategy library | Execute or continue work; expose observations; supply selected instructions; enforce actual grants; run improvement experiments and bind a selected version to later execution |
 
-The strategy chooses a workflow; the harness supplies and executes the operations
-that make it possible. Executing a handoff or reviewer call requires code.
+## Harness capabilities
+
+| Capability | Mechanism responsibility | Replaceable strategy responsibility |
+|---|---|---|
+| Execution and lifecycle | Dispatch, wait, wake, handoff, cancellation and recovery of owned work under original authority | Choose continuation, delegation, rest or another method |
+| Context and retrieval | Assemble actual inputs; expose current subject/requirements and historical evidence with their identities; retain permitted content and bounded readback | Choose relevant history, interpretations, counterexamples and context for the next action |
+| Tools and observations | Preserve invocation identity and conditions, outputs, partial/completion states and retrievable handles | Choose tools, inputs and experiments; interpret observations |
+| Strategy / instruction library | Store, resolve and deliver versioned instructions; keep capability descriptions aligned with interfaces | Supply task-solving and research methods, including diagnosis, verification, repair and handoff orchestration |
+| Measurement and receipts | Execute admitted measurements, retain outcomes and process receipts with exact subject/conditions | Select checks and diagnostic questions; assess what findings imply and what remains uncertain |
+| Observability and resources | Link requests, roles, operations and effects where known; account for and enforce actual grants | Allocate effort and assess useful progress from the available observations |
+| Version delivery | Retain definitions and actual resolved inputs; apply authorized selections and bind later execution to them | Propose, compare and select improvements within the admitted scope |
+
+These capabilities reuse existing state and operation interfaces. They do not
+require separate services or a second memory/operation owner. Capability
+instructions explain how an interface behaves; strategy instructions guide how
+to compose it. A delivered instruction is observable input, not proof that it
+changed a decision or improved an outcome.
+
+Within the harness, strategy chooses a workflow and mechanisms supply and execute
+the operations that make it possible. Executing a handoff or reviewer call requires code.
 Deciding that a particular failure should cause that handoff or review is a
 strategy decision. This distinction applies even when both currently live in one
 controller module.
@@ -27,6 +58,34 @@ its task-specific assertions, interpreting its limits, and choosing the next
 action belong to strategy. A structured invocation or capability configuration
 may carry that choice into code; an opaque configurable state machine is not a
 substitute for a replaceable context-level strategy.
+
+## One kernel for tasks and RSI
+
+An improvement objective is a responsibility whose subject is a harness version
+or capability. It can accumulate observations, retain partial progress, continue
+across executors and propose a change through the same kernel semantics as an
+ordinary task. Existing authorized support, settlement and selection relations
+govern adoption; no separate RSI kernel or universal research sequence is needed.
+
+The harness captures trajectory evidence, makes it retrievable, executes selected
+experiments and delivers selected versions. Its strategy library directs causal
+analysis, candidate construction, validation and workflow choices. These activities
+may be composed into an E2E loop using the existing
+[durable operations interface](PROCONTRACT_OPERATIONS.md).
+
+An observation, an interpretation, a proposed change, an authorized adoption and
+actual later use remain distinct. Local reasoning and exploratory experiments
+can proceed within existing authority without a kernel judgment for each thought.
+The kernel does not infer general improvement from a score increase or prescribe
+sample counts, model choices or review frequency. Actual use is established by
+the later execution's resolved instructions, code and tools. Adoption alone is
+not evidence of a quality gain.
+
+This architecture supports event-driven RSI as well as explicitly initiated
+research. It does not assert that the current campaign is already subscribed to
+automatic analysis/adoption. Current qualification and deployment scope remain
+recorded in the operations and experiment reports. Frozen benchmark cohorts
+retain their admitted versions and grants.
 
 ## Keep the harness essential
 
@@ -267,8 +326,9 @@ quality gains or automatic migration of existing native controllers. Fixed
 benchmark cohorts retain their admitted versions and resources.
 
 For a proposed change, identify the smallest required capability or invariant and
-the replaceable context that uses it. Put agent/tool execution code in harness;
-put task-solving and workflow choices in strategy. Extend kernel only for a
-missing general semantic relation or authorized transition. Keep their interfaces
-explicit so a strategy can change without rewriting the execution mechanism,
-and a harness adapter can change without changing the strategy's meaning.
+the replaceable context that uses it. Place agent/tool execution code in the
+relevant harness capability and task-solving/workflow choices in its strategy
+library. Extend kernel only for a missing general semantic relation or authorized
+transition shared by ordinary work and improvement responsibilities. Keep their
+interfaces explicit so strategy can change without rewriting the execution
+mechanism, and an adapter can change without changing the strategy's meaning.
