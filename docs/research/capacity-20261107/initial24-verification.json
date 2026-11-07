@@ -1,0 +1,13 @@
+{
+  "at": 1794015861.9722204,
+  "target": 24,
+  "observed_active": 24,
+  "original_grants_unchanged": 16,
+  "frozen_plans_unchanged": 8,
+  "available_gib": 95.0461540222168,
+  "owned_working_set_gib": 16.374927520751953,
+  "oom_kill_total": 104,
+  "before_oom_kill_total": 104,
+  "observation_sha256": "04febc8a422d82bfcf81c4abb9b7bc9ffcd39e7045e9800cecac01034295fc04",
+  "scope": "Initial24 admissions observed. This is not a full solver/compile/grader peak-cycle guarantee."
+}

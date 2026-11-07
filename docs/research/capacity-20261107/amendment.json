@@ -1,0 +1,152 @@
+{
+  "at": 1794015720.3161147,
+  "authorization_source": "User: \u80fd\u63d0\u9ad8\u5e76\u53d1\u5417\uff1f\u5206\u6790\u4e00\u4e0b\u5185\u5b58\u9650\u5236",
+  "selected_target": 24,
+  "rationale": "176.8GiB host, about120GiB MemAvailable and12.8GiB current benchmark working set. Peaks include18.4GiB in a live solver and32.4GiB in Sol host processes. 64GiB admission reserve covers one60GiB declared solver burst plus control overhead; it is not a simultaneous-peak guarantee.",
+  "before": {
+    "at": 1794008554.551044,
+    "max_concurrent_attempts": 16,
+    "authorized_max": 16,
+    "admission_memory_reserve_bytes": 17179869184,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal"
+    ],
+    "reason": "Register the user-authorized paired GPT-6-Luna full200-per-arm study under the same total16 capacity. Existing allocations and frozen Sol plans unchanged.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json"
+  },
+  "after": {
+    "at": 1794015720.3161097,
+    "max_concurrent_attempts": 24,
+    "authorized_max": 24,
+    "admission_memory_reserve_bytes": 68719476736,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal"
+    ],
+    "reason": "User requested higher concurrency and memory analysis. Operator selected24 after host/cgroup measurements; reserve64GiB before new admissions for observed burst risk. Original per-attempt solver/grader settings and allocations remain frozen.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json",
+    "capacity_analysis": "/data/ProContract/programbench-concurrency-20261107/latest.json"
+  },
+  "original_grants": {
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/php__php-src.c891263/original-budget.json": {
+      "sha256": "f437a49688be2103bf01e4df85920a6d1f12aaa573a88af54f977d80911dc4c5",
+      "started": 1793999529.5818782,
+      "deadline": 1794021129.5818782,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/peco__peco.4e58dad/original-budget.json": {
+      "sha256": "5ca7e438f2148d1599e883354f269760fc9315839608b1d7b6d6ebcafa4aa748",
+      "started": 1793994670.347399,
+      "deadline": 1794016270.347399,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/ajeetdsouza__zoxide.67ca1bc/original-budget.json": {
+      "sha256": "c69fd2d55caa479b8b813e507fc766e137ba254205bf3b1c6fdc25aaf407f4ac",
+      "started": 1794003059.7445333,
+      "deadline": 1794024659.7445333,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/johnkerl__miller.8d85b46/original-budget.json": {
+      "sha256": "62e9ebca162659ccf2243f249bd9dd8937d3dcba04e406ea827a120512301d6d",
+      "started": 1793999539.7800064,
+      "deadline": 1794021139.7800064,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/ffmpeg__ffmpeg.360a402/original-budget.json": {
+      "sha256": "e644d92a3fa93f700123f5613b2b8cbc6c0e54faef27931824567f0991c49c80",
+      "started": 1794004854.8323038,
+      "deadline": 1794026454.8323038,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/axodotdev__oranda.27d60c7/original-budget.json": {
+      "sha256": "02c2675b868e92932294899e93f060017b8ae7bd1c8d38b94a5402bd8a4965a7",
+      "started": 1794004741.6915073,
+      "deadline": 1794026341.6915073,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/noborus__ov.b96c2ba/original-budget.json": {
+      "sha256": "484628f08d8f04b53e90fabf865e4fcc8a57d97add9fed84f21809267c00a8b1",
+      "started": 1794004481.71779,
+      "deadline": 1794026081.71779,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/sqlite__sqlite.839433d/original-budget.json": {
+      "sha256": "ed4330c786a82159568029a359b1a993253b3c65dcbcab77b0c8344e90473c7f",
+      "started": 1793982514.760987,
+      "deadline": 1794004114.760987,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/o2sh__onefetch.e5958ce/original-budget.json": {
+      "sha256": "b89d383fa273cdb41d93755f7a8c0e02cf84b002a02e0d07034bd07bdbda9fcd",
+      "started": 1794002471.9781682,
+      "deadline": 1794024071.9781682,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/abishekvashok__cmatrix.5c082c6/original-budget.json": {
+      "sha256": "6d8283cc9e13a5350e48837e61090403916f45e3f9374c771240baeedbcb3300",
+      "started": 1794003030.7777953,
+      "deadline": 1794024630.7777953,
+      "requests": null
+    },
+    "/data/ProContract/programbench-sol61-retries-20261106/runs/canop__rhit.ae90bcb/original-budget.json": {
+      "sha256": "c879b3452ba41907f7cb146127d0f12c267d274c314e8d47ce9c9bdb67fb553a",
+      "started": 1794004383.6785123,
+      "deadline": 1794025983.6785123,
+      "requests": null
+    },
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/runs/gabotechs__dep-tree.60a95a2/original-budget.json": {
+      "sha256": "624a709a938e3b0892fd68394e4b489183f7abe38f6d57cab363f247be0fb380",
+      "started": 1794008722.824981,
+      "deadline": 1794030322.824981,
+      "requests": null
+    },
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/runs/rbakbashev__elfcat.52f8cc7/original-budget.json": {
+      "sha256": "5797b3419d82c045cca21d97935ef672f187c9774085d5ffef6b5a7d3cbb8907",
+      "started": 1794012360.6729019,
+      "deadline": 1794033960.6729019,
+      "requests": null
+    },
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/runs/jesseduffield__lazygit.1d0db51/original-budget.json": {
+      "sha256": "9a02253c1950084d05e422f93cf3fbc9a379cf76e81572dd4c98bd45c57e234c",
+      "started": 1794008556.7604382,
+      "deadline": 1794030156.7604382,
+      "requests": null
+    },
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/runs/rvben__rumdl.2d75c4d/original-budget.json": {
+      "sha256": "2695d65b70fbd62302c73cebc630a134e0a77e72e9ccd2ba932c375156c4ccd7",
+      "started": 1794008754.9763308,
+      "deadline": 1794030354.9763308,
+      "requests": null
+    },
+    "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal/runs/rbakbashev__elfcat.52f8cc7/original-budget.json": {
+      "sha256": "29b2775cf0aa9a53243ada13f8a1f436f4fb3f86678ed9bd3fa50b4c9544ad96",
+      "started": 1794015534.713211,
+      "deadline": 1794037134.713211,
+      "requests": null
+    }
+  },
+  "frozen_plan_sha256": {
+    "/data/ProContract/programbench-sol61-20261104/plan.json": "064cd55ba107bdc77aa50732b47f8133b1b4e0bb2cc68d2c2984fe49513b9a59",
+    "/data/ProContract/programbench-rerun-20261103/plan.json": "1597ea1c64f04768c4c108196b2de4368f1014d53dc741f317e3abad6b4b1e0b",
+    "/data/ProContract/programbench-sol61-grading-calibration-20261105/plan.json": "400a9553bdc577a3623c726b5ddf6cc4cfb78e0a8f85228be8e32dc12d98e729",
+    "/data/ProContract/programbench-sol61-retries-20261106/plan.json": "7fce906e2e80165699044c55df4542b1260573986392695c8d981055d983f0d3",
+    "/data/ProContract/programbench-sol61-score-recovery-20261106/plan.json": "e266017d55589bcd2e346ef892fc275e628003420a6b97a2afed5415dd714abc",
+    "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery/plan.json": "40b5d18ff2c6b900ac1673e5d6be3a104cc312ed2bf7d1acc898cc1b15638252",
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/plan.json": "5b6b3efedb460a5ed85eda44d0ec91d8e615fc40961f2a24d8e14652e8cf8954",
+    "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal/plan.json": "b730b82d4eb625504e38492533435e4f94744ffbb6153dbf9f2dd1e78f94b295"
+  },
+  "actions": "Admission settings only; no process interruption, solver restart, grant renewal, model or strategy change."
+}

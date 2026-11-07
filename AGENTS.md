@@ -95,3 +95,11 @@ turn does not end that attempt. Both arms use the same external process-lifetime
 adapter and corrected grader profile. Share the existing capacity16 without
 renewing Sol allocations. Retain new insights, but do not activate RSI candidates
 inside these frozen cohorts. Perform the deep comparison-driven RSI afterward.
+
+Capacity update, 2026-11-07: after the user's request to increase concurrency and
+analyze memory limits, the operator raised shared admission to24 and its available
+memory reserve to64 GiB. The amendment and host/cgroup observations are retained in
+`/data/ProContract/programbench-concurrency-20261107/`. This changes admission only;
+preserve the existing per-instance limits, original allocations, frozen packages
+and strategies. Keep the historical capacity16 records as history. A later
+increase to32 requires an actual decision from subsequent capacity observations.

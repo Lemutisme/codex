@@ -1,0 +1,27 @@
+{
+  "at": 1794015968.4670405,
+  "before": {
+    "active_jobs": 16,
+    "available_gib": 120.593994140625,
+    "owned_working_set_gib": 12.782970428466797
+  },
+  "after": {
+    "sample_count": 11,
+    "active_jobs": 24,
+    "available_min_gib": 94.49480438232422,
+    "available_latest_gib": 95.29800796508789,
+    "owned_working_set_max_gib": 16.374927520751953,
+    "oom_kill_counter_delta": 0,
+    "load": [
+      46.39111328125,
+      38.1611328125,
+      32.94091796875
+    ],
+    "memory_pressure": "some avg10=1.15 avg60=0.68 avg300=0.21 total=268488107\nfull avg10=0.97 avg60=0.60 avg300=0.18 total=253924713\n"
+  },
+  "per_attempt_limits_unchanged": true,
+  "original_grants_verified": 16,
+  "frozen_plans_verified": 8,
+  "observer_service": "procontract-programbench-capacity-observer-20261107.service",
+  "scope": "Admission observation, including preparation and grading. No claim that all24 solvers have finished or that simultaneous worst-case memory is guaranteed."
+}
