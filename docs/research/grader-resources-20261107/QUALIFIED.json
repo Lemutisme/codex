@@ -1,0 +1,6 @@
+{
+  "at": 1794017929.3260508,
+  "plan_sha256": "9d2106263b7e2404b31c5eec3a142bbaff47cf4dbc6db565a422f713c4088bc0",
+  "qualification_scope": "31 passing adapter controls, two unrelated optional environment controls skipped. Actual collection and measurement are the E2E resource calibration, not a claimed validated speedup.",
+  "model_requests": 0
+}

@@ -1,0 +1,51 @@
+{
+  "at": 1794017983.6095638,
+  "before": {
+    "at": 1794017349.757698,
+    "max_concurrent_attempts": 24,
+    "authorized_max": 24,
+    "admission_memory_reserve_bytes": 68719476736,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "/data/ProContract/programbench-sol61-score-recovery-20261107"
+    ],
+    "reason": "Reserved scoring-recovery admissions registered; all Sol and artifact-only jobs share the current authorized slots without changed solver grants.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json",
+    "capacity_analysis": "/data/ProContract/programbench-concurrency-20261107/latest.json"
+  },
+  "after": {
+    "at": 1794017983.6093533,
+    "max_concurrent_attempts": 23,
+    "authorized_max": 24,
+    "admission_memory_reserve_bytes": 68719476736,
+    "disk_admission_reserve_bytes": 12884901888,
+    "external_job_roots": [
+      "/data/ProContract/programbench-rerun-20261103",
+      "/data/ProContract/programbench-sol61-grading-calibration-20261105",
+      "/data/ProContract/programbench-sol61-retries-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106",
+      "/data/ProContract/programbench-sol61-score-recovery-20261106/felix-image-recovery",
+      "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "/data/ProContract/programbench-sol61-score-recovery-20261107",
+      "/data/ProContract/programbench-grader-resources-20261107"
+    ],
+    "reason": "Reserve one next slot for the user-requested grading-resource calibration, serial measured artifacts with up to two isolated10-core branches. All active solver allocations remain unchanged.",
+    "execution_check": "/data/ProContract/programbench-sol61-20261104/EXECUTION_CHECK.json",
+    "capacity_analysis": "/data/ProContract/programbench-concurrency-20261107/latest.json",
+    "measurement_slot_reservation": {
+      "owner": "/data/ProContract/programbench-grader-resources-20261107",
+      "base_target": 24,
+      "slots": 1
+    }
+  },
+  "model_requests": 0,
+  "scope": "Independent retained-artifact grading resource calibration."
+}
