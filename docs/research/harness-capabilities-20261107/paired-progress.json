@@ -1,0 +1,39 @@
+{
+  "at": 1794077962.569616,
+  "cohorts": {
+    "procontract": {
+      "at": 1794077960.4742546,
+      "states": {
+        "finished": 44,
+        "grading": 1,
+        "solving": 20,
+        "queued": 135
+      },
+      "scored": 43,
+      "scored_mean_percent": 78.53789638708163
+    },
+    "vanilla-goal": {
+      "at": 1794077960.490645,
+      "states": {
+        "finished": 61,
+        "solving": 3,
+        "queued": 136
+      },
+      "scored": 61,
+      "scored_mean_percent": 72.08200038998763
+    }
+  },
+  "paired": {
+    "n": 43,
+    "pc_mean": 78.53789638708163,
+    "goal_mean": 76.22855058220556,
+    "delta_pp": 2.3093458048760764,
+    "wins": 32,
+    "losses": 11,
+    "task_bootstrap_95_interval": [
+      0.007605240333764576,
+      4.343410242417908
+    ],
+    "scope": "Interim same-task matched result; incomplete cohort, no selection of best attempts."
+  }
+}
