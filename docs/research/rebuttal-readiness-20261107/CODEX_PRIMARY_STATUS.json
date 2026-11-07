@@ -51,5 +51,6 @@
       "passed_goal": 1070
     }
   ],
-  "frozen_cohorts_unchanged": true
+  "frozen_solver_packages_and_strategies_unchanged": true,
+  "grading_provenance": "Explicit retained-artifact corrections and resource amendments are recorded separately from original solver runs."
 }

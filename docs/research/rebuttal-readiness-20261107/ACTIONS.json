@@ -5,11 +5,12 @@
     {
       "id": "php_grade",
       "kind": "retained_artifact_measurement",
-      "state": "needs_bounded_grader_qualification",
+      "state": "queued_artifact_only_remeasurement",
       "source": "/data/ProContract/programbench-sol61-retries-20261106/runs/php__php-src.c891263/submission.tar.gz",
       "diagnostics": "/data/ProContract/programbench-ram-incident-20261107-0359/owned-release.json",
       "model_requests": 0,
-      "automatic_unbounded_regrade": false
+      "automatic_unbounded_regrade": false,
+      "measurement_root": "/data/ProContract/programbench-codex-php-score-recovery-20261107"
     },
     {
       "id": "sol_luna_closeout",
@@ -27,5 +28,6 @@
       "draft": "/data/ProContract/rebuttal-20261107/RESPONSE_MODULES_EN.md",
       "evidence": "/data/ProContract/rebuttal-20261107/EVIDENCE_INDEX.md"
     }
-  ]
+  ],
+  "primary_evidence": "Native Codex implementation"
 }
