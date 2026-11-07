@@ -277,6 +277,22 @@ def runtime_evaluator(base, assets=None, *, test_workspace="inherit", test_suite
                 raise RuntimeError("grader assets changed the compiled candidate")
 
         def _run_step(self, command, **kwargs):
+            if kwargs.get("step_name") in (
+                "hash_executable", "verify_executable_hash",
+                "verify_candidate_after_grader_assets",
+                "verify_candidate_unchanged_after_grader_preparation",
+            ):
+                from procontract_evaluator_artifacts import container_file_digest
+                argv = shlex.split(command)
+                if len(argv) != 2 or argv[0] != "sha256sum":
+                    raise RuntimeError("unexpected trusted executable-hash command")
+                start = time.monotonic()
+                receipt = container_file_digest(kwargs["env"], argv[1], timeout=kwargs.get("timeout", 300))
+                result = {"output": receipt["sha256"] + "  " + argv[1] + "\n",
+                          "returncode": 0, "exception_info": ""}
+                kwargs["log_buf"].append({"step": kwargs["step_name"], "command": command,
+                    "wall_time": time.monotonic() - start, "artifact_read_receipt": receipt, **result})
+                return result
             env = kwargs.get('env')
             if env is not None and hasattr(env, '_pc_restored_workspace'):
                 kwargs['log_buf'].append({'step': 'restore_compiled_workspace', **env._pc_restored_workspace})

@@ -285,6 +285,7 @@ def pin_state():
             "procontract_submission_transport.py",
             "procontract_evaluator_scope.py",
             "procontract_evaluator_runtime.py",
+            "procontract_evaluator_artifacts.py",
         )},
         "programbench": str(PROGRAMBENCH),
         "programbench_head": head,
@@ -436,6 +437,7 @@ def evaluator_env():
         "PROCONTRACT_SWEEP_EPISODE",
         "PROGRAMBENCH_CONTAINER_PREFIX",
         "PC_TASK",
+        "PC_GRADER_KEEPALIVE_UNTIL",
     )
     env = {key: os.environ[key] for key in keep if key in os.environ}
     env.update(
