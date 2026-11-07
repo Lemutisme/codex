@@ -9,8 +9,35 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from procontract_evaluator_runtime import PLUGIN, PLUGIN_NAME, load_assets, preserve_container_service
+from procontract_evaluator_runtime import runtime_evaluator
+
+
+class SuiteAllocationTest(unittest.TestCase):
+    def test_suite_grant_does_not_change_test_command_or_setup_limits(self):
+        class Base:
+            def __init__(self): self.calls = []
+            def _run_step(self, command, **kwargs):
+                self.calls.append((command, kwargs))
+                return {"returncode": 0, "output": ""}
+            def _copy_file_from_container(self, **kwargs): return ""
+
+        command = "python3 -m pytest -n 6 --timeout=30 --reruns=2"
+        for grant in (None, 10800):
+            evaluator = runtime_evaluator(Base, test_suite_seconds=grant)()
+            env = mock.Mock(spec=["copy_in"])
+            with mock.patch("procontract_evaluator_runtime.install_plugin_path"):
+                evaluator._run_step("compile", step_name="compile", timeout=900, env=env, log_buf=[])
+                evaluator._run_step(command, step_name="run_tests", timeout=3600, env=env, log_buf=[])
+            compile_call = next(c for c in evaluator.calls if c[1]["step_name"] == "compile")
+            test_call = next(c for c in evaluator.calls if c[1]["step_name"] == "run_tests")
+            self.assertEqual(compile_call[1]["timeout"], 900)
+            self.assertEqual(test_call[1]["timeout"], grant or 3600)
+            self.assertTrue(test_call[0].endswith(command))
+            self.assertTrue(all(c[1]["timeout"] == 10 for c in evaluator.calls
+                                if c[1]["step_name"] in ("prepare_test_attempt_observer", "collect_test_attempt_observations")))
 
 
 class GraderAssetsTest(unittest.TestCase):

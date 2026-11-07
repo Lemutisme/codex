@@ -300,7 +300,8 @@ def pin_state():
         "skipped_policy": "nonpassed",
         "branch_error_policy": "invalid",
         "evaluator_attempts": 2,
-        "branch_workers": 1,
+        "branch_workers": frozen.branch_workers,
+        "test_suite_seconds": frozen.test_suite_seconds,
         "branch_retries": 1,
         "test_workspace": frozen.test_workspace,
         "docker_cpus": frozen.docker_cpus,
@@ -485,7 +486,8 @@ def make_evaluator(task, archive, *, collection=False):
     evaluator_class = with_grader_requirements(Evaluator, registry().grader_requirements)
     from procontract_evaluator_runtime import runtime_evaluator
     evaluator_class = runtime_evaluator(evaluator_class, registry().grader_assets,
-                                        test_workspace=registry().test_workspace)
+                                        test_workspace=registry().test_workspace,
+                                        test_suite_seconds=registry().test_suite_seconds)
     from procontract_evaluator_scope import scoped_evaluator
     evaluator_class = scoped_evaluator(evaluator_class)
     if collection:
@@ -506,7 +508,7 @@ def make_evaluator(task, archive, *, collection=False):
         remove_hashes=instance.get("eval_clean_hashes", []),
         instance_id=task,
         docker_cpus=registry().docker_cpus,
-        branch_workers=1,
+        branch_workers=registry().branch_workers,
         branch_retries=1,
     )
     return evaluator

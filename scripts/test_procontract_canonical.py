@@ -94,6 +94,23 @@ class CanonicalTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "identity changed"):
                 adapter.evaluator()
 
+    def test_native_evaluator_receives_pinned_branch_workers(self):
+        class Evaluator:
+            def __init__(self, **kwargs): self.kwargs = kwargs
+        selected = dataclasses.replace(self.registry, branch_workers=2, test_suite_seconds=10800)
+        instance = {"branches": {"branch-a": {"tests": ["test_a"]}}}
+        with mock.patch.object(canonical, "_REGISTRY", selected), \
+             mock.patch.object(canonical, "fixture", return_value=instance), \
+             mock.patch.object(canonical, "pb_imports", return_value=(None, None, lambda _: ["branch-a"], lambda _: [], None)), \
+             mock.patch.dict(sys.modules, {
+                 "programbench.eval.eval": SimpleNamespace(Evaluator=Evaluator),
+                 "programbench.utils.load_data": SimpleNamespace(get_ignored_branches=lambda _: []),
+             }):
+            evaluator = canonical.make_evaluator(self.task, self.root / "submission.tar.gz")
+        self.assertEqual(evaluator.kwargs["branch_workers"], 2)
+        self.assertEqual(evaluator.kwargs["branch_retries"], 1)
+        self.assertEqual(evaluator.kwargs["docker_cpus"], selected.docker_cpus)
+
     def test_pins_and_adapter_drift_are_rejected_without_external_calls(self):
         for key in ("pins_sha256", "adapter_sha256"):
             terms = {

@@ -100,6 +100,23 @@ class RegistryTest(unittest.TestCase):
         self.document['test_workspace']='drop-some-source-files'
         with self.assertRaisesRegex(ValueError,'workspace'):registry.load(self.path,self.write())
 
+    def test_grading_parallelism_and_suite_grant_are_pinned(self):
+        defaults = registry.load(self.path, self.write())
+        self.assertEqual((defaults.branch_workers, defaults.test_suite_seconds), (1, 3600))
+        for name, selected in (("branch_workers", 2), ("test_suite_seconds", 10800)):
+            self.document[name] = selected
+            loaded = registry.load(self.path, self.write())
+            self.assertEqual(getattr(loaded, name), selected)
+            self.document[name] = selected + 1
+            self.write()
+            with self.assertRaisesRegex(ValueError, "identity"):
+                loaded.verify_source()
+            for invalid in (0, -1, True, 1.5, "2"):
+                self.document[name] = invalid
+                with self.assertRaisesRegex(ValueError, name):
+                    registry.load(self.path, self.write())
+            self.document[name] = selected
+
     def test_grader_assets_are_bound_and_rechecked_independently_of_registry_bytes(self):
         archive = self.root / "grader-assets.tar.gz"
         archive.write_bytes(b"original toolchain")

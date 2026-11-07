@@ -216,9 +216,11 @@ def load_assets(value):
     return result
 
 
-def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
+def runtime_evaluator(base, assets=None, *, test_workspace="inherit", test_suite_seconds=None):
     if test_workspace not in ("inherit", "isolated"):
         raise ValueError("unknown test workspace profile")
+    if test_suite_seconds is not None and (type(test_suite_seconds) is not int or test_suite_seconds <= 0):
+        raise ValueError("test suite allocation must be a positive integer")
     class RuntimeEvaluator(base):
         def _new_env(self, *args, **kwargs):
             env = super()._new_env(*args, **kwargs)
@@ -284,6 +286,10 @@ def runtime_evaluator(base, assets=None, *, test_workspace="inherit"):
                 del env._pc_test_workspace
             if kwargs.get("step_name") != "run_tests":
                 return super()._run_step(command, **kwargs)
+            if test_suite_seconds is not None:
+                # Only the operator's suite execution grant changes. Official
+                # test commands retain their own per-test limits and retries.
+                kwargs["timeout"] = test_suite_seconds
             env = kwargs["env"]
             super()._run_step(f"mkdir -p {PLUGIN_ROOT}", env=env, log_buf=kwargs["log_buf"],
                 step_name="prepare_test_attempt_observer", timeout=10)
