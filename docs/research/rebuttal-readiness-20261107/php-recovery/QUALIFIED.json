@@ -1,0 +1,6 @@
+{
+  "at": 1794028052.2460787,
+  "plan_sha256": "b99fbf5afa1fd68bf02e548dd6aec10a0be8be1ca314f983a57285c42ce42043",
+  "scope": "Previously qualified scorer and lossless transport; explicit standard Docker execution limits. Case-specific readiness and scoring remain required.",
+  "model_requests": 0
+}

@@ -1,0 +1,8 @@
+{
+  "at": 1794028440.3596091,
+  "source": "User: \u6211\u4eec\u5c31\u7528\u65b0\u7684codex\u7248\u672c\u7684\u6570\u636e",
+  "primary_evidence": "Codex-native ProContract experiment series",
+  "historical_opencode_role": "Historical disclosure and version context only",
+  "new_comparison": "GPT-6-Luna/max ProContract versus native Codex0.167.0 with verified goal",
+  "causal_ablation_status": "Same-harness feedback-matched authority ablation remains a separate proposed experiment."
+}

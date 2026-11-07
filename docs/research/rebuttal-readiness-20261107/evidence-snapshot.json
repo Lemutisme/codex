@@ -1,0 +1,118 @@
+{
+  "at": 1794028137.3964233,
+  "utc": "2026-11-07T05:08:57.396425+00:00",
+  "priority": "ProContract rebuttal",
+  "luna56": {
+    "valid_instances": 198,
+    "mean_percent": 76.32984480978861,
+    "at_least_95": 36,
+    "fully_resolved": 3
+  },
+  "sol61": {
+    "valid_instances": 199,
+    "mean_percent": 89.85251294618608,
+    "at_least_95": 110,
+    "fully_resolved": 14
+  },
+  "luna56_pending": [
+    "mfridman__tparse.2416b4b",
+    "sqlite__sqlite.839433d"
+  ],
+  "sol61_pending": [
+    "php__php-src.c891263"
+  ],
+  "luna56_vs_vals": {
+    "n": 198,
+    "ours_mean": 76.32984480978861,
+    "reference_mean": 68.2119191919192,
+    "delta_pp": 8.117925617869414,
+    "task_bootstrap_95_percent_interval_pp": [
+      5.683161473722537,
+      10.7629786059632
+    ],
+    "wins": 157,
+    "ties": 0,
+    "losses": 41,
+    "scope": "Paired tasks, seed20261107,10000 task resamples. Conditional on this observed valid task set; not repeated-run uncertainty or a held-out generalization estimate."
+  },
+  "sol61_vs_vals": {
+    "n": 199,
+    "ours_mean": 89.85251294618608,
+    "reference_mean": 85.61623115577889,
+    "delta_pp": 4.236281790407191,
+    "task_bootstrap_95_percent_interval_pp": [
+      2.206335541628261,
+      6.48262594603643
+    ],
+    "wins": 130,
+    "ties": 14,
+    "losses": 55,
+    "scope": "Paired tasks, seed20261107,10000 task resamples. Conditional on this observed valid task set; not repeated-run uncertainty or a held-out generalization estimate."
+  },
+  "new_luna6_status": {
+    "procontract": {
+      "at": 1794028134.190747,
+      "root": "/data/ProContract/programbench-gpt6-luna-20261106/procontract",
+      "states": {
+        "solving": 19,
+        "finished": 1,
+        "queued": 180
+      },
+      "selected": 200,
+      "active_jobs": 19,
+      "other_active_jobs": 5,
+      "combined_active_jobs": 24,
+      "shared_capacity": 23,
+      "admission_wait_reason": "shared_capacity",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "solver_seconds": 21600,
+      "request_limit": null,
+      "scored": 1,
+      "scored_mean_percent": 89.35643564356435,
+      "at_least_95_percent_count": 0,
+      "fully_resolved_count": 0,
+      "scope": "Independent GPT-6-Luna/max first attempts; fixed arm, shared six-hour allocation, unlimited requests."
+    },
+    "vanilla-goal": {
+      "at": 1794028134.2087166,
+      "root": "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal",
+      "states": {
+        "finished": 16,
+        "solving": 3,
+        "queued": 181
+      },
+      "selected": 200,
+      "active_jobs": 3,
+      "other_active_jobs": 21,
+      "combined_active_jobs": 24,
+      "shared_capacity": 23,
+      "admission_wait_reason": "shared_capacity",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "solver_seconds": 21600,
+      "request_limit": null,
+      "scored": 16,
+      "scored_mean_percent": 69.06504648504561,
+      "at_least_95_percent_count": 1,
+      "fully_resolved_count": 0,
+      "scope": "Independent GPT-6-Luna/max first attempts; fixed arm, shared six-hour allocation, unlimited requests."
+    }
+  },
+  "new_luna6_common_scored": [
+    "esubaalew__run.0fb9dec"
+  ],
+  "reviewer_comments_received": false,
+  "rsi_candidates_activated_in_live_cohorts": false,
+  "source_sha256": {
+    "/data/ProContract/programbench-luna-sol-vals-analysis-20261106/valid-view.json": "7a9974373eac60957106b722a3422aa670a874df21c6a9390de448bbf3dddbe9",
+    "/data/ProContract/programbench-luna56-completion-20261107/COMPLETION.json": "90935238291095f11c445760b2eb4e4159ab5e82ddaf05b18c281f88d0ca64bd",
+    "/data/ProContract/programbench-sol61-retries-20261106/MEASURED_COMPLETION.json": "e11ec841be59d9fad9d437d4d16359485961b112da8982f049dae747f7047e6b",
+    "/data/ProContract/programbench-luna-sol-vals-analysis-20261106/vals-analysis-current.json": "4e16f578c023eee46c13e587d99050a096abcb7802bbfb17277a5722ffcfe41a",
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/STATUS.json": "41ad735c0b6fc351fd03f720ac941868949b444d89f66db9383acfb3b4f30e91",
+    "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal/STATUS.json": "e1ccbd1d120aa955d7aa370668ecee4e507dd09d03eea36c67cc650430bc5302",
+    "/data/ProContract/programbench-gpt6-luna-20261106/procontract/RESULTS.json": "8c389c19033afd100fdde5568ad04f60de58fa25f4295809cbbcf75a15308952",
+    "/data/ProContract/programbench-gpt6-luna-20261106/vanilla-goal/RESULTS.json": "80add11a9cee8c1f45aaa8029b069a57d408ca98e2980a1da8494ce282c84c87"
+  },
+  "scope": "Effective declared attempts/remeasurements. No best-of selection, missing-to-zero imputation, or rewriting of historical paper numbers."
+}

@@ -114,3 +114,14 @@ declared larger suite/measurement grants. They share capacity24; the next three
 admissions are reserved outside frozen plans. `COMPLETION.json` adds only the
 independently verified declared results to the frozen197-case Luna baseline.
 No maximum-score selection, original-attempt resume or RSI candidate activation.
+
+Rebuttal priority, 2026-11-07: the user made ProContract rebuttal preparation the
+highest priority. Prioritize the existing experiment queues, missing valid
+measurements, and reproducible rebuttal evidence. The owner-created PHP RAM
+incident admission hold was lifted after exact owned release verification; this
+does not renew any solve or authorize action on unrelated workloads. The PHP
+measurement remains incomplete and needs bounded grader qualification before
+remeasurement. Working English response modules and source-bound statistics are
+under `/data/ProContract/rebuttal-20261107/`; actual review text, deadline and length
+constraints were requested asynchronously. Keep new RSI candidates outside the
+frozen comparative cohorts.

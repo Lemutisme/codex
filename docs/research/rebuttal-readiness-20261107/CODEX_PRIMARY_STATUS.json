@@ -1,0 +1,55 @@
+{
+  "utc": "2026-11-07T05:04:53.026108+00:00",
+  "primary_evidence": "Native Codex ProContract cohorts; historical OpenCode results retained as background only.",
+  "sol61": {
+    "valid": 199,
+    "mean_percent": 89.85251294618608,
+    "full": 14,
+    "near95": 110,
+    "pending": [
+      "php__php-src.c891263"
+    ]
+  },
+  "luna56": {
+    "valid_instances": 198,
+    "mean_percent": 76.3298448097886,
+    "remaining": [
+      "mfridman__tparse.2416b4b",
+      "sqlite__sqlite.839433d"
+    ]
+  },
+  "gpt6_luna": {
+    "procontract": {
+      "states": {
+        "solving": 19,
+        "finished": 1,
+        "queued": 180
+      },
+      "scored": 1,
+      "scored_mean_percent": 89.35643564356435,
+      "active_jobs": 19
+    },
+    "vanilla-goal": {
+      "states": {
+        "finished": 16,
+        "solving": 3,
+        "queued": 181
+      },
+      "scored": 16,
+      "scored_mean_percent": 69.06504648504561,
+      "active_jobs": 3
+    }
+  },
+  "gpt6_luna_pairs": [
+    {
+      "task": "esubaalew__run.0fb9dec",
+      "procontract_percent": 89.35643564356435,
+      "codex_goal_percent": 88.28382838283828,
+      "delta_pp": 1.0726072607260733,
+      "eligible": 1212,
+      "passed_procontract": 1083,
+      "passed_goal": 1070
+    }
+  ],
+  "frozen_cohorts_unchanged": true
+}

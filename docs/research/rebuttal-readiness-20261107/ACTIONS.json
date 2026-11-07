@@ -1,0 +1,31 @@
+{
+  "at": 1794024734.7130983,
+  "priority": "highest: ProContract rebuttal",
+  "items": [
+    {
+      "id": "php_grade",
+      "kind": "retained_artifact_measurement",
+      "state": "needs_bounded_grader_qualification",
+      "source": "/data/ProContract/programbench-sol61-retries-20261106/runs/php__php-src.c891263/submission.tar.gz",
+      "diagnostics": "/data/ProContract/programbench-ram-incident-20261107-0359/owned-release.json",
+      "model_requests": 0,
+      "automatic_unbounded_regrade": false
+    },
+    {
+      "id": "sol_luna_closeout",
+      "state": "running",
+      "scope": "Complete existing selected retries and corrected measurements; preserve valid-count reporting."
+    },
+    {
+      "id": "gpt6_luna_pairs",
+      "state": "running",
+      "scope": "Frozen ProContract versus native Codex+goal, exact model/effort and grants retained."
+    },
+    {
+      "id": "review_responses",
+      "state": "drafted_pending_actual_reviews",
+      "draft": "/data/ProContract/rebuttal-20261107/RESPONSE_MODULES_EN.md",
+      "evidence": "/data/ProContract/rebuttal-20261107/EVIDENCE_INDEX.md"
+    }
+  ]
+}
