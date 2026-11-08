@@ -120,6 +120,8 @@ class Budget:
         self.db.execute("CREATE TABLE IF NOT EXISTS rejections (at REAL, reason TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS response_identity (request_id INTEGER PRIMARY KEY, model TEXT, effort TEXT)")
         self.db.execute("CREATE TABLE IF NOT EXISTS request_context (request_id INTEGER PRIMARY KEY, snapshot_json TEXT NOT NULL)")
+        # Additive facts: legacy request rows remain unchanged/unknown.
+        self.db.execute("CREATE TABLE IF NOT EXISTS request_observations (seq INTEGER PRIMARY KEY AUTOINCREMENT, request_id INTEGER NOT NULL, at REAL NOT NULL, event_json TEXT NOT NULL)")
         self.profile = dict(seconds=seconds, requests=requests, model=model, effort=effort)
         encoded = json.dumps(self.profile, sort_keys=True)
         with self.db:
@@ -227,6 +229,18 @@ class Budget:
                 cursor = self.db.execute("INSERT INTO requests(started,original_sha256,forwarded_sha256,truncations) VALUES(?,?,?,?)",
                     (time.time(), digest(original), digest(forwarded), json.dumps(truncations)))
                 request = cursor.lastrowid
+                try:
+                    metadata = json.loads(original).get('client_metadata', {})
+                    nested = metadata.get('x-codex-turn-metadata', '{}')
+                    nested = json.loads(nested) if isinstance(nested, str) else {}
+                    identity = {key: metadata.get(key, nested.get(key)) for key in
+                                ('thread_id', 'turn_id', 'session_id', 'root_turn_id', 'turn_trigger', 'thread_source')}
+                    identity = {key: value for key, value in identity.items() if isinstance(value, str)}
+                except (ValueError, TypeError, AttributeError):
+                    identity = {}
+                self.db.execute("INSERT INTO request_observations(request_id,at,event_json) VALUES(?,?,?)",
+                                (request, time.time(), json.dumps({'kind': 'request_identity', 'identity': identity,
+                                 'scope': 'Observed transport metadata, not authorization or verified role identity'})))
                 if resource_context:
                     snapshot = self._resource_snapshot_locked(current_request_included=True)
                     value = json.loads(forwarded)
@@ -255,6 +269,16 @@ class Budget:
             with self.db:
                 self.db.execute("UPDATE requests SET http_status=COALESCE(?,http_status),terminal=COALESCE(?,terminal),usage=COALESCE(?,usage),failure=COALESCE(?,failure),finished=COALESCE(?,finished) WHERE id=?",
                     (status, terminal, json.dumps(usage) if usage is not None else None, failure, time.time() if finished else None, request))
+
+    def observe_transport(self, request, **facts):
+        """Record transport facts, not solver validity or retry decisions."""
+        with self.lock:
+            if self.closed:
+                return
+            with self.db:
+                observed_at = time.time()
+                self.db.execute("INSERT INTO request_observations(request_id,at,event_json) VALUES(?,?,?)",
+                                (request, observed_at, json.dumps({**facts, 'observed_at': observed_at}, sort_keys=True)))
 
     def close(self):
         # Socket cancellation can leave a late HTTP callback. Serialize SQLite
@@ -352,6 +376,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             timer.daemon = True
             timer.start()
         began = False
+        phase = 'upstream_connect'
+        terminal_seen = False
         try:
             connection.connect()
             sockets.append(connection.sock)
@@ -364,7 +390,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             headers = {"Content-Type": "application/json", "Accept-Encoding": "identity"}
             if self.server.api_key:
                 headers['Authorization'] = 'Bearer ' + self.server.api_key
+            phase = 'upstream_send'
             connection.request('POST', upstream.path+'/responses', body=forwarded, headers=headers)
+            phase = 'upstream_read'
             response = connection.getresponse()
             budget.checkpoint(request, status=response.status)
             if response.status != 200:
@@ -373,6 +401,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise ValueError('upstream error body too large')
                 # Preserve capacity/billing/error identity and server wait advice.
                 # Each native retry re-enters this gateway and is charged anew.
+                phase = 'downstream_write'
                 self.send_response(response.status if response.status >= 400 else 502)
                 self.send_header('Content-Type', response.getheader('Content-Type') or 'application/json')
                 self.send_header('Content-Length', str(len(body)))
@@ -384,8 +413,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(body)
                 self.wfile.flush()
                 return
+            phase = 'response_validation'
             if not (response.getheader('Content-Type') or '').startswith('text/event-stream'):
                 raise ValueError("upstream did not return an event stream")
+            phase = 'downstream_write'
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Connection', 'close')
@@ -393,7 +424,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             began = True
             self.connection.settimeout(None if deadline is None else max(.001, deadline-time.time()))
             pending = bytearray()
-            while chunk := response.read1(65536):
+            while True:
+                phase = 'upstream_read'
+                chunk = response.read1(65536)
+                if not chunk:
+                    break
+                phase = 'response_validation'
                 pending.extend(chunk)
                 while b'\n' in pending:
                     line, _, pending = pending.partition(b'\n')
@@ -403,16 +439,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         except ValueError:
                             continue
                         if event.get('type') in ('response.completed', 'response.failed', 'response.incomplete'):
+                            terminal_seen = True
                             budget.observe_identity(request,event.get('response', {}))
                             budget.checkpoint(request, terminal=event['type'], usage=event.get('response', {}).get('usage'))
                 if len(pending) > MAX_BODY:
                     raise ValueError('upstream frame too large')
+                phase = 'downstream_write'
                 self.wfile.write(chunk)
                 self.wfile.flush()
         except (OSError, ValueError, http.client.HTTPException) as error:
+            budget.observe_transport(request, kind='transport_error', phase=phase,
+                                     failure_origin=phase, exception_type=type(error).__name__,
+                                     original_deadline_observed=expired.is_set(),
+                                     gateway_owner_shutdown_observed=self.server.closing.is_set())
             budget.checkpoint(request, failure=type(error).__name__)
             if not began and not expired.is_set() and not self.server.closing.is_set():
-                self.refuse('upstream transport failed', 502)
+                try:
+                    self.refuse('upstream transport failed', 502)
+                except OSError as downstream_error:
+                    # Preserve the original request failure and the second failure's direction.
+                    budget.observe_transport(request, kind='transport_error', phase='downstream_write',
+                                             failure_origin='downstream_write',
+                                             exception_type=type(downstream_error).__name__,
+                                             during_error_response=True,
+                                             original_deadline_observed=expired.is_set(),
+                                             gateway_owner_shutdown_observed=self.server.closing.is_set())
         finally:
             if timer:
                 timer.cancel()
@@ -420,6 +471,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.server.connections.difference_update(sockets)
             connection.close()
             self.close_connection = True
+            budget.observe_transport(request, kind='request_end', phase=phase, terminal_seen=terminal_seen,
+                                     original_deadline_observed=expired.is_set(),
+                                     gateway_owner_shutdown_observed=self.server.closing.is_set())
             budget.checkpoint(request, failure='task_deadline' if expired.is_set() else None, finished=True)
 
     def do_GET(self):
